@@ -36,6 +36,27 @@ Plot options:
 - Scaling of data between 0 and 1 using min and max
 - Synchronization of the x-axis of the sub-figures while zooming
 
+## Screenshots
+
+Several plots on the same figure:
+
+![OverPlot](/../screenshots/screenshots/OverPlot.png)
+
+Fast Fourier Transform of the signals (by selecting `FFT`) and displaying several plots using subfigures (by selecting `Subplot`). 
+
+![SubPlotFFT](/../screenshots/screenshots/SubPlotFFT.png)
+
+Scaling all plots between 0 and 1 (by selecting `MinMax`)
+
+![PlotMinMax](/../screenshots/screenshots/PlotMinMax.png)
+
+Scatter plot (by selecting `Scatter`)
+
+![Scatter](/../screenshots/screenshots/Scatter.png)
+
+Probability density function:
+
+![PlotPDF](/../screenshots/screenshots/PlotPDF.png)
 
 ## Requirements
 The script is compatible python 2.7 and python 3.
