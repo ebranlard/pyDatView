@@ -50,13 +50,16 @@ or type `make dep` from the main directory.
 If you have trouble installing wxPython, check their (wiki page)[https://wiki.wxpython.org/]
 
 ## Download 
-From the github page, click on the "Clone or download" button, and you may chose to download as Zip.
-Alternatively, from a command line:
-
+From a command line:
 ```bash
-git clone https://github.com/elmanuelito/pyDatView
+git clone --recurse-submodules https://github.com/elmanuelito/pyDatView
 cd pyDatView
 ```
+If you don't have git installed, you can download the pyDatView and weio repositories with the links below:
+(http://github.com/elmanuelito/weio/zipball/master/)
+(http://github.com/elmanuelito/pyDatView/zipball/master/)
+Then, place the content of the weio zip archive into the folder weio of the pyDatView directory.
+
 
 ### Installation
 The python packages mentioned in the Requirements section need to be installed.
