@@ -40,7 +40,7 @@ Plot options:
 
 Several plots on the same figure:
 
-![OverPlot](/../screenshots/screenshots/OverPlot.png)
+![OverPlot](/../screenshots/screenshots/OverPlot.png) <!-- .element height="50%" width="50%" -->
 
 Fast Fourier Transform of the signals (by selecting `FFT`) and displaying several plots using subfigures (by selecting `Subplot`). 
 
