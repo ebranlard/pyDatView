@@ -1,13 +1,13 @@
 # pyDatView
 
 A crossplatform GUI to display tabulated data from files or python pandas dataframes. Some of its features are: multiples plots, FFT plots, probability plots, export of figures...
-The file formats supported, are: CSV files and other formats present in the [http://github.com/elmanuelito/weio/](weio) library.
+The file formats supported, are: CSV files and other formats present in the [weio](http://github.com/elmanuelito/weio/) library.
 Additional file formats can easily be added.
 
 ## Usage
 The main script is executable and will open the GUI directly. A command line interface is provided, e.g.: 
 ```bash
-pydatview -i file.csv
+pyDatView file.csv
 ```
 The python package can also be used directly from python/jupyter to display a dataframe or show the data in a file
 ```python
@@ -20,7 +20,7 @@ pydatview.pydatview(filename='file.csv')
 ## Features
 Main features:
 - Plot of tabular data within a file
-- Automatic detection of fileformat (based on [http://github.com/elmanuelito/weio/](weio) but possibility to add more formats)
+- Automatic detection of fileformat (based on [weio](http://github.com/elmanuelito/weio/) but possibility to add more formats)
 - Reload of data (e.g. on file change)
 - Display of statistics
 - Export figure as pdf, png, eps, svg
@@ -45,8 +45,9 @@ If you have pip installed on your system, you can install them by typing in a te
 ```bash
 pip install numpy matplotlib pandas wxpython click 
 ```
+or type `make dep` from the main directory.
 
-If you have trouble installing wxPython, check their [https://wiki.wxpython.org/](wiki page)
+If you have trouble installing wxPython, check their (wiki page)[https://wiki.wxpython.org/]
 
 ## Download 
 From the github page, click on the "Clone or download" button, and you may chose to download as Zip.
@@ -61,15 +62,23 @@ cd pyDatView
 The python packages mentioned in the Requirements section need to be installed.
 To run the script standalone, no further installation steps are required, simply run:
 ```bash
-python pyDatView
+python pyDatView.py
 ```
 
 If you want to install the package to use it within python, run the following:
 ```bash
-python pyDatView
+python setup.py install
 ```
+or type `make install` from the main directory.
 
 ### System-wide installation
+Windows:
+The repository has a file `pyDatView.cmd`. If python is in your system path, double clicking on this file should open the application. Drag and dropping a file to this script will open the file. 
+To make the program accessible, you can create a shortcut to the file `pyDatView.cmd` and add it to your QuickLaunch toolbar if you have one.
+
+
+Linux/Mac:
+Make the file `pyDatView.py` executable and add it to your system path
 
 
 
