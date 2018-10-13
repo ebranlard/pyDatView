@@ -38,25 +38,24 @@ Plot options:
 
 ## Screenshots
 
-Several plots on the same figure:
+Scatter plot (by selecting `Scatter`) and several plots on the same figure:
 
-![OverPlot](/../screenshots/screenshots/OverPlot.png) <!-- .element height="50%" width="50%" -->
+![Scatter](/../screenshots/screenshots/PlotScatter.png)
+
+<!--![OverPlot](/../screenshots/screenshots/OverPlot.png) -->
 
 Fast Fourier Transform of the signals (by selecting `FFT`) and displaying several plots using subfigures (by selecting `Subplot`). 
 
 ![SubPlotFFT](/../screenshots/screenshots/SubPlotFFT.png)
 
+Probability density function:
+
+![PlotPDF](/../screenshots/screenshots/PlotPDF.png)
+
 Scaling all plots between 0 and 1 (by selecting `MinMax`)
 
 ![PlotMinMax](/../screenshots/screenshots/PlotMinMax.png)
 
-Scatter plot (by selecting `Scatter`)
-
-![Scatter](/../screenshots/screenshots/Scatter.png)
-
-Probability density function:
-
-![PlotPDF](/../screenshots/screenshots/PlotPDF.png)
 
 ## Requirements
 The script is compatible python 2.7 and python 3.
