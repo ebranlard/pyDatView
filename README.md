@@ -1,7 +1,7 @@
 # pyDatView
 
 A crossplatform GUI to display tabulated data from files or python pandas dataframes. Some of its features are: multiples plots, FFT plots, probability plots, export of figures...
-The file formats supported, are: CSV files and other formats present in the [weio](http://github.com/elmanuelito/weio/) library.
+The file formats supported, are: CSV files and other formats present in the [weio](http://github.com/ebranlard/weio/) library.
 Additional file formats can easily be added.
 
 ## Usage
@@ -20,7 +20,7 @@ pydatview.pydatview(filename='file.csv')
 ## Features
 Main features:
 - Plot of tabular data within a file
-- Automatic detection of fileformat (based on [weio](http://github.com/elmanuelito/weio/) but possibility to add more formats)
+- Automatic detection of fileformat (based on [weio](http://github.com/ebranlard/weio/) but possibility to add more formats)
 - Reload of data (e.g. on file change)
 - Display of statistics
 - Export figure as pdf, png, eps, svg
@@ -67,21 +67,22 @@ pip install numpy matplotlib pandas wxpython click
 ```
 or type `make dep` from the main directory.
 
-If you have trouble installing wxPython, check their (wiki page)[https://wiki.wxpython.org/]
+If you have trouble installing wxPython, check their [https://wiki.wxpython.org/](wiki page)
 
 ## Download 
 From a command line:
 ```bash
-git clone --recurse-submodules https://github.com/elmanuelito/pyDatView
-cd pyDatView
+git clone --recurse-submodules https://github.com/ebranlard/pyDatView
 ```
 If you don't have git installed, you can download the pyDatView and weio repositories with the links below:
-(http://github.com/elmanuelito/weio/zipball/master/)
-(http://github.com/elmanuelito/pyDatView/zipball/master/)
+
+- (http://github.com/ebranlard/weio/zipball/master/)
+- (http://github.com/ebranlard/pyDatView/zipball/master/)
+
 Then, place the content of the weio zip archive into the folder weio of the pyDatView directory.
 
 
-### Installation
+## Installation
 The python packages mentioned in the Requirements section need to be installed.
 To run the script standalone, no further installation steps are required, simply run:
 ```bash
@@ -94,7 +95,7 @@ python setup.py install
 ```
 or type `make install` from the main directory.
 
-### System-wide installation
+## System-wide installation
 Windows:
 The repository has a file `pyDatView.cmd`. If python is in your system path, double clicking on this file should open the application. Drag and dropping a file to this script will open the file. 
 To make the program accessible, you can create a shortcut to the file `pyDatView.cmd` and add it to your QuickLaunch toolbar if you have one.
@@ -105,7 +106,7 @@ Make the file `pyDatView.py` executable and add it to your system path
 
 
 
-### Adding more file formats
+## Adding more file formats
 File formats can be added by implementing a subclass of `weio/File.py`, for instance `weio/VTKFile.py`. Existing examples are found in the folder `weio`.
 Once implemented the fileformat needs to be registered in `weio/__init__.py` by adding an import line at the beginning of this script and adding a line in the function `fileFormats()` of the form `formats.append(FileFormat(VTKFile))`
 

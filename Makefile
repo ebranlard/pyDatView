@@ -19,5 +19,12 @@ test:
 	python pyDatView.py -i testfile
 
 exe:
+	python -m nuitka --follow-imports --show-progress --show-modules --output-dir=build-nuitka pyDatView.py
+
+#  --standalone --recurse-all --recurse-on --recurse-directory --show-progress --show-modules --plugin-enable=qt-plugins --python-version=2.7 --remove-output --output-dir=nuitka-build main.py
+
+pyexe:
 	pyinstaller --onedir pyDatView.py
+
+
 
