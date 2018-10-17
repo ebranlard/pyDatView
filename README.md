@@ -6,6 +6,22 @@ A crossplatform GUI to display tabulated data from files or python pandas datafr
 The file formats supported, are: CSV files and other formats present in the [weio](http://github.com/ebranlard/weio/) library.
 Additional file formats can easily be added.
 
+![Scatter](/../screenshots/screenshots/PlotScatter.png)
+
+## QuickStart
+For windows users, an installer executable is available here:
+ - https://github.com/ebranlard/pyDatView/releases
+For command line users:
+```bash
+git clone --recurse-submodules https://github.com/ebranlard/pyDatView
+cd pyDatView
+pip install -r requirements.txt
+python pyDatView.py
+#python setup.py install
+```
+More information about installation is provided in the sections below
+
+
 ## Usage
 The main script is executable and will open the GUI directly. A command line interface is provided, e.g.: 
 ```bash
@@ -18,6 +34,7 @@ pydatview.pydatview(dataframe=df)
 # OR
 pydatview.pydatview(filename='file.csv')
 ```
+
 
 ## Features
 Main features:
@@ -59,49 +76,33 @@ Scaling all plots between 0 and 1 (by selecting `MinMax`)
 ![PlotMinMax](/../screenshots/screenshots/PlotMinMax.png)
 
 
-## Requirements
-The script is compatible python 2.7 and python 3.
-The script relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`
+## Download, installation and requirements
+For windows users, an installer executable is available here:
+ - https://github.com/ebranlard/pyDatView/releases
 
-If you have pip installed on your system, you can install them by typing in a terminal: 
-```bash
-pip install numpy matplotlib pandas wxpython 
-```
-or type `make dep` from the main directory.
-
-If you have trouble installing wxPython, check their [https://wiki.wxpython.org/](wiki page)
-
-## Download 
-From a command line:
+For command line users, the script is compatible python 2.7 and python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`.
+The script can be donwloaded as follows:
 ```bash
 git clone --recurse-submodules https://github.com/ebranlard/pyDatView
 ```
-If you don't have git installed, you can download the pyDatView and weio repositories with the links below:
+If you have pip installed on your system, you can install the dependencies 
+```bash
+pip install -r requirements.txt
+```
+If you have trouble installing wxPython, check their [https://wiki.wxpython.org/](wiki page)
 
-- (http://github.com/ebranlard/weio/zipball/master/)
-- (http://github.com/ebranlard/pyDatView/zipball/master/)
-
-Then, place the content of the weio zip archive into the folder weio of the pyDatView directory.
-
-
-## Installation
-The python packages mentioned in the Requirements section need to be installed.
 To run the script standalone, no further installation steps are required, simply run:
 ```bash
 python pyDatView.py
 ```
-
 If you want to install the package to use it within python, run the following:
 ```bash
 python setup.py install
 ```
-or type `make install` from the main directory.
+
 
 ## System-wide installation
-Windows:
-The repository has a file `pyDatView.cmd`. If python is in your system path, double clicking on this file should open the application. Drag and dropping a file to this script will open the file. 
-To make the program accessible, you can create a shortcut to the file `pyDatView.cmd` and add it to your QuickLaunch toolbar if you have one.
-
+For windows users the installer should register the program and it should be accessible in the startmenu.
 
 Linux/Mac:
 Make the file `pyDatView.py` executable and add it to your system path
