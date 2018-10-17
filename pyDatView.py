@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 from __future__ import absolute_import
+import sys
+
 #import click
 #@click.option('-i','--inputfile', default='', help='Input file to read')
 #@click.command()
 #@click.argument('inputfile', default='')
 def main(inputfile=''):
+    import pydatview
     pydatview.pydatview(filename=inputfile)
 
 def tests():
@@ -17,8 +20,6 @@ def tests():
         weio.read(f)
 
 if __name__ == '__main__':
-    import pydatview
-    import sys
     if len(sys.argv)>1:
         if sys.argv[1]=='--test':
             tests()
