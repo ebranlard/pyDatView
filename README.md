@@ -59,11 +59,11 @@ Scaling all plots between 0 and 1 (by selecting `MinMax`)
 
 ## Requirements
 The script is compatible python 2.7 and python 3.
-The script relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`, `click`
+The script relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`
 
 If you have pip installed on your system, you can install them by typing in a terminal: 
 ```bash
-pip install numpy matplotlib pandas wxpython click 
+pip install numpy matplotlib pandas wxpython 
 ```
 or type `make dep` from the main directory.
 

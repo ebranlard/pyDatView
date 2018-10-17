@@ -1,0 +1,30 @@
+## ---- EXAMPLE 2: python
+language: python
+python:
+  - "2.7"
+  - "3.6"
+os: 
+ - linux
+sudo: true
+install:
+  - sudo apt-get install nsis
+  - pip install -r requirements.txt
+# commands to run test
+script: 
+  - python test.py
+
+before_deploy:
+  - pip install pynsist
+  - make installer
+
+deploy:
+  provider: releases
+  api_key: $GITHUB_TOKEN
+  file_glob: true
+  file:
+      - build/nsis/*.exe
+  overwrite:  true
+  skip_cleanup: true
+  on:
+     tags: true
+     condition: $TRAVIS_PYTHON_VERSION = 3.6

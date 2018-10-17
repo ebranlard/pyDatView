@@ -2,7 +2,8 @@ from __future__ import division, print_function
 
 #import pdb
 import wx
-import matplotlib
+import dateutil # required by matplotlib
+from matplotlib import rc as matplotlib_rc
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
@@ -28,7 +29,7 @@ FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_
 FILE_READER             = weio.read
 
 font = {'size'   : 9}
-matplotlib.rc('font', **font)
+matplotlib_rc('font', **font)
 def getMonoFont():
     return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
 
@@ -667,3 +668,9 @@ def pydatview(dataframe=None,filename=''):
         frame.load_file(filename,fileformat=None)
 
     app.MainLoop()
+
+def cmdline():
+    if len(sys.argv)>1:
+        pydatview(filename=sys.argv[1])
+    else:
+        pydatview()

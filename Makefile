@@ -6,7 +6,7 @@ install:
 	python setup.py install
 
 dep:
-	pip install numpy matplotlib pandas wxpython click 
+	pip install -r requirements.txt
 
 
 help:
@@ -16,15 +16,27 @@ help:
 	echo "   dep        download the dependencies " 
 
 test:
-	python pyDatView.py -i testfile
+	python pyDatView.py testfile
 
 exe:
-	python -m nuitka --follow-imports --show-progress --show-modules --output-dir=build-nuitka pyDatView.py
+	python -m nuitka --follow-imports --include-plugin-directory --include-plugin-files --show-progress --show-modules --output-dir=build-nuitka pyDatView.py
 
-#  --standalone --recurse-all --recurse-on --recurse-directory --show-progress --show-modules --plugin-enable=qt-plugins --python-version=2.7 --remove-output --output-dir=nuitka-build main.py
+exestd:
+	python -m nuitka --python-flag=no_site --assume-yes-for-downloads --standalone --follow-imports --include-plugin-directory --include-plugin-files --show-progress --show-modules --output-dir=build-nuitka-std pyDatView.py
+
+clean:
+	rm -rf __pycache__
+	rm -rf *.egg-info
+	rm -rf *.spec
+	rm -rf build*
+	rm -rf dist
+	
 
 pyexe:
 	pyinstaller --onedir pyDatView.py
+
+installer:
+	python -m nsist installer.cfg
 
 
 
