@@ -32,7 +32,7 @@ deploy:
   overwrite:  true
   skip_cleanup: true
   file:
-      - *.exe
+      - pyDatView*.exe
   name: $VERSION_NAME
   target_commitish: $TRAVIS_COMMIT 
   tag_name: $TRAVIS_TAG 
