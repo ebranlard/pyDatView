@@ -28,5 +28,4 @@ deploy:
   overwrite:  true
   skip_cleanup: true
   on:
-     tags: true
      condition: $TRAVIS_PYTHON_VERSION = 3.6
