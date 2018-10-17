@@ -1,21 +1,26 @@
-## ---- EXAMPLE 2: python
+# Travis-CI file for pyDatView
 language: python
+
 python:
 #  - "2.7"
   - "3.6"
 os: 
  - linux
 sudo: true
+
 install:
 #  - sudo apt-get install python-wxgtk3.0
   - sudo apt-get install nsis
 #   - pip install -r requirements.txt
   - pip install -r weio/requirements.txt
-# commands to run test
+
 script: 
   - make test
+  - if [[ "$TRAVIS_TAG" == "" ]]; then export TRAVIS_TAG="dev" ; fi
 
 before_deploy:
+  - export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
+  - if [[ "$TRAVIS_TAG" == "dev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
   - pip install pynsist
   - make installer
 
@@ -23,9 +28,13 @@ deploy:
   provider: releases
   api_key: $GITHUB_TOKEN
   file_glob: true
-  file:
-      - build/nsis/*.exe
   overwrite:  true
   skip_cleanup: true
+  file:
+      - build/nsis/*.exe
+  name: $VERSION_NAME
+  target_commitish: $TRAVIS_COMMIT 
+  tag_name: $TRAVIS_TAG 
   on:
+     tags: true
      condition: $TRAVIS_PYTHON_VERSION = 3.6
