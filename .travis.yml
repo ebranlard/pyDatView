@@ -23,6 +23,7 @@ before_deploy:
   - if [[ "$TRAVIS_TAG" == "dev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
   - pip install pynsist
   - make installer
+  - mv build/nsis/pyDatView.exe pyDatView_setup_$VERSION_NAME.exe
 
 deploy:
   provider: releases
@@ -31,7 +32,7 @@ deploy:
   overwrite:  true
   skip_cleanup: true
   file:
-      - build/nsis/*.exe
+      - *.exe
   name: $VERSION_NAME
   target_commitish: $TRAVIS_COMMIT 
   tag_name: $TRAVIS_TAG 
