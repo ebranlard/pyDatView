@@ -19,7 +19,7 @@ pip install -r requirements.txt
 python pyDatView.py
 #python setup.py install
 ```
-More information about installation is provided in the sections below
+More information about the download, installation and requirements is provided further down this page.
 
 
 ## Usage
@@ -77,8 +77,9 @@ Scaling all plots between 0 and 1 (by selecting `MinMax`)
 
 
 ## Download, installation and requirements
-For windows users, an installer executable is available here:
+For windows users, an installer executable is available here (look for pyDatView\*.exe):
  - https://github.com/ebranlard/pyDatView/releases
+
 
 For command line users, the script is compatible python 2.7 and python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`.
 The script can be donwloaded as follows:

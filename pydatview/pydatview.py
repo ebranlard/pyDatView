@@ -593,7 +593,7 @@ class MainFrame(wx.Frame):
         self.plotPanel.navTB.save_figure()
 
     def onAbout(self, event):
-        Info(self,'For authors/help/revision/license visit http://github.com/elmanuelito/pyDatView')
+        Info(self,'For authors/help/revision/license visit http://github.com/ebranlard/pyDatView')
 
     def onReload(self, event):
         if (self.filename is not None) and len(self.filename)>0:
@@ -609,8 +609,8 @@ class MainFrame(wx.Frame):
             Format = None
             wildcard = 'all (*.*)|*.*'
         else:
-            Format = FILEFORMATS[iFormat-1]
-            extensions='|*'+';*'.join(FILEFORMATS[iFormat-1].extensions)
+            Format = FILE_FORMATS[iFormat-1]
+            extensions='|*'+';*'.join(FILE_FORMATS[iFormat-1].extensions)
             wildcard = sFormat + extensions+'|all (*.*)|*.*'
 
         with wx.FileDialog(self, "Open file", wildcard=wildcard,
