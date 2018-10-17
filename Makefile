@@ -16,7 +16,7 @@ help:
 	echo "   dep        download the dependencies " 
 
 test:
-	python pyDatView.py testfile
+	python pyDatView.py --test
 
 exe:
 	python -m nuitka --follow-imports --include-plugin-directory --include-plugin-files --show-progress --show-modules --output-dir=build-nuitka pyDatView.py

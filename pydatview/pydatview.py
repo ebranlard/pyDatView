@@ -135,6 +135,7 @@ class InfoPanel(wx.Panel):
             else:
                 self.tInfo.AppendText('{:15s} mean:{:10.3e}  std:{:10.3e}  min:{:10.3e}  max:{:10.3e}\n'.format(s,np.nanmean(y),np.nanstd(y),np.nanmin(y),np.nanmax(y)))
         self.tInfo.ShowPosition(0)
+
         
 # --------------------------------------------------------------------------------}
 # --- ColumnsPanel:  
@@ -552,6 +553,8 @@ class MainFrame(wx.Frame):
         if bReload:
             self.columnsPanel.update_df(df)
             self.plotPanel.update_df(df)
+            I,S = self.columnsPanel.getSelectedColumns()
+            self.infoPanel.showStats(df,I,S)
         else:
             #
             self.vSplitter = wx.SplitterWindow(self.nb)

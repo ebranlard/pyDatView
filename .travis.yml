@@ -9,10 +9,11 @@ sudo: true
 install:
 #  - sudo apt-get install python-wxgtk3.0
   - sudo apt-get install nsis
-# - pip install -r requirements.txt
+#   - pip install -r requirements.txt
+  - pip install -r weio/requirements.txt
 # commands to run test
 script: 
-  - cat test.py
+  - make test
 
 before_deploy:
   - pip install pynsist
