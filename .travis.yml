@@ -7,7 +7,7 @@ os:
  - linux
 sudo: true
 install:
-  - sudo apt-get install python-wxgtk2.8
+  - sudo apt-get install python-wxgtk3.0
   - sudo apt-get install nsis
   - pip install -r requirements.txt
 # commands to run test
