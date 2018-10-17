@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ebranlard/pyDatView.svg?branch=master)](https://travis-ci.org/ebranlard/pyDatView)
+
 # pyDatView
 
 A crossplatform GUI to display tabulated data from files or python pandas dataframes. Some of its features are: multiples plots, FFT plots, probability plots, export of figures...
