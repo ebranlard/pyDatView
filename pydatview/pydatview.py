@@ -150,6 +150,7 @@ class ColumnsPanel(wx.Panel):
         # GUI
         self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbTab.SetFont(getMonoFont())
+        self.lbTab.Hide()
 
         lbX = wx.StaticText( self, -1, 'x: ')
         self.comboX = wx.ComboBox(self, choices=self.columns, style=wx.CB_READONLY)
@@ -504,18 +505,28 @@ class MainFrame(wx.Frame):
         tb.Bind(wx.EVT_BUTTON,self.onDEBUG,btDEBUG)
         tb.Realize() 
 
-        # --- Main Panel and Notebook
-        MainPanel = wx.Panel(self)
-        self.nb = wx.Notebook(MainPanel)
-        self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
-
         # --- Status bar
         self.statusbar=self.CreateStatusBar(3, style=0)
         self.statusbar.SetStatusWidths([230, -1, 70])
 
+        # --- Main Panel and Notebook
+        self.MainPanel = wx.Panel(self)
+        #self.MainPanel = wx.Panel(self, style=wx.RAISED_BORDER)
+        #self.MainPanel.SetBackgroundColour((200,0,0))
+
+        self.nb = wx.Notebook(self.MainPanel)
+        self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
+
+
         sizer = wx.BoxSizer()
-        sizer.Add(self.nb, 1, wx.EXPAND)
-        MainPanel.SetSizer(sizer)
+        sizer.Add(self.nb, 1, flag=wx.EXPAND)
+        self.MainPanel.SetSizer(sizer)
+
+        # --- Main Frame (self)
+        FrameSizer = wx.BoxSizer(wx.VERTICAL)
+        FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND)
+        self.SetSizer(FrameSizer)
+
         self.SetSize((800, 600))
         self.Center()
 
@@ -599,7 +610,8 @@ class MainFrame(wx.Frame):
             self.tSplitter.SetSashPosition(400)
 
             self.vSplitter.SplitVertically(self.columnsPanel, self.tSplitter)
-            self.vSplitter.SetMinimumPaneSize(230)
+            self.vSplitter.SetMinimumPaneSize(130)
+            self.tSplitter.SetSashPosition(130)
 
             self.nb.AddPage(self.vSplitter, "Plot")
             self.nb.SendSizeEvent()
@@ -636,36 +648,10 @@ class MainFrame(wx.Frame):
         ptr = self.columnsPanel.lbTab
         if ptr.IsShown():
             ptr.Hide()
+            self.resizeSideColumn(130)
         else:
             ptr.Show()
-        self.vSplitter.Fit()
-        #self.columnsPanel.Fit()
-        #self.columnsPanel.Refresh()
-        #self.columnsPanel.Update()
-        #self.columnsPanel.Layout()
-        #self.vSplitter.Refresh()
-        #self.tSplitter.Refresh()
-        #self.vSplitter.Update()
-        #self.vSplitter.Layout()
-        #self.nb.Refresh()
-        #self.nb.Update()
-        #self.nb.Layout()
-        #self.nb.SendSizeEvent()
-        #self.Refresh()
-        #self.Update()
-        #self.Layout()
-        #self.SendSizeEvent()
-        #self.SetSize(-1,500)
-        #self.tSplitter.Fit()
-        #self.nb.Fit()
-        #self.Fit()
-        #self.Refresh()
-        # NASTY HACK FOR NOW
-        S=self.GetSize()
-        S.SetWidth(S.GetWidth()+1)
-        self.SetSize(S)
-        S.SetWidth(S.GetWidth()-1)
-        self.SetSize(S)
+            self.resizeSideColumn(200)
 
     def onLoad(self, event):
         # --- File Format extension
@@ -687,6 +673,15 @@ class MainFrame(wx.Frame):
            if dlg.ShowModal() == wx.ID_CANCEL:
                return     # the user changed their mind
            self.load_file(dlg.GetPath(),fileformat=Format)
+
+    # --- Side column
+    def resizeSideColumn(self,width):
+        # To force the replot we do an epic unsplit/split...
+        self.vSplitter.Unsplit()
+        self.vSplitter.SplitVertically(self.columnsPanel, self.tSplitter)
+        self.vSplitter.SetMinimumPaneSize(width)
+        self.vSplitter.SetSashPosition(width)
+
 
 
     # --- NOTEBOOK 
