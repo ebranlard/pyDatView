@@ -1,6 +1,6 @@
 
 all:
-	python pyDatView.py
+	python pyDatView.py weio/_tests/HAWC2_ae.dat
 
 install:
 	python setup.py install

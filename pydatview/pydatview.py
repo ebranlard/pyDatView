@@ -148,6 +148,8 @@ class ColumnsPanel(wx.Panel):
         # data
         self.columns=['Index']+list(df.columns[:])
         # GUI
+        self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
+        self.lbTab.SetFont(getMonoFont())
         self.lbColumns=wx.ListBox(self, -1, choices=self.columns, style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont())
         # Selecting the second column for y-axis
@@ -157,7 +159,8 @@ class ColumnsPanel(wx.Panel):
             iSelect=0 # we roll back to selecting the index
         self.lbColumns.SetSelection(iSelect)
         
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
         sizer.Add(self.lbColumns, 2, flag=wx.EXPAND, border=5)
         self.SetSizer(sizer)
 
@@ -512,23 +515,30 @@ class MainFrame(wx.Frame):
         self.filename=filename
         try:
             F = FILE_READER(filename,fileformat = fileformat)
-            df = F.toDataFrame()
+            dfs = F.toDataFrame()
             self.statusbar.SetStatusText(F.filename,1)
             if fileformat is None:
                 self.statusbar.SetStatusText('Detected: '+F.formatName())
             else:
                 self.statusbar.SetStatusText('Format: '+F.formatName())
-            if len(df)<=0:
+            if len(dfs)<=0:
                 Warn(self,'No dataframe found while converting file:'+filename)
             else:
-                self.load_df(df,bReload=bReload)
+                self.load_df(dfs,bReload=bReload)
         except IOError:
             self.statusbar.SetStatusText('FAIL: '+filename,1)
             wx.LogError("Cannot open file:"+filename )
 
-    def load_df(self, df,bReload=False):
+    def load_df(self, dfs, bReload=False):
         if not bReload:
             self.cleanGUI()
+
+        if isinstance(dfs,dict):
+            df_names= list(dfs.keys())
+            df = dfs[df_names[0]]
+        else:
+            df=dfs
+
 
         # --- Postpro of df
         if len(df)>0:
@@ -555,15 +565,18 @@ class MainFrame(wx.Frame):
             self.plotPanel.update_df(df)
             I,S = self.columnsPanel.getSelectedColumns()
             self.infoPanel.showStats(df,I,S)
+            for k in df_names:
+                self.columnsPanel.lbTab.Append(k)
         else:
             #
             self.vSplitter = wx.SplitterWindow(self.nb)
             self.columnsPanel = ColumnsPanel(self.vSplitter, df)
+            for k in df_names:
+                self.columnsPanel.lbTab.Append(k)
 
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.plotPanel = PlotPanel(self.tSplitter, df, self.columnsPanel)
-            #self.infoPanel = RandomPanel(self.tSplitter,(0  ,0  ,200),'l4')
             self.infoPanel = InfoPanel(self.tSplitter)
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
@@ -572,15 +585,15 @@ class MainFrame(wx.Frame):
             self.tSplitter.SetSashPosition(400)
 
             self.vSplitter.SplitVertically(self.columnsPanel, self.tSplitter)
-            self.vSplitter.SetMinimumPaneSize(130)
+            self.vSplitter.SetMinimumPaneSize(230)
 
             self.nb.AddPage(self.vSplitter, "Plot")
             self.nb.SendSizeEvent()
 
-            self.Bind(wx.EVT_LISTBOX, self.column_select, self.columnsPanel.lbColumns)
-            self.column_select(event=None)
+            self.Bind(wx.EVT_LISTBOX, self.onSelectionChange, self.columnsPanel.lbColumns)
+            self.onSelectionChange(event=None)
 
-    def column_select(self,event):
+    def onSelectionChange(self,event):
         self.plotPanel.redraw()
         I,S = self.columnsPanel.getSelectedColumns()
         self.infoPanel.showStats(self.df,I,S)
