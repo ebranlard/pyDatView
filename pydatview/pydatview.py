@@ -150,6 +150,9 @@ class ColumnsPanel(wx.Panel):
         # GUI
         self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbTab.SetFont(getMonoFont())
+
+        lbX = wx.StaticText( self, -1, 'x: ')
+        self.comboX = wx.ComboBox(self, choices=self.columns, style=wx.CB_READONLY)
         self.lbColumns=wx.ListBox(self, -1, choices=self.columns, style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont())
         # Selecting the second column for y-axis
@@ -159,10 +162,25 @@ class ColumnsPanel(wx.Panel):
             iSelect=0 # we roll back to selecting the index
         self.lbColumns.SetSelection(iSelect)
         
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
-        sizer.Add(self.lbColumns, 2, flag=wx.EXPAND, border=5)
-        self.SetSizer(sizer)
+        # Selecting the first column for x-axis
+        iSelect = min(1,self.comboX.GetCount())
+        _,isString,_,_=getColumn(df,iSelect)
+        if isString:
+            iSelect = 0 # we roll back and select the index
+        self.comboX.SetSelection(iSelect)
+
+        sizerX = wx.BoxSizer(wx.HORIZONTAL)
+        sizerX.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
+        sizerX.Add(self.comboX   ,0,wx.ALL | wx.ALIGN_CENTER,5)
+
+        sizerCol = wx.BoxSizer(wx.VERTICAL)
+        sizerCol.Add(sizerX       , 0, border=5)
+        sizerCol.Add(self.lbColumns, 2, flag=wx.EXPAND, border=5)
+
+        self.MainSizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.MainSizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
+        self.MainSizer.Add(sizerCol  , 2, flag=wx.EXPAND, border=5)
+        self.SetSizer(self.MainSizer)
 
     def update_df(self,df):
         """ Update of column names andGUI """
@@ -175,6 +193,14 @@ class ColumnsPanel(wx.Panel):
         for i in ISel:
             if i<len(self.columns):
                 self.lbColumns.SetSelection(i)
+
+        iSel    = self.comboX.GetSelection()
+        for i in reversed(range(self.comboX.GetCount())):
+            self.comboX.Delete(i)
+        for c in self.columns:
+            self.comboX.Append(c)
+        if iSel<len(self.columns):
+            self.comboX.SetSelection(iSel)
 
     def getSelectedColumns(self):
         I=self.lbColumns.GetSelections()
@@ -208,8 +234,7 @@ class PlotPanel(wx.Panel):
 
         self.navTB = MyNavigationToolbar2Wx(self.canvas)
 
-        lbX = wx.StaticText( self, -1, 'x-axis: ')
-        self.comboX = wx.ComboBox(self, choices=columns, style=wx.CB_READONLY)
+        #lbX = wx.StaticText( self, -1, 'x-axis: ')
         # Check Boxes
         self.cbScatter = wx.CheckBox(self, -1, 'Scatter',(10,10))
         self.cbPDF     = wx.CheckBox(self, -1, 'PDF',(10,10))
@@ -229,7 +254,6 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogY   )
         self.Bind(wx.EVT_CHECKBOX, self.minmax_select , self.cbMinMax )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSync )
-        self.Bind(wx.EVT_COMBOBOX, self.redraw_event)
         #
         #side_panel = wx.Panel(self,parent)
         # LAYOUT
@@ -247,8 +271,8 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbSync   ,0,wx.ALL                  ,1)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        row_sizer.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
-        row_sizer.Add(self.comboX   ,0,wx.ALL | wx.ALIGN_CENTER,5)
+        #row_sizer.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
+        #row_sizer.Add(self.comboX   ,0,wx.ALL | wx.ALIGN_CENTER,5)
         row_sizer.Add(self.navTB    ,0,wx.ALL                  ,5)
         row_sizer.Add(cb_sizer      ,0,wx.ALL                  ,5)
 
@@ -258,25 +282,12 @@ class PlotPanel(wx.Panel):
 
         self.SetSizer(plotsizer)
 
-        # Selecting devault values and redrawing
-        iSelect = min(1,self.comboX.GetCount())
-        _,isString,_,_=getColumn(self.df,iSelect)
-        if isString:
-            iSelect = 0 # we roll back and select the index
-        self.comboX.SetSelection(iSelect)
         self.redraw()
 
     def update_df(self, df):
         """ Update of data, GUI and redraw """
         self.df = df
         columns = self.colPanel.columns
-        iSel    = self.comboX.GetSelection()
-        for i in reversed(range(self.comboX.GetCount())):
-            self.comboX.Delete(i)
-        for c in columns:
-            self.comboX.Append(c)
-        if iSel<len(columns):
-            self.comboX.SetSelection(iSel)
         self.redraw()
 
     def redraw_event(self, event):
@@ -317,8 +328,8 @@ class PlotPanel(wx.Panel):
             return
 
         # Selecting x values
-        ix     = self.comboX.GetSelection()
-        xlabel = self.comboX.GetStringSelection()
+        ix     = self.colPanel.comboX.GetSelection()
+        xlabel = self.colPanel.comboX.GetStringSelection()
         x,xIsString,xIsDate,_=getColumn(self.df,ix)
 
         # Creating subplots
@@ -476,6 +487,7 @@ class MainFrame(wx.Frame):
         tb.AddSeparator()
         btOpen   = wx.Button( tb, wx.NewId(), "Open", wx.DefaultPosition, wx.DefaultSize )
         btReload = wx.Button( tb, wx.NewId(), "Reload", wx.DefaultPosition, wx.DefaultSize )
+        btDEBUG  = wx.Button( tb, wx.NewId(), "DEBUG", wx.DefaultPosition, wx.DefaultSize )
         self.comboFormats = wx.ComboBox( tb, choices = FILE_FORMATS_NAMES  , style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
         tb.AddStretchableSpace()
@@ -489,6 +501,7 @@ class MainFrame(wx.Frame):
         tb.AddSeparator()
         tb.Bind(wx.EVT_BUTTON,self.onLoad  ,btOpen  )
         tb.Bind(wx.EVT_BUTTON,self.onReload,btReload)
+        tb.Bind(wx.EVT_BUTTON,self.onDEBUG,btDEBUG)
         tb.Realize() 
 
         # --- Main Panel and Notebook
@@ -537,6 +550,7 @@ class MainFrame(wx.Frame):
             df_names= list(dfs.keys())
             df = dfs[df_names[0]]
         else:
+            df_names=['DF1']
             df=dfs
 
 
@@ -590,7 +604,8 @@ class MainFrame(wx.Frame):
             self.nb.AddPage(self.vSplitter, "Plot")
             self.nb.SendSizeEvent()
 
-            self.Bind(wx.EVT_LISTBOX, self.onSelectionChange, self.columnsPanel.lbColumns)
+            self.Bind(wx.EVT_COMBOBOX, self.onSelectionChange, self.columnsPanel.comboX   )
+            self.Bind(wx.EVT_LISTBOX , self.onSelectionChange, self.columnsPanel.lbColumns)
             self.onSelectionChange(event=None)
 
     def onSelectionChange(self,event):
@@ -616,6 +631,41 @@ class MainFrame(wx.Frame):
            self.load_file(self.filename,fileformat=None,bReload=True)
         else:
            Error(self,'Open a file first')
+
+    def onDEBUG(self, event):
+        ptr = self.columnsPanel.lbTab
+        if ptr.IsShown():
+            ptr.Hide()
+        else:
+            ptr.Show()
+        self.vSplitter.Fit()
+        #self.columnsPanel.Fit()
+        #self.columnsPanel.Refresh()
+        #self.columnsPanel.Update()
+        #self.columnsPanel.Layout()
+        #self.vSplitter.Refresh()
+        #self.tSplitter.Refresh()
+        #self.vSplitter.Update()
+        #self.vSplitter.Layout()
+        #self.nb.Refresh()
+        #self.nb.Update()
+        #self.nb.Layout()
+        #self.nb.SendSizeEvent()
+        #self.Refresh()
+        #self.Update()
+        #self.Layout()
+        #self.SendSizeEvent()
+        #self.SetSize(-1,500)
+        #self.tSplitter.Fit()
+        #self.nb.Fit()
+        #self.Fit()
+        #self.Refresh()
+        # NASTY HACK FOR NOW
+        S=self.GetSize()
+        S.SetWidth(S.GetWidth()+1)
+        self.SetSize(S)
+        S.SetWidth(S.GetWidth()-1)
+        self.SetSize(S)
 
     def onLoad(self, event):
         # --- File Format extension
