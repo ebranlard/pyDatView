@@ -138,13 +138,13 @@ class InfoPanel(wx.Panel):
 
         
 # --------------------------------------------------------------------------------}
-# --- ColumnsPanel:  
+# --- SelectionPanel:  
 # --------------------------------------------------------------------------------{
-class ColumnsPanel(wx.Panel):
+class SelectionPanel(wx.Panel):
     """ Display the list of the columns for the user to select """
     def __init__(self, parent, df):
         # Superclass constructor
-        super(ColumnsPanel,self).__init__(parent)
+        super(SelectionPanel,self).__init__(parent)
         # data
         self.columns=['Index']+list(df.columns[:])
         # GUI
@@ -219,15 +219,15 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         #self.SetToolBitmapSize((22,22))
 
 class PlotPanel(wx.Panel):
-    def __init__(self, parent, df, colPanel):
-        columns=colPanel.columns
+    def __init__(self, parent, df, selPanel):
+        columns=selPanel.columns
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
         # data
         self.df = df
         self.columns=columns
-        self.colPanel=colPanel
+        self.selPanel=selPanel
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
@@ -288,7 +288,7 @@ class PlotPanel(wx.Panel):
     def update_df(self, df):
         """ Update of data, GUI and redraw """
         self.df = df
-        columns = self.colPanel.columns
+        columns = self.selPanel.columns
         self.redraw()
 
     def redraw_event(self, event):
@@ -323,14 +323,14 @@ class PlotPanel(wx.Panel):
     def redraw(self):
         if len(self.df) <= 0:
             return
-        I,S = self.colPanel.getSelectedColumns()
+        I,S = self.selPanel.getSelectedColumns()
         nPlots=len(I)
         if nPlots<0:
             return
 
         # Selecting x values
-        ix     = self.colPanel.comboX.GetSelection()
-        xlabel = self.colPanel.comboX.GetStringSelection()
+        ix     = self.selPanel.comboX.GetSelection()
+        xlabel = self.selPanel.comboX.GetStringSelection()
         x,xIsString,xIsDate,_=getColumn(self.df,ix)
 
         # Creating subplots
@@ -586,22 +586,22 @@ class MainFrame(wx.Frame):
         self.statusbar.SetStatusText('{}x{}'.format(len(df.columns),len(df.iloc[:,0])),2)
 
         if bReload:
-            self.columnsPanel.update_df(df)
+            self.selPanel.update_df(df)
             self.plotPanel.update_df(df)
-            I,S = self.columnsPanel.getSelectedColumns()
+            I,S = self.selPanel.getSelectedColumns()
             self.infoPanel.showStats(df,I,S)
             for k in df_names:
-                self.columnsPanel.lbTab.Append(k)
+                self.selPanel.lbTab.Append(k)
         else:
             #
             self.vSplitter = wx.SplitterWindow(self.nb)
-            self.columnsPanel = ColumnsPanel(self.vSplitter, df)
+            self.selPanel = SelectionPanel(self.vSplitter, df)
             for k in df_names:
-                self.columnsPanel.lbTab.Append(k)
+                self.selPanel.lbTab.Append(k)
 
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
-            self.plotPanel = PlotPanel(self.tSplitter, df, self.columnsPanel)
+            self.plotPanel = PlotPanel(self.tSplitter, df, self.selPanel)
             self.infoPanel = InfoPanel(self.tSplitter)
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
@@ -609,20 +609,20 @@ class MainFrame(wx.Frame):
             self.tSplitter.SetSashGravity(1)
             self.tSplitter.SetSashPosition(400)
 
-            self.vSplitter.SplitVertically(self.columnsPanel, self.tSplitter)
+            self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
             self.vSplitter.SetMinimumPaneSize(130)
             self.tSplitter.SetSashPosition(130)
 
             self.nb.AddPage(self.vSplitter, "Plot")
             self.nb.SendSizeEvent()
 
-            self.Bind(wx.EVT_COMBOBOX, self.onSelectionChange, self.columnsPanel.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onSelectionChange, self.columnsPanel.lbColumns)
+            self.Bind(wx.EVT_COMBOBOX, self.onSelectionChange, self.selPanel.comboX   )
+            self.Bind(wx.EVT_LISTBOX , self.onSelectionChange, self.selPanel.lbColumns)
             self.onSelectionChange(event=None)
 
     def onSelectionChange(self,event):
         self.plotPanel.redraw()
-        I,S = self.columnsPanel.getSelectedColumns()
+        I,S = self.selPanel.getSelectedColumns()
         self.infoPanel.showStats(self.df,I,S)
 
     def onExit(self, event):
@@ -645,7 +645,7 @@ class MainFrame(wx.Frame):
            Error(self,'Open a file first')
 
     def onDEBUG(self, event):
-        ptr = self.columnsPanel.lbTab
+        ptr = self.selPanel.lbTab
         if ptr.IsShown():
             ptr.Hide()
             self.resizeSideColumn(130)
@@ -678,11 +678,9 @@ class MainFrame(wx.Frame):
     def resizeSideColumn(self,width):
         # To force the replot we do an epic unsplit/split...
         self.vSplitter.Unsplit()
-        self.vSplitter.SplitVertically(self.columnsPanel, self.tSplitter)
+        self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
         self.vSplitter.SetMinimumPaneSize(width)
         self.vSplitter.SetSashPosition(width)
-
-
 
     # --- NOTEBOOK 
     def deletePages(self):
