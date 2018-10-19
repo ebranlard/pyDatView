@@ -28,6 +28,9 @@ FILE_FORMATS_EXTENSIONS = [f.extensions for f in FILE_FORMATS]
 FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
 FILE_READER             = weio.read
 
+SIDE_COL_SMALL = 130
+SIDE_COL_LARGE = 230
+
 font = {'size'   : 9}
 matplotlib_rc('font', **font)
 def getMonoFont():
@@ -105,6 +108,56 @@ def pretty_time(t):
     return s
 
 # --------------------------------------------------------------------------------}
+# --- Table 
+# --------------------------------------------------------------------------------{
+class Table(object):
+    def __init__(self,data=[],columns=[],name='',df=None):
+        if df is not None:
+            # pandas
+            if len(name)==0:
+                self.name=df.column.name
+            else:
+                self.name=name
+            self.data    = df
+            self.columns = df.columns.values
+        else: 
+            # ndarray??
+            raise Exception('Implementation of tables with ndarray dropped for now')
+            self.name=name
+            self.data=data
+            self.columns=columns
+        self.convertTimeColumns()
+
+    def __repr__(self):
+        return 'Tab {} ({}x{})'.format(self.name,self.nCols,self.nRows)
+
+    def convertTimeColumns(self):
+        if len(self.data)>0:
+            for i,c in enumerate(self.columns):
+                y = self.data.iloc[:,i]
+                if y.dtype == np.object and isinstance(y.values[0], str):
+                    try:
+                        parser.parse(y.values[0])
+                        isDate=True
+                    except:
+                        if y.values[0]=='NaT':
+                            isDate=True
+                        else:
+                            isDate=False
+                    if isDate:
+                        print('Converting column {} to datetime'.format(c))
+                        self.data.iloc[:,i]=pd.to_datetime(self.data.iloc[:,i].values).to_pydatetime()
+
+    @property
+    def nCols(self):
+        return len(self.columns) 
+
+    @property
+    def nRows(self):
+        return len(self.data.iloc[:,0]) # TODO if not panda
+
+
+# --------------------------------------------------------------------------------}
 # --- InfoPanel 
 # --------------------------------------------------------------------------------{
 class InfoPanel(wx.Panel):
@@ -121,19 +174,21 @@ class InfoPanel(wx.Panel):
         self.SetSizer(sizer)
         self.SetMaxSize((-1, 50))
 
-    def showStats(self,df,ColIndexes,ColNames):
+    def showStats(self,tabs,ITab,ColIndexes,ColNames):
         self.tInfo.SetValue("")
-        for i,s in zip(ColIndexes,ColNames):
-            y,yIsString,yIsDate,_=getColumn(df,i)
-            if yIsString:
-                self.tInfo.AppendText('{:15s} (string) first:{}  last:{}  min:{}  max:{}\n'.format(s,y[0],y[-1],min(y,key=len),max(y,key=len)))
-            elif yIsDate:
-                dt0=y[1]-y[0]
-                dt    = pretty_time(np.timedelta64((y[1]-y[0]),'s').item().total_seconds())
-                dtAll = pretty_time(np.timedelta64((y[-1]-y[0]),'s').item().total_seconds())
-                self.tInfo.AppendText('{:15s} (date) first:{} last:{} dt:{} range:{}\n'.format(s,y[0],y[-1],dt,dtAll))
-            else:
-                self.tInfo.AppendText('{:15s} mean:{:10.3e}  std:{:10.3e}  min:{:10.3e}  max:{:10.3e}\n'.format(s,np.nanmean(y),np.nanstd(y),np.nanmin(y),np.nanmax(y)))
+        for iTab in ITab:
+            tab = tabs[iTab]
+            for i,s in zip(ColIndexes,ColNames):
+                y,yIsString,yIsDate,_=getColumn(tab.data,i)
+                if yIsString:
+                    self.tInfo.AppendText('{:15s} (string) first:{}  last:{}  min:{}  max:{}\n'.format(s,y[0],y[-1],min(y,key=len),max(y,key=len)))
+                elif yIsDate:
+                    dt0=y[1]-y[0]
+                    dt    = pretty_time(np.timedelta64((y[1]-y[0]),'s').item().total_seconds())
+                    dtAll = pretty_time(np.timedelta64((y[-1]-y[0]),'s').item().total_seconds())
+                    self.tInfo.AppendText('{:15s} (date) first:{} last:{} dt:{} range:{}\n'.format(s,y[0],y[-1],dt,dtAll))
+                else:
+                    self.tInfo.AppendText('{:15s} mean:{:10.3e}  std:{:10.3e}  min:{:10.3e}  max:{:10.3e}\n'.format(s,np.nanmean(y),np.nanstd(y),np.nanmin(y),np.nanmax(y)))
         self.tInfo.ShowPosition(0)
 
         
@@ -141,34 +196,21 @@ class InfoPanel(wx.Panel):
 # --- SelectionPanel:  
 # --------------------------------------------------------------------------------{
 class SelectionPanel(wx.Panel):
-    """ Display the list of the columns for the user to select """
-    def __init__(self, parent, df):
+    """ Display options for the user to select data """
+    def __init__(self, parent, tabs):
         # Superclass constructor
         super(SelectionPanel,self).__init__(parent)
-        # data
-        self.columns=['Index']+list(df.columns[:])
+        self.parent = parent
         # GUI
-        self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
+        #self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
+        self.lbTab=wx.ListBox(self, -1, choices=[])
         self.lbTab.SetFont(getMonoFont())
-        self.lbTab.Hide()
+        #self.lbTab.Hide()
 
         lbX = wx.StaticText( self, -1, 'x: ')
-        self.comboX = wx.ComboBox(self, choices=self.columns, style=wx.CB_READONLY)
-        self.lbColumns=wx.ListBox(self, -1, choices=self.columns, style=wx.LB_EXTENDED )
+        self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
+        self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont())
-        # Selecting the second column for y-axis
-        iSelect=min(2,self.lbColumns.GetCount())
-        _,isString,_,_=getColumn(df,iSelect)
-        if isString:
-            iSelect=0 # we roll back to selecting the index
-        self.lbColumns.SetSelection(iSelect)
-        
-        # Selecting the first column for x-axis
-        iSelect = min(1,self.comboX.GetCount())
-        _,isString,_,_=getColumn(df,iSelect)
-        if isString:
-            iSelect = 0 # we roll back and select the index
-        self.comboX.SetSelection(iSelect)
 
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
         sizerX.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
@@ -183,8 +225,66 @@ class SelectionPanel(wx.Panel):
         self.MainSizer.Add(sizerCol  , 2, flag=wx.EXPAND, border=5)
         self.SetSizer(self.MainSizer)
 
-    def update_df(self,df):
-        """ Update of column names andGUI """
+        #
+        self.tabs=tabs
+        if len(tabs)>0:
+            #print(tabs)
+            self.updateTables(tabs)
+            self.selectDefaultTable()
+            self.selectDefaultColumns(self.tabForCol)
+
+    def updateTables(self,tabs):
+        """ Update the list of tables, while keeping the selection if any """
+        self.tabs = tabs
+        ISel=self.lbTab.GetSelections()
+        tabnames=[t.name for t in tabs]
+        #print('Updating tables with:')
+        #print(tabs)
+        for i in reversed(range(self.lbTab.GetCount())):
+            self.lbTab.Delete(i)
+        for t in tabnames:
+            self.lbTab.Append(t)
+        for i in ISel:
+            if i<len(tabnames):
+                self.lbTab.SetSelection(i)
+        if len(ISel)==0:        
+            self.selectDefaultTable()
+        # Trigger - updating columns
+        ISel=self.lbTab.GetSelections()
+        self.setTabForCol(ISel[0])
+        # Trigger 
+        if len(tabs)>1:
+            self.lbTab.Show()
+        else:
+            self.lbTab.Hide()
+
+    def setTabForCol(self,iSel):
+        self.tabForCol = self.tabs[iSel]
+        self.updateColumnNames(self.tabForCol)
+
+    def selectDefaultTable(self):
+        # Selecting the first table
+        if self.lbTab.GetCount()>0:
+            self.lbTab.SetSelection(0)
+
+    def selectDefaultColumns(self,tab):
+        df=tab.data
+        # Selecting the first column for x-axis
+        iSelect = min(1,self.comboX.GetCount())
+        _,isString,_,_=getColumn(df,iSelect)
+        if isString:
+            iSelect = 0 # we roll back and select the index
+        self.comboX.SetSelection(iSelect)
+
+        # Selecting the second column for y-axis
+        iSelect=min(2,self.lbColumns.GetCount())
+        _,isString,_,_=getColumn(df,iSelect)
+        if isString:
+            iSelect=0 # we roll back to selecting the index
+        self.lbColumns.SetSelection(iSelect)
+
+    def updateColumnNames(self,df):
+        """ Update of column names """
         ISel=self.lbColumns.GetSelections()
         self.columns=['Index']+list(df.columns[:])
         for i in reversed(range(self.lbColumns.GetCount())):
@@ -203,9 +303,17 @@ class SelectionPanel(wx.Panel):
         if iSel<len(self.columns):
             self.comboX.SetSelection(iSel)
 
+    def update_tabs(self, tabs):
+        self.updateTables(tabs)
+
     def getSelectedColumns(self):
         I=self.lbColumns.GetSelections()
         S=[self.lbColumns.GetString(i) for i in I]
+        return I,S
+
+    def getSelectedTables(self):
+        I=self.lbTab.GetSelections()
+        S=[self.lbTab.GetString(i) for i in I]
         return I,S
 
 # --------------------------------------------------------------------------------}
@@ -219,14 +327,11 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         #self.SetToolBitmapSize((22,22))
 
 class PlotPanel(wx.Panel):
-    def __init__(self, parent, df, selPanel):
-        columns=selPanel.columns
+    def __init__(self, parent, selPanel):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
         # data
-        self.df = df
-        self.columns=columns
         self.selPanel=selPanel
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
@@ -245,7 +350,7 @@ class PlotPanel(wx.Panel):
         self.cbLogY    = wx.CheckBox(self, -1, 'Log-y',(10,10))
         self.cbMinMax  = wx.CheckBox(self, -1, 'MinMax',(10,10))
         self.cbSync    = wx.CheckBox(self, -1, 'Sync-x',(10,10))
-        self.cbSub.SetValue(True)
+        #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.Bind(wx.EVT_CHECKBOX, self.scatter_select  , self.cbScatter)
         self.Bind(wx.EVT_CHECKBOX, self.pdf_select    , self.cbPDF    )
@@ -285,12 +390,6 @@ class PlotPanel(wx.Panel):
 
         self.redraw()
 
-    def update_df(self, df):
-        """ Update of data, GUI and redraw """
-        self.df = df
-        columns = self.selPanel.columns
-        self.redraw()
-
     def redraw_event(self, event):
         self.redraw()
     def fft_select(self, event):
@@ -321,16 +420,28 @@ class PlotPanel(wx.Panel):
         self.redraw()
 
     def redraw(self):
-        if len(self.df) <= 0:
+        tabs=self.selPanel.tabs
+        if len(tabs) <= 0:
             return
+
+        # TODO TODO GETDATA FROM SOMETHING ELSE
+        ITab,STab= self.selPanel.getSelectedTables()
+        if len(ITab)<=0 or len(ITab)>1:
+            return
+        self.df = tabs[ITab[0]].data
+
+
         I,S = self.selPanel.getSelectedColumns()
         nPlots=len(I)
         if nPlots<0:
             return
 
+
         # Selecting x values
         ix     = self.selPanel.comboX.GetSelection()
         xlabel = self.selPanel.comboX.GetStringSelection()
+        #import pdb
+        #pdb.set_trace()
         x,xIsString,xIsDate,_=getColumn(self.df,ix)
 
         # Creating subplots
@@ -488,7 +599,7 @@ class MainFrame(wx.Frame):
         tb.AddSeparator()
         btOpen   = wx.Button( tb, wx.NewId(), "Open", wx.DefaultPosition, wx.DefaultSize )
         btReload = wx.Button( tb, wx.NewId(), "Reload", wx.DefaultPosition, wx.DefaultSize )
-        btDEBUG  = wx.Button( tb, wx.NewId(), "DEBUG", wx.DefaultPosition, wx.DefaultSize )
+        #btDEBUG  = wx.Button( tb, wx.NewId(), "DEBUG", wx.DefaultPosition, wx.DefaultSize )
         self.comboFormats = wx.ComboBox( tb, choices = FILE_FORMATS_NAMES  , style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
         tb.AddStretchableSpace()
@@ -502,7 +613,7 @@ class MainFrame(wx.Frame):
         tb.AddSeparator()
         tb.Bind(wx.EVT_BUTTON,self.onLoad  ,btOpen  )
         tb.Bind(wx.EVT_BUTTON,self.onReload,btReload)
-        tb.Bind(wx.EVT_BUTTON,self.onDEBUG,btDEBUG)
+        #tb.Bind(wx.EVT_BUTTON,self.onDEBUG,btDEBUG)
         tb.Realize() 
 
         # --- Status bar
@@ -557,51 +668,34 @@ class MainFrame(wx.Frame):
         if not bReload:
             self.cleanGUI()
 
-        if isinstance(dfs,dict):
-            df_names= list(dfs.keys())
-            df = dfs[df_names[0]]
+        #  Creating a list of tables
+        if not isinstance(dfs,dict):
+            tabs=[Table(df=dfs, name='default')]
         else:
-            df_names=['DF1']
-            df=dfs
+            tabs=[]
+            for k in list(dfs.keys()):
+                tabs.append(Table(df=dfs[k], name=k))
 
-
-        # --- Postpro of df
-        if len(df)>0:
-            for i,c in enumerate(df.columns.values):
-                y = df.iloc[:,i]
-                if y.dtype == np.object and isinstance(y.values[0], str):
-                    try:
-                        parser.parse(y.values[0])
-                        isDate=True
-                    except:
-                        if y.values[0]=='NaT':
-                            isDate=True
-                        else:
-                            isDate=False
-                    if isDate:
-                        print('Converting column {} to datetime'.format(c))
-                        df.iloc[:,i]=pd.to_datetime(df.iloc[:,i].values).to_pydatetime()
-        #
-        self.df=df
-        self.statusbar.SetStatusText('{}x{}'.format(len(df.columns),len(df.iloc[:,0])),2)
+        ##
+        self.tabs=tabs
+        if len(tabs)==1:
+            self.statusbar.SetStatusText('{}x{}'.format(tabs[0].nCols,tabs[0].nRows),2)
 
         if bReload:
-            self.selPanel.update_df(df)
-            self.plotPanel.update_df(df)
-            I,S = self.selPanel.getSelectedColumns()
-            self.infoPanel.showStats(df,I,S)
-            for k in df_names:
-                self.selPanel.lbTab.Append(k)
+            self.selPanel.update_tabs(tabs)
+            # trigger
+            self.onColSelectionChange(event=None)
+            ## NOTE: stat trigger here is misplaced
+            #I,S = self.selPanel.getSelectedColumns()
+            #self.infoPanel.showStats(df,I,S)
         else:
             #
             self.vSplitter = wx.SplitterWindow(self.nb)
-            self.selPanel = SelectionPanel(self.vSplitter, df)
-            for k in df_names:
-                self.selPanel.lbTab.Append(k)
+            self.selPanel = SelectionPanel(self.vSplitter, tabs)
 
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
-            self.plotPanel = PlotPanel(self.tSplitter, df, self.selPanel)
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel)
             self.infoPanel = InfoPanel(self.tSplitter)
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
@@ -610,20 +704,43 @@ class MainFrame(wx.Frame):
             self.tSplitter.SetSashPosition(400)
 
             self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
-            self.vSplitter.SetMinimumPaneSize(130)
-            self.tSplitter.SetSashPosition(130)
+            self.vSplitter.SetMinimumPaneSize(SIDE_COL_SMALL)
+            self.tSplitter.SetSashPosition(SIDE_COL_SMALL)
 
             self.nb.AddPage(self.vSplitter, "Plot")
             self.nb.SendSizeEvent()
 
-            self.Bind(wx.EVT_COMBOBOX, self.onSelectionChange, self.selPanel.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onSelectionChange, self.selPanel.lbColumns)
-            self.onSelectionChange(event=None)
+            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.comboX   )
+            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.lbColumns)
+            self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.lbTab)
+            self.onColSelectionChange(event=None)
+        # Trigger 
+        if len(tabs)>1:
+            #self.selPanel.lbTab.Show()
+            self.resizeSideColumn(SIDE_COL_LARGE)
+        else:
+            #self.lbTab.Hide()
+            self.resizeSideColumn(SIDE_COL_SMALL)
 
-    def onSelectionChange(self,event):
+    def onTabSelectionChange(self,event):
+        ISel=self.selPanel.lbTab.GetSelections()
+        if len(ISel)>0:
+            # Setting tab
+            self.selPanel.setTabForCol(ISel[0])
+            #print('Selected: '+str(self.selPanel.tabForCol))
+            self.plotPanel.redraw()
+            # --- Stats
+            ITab,STab = self.selPanel.getSelectedTables()
+            I,S = self.selPanel.getSelectedColumns()
+            self.infoPanel.showStats(self.tabs,ITab,I,S)
+
+    def onColSelectionChange(self,event):
         self.plotPanel.redraw()
+        #print(self.tabs)
+        # --- Stats
+        ITab,STab = self.selPanel.getSelectedTables()
         I,S = self.selPanel.getSelectedColumns()
-        self.infoPanel.showStats(self.df,I,S)
+        self.infoPanel.showStats(self.tabs,ITab,I,S)
 
     def onExit(self, event):
         self.Close()
@@ -648,10 +765,10 @@ class MainFrame(wx.Frame):
         ptr = self.selPanel.lbTab
         if ptr.IsShown():
             ptr.Hide()
-            self.resizeSideColumn(130)
+            self.resizeSideColumn(SIDE_COL_SMALL)
         else:
             ptr.Show()
-            self.resizeSideColumn(200)
+            self.resizeSideColumn(SIDE_COL_LARGE)
 
     def onLoad(self, event):
         # --- File Format extension
