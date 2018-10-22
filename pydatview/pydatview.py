@@ -550,7 +550,7 @@ class PlotPanel(wx.Panel):
                     ax.plot(x,y, sty, label=ylabel, markersize=1)
                     if i==nPlots-1:
                         ax.set_xlabel(xlabel)
-                    if bSubPlots:
+                    if bSubPlots or (not bSubPlots and nPlots==1):
                         ax.set_ylabel(ylabel)
                     if self.cbLogX.IsChecked():
                         ax.set_xscale("log", nonposx='clip')
@@ -560,7 +560,7 @@ class PlotPanel(wx.Panel):
                         else:
                             ax.set_yscale("log", nonposy='clip')
 
-        if not bSubPlots:
+        if (not bSubPlots and nPlots!=1):
             ax.legend()
         self.canvas.draw()
 
