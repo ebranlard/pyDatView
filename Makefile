@@ -1,12 +1,17 @@
 
 all:
-	python pyDatView.py weio/_tests/HAWC2_ae.dat
+	python pyDatView
+
+
+deb:
+	python pyDatView.py Test.outb
+# 	python pyDatView.py weio/_tests/HAWC2_ae.dat
 
 install:
 	python setup.py install
 
 dep:
-	pip install -r requirements.txt
+	python -m pip install -r requirements.txt
 
 
 help:

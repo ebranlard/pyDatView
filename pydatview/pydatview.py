@@ -683,6 +683,8 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('{}x{}'.format(tabs[0].nCols,tabs[0].nRows),2)
 
         if bReload:
+            import gc
+            gc.collect()
             self.selPanel.update_tabs(tabs)
             # trigger
             self.onColSelectionChange(event=None)
@@ -805,6 +807,8 @@ class MainFrame(wx.Frame):
         for index in reversed(range(self.nb.GetPageCount())):
             self.nb.DeletePage(index)
         self.nb.SendSizeEvent()
+        import gc
+        gc.collect()
     def on_tab_change(self, event):
         page_to_select = event.GetSelection()
         wx.CallAfter(self.fix_focus, page_to_select)
