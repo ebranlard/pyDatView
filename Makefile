@@ -35,8 +35,15 @@ clean:
 pyexe:
 	pyinstaller --onedir pyDatView.py
 
-installer:
-	python -m nsist installer.cfg
+version:
+ifeq ($(OS),Windows_NT)
+	@echo "Doing nothing"
+else
+	@_tools/setVersion.sh
+endif
+
+installer: version
+	python -m nsist _tools/installer.cfg
 
 
 

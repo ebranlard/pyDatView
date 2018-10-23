@@ -23,6 +23,7 @@ import weio # File Formats and File Readers
 # --- GLOBAL 
 # --------------------------------------------------------------------------------{
 PROG_NAME='pyDatView'
+PROG_VERSION='v0.1-local'
 FILE_FORMATS            = weio.fileFormats()
 FILE_FORMATS_EXTENSIONS = [f.extensions for f in FILE_FORMATS]
 FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
@@ -571,7 +572,7 @@ class PlotPanel(wx.Panel):
 class MainFrame(wx.Frame):
     def __init__(self, df=None, filename=None):
         # Parent constructor
-        wx.Frame.__init__(self, None, -1, PROG_NAME)
+        wx.Frame.__init__(self, None, -1, PROG_NAME+' '+PROG_VERSION)
         # Data
         self.df=df
         self.filename=filename
