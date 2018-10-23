@@ -14,6 +14,8 @@ import pandas as pd
 import sys
 import traceback 
 from dateutil import parser
+import gc
+import pdb
 
 import weio # File Formats and File Readers
 
@@ -227,12 +229,13 @@ class SelectionPanel(wx.Panel):
         self.SetSizer(self.MainSizer)
 
         #
-        self.tabs=tabs
+        self.tabs=[]
+        self.itabForCol=None
         if len(tabs)>0:
             #print(tabs)
             self.updateTables(tabs)
             self.selectDefaultTable()
-            self.selectDefaultColumns(self.tabForCol)
+            self.selectDefaultColumns(self.tabs[self.itabForCol])
 
     def updateTables(self,tabs):
         """ Update the list of tables, while keeping the selection if any """
@@ -260,8 +263,8 @@ class SelectionPanel(wx.Panel):
             self.lbTab.Hide()
 
     def setTabForCol(self,iSel):
-        self.tabForCol = self.tabs[iSel]
-        self.updateColumnNames(self.tabForCol)
+        self.itabForCol=iSel
+        self.updateColumnNames(self.tabs[self.itabForCol])
 
     def selectDefaultTable(self):
         # Selecting the first table
@@ -307,6 +310,12 @@ class SelectionPanel(wx.Panel):
     def update_tabs(self, tabs):
         self.updateTables(tabs)
 
+    def getSelectionIndexes(self):
+        iSelTab = self.itabForCol
+        ISelYColumns=self.lbColumns.GetSelections()
+        iSelX= self.comboX.GetSelection()
+        return iSelTab,iSelX,ISelYColumns
+
     def getSelectedColumns(self):
         I=self.lbColumns.GetSelections()
         S=[self.lbColumns.GetString(i) for i in I]
@@ -334,6 +343,7 @@ class PlotPanel(wx.Panel):
         super(PlotPanel,self).__init__(parent)
         # data
         self.selPanel=selPanel
+        self.parent=parent
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
@@ -420,7 +430,20 @@ class PlotPanel(wx.Panel):
         self.cbPDF.SetValue(False)
         self.redraw()
 
+    def cleanPlot(self):
+        for ax in self.fig.axes:
+            self.fig.delaxes(ax)
+        self.fig.add_subplot(111)
+        ax = self.fig.axes[0]
+        ax.plot(1,1)
+        self.canvas.draw()
+        gc.collect()
+
     def redraw(self):
+        if not hasattr(self.selPanel,'tabs'):
+            Error(self.parent,'Open a file to plot the data.')
+            return
+
         tabs=self.selPanel.tabs
         if len(tabs) <= 0:
             return
@@ -429,7 +452,7 @@ class PlotPanel(wx.Panel):
         ITab,STab= self.selPanel.getSelectedTables()
         if len(ITab)<=0 or len(ITab)>1:
             return
-        self.df = tabs[ITab[0]].data
+        df = tabs[ITab[0]].data
 
 
         I,S = self.selPanel.getSelectedColumns()
@@ -443,7 +466,7 @@ class PlotPanel(wx.Panel):
         xlabel = self.selPanel.comboX.GetStringSelection()
         #import pdb
         #pdb.set_trace()
-        x,xIsString,xIsDate,_=getColumn(self.df,ix)
+        x,xIsString,xIsDate,_=getColumn(df,ix)
 
         # Creating subplots
         bSubPlots=self.cbSub.IsChecked()
@@ -474,7 +497,7 @@ class PlotPanel(wx.Panel):
             # Selecting y values
             iy = I[i]
             ylabel  = S[i]
-            y,yIsString,yIsDate,c=getColumn(self.df,iy)
+            y,yIsString,yIsDate,c=getColumn(df,iy)
 
             # Scaling
             if self.cbMinMax.IsChecked():
@@ -570,11 +593,10 @@ class PlotPanel(wx.Panel):
 # --- Main Frame  
 # --------------------------------------------------------------------------------{
 class MainFrame(wx.Frame):
-    def __init__(self, df=None, filename=None):
+    def __init__(self, filename=None):
         # Parent constructor
         wx.Frame.__init__(self, None, -1, PROG_NAME+' '+PROG_VERSION)
         # Data
-        self.df=df
         self.filename=filename
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
@@ -644,47 +666,73 @@ class MainFrame(wx.Frame):
 
         self.Show()
 
+    def clean_memory(self,bReload=False):
+        #print('Clean memory')
+        # force Memory cleanup
+        if hasattr(self,'dfs'):
+            del self.dfs
+        if hasattr(self,'tabs'):
+            del self.tabs
+            del self.selPanel.tabs
+
+        if hasattr(self,'plotPanel'):
+            self.plotPanel.cleanPlot()
+        gc.collect()
+
     def load_file(self,filename,fileformat=None,bReload=False):
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)
             return
+        # Cleaning memory
+        self.clean_memory(bReload=bReload)
+
         self.filename=filename
         try:
+            #
             F = FILE_READER(filename,fileformat = fileformat)
             dfs = F.toDataFrame()
+            #  Creating a list of tables
+            if not isinstance(dfs,dict):
+                tabs=[Table(df=dfs, name='default')]
+            else:
+                tabs=[]
+                for k in list(dfs.keys()):
+                    tabs.append(Table(df=dfs[k], name=k))
+
             self.statusbar.SetStatusText(F.filename,1)
             if fileformat is None:
                 self.statusbar.SetStatusText('Detected: '+F.formatName())
             else:
                 self.statusbar.SetStatusText('Format: '+F.formatName())
-            if len(dfs)<=0:
+            self.fileformatName = F.formatName()
+            if len(tabs)<=0:
                 Warn(self,'No dataframe found while converting file:'+filename)
             else:
-                self.load_df(dfs,bReload=bReload)
+                self.load_tabs(tabs,bReload=bReload)
+            del dfs
+            del F
         except IOError:
             self.statusbar.SetStatusText('FAIL: '+filename,1)
-            wx.LogError("Cannot open file:"+filename )
+            wx.LogError('Cannot open file: '+filename )
+        except MemoryError:
+            self.statusbar.SetStatusText('FAIL: '+filename,1)
+            Error(self,'Insufficient memory!'+'\n'+'Try closing and reopening the program, or use a 64 bit version of this program (python).')
+            raise
 
-    def load_df(self, dfs, bReload=False):
+    def load_df(self, df):
+        tab=[Table(df=df, name='default')]
+        self.load_tabs(tab)
+
+    def load_tabs(self, tabs, bReload=False):
         if not bReload:
             self.cleanGUI()
 
-        #  Creating a list of tables
-        if not isinstance(dfs,dict):
-            tabs=[Table(df=dfs, name='default')]
-        else:
-            tabs=[]
-            for k in list(dfs.keys()):
-                tabs.append(Table(df=dfs[k], name=k))
-
-        ##
         self.tabs=tabs
-        if len(tabs)==1:
-            self.statusbar.SetStatusText('{}x{}'.format(tabs[0].nCols,tabs[0].nRows),2)
+        ##
+        if len(self.tabs)==1:
+            self.statusbar.SetStatusText('{}x{}'.format(self.tabs[0].nCols,self.tabs[0].nRows),2)
 
         if bReload:
-            import gc
-            gc.collect()
             self.selPanel.update_tabs(tabs)
             # trigger
             self.onColSelectionChange(event=None)
@@ -749,7 +797,14 @@ class MainFrame(wx.Frame):
         self.Close()
 
     def cleanGUI(self, event=None):
+        if hasattr(self,'plotPanel'):
+            del self.plotPanel
+        if hasattr(self,'selPanel'):
+            del self.selPanel
+        if hasattr(self,'infoPanel'):
+            del self.infoPanel
         self.deletePages()
+        gc.collect()
 
     def onSave(self, event):
         # using the navigation toolbar save functionality
@@ -760,18 +815,37 @@ class MainFrame(wx.Frame):
 
     def onReload(self, event):
         if (self.filename is not None) and len(self.filename)>0:
-           self.load_file(self.filename,fileformat=None,bReload=True)
+            iFormat=self.comboFormats.GetSelection()
+            if iFormat==0: # auto-format
+                Format = None
+            else:
+                Format = FILE_FORMATS[iFormat-1]
+            ## finding fileformat from fileformat name...
+            #for i,fn in enumerate(FILE_FORMATS_NAMES):
+            #    if fn==self.fileformatName:
+            #        fmt = FILE_FORMATS[i]
+            #        break
+            self.load_file(self.filename,fileformat=Format,bReload=True)
         else:
            Error(self,'Open a file first')
 
     def onDEBUG(self, event):
-        ptr = self.selPanel.lbTab
-        if ptr.IsShown():
-            ptr.Hide()
-            self.resizeSideColumn(SIDE_COL_SMALL)
-        else:
-            ptr.Show()
-            self.resizeSideColumn(SIDE_COL_LARGE)
+        self.clean_memory()
+        #del self.plotPanel.fig
+        #del self.plotPanel.canvas
+        #del self.plotPanel.navTB
+        #del self.plotPanel
+        #del self.selPanel
+        #gc.collect()
+        #self.cleanGUI()
+        #gc.collect()
+        #ptr = self.selPanel.lbTab
+        #if ptr.IsShown():
+        #    ptr.Hide()
+        #    self.resizeSideColumn(SIDE_COL_SMALL)
+        #else:
+        #    ptr.Show()
+        #    self.resizeSideColumn(SIDE_COL_LARGE)
 
     def onLoad(self, event):
         # --- File Format extension
@@ -807,7 +881,6 @@ class MainFrame(wx.Frame):
         for index in reversed(range(self.nb.GetPageCount())):
             self.nb.DeletePage(index)
         self.nb.SendSizeEvent()
-        import gc
         gc.collect()
     def on_tab_change(self, event):
         page_to_select = event.GetSelection()
