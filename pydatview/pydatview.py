@@ -597,13 +597,13 @@ class MainFrame(wx.Frame):
         tb = self.CreateToolBar(wx.TB_HORIZONTAL)
         self.toolBar = tb 
         tb.AddSeparator()
-        btOpen   = wx.Button( tb, wx.NewId(), "Open", wx.DefaultPosition, wx.DefaultSize )
-        btReload = wx.Button( tb, wx.NewId(), "Reload", wx.DefaultPosition, wx.DefaultSize )
+        btOpen   = wx.Button(tb, wx.NewId(), "Open", wx.DefaultPosition, wx.DefaultSize )
+        btReload = wx.Button(tb, wx.NewId(), "Reload", wx.DefaultPosition, wx.DefaultSize )
         #btDEBUG  = wx.Button( tb, wx.NewId(), "DEBUG", wx.DefaultPosition, wx.DefaultSize )
-        self.comboFormats = wx.ComboBox( tb, choices = FILE_FORMATS_NAMES  , style=wx.CB_READONLY)  
+        self.comboFormats = wx.ComboBox(tb, choices = FILE_FORMATS_NAMES  , style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
         tb.AddStretchableSpace()
-        tb.AddControl( wx.StaticText( tb, -1, 'File format: ' ) )
+        tb.AddControl( wx.StaticText(tb, -1, 'File format: ' ) )
         tb.AddControl(self.comboFormats ) 
         tb.AddSeparator()
         tb.AddControl(btOpen)
@@ -779,7 +779,7 @@ class MainFrame(wx.Frame):
             wildcard = 'all (*.*)|*.*'
         else:
             Format = FILE_FORMATS[iFormat-1]
-            extensions='|*'+';*'.join(FILE_FORMATS[iFormat-1].extensions)
+            extensions = '|*'+';*'.join(FILE_FORMATS[iFormat-1].extensions)
             wildcard = sFormat + extensions+'|all (*.*)|*.*'
 
         with wx.FileDialog(self, "Open file", wildcard=wildcard,
