@@ -39,7 +39,7 @@ version:
 ifeq ($(OS),Windows_NT)
 	@echo "Doing nothing"
 else
-	@_tools/setVersion.sh
+	@sh _tools/setVersion.sh
 endif
 
 installer: version
