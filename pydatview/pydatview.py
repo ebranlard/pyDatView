@@ -811,7 +811,7 @@ class MainFrame(wx.Frame):
         self.plotPanel.navTB.save_figure()
 
     def onAbout(self, event):
-        Info(self,'For authors/help/revision/license visit http://github.com/ebranlard/pyDatView')
+        Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nWritten by E. Branlard. \n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReload(self, event):
         if (self.filename is not None) and len(self.filename)>0:
