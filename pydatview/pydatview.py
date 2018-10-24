@@ -908,7 +908,19 @@ def MyExceptionHook(etype, value, trace):
     exception = 'The following exception occured:\n\n'+ tmp[-1]  + '\n'+tmp[-2].strip()
     Error(frame,exception)
 
+# --------------------------------------------------------------------------------}
+# --- Tests 
+# --------------------------------------------------------------------------------{
+def test():
+    # --- Test df
+    size=10;
+    df = pd.DataFrame(data={'col1': np.linspace(0,1,size), 'col2': np.random.normal(0,1,size)})
+    pydatview(df)
+
  
+# --------------------------------------------------------------------------------}
+# --- Mains 
+# --------------------------------------------------------------------------------{
 def pydatview(dataframe=None,filename=''):
     """
     The main function to start the data frame GUI.
