@@ -691,33 +691,39 @@ class MainFrame(wx.Frame):
             #
             F = FILE_READER(filename,fileformat = fileformat)
             dfs = F.toDataFrame()
-            #  Creating a list of tables
-            if not isinstance(dfs,dict):
-                tabs=[Table(df=dfs, name='default')]
-            else:
-                tabs=[]
-                for k in list(dfs.keys()):
-                    tabs.append(Table(df=dfs[k], name=k))
-
-            self.statusbar.SetStatusText(F.filename,1)
-            if fileformat is None:
-                self.statusbar.SetStatusText('Detected: '+F.formatName())
-            else:
-                self.statusbar.SetStatusText('Format: '+F.formatName())
-            self.fileformatName = F.formatName()
-            if len(tabs)<=0:
-                Warn(self,'No dataframe found while converting file:'+filename)
-            else:
-                self.load_tabs(tabs,bReload=bReload)
-            del dfs
-            del F
         except IOError:
-            self.statusbar.SetStatusText('FAIL: '+filename,1)
-            wx.LogError('Cannot open file: '+filename )
+            Error(self, 'IO Error,  cannot open file: '+filename )
+            return
         except MemoryError:
-            self.statusbar.SetStatusText('FAIL: '+filename,1)
-            Error(self,'Insufficient memory!'+'\n'+'Try closing and reopening the program, or use a 64 bit version of this program (python).')
+            Error(self,'Insufficient memory!\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).')
+            return
+        except weio.FormatNotDetectedError:
+            Error(self,'File format not detected!\n\nUse an explicit file-format from the list')
+            return
+        except:
             raise
+
+        #  Creating a list of tables
+        if not isinstance(dfs,dict):
+            tabs=[Table(df=dfs, name='default')]
+        else:
+            tabs=[]
+            for k in list(dfs.keys()):
+                tabs.append(Table(df=dfs[k], name=k))
+
+        self.statusbar.SetStatusText(F.filename,1)
+        if fileformat is None:
+            self.statusbar.SetStatusText('Detected: '+F.formatName())
+        else:
+            self.statusbar.SetStatusText('Format: '+F.formatName())
+        self.fileformatName = F.formatName()
+        if len(tabs)<=0:
+            Warn(self,'No dataframe found while converting file:'+filename)
+        else:
+            self.load_tabs(tabs,bReload=bReload)
+        del dfs
+        del F
+            
 
     def load_df(self, df):
         tab=[Table(df=df, name='default')]
@@ -820,11 +826,6 @@ class MainFrame(wx.Frame):
                 Format = None
             else:
                 Format = FILE_FORMATS[iFormat-1]
-            ## finding fileformat from fileformat name...
-            #for i,fn in enumerate(FILE_FORMATS_NAMES):
-            #    if fn==self.fileformatName:
-            #        fmt = FILE_FORMATS[i]
-            #        break
             self.load_file(self.filename,fileformat=Format,bReload=True)
         else:
            Error(self,'Open a file first')
