@@ -86,8 +86,8 @@ def pretty_time(t):
         c=np.floor(t*100);
         s='{:2d}.{:2d}s'.format(0,int(c))
     elif(t<60) :
-        s=nb.floor(t);
-        c=nb.floor((t-s)*100);
+        s=np.floor(t);
+        c=np.floor((t-s)*100);
         s='{:2d}.{:2d}s'.format(int(s),int(c))
     elif(t<3600) :
         m=np.floor(t/60);
