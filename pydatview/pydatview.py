@@ -567,7 +567,7 @@ class PlotPanel(wx.Panel):
                 elif yIsString and n>100:
                     Warn(self,'Dataset `{}` has string format and is too large to display'.format(ylabel))
                 else:
-                    if self.cbScatter.IsChecked():
+                    if self.cbScatter.IsChecked() or len(x)<2:
                         sty='o'
                     else:
                         sty='-'
@@ -700,16 +700,24 @@ class MainFrame(wx.Frame):
         except weio.FormatNotDetectedError:
             Error(self,'File format not detected!\n\nUse an explicit file-format from the list')
             return
+        except weio.WrongFormatError as e:
+            Error(self,'Wrong file format!\n\n'+   \
+                    'The file parser for the selected format failed to open the file.\n\n'+   \
+                    'The reported error was:\n'+e.args[0]+'\n\n' +   \
+                    'Double-check your file format and report this error if you think it''s a bug.')
+            return
         except:
             raise
 
         #  Creating a list of tables
+        tabs=[]
         if not isinstance(dfs,dict):
-            tabs=[Table(df=dfs, name='default')]
+            if len(dfs)>0:
+                tabs=[Table(df=dfs, name='default')]
         else:
-            tabs=[]
             for k in list(dfs.keys()):
-                tabs.append(Table(df=dfs[k], name=k))
+                if len(dfs[k])>0:
+                    tabs.append(Table(df=dfs[k], name=k))
 
         self.statusbar.SetStatusText(F.filename,1)
         if fileformat is None:
@@ -718,7 +726,7 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('Format: '+F.formatName())
         self.fileformatName = F.formatName()
         if len(tabs)<=0:
-            Warn(self,'No dataframe found while converting file:'+filename)
+            Warn(self,'No dataframe found in file: '+filename)
         else:
             self.load_tabs(tabs,bReload=bReload)
         del dfs

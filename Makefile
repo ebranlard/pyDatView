@@ -1,6 +1,6 @@
 
 all:
-	python pyDatView.py
+	python pyDatView.py 
 
 
 deb:
