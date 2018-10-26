@@ -35,6 +35,7 @@ PROG_VERSION='v0.1-local'
 FILE_FORMATS            = weio.fileFormats()
 FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in FILE_FORMATS]
 FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
+FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
 FILE_READER             = weio.read
 
 SIDE_COL_SMALL = 130
@@ -279,8 +280,12 @@ class SelectionPanel(wx.Panel):
     def __init__(self, parent, tabs):
         # Superclass constructor
         super(SelectionPanel,self).__init__(parent)
-        self.parent = parent
-        # GUI
+        # DATA
+        self.tabs       = []
+        self.itabForCol = None
+        self.parent     = parent
+
+        # GUI DATA
         #self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
         self.lbTab.SetFont(getMonoFont())
@@ -304,9 +309,7 @@ class SelectionPanel(wx.Panel):
         self.MainSizer.Add(sizerCol  , 2, flag=wx.EXPAND, border=5)
         self.SetSizer(self.MainSizer)
 
-        #
-        self.tabs=[]
-        self.itabForCol=None
+        # TRIGGERS
         if len(tabs)>0:
             #print(tabs)
             self.updateTables(tabs)
@@ -414,6 +417,9 @@ class SelectionPanel(wx.Panel):
         S=[self.lbTab.GetString(i) for i in I]
         return I,S
 
+    def clean_memory(self):
+        del self.tabs
+
 # --------------------------------------------------------------------------------}
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
@@ -486,8 +492,7 @@ class PlotPanel(wx.Panel):
         plotsizer.Add(row_sizer)
 
         self.SetSizer(plotsizer)
-
-        self.redraw()
+        #self.redraw()
 
     def redraw_event(self, event):
         self.redraw()
@@ -667,8 +672,10 @@ class PlotPanel(wx.Panel):
                                 pass
                             else:
                                 ax.set_yscale("log", nonposy='clip')
-
     def redraw(self):
+        self._redraw()
+
+    def _redraw(self):
         if not hasattr(self.selPanel,'tabs'):
             Error(self.parent,'Open a file to plot the data.')
             return
@@ -689,6 +696,7 @@ class PlotPanel(wx.Panel):
         nPlots=len(I)
         if nPlots<0:
             return
+
         self.set_subplots(nPlots)
 
         for i,sTab in zip(ITab,STab):
@@ -723,6 +731,7 @@ class MainFrame(wx.Frame):
             self.filenames=[filename]
         else:
             self.filenames=[]
+        self.tabs=[]
             
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
@@ -750,8 +759,7 @@ class MainFrame(wx.Frame):
         btReload = wx.Button(tb, wx.NewId(), "Reload", wx.DefaultPosition, wx.DefaultSize )
         btAdd    = wx.Button(tb, wx.NewId(), "Add"   , wx.DefaultPosition, wx.DefaultSize )
         #btDEBUG  = wx.Button( tb, wx.NewId(), "DEBUG", wx.DefaultPosition, wx.DefaultSize )
-        fmt_name_and_ext=['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
-        self.comboFormats = wx.ComboBox(tb, choices = fmt_name_and_ext  , style=wx.CB_READONLY)  
+        self.comboFormats = wx.ComboBox(tb, choices = FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
         tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'File format: ' ) )
@@ -804,13 +812,27 @@ class MainFrame(wx.Frame):
             del self.dfs
         if hasattr(self,'tabs'):
             del self.tabs
-            del self.selPanel.tabs
+        if hasattr(self,'selPanel'):
+            self.selPanel.clean_memory()
 
         if hasattr(self,'plotPanel'):
             self.plotPanel.cleanPlot()
         gc.collect()
 
-    def load_file(self,filename,fileformat=None,bReload=False,bAdd=False):
+    def load_files(self,filenames=[],fileformat=None, bReload=False,bAdd=False):
+        """ load multiple files, only trigger the plot at the end """
+        for i,f in enumerate(filenames):
+            if i>0:
+                bAdd = True
+            if bAdd and (f in self.filenames):
+                Error(self,'Cannot add a file already opened')
+            else:
+                self.load_file(f,fileformat=fileformat,bAdd=bAdd,bPlot=False)
+        # Trigger a plot event at the end, in case an error occured
+        self.onColSelectionChange(event=None)
+
+    def load_file(self,filename,fileformat=None,bReload=False,bAdd=False,bPlot=True):
+        """ load a single file, adds table, and potentially trigger plotting """
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)
             return
@@ -861,7 +883,7 @@ class MainFrame(wx.Frame):
         if len(tabs)<=0:
             Warn(self,'No dataframe found in file: '+filename)
         else:
-            self.load_tabs(tabs,bReload=bReload,bAdd=bAdd)
+            self.load_tabs(tabs,bReload=bReload,bAdd=bAdd,bPlot=bPlot)
         del dfs
         del F
             
@@ -870,7 +892,7 @@ class MainFrame(wx.Frame):
         tab=[Table(df=df, name='default')]
         self.load_tabs(tab)
 
-    def load_tabs(self, tabs, bReload=False, bAdd=False):
+    def load_tabs(self, tabs, bReload=False, bAdd=False, bPlot=True):
         if (not bReload) and (not bAdd):
             self.cleanGUI()
 
@@ -884,8 +906,9 @@ class MainFrame(wx.Frame):
 
         if bReload or bAdd:
             self.selPanel.update_tabs(self.tabs)
-            # trigger
-            self.onColSelectionChange(event=None)
+            # plot trigger
+            if bPlot:
+                self.onColSelectionChange(event=None)
             ## NOTE: stat trigger here is misplaced
             #I,S = self.selPanel.getSelectedColumns()
             #self.infoPanel.showStats(df,I,S)
@@ -914,7 +937,9 @@ class MainFrame(wx.Frame):
             self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.comboX   )
             self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.lbColumns)
             self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.lbTab)
-            self.onColSelectionChange(event=None)
+            # plot trigger
+            if bPlot:
+                self.onColSelectionChange(event=None)
         # Trigger 
         if len(self.tabs)>1:
             #self.selPanel.lbTab.Show()
@@ -937,12 +962,9 @@ class MainFrame(wx.Frame):
 
             # Setting tab
             self.selPanel.setTabForCol(ISel[0])
-            #print('Selected: '+str(self.selPanel.tabForCol))
-            self.plotPanel.redraw()
-            # --- Stats
-            ITab,STab = self.selPanel.getSelectedTables()
-            I,S = self.selPanel.getSelectedColumns()
-            self.infoPanel.showStats(self.tabs,ITab,I,S)
+
+            # Trigger the colSelection Event
+            self.onColSelectionChange(event=None)
 
     def onColSelectionChange(self,event):
         self.plotPanel.redraw()
@@ -1014,23 +1036,22 @@ class MainFrame(wx.Frame):
         sFormat=self.comboFormats.GetStringSelection()
         if iFormat==0: # auto-format
             Format = None
-            wildcard = 'all (*.*)|*.*'
+            #wildcard = 'all (*.*)|*.*'
+            wildcard='|'.join([n+'|*'+';*'.join(e) for n,e in zip(FILE_FORMATS_NAMEXT,FILE_FORMATS_EXTENSIONS)])
+            #wildcard = sFormat + extensions+'|all (*.*)|*.*'
         else:
             Format = FILE_FORMATS[iFormat-1]
             extensions = '|*'+';*'.join(FILE_FORMATS[iFormat-1].extensions)
             wildcard = sFormat + extensions+'|all (*.*)|*.*'
 
         with wx.FileDialog(self, "Open file", wildcard=wildcard,
-                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
-            #other options: | wx.MULTIPLE | wx.CHANGE_DIR
+                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE) as dlg:
+            #other options: wx.CHANGE_DIR
             #dlg.SetSize((100,100))
             #dlg.Center()
            if dlg.ShowModal() == wx.ID_CANCEL:
                return     # the user changed their mind
-           if bAdd and (dlg.GetPath() in self.filenames):
-               Error(self,'Cannot add a file already opened')
-           else:
-               self.load_file(dlg.GetPath(),fileformat=Format,bAdd=bAdd)
+           self.load_files(dlg.GetPaths(),fileformat=Format,bAdd=bAdd)
 
 
     # --- Side column
