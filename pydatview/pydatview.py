@@ -33,7 +33,7 @@ import weio # File Formats and File Readers
 PROG_NAME='pyDatView'
 PROG_VERSION='v0.1-local'
 FILE_FORMATS            = weio.fileFormats()
-FILE_FORMATS_EXTENSIONS = [f.extensions for f in FILE_FORMATS]
+FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in FILE_FORMATS]
 FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
 FILE_READER             = weio.read
 
@@ -750,7 +750,8 @@ class MainFrame(wx.Frame):
         btReload = wx.Button(tb, wx.NewId(), "Reload", wx.DefaultPosition, wx.DefaultSize )
         btAdd    = wx.Button(tb, wx.NewId(), "Add"   , wx.DefaultPosition, wx.DefaultSize )
         #btDEBUG  = wx.Button( tb, wx.NewId(), "DEBUG", wx.DefaultPosition, wx.DefaultSize )
-        self.comboFormats = wx.ComboBox(tb, choices = FILE_FORMATS_NAMES  , style=wx.CB_READONLY)  
+        fmt_name_and_ext=['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
+        self.comboFormats = wx.ComboBox(tb, choices = fmt_name_and_ext  , style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
         tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'File format: ' ) )
