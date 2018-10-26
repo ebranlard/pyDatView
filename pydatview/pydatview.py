@@ -7,7 +7,7 @@ standard_library.install_aliases()
 import wx
 import dateutil # required by matplotlib
 import matplotlib
-# matplotlib.use('Agg')
+matplotlib.use('Agg') # Important for Windows version of installer
 from matplotlib import rc as matplotlib_rc
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
