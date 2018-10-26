@@ -165,6 +165,17 @@ class Table(object):
 
 
 # --------------------------------------------------------------------------------}
+# --- TabList 
+# --------------------------------------------------------------------------------{
+def haveSameColumns(tabs,I):
+    A=[len(tabs[i].columns)==len(tabs[I[0]].columns) for i in I ]
+    if all(A):
+        B=[all(tabs[i].columns==tabs[I[0]].columns) for i in I ]
+        return all(B)
+    else:
+        return False
+
+# --------------------------------------------------------------------------------}
 # --- InfoPanel 
 # --------------------------------------------------------------------------------{
 class InfoPanel(wx.Panel):
@@ -210,7 +221,7 @@ class SelectionPanel(wx.Panel):
         self.parent = parent
         # GUI
         #self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
-        self.lbTab=wx.ListBox(self, -1, choices=[])
+        self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
         self.lbTab.SetFont(getMonoFont())
         #self.lbTab.Hide()
 
@@ -250,13 +261,22 @@ class SelectionPanel(wx.Panel):
         #print(tabs)
         for i in reversed(range(self.lbTab.GetCount())):
             self.lbTab.Delete(i)
+
         for t in tabnames:
             self.lbTab.Append(t)
-        for i in ISel:
-            if i<len(tabnames):
-                self.lbTab.SetSelection(i)
-        if len(ISel)==0:        
+
+        # Reselecting
+        if len(ISel)>0:        
+            if not haveSameColumns(tabs,ISel):
+                ISel=ISel[0]
+            for i in ISel:
+                if i<len(tabs):
+                    self.lbTab.SetSelection(i)
+
+        #
+        if len(self.lbTab.GetSelections())==0:
             self.selectDefaultTable()
+
         # Trigger - updating columns
         ISel=self.lbTab.GetSelections()
         self.setTabForCol(ISel[0])
@@ -443,35 +463,7 @@ class PlotPanel(wx.Panel):
         self.canvas.draw()
         gc.collect()
 
-    def redraw(self):
-        if not hasattr(self.selPanel,'tabs'):
-            Error(self.parent,'Open a file to plot the data.')
-            return
-
-        tabs=self.selPanel.tabs
-        if len(tabs) <= 0:
-            return
-
-        # TODO TODO GETDATA FROM SOMETHING ELSE
-        ITab,STab= self.selPanel.getSelectedTables()
-        if len(ITab)<=0 or len(ITab)>1:
-            return
-        df = tabs[ITab[0]].data
-
-
-        I,S = self.selPanel.getSelectedColumns()
-        nPlots=len(I)
-        if nPlots<0:
-            return
-
-
-        # Selecting x values
-        ix     = self.selPanel.comboX.GetSelection()
-        xlabel = self.selPanel.comboX.GetStringSelection()
-        #import pdb
-        #pdb.set_trace()
-        x,xIsString,xIsDate,_=getColumn(df,ix)
-
+    def set_subplots(self,nPlots):
         # Creating subplots
         bSubPlots=self.cbSub.IsChecked()
         for ax in self.fig.axes:
@@ -490,18 +482,35 @@ class PlotPanel(wx.Panel):
                 #self.fig.add_subplot(1,nPlots,i+1)
         else:
             self.fig.add_subplot(111)
+        
+    def draw_tab(self,df,ix,xlabel,I,S,sTab,nTabs,bFirst=True):
+        #import pdb
+        #pdb.set_trace()
+        x,xIsString,xIsDate,_=getColumn(df,ix)
+
+        nPlots=len(I)
+        bSubPlots=self.cbSub.IsChecked()
 
         for i in range(nPlots):
             if bSubPlots:
                 ax = self.fig.axes[i]
-                ax.clear()
+                if bFirst:
+                    ax.clear()
             else:
                 ax = self.fig.axes[0]
 
             # Selecting y values
-            iy = I[i]
-            ylabel  = S[i]
+            iy     = I[i]
+            ylabel = S[i]
             y,yIsString,yIsDate,c=getColumn(df,iy)
+            if nTabs==1:
+                ylabelLeg  = ylabel
+            else:
+                if nPlots==1 or bSubPlots:
+                    ylabelLeg  = sTab
+                else:
+                    ylabelLeg  = sTab+' - '+ylabel
+
 
             # Scaling
             if self.cbMinMax.IsChecked():
@@ -525,15 +534,14 @@ class PlotPanel(wx.Panel):
                 elif yIsDate:
                     Warn(self,'Cannot plot PDF of dates')
                 else:
-                    #n=1000
-                    #y = np.random.normal(size=n) 
                     pdf, xx = np.histogram(y[~np.isnan(y)], bins=min(int(n/10),50))
                     dx  = xx[1] - xx[0]
                     xx  = xx[:-1] + dx/2
                     pdf = pdf / (n*dx)
-                    ax.plot(xx, pdf, label=ylabel)
-                    ax.set_xlabel(ylabel)
-                    ax.set_ylabel('PDF ('+ylabel+')')
+                    ax.plot(xx, pdf, label=ylabelLeg)
+                    if bFirst:
+                        ax.set_xlabel(ylabel)
+                        ax.set_ylabel('PDF ('+ylabel+')')
 
             elif self.cbFFT.IsChecked():
                 if yIsString or yIsDate:
@@ -555,15 +563,16 @@ class PlotPanel(wx.Panel):
                     frq = frq[range(int(n/2))] # one side frequency range
                     Y = np.fft.fft(y)/n # fft computing and normalization
                     Y = Y[range(int(n/2))]
-                    ax.plot(frq, abs(Y), label=ylabel)
-                    ax.set_ylabel('FFT ('+ylabel+')')
-                    if self.cbLogX.IsChecked():
-                        ax.set_xscale("log", nonposx='clip')
-                    if self.cbLogY.IsChecked():
-                        if all(Y<=0):
-                            pass
-                        else:
-                            ax.set_yscale("log", nonposy='clip')
+                    ax.plot(frq, abs(Y), label=ylabelLeg)
+                    if bFirst:
+                        ax.set_ylabel('FFT ('+ylabel+')')
+                        if self.cbLogX.IsChecked():
+                            ax.set_xscale("log", nonposx='clip')
+                        if self.cbLogY.IsChecked():
+                            if all(Y<=0):
+                                pass
+                            else:
+                                ax.set_yscale("log", nonposy='clip')
 
             else:
                 if xIsString and n>100:
@@ -575,20 +584,59 @@ class PlotPanel(wx.Panel):
                         sty='o'
                     else:
                         sty='-'
-                    ax.plot(x,y, sty, label=ylabel, markersize=1)
-                    if i==nPlots-1:
-                        ax.set_xlabel(xlabel)
-                    if bSubPlots or (not bSubPlots and nPlots==1):
-                        ax.set_ylabel(ylabel)
-                    if self.cbLogX.IsChecked():
-                        ax.set_xscale("log", nonposx='clip')
-                    if self.cbLogY.IsChecked():
-                        if all(y<=0):
-                            pass
-                        else:
-                            ax.set_yscale("log", nonposy='clip')
+                    ax.plot(x,y, sty, label=ylabelLeg, markersize=1)
+                    if bFirst:
+                        if i==nPlots-1:
+                            ax.set_xlabel(xlabel)
+                        if bSubPlots or (not bSubPlots and nPlots==1):
+                            ax.set_ylabel(ylabel)
+                        if self.cbLogX.IsChecked():
+                            ax.set_xscale("log", nonposx='clip')
+                        if self.cbLogY.IsChecked():
+                            if all(y<=0):
+                                pass
+                            else:
+                                ax.set_yscale("log", nonposy='clip')
 
-        if (not bSubPlots and nPlots!=1):
+    def redraw(self):
+        if not hasattr(self.selPanel,'tabs'):
+            Error(self.parent,'Open a file to plot the data.')
+            return
+
+        tabs=self.selPanel.tabs
+        if len(tabs) <= 0:
+            return
+
+        # TODO TODO GETDATA FROM SOMETHING ELSE
+        ITab,STab= self.selPanel.getSelectedTables()
+        nTabs = len(ITab)
+        if len(ITab)<=0:
+            return
+        
+        # --- Setting the scene
+        # TODO Multiple Columns to chose from
+        I,S = self.selPanel.getSelectedColumns()
+        nPlots=len(I)
+        if nPlots<0:
+            return
+        self.set_subplots(nPlots)
+
+        for i,sTab in zip(ITab,STab):
+            df = tabs[i].data
+
+            # Selecting x values
+            ix     = self.selPanel.comboX.GetSelection()
+            xlabel = self.selPanel.comboX.GetStringSelection()
+
+            self.draw_tab(df,ix,xlabel,I,S,sTab,nTabs,bFirst=(i==ITab[0]))
+
+
+        bSubPlots=self.cbSub.IsChecked()
+        if bSubPlots:
+            ax = self.fig.axes[-1]
+        else:
+            ax = self.fig.axes[0]
+        if (not bSubPlots and nPlots!=1) or (len(ITab)>1):
             ax.legend()
         self.canvas.draw()
 
@@ -794,6 +842,15 @@ class MainFrame(wx.Frame):
     def onTabSelectionChange(self,event):
         ISel=self.selPanel.lbTab.GetSelections()
         if len(ISel)>0:
+            if haveSameColumns(self.tabs,ISel):
+                pass # All good for now
+            else:
+                Error(self,'The two tables have different columns. Multiple table selection is only limited to identical tables for now.')
+                # unselect all and select only the first one
+                self.selPanel.lbTab.SetSelection(wx.NOT_FOUND)
+                self.selPanel.lbTab.SetSelection(ISel[0])
+                ISel=[ISel[0]]
+
             # Setting tab
             self.selPanel.setTabForCol(ISel[0])
             #print('Selected: '+str(self.selPanel.tabForCol))
