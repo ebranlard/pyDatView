@@ -114,6 +114,62 @@ def pretty_time(t):
         s='{:.1f}y'.format(y)
     return s
 
+def common_start(*strings):
+    """ Returns the longest common substring
+        from the beginning of the `strings`
+    """
+    if len(strings)==1:
+        strings=tuple(strings[0])
+    def _iter():
+        for z in zip(*strings):
+            if z.count(z[0]) == len(z):  # check all elements in `z` are the same
+                yield z[0]
+            else:
+                return
+    return ''.join(_iter())
+
+def common_end(*strings):
+    if len(strings)==1:
+        strings=strings[0]
+    else:
+        strings=list(strings)
+    strings = [s[-1::-1] for s in strings]
+    return common_start(strings)[-1::-1]
+
+
+def ellude_common(strings):
+    ss = common_start(strings)
+    se = common_end(strings)
+    iu = ss[:-1].rfind('_')
+    if iu > 0:
+        ss=ss[:iu+1]
+    iu = se[:-1].find('_')
+    if iu > 0:
+        se=se[iu:]
+    iu = se[:-1].find('.')
+    if iu > 0:
+        se=se[iu:]
+
+    ns=len(ss)     
+    ne=len(se)     
+
+    if any([len(s)<(ns+ne) for s in strings]):
+        print('abort1')
+        return strings
+    else:
+        strings = [s[ns:] for s in strings] 
+        if ne>0:
+            strings = [s[:-ne] for s in strings] 
+        return strings
+
+def no_unit(s):
+    iu=s.rfind(' [')
+    if iu>1:
+        return s[:iu]
+    else:
+        return s
+
+
 # --------------------------------------------------------------------------------}
 # --- Table 
 # --------------------------------------------------------------------------------{
@@ -257,12 +313,13 @@ class SelectionPanel(wx.Panel):
         self.tabs = tabs
         ISel=self.lbTab.GetSelections()
         tabnames=[t.name for t in tabs]
+        etabnames=ellude_common(tabnames)
         #print('Updating tables with:')
         #print(tabs)
         for i in reversed(range(self.lbTab.GetCount())):
             self.lbTab.Delete(i)
 
-        for t in tabnames:
+        for t in etabnames:
             self.lbTab.Append(t)
 
         # Reselecting
@@ -314,21 +371,23 @@ class SelectionPanel(wx.Panel):
     def updateColumnNames(self,df):
         """ Update of column names """
         ISel=self.lbColumns.GetSelections()
-        self.columns=['Index']+list(df.columns[:])
+        columns=['Index']+list(df.columns[:])
+        columns=[s.replace('_',' ') for s in columns]
+
         for i in reversed(range(self.lbColumns.GetCount())):
             self.lbColumns.Delete(i)
-        for c in self.columns:
+        for c in columns:
             self.lbColumns.Append(c)
         for i in ISel:
-            if i<len(self.columns):
+            if i<len(columns):
                 self.lbColumns.SetSelection(i)
 
         iSel    = self.comboX.GetSelection()
         for i in reversed(range(self.comboX.GetCount())):
             self.comboX.Delete(i)
-        for c in self.columns:
+        for c in columns:
             self.comboX.Append(c)
-        if iSel<len(self.columns):
+        if iSel<len(columns):
             self.comboX.SetSelection(iSel)
 
     def update_tabs(self, tabs):
@@ -504,12 +563,18 @@ class PlotPanel(wx.Panel):
             ylabel = S[i]
             y,yIsString,yIsDate,c=getColumn(df,iy)
             if nTabs==1:
-                ylabelLeg  = ylabel
+                if self.cbMinMax.IsChecked():
+                    ylabelLeg  = no_unit(ylabel)
+                else:
+                    ylabelLeg  = ylabel
             else:
                 if nPlots==1 or bSubPlots:
                     ylabelLeg  = sTab
                 else:
-                    ylabelLeg  = sTab+' - '+ylabel
+                    if self.cbMinMax.IsChecked():
+                        ylabelLeg  = sTab+' - ' + no_unit(ylabel)
+                    else:
+                        ylabelLeg  = sTab+' - ' + ylabel
 
 
             # Scaling
