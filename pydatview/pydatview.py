@@ -153,14 +153,13 @@ def ellude_common(strings):
     ns=len(ss)     
     ne=len(se)     
 
-    if any([len(s)<(ns+ne) for s in strings]):
-        print('abort1')
-        return strings
-    else:
-        strings = [s[ns:] for s in strings] 
-        if ne>0:
-            strings = [s[:-ne] for s in strings] 
-        return strings
+    strings = [s[ns:] for s in strings] 
+    if ne>0:
+        strings = [s[:-ne] for s in strings] 
+    for i,s in enumerate(strings):
+        if len(s)==0:
+            strings[i]='tab{}'.format(i)
+    return strings
 
 def no_unit(s):
     iu=s.rfind(' [')
@@ -174,7 +173,7 @@ def no_unit(s):
 # --- Table 
 # --------------------------------------------------------------------------------{
 class Table(object):
-    def __init__(self,data=[],columns=[],name='',df=None):
+    def __init__(self,data=[],columns=[],name='',filename='',df=None):
         if df is not None:
             # pandas
             if len(name)==0:
@@ -189,6 +188,9 @@ class Table(object):
             self.name=name
             self.data=data
             self.columns=columns
+        self.filename = filename
+        self.name=os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
+        
         self.convertTimeColumns()
 
     def __repr__(self):
@@ -714,7 +716,11 @@ class MainFrame(wx.Frame):
         # Parent constructor
         wx.Frame.__init__(self, None, -1, PROG_NAME+' '+PROG_VERSION)
         # Data
-        self.filename=filename
+        if filename is not None:
+            self.filenames=[filename]
+        else:
+            self.filenames=[]
+            
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
         # --- Menu
@@ -737,8 +743,9 @@ class MainFrame(wx.Frame):
         tb = self.CreateToolBar(wx.TB_HORIZONTAL)
         self.toolBar = tb 
         tb.AddSeparator()
-        btOpen   = wx.Button(tb, wx.NewId(), "Open", wx.DefaultPosition, wx.DefaultSize )
+        btOpen   = wx.Button(tb, wx.NewId(), "Open"  , wx.DefaultPosition, wx.DefaultSize )
         btReload = wx.Button(tb, wx.NewId(), "Reload", wx.DefaultPosition, wx.DefaultSize )
+        btAdd    = wx.Button(tb, wx.NewId(), "Add"   , wx.DefaultPosition, wx.DefaultSize )
         #btDEBUG  = wx.Button( tb, wx.NewId(), "DEBUG", wx.DefaultPosition, wx.DefaultSize )
         self.comboFormats = wx.ComboBox(tb, choices = FILE_FORMATS_NAMES  , style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
@@ -749,10 +756,13 @@ class MainFrame(wx.Frame):
         tb.AddControl(btOpen)
         tb.AddSeparator()
         tb.AddControl(btReload)
+        tb.AddSeparator()
+        tb.AddControl(btAdd)
         tb.AddStretchableSpace()
         tb.AddSeparator()
         tb.Bind(wx.EVT_BUTTON,self.onLoad  ,btOpen  )
         tb.Bind(wx.EVT_BUTTON,self.onReload,btReload)
+        tb.Bind(wx.EVT_BUTTON,self.onAdd   ,btAdd)
         #tb.Bind(wx.EVT_BUTTON,self.onDEBUG,btDEBUG)
         tb.Realize() 
 
@@ -796,14 +806,16 @@ class MainFrame(wx.Frame):
             self.plotPanel.cleanPlot()
         gc.collect()
 
-    def load_file(self,filename,fileformat=None,bReload=False):
+    def load_file(self,filename,fileformat=None,bReload=False,bAdd=False):
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)
             return
-        # Cleaning memory
-        self.clean_memory(bReload=bReload)
-
-        self.filename=filename
+        if bAdd:
+            self.filenames.append(filename)
+        else:
+            # Cleaning memory
+            self.clean_memory(bReload=bReload)
+            self.filenames=[filename]
         try:
             #
             F = FILE_READER(filename,fileformat = fileformat)
@@ -830,11 +842,11 @@ class MainFrame(wx.Frame):
         tabs=[]
         if not isinstance(dfs,dict):
             if len(dfs)>0:
-                tabs=[Table(df=dfs, name='default')]
+                tabs=[Table(df=dfs, name='default', filename=filename)]
         else:
             for k in list(dfs.keys()):
                 if len(dfs[k])>0:
-                    tabs.append(Table(df=dfs[k], name=k))
+                    tabs.append(Table(df=dfs[k], name=k, filename=filename))
 
         self.statusbar.SetStatusText(F.filename,1)
         if fileformat is None:
@@ -845,7 +857,7 @@ class MainFrame(wx.Frame):
         if len(tabs)<=0:
             Warn(self,'No dataframe found in file: '+filename)
         else:
-            self.load_tabs(tabs,bReload=bReload)
+            self.load_tabs(tabs,bReload=bReload,bAdd=bAdd)
         del dfs
         del F
             
@@ -854,17 +866,20 @@ class MainFrame(wx.Frame):
         tab=[Table(df=df, name='default')]
         self.load_tabs(tab)
 
-    def load_tabs(self, tabs, bReload=False):
-        if not bReload:
+    def load_tabs(self, tabs, bReload=False, bAdd=False):
+        if (not bReload) and (not bAdd):
             self.cleanGUI()
 
-        self.tabs=tabs
+        if bAdd:
+            self.tabs=self.tabs+tabs
+        else:
+            self.tabs=tabs
         ##
         if len(self.tabs)==1:
             self.statusbar.SetStatusText('{}x{}'.format(self.tabs[0].nCols,self.tabs[0].nRows),2)
 
-        if bReload:
-            self.selPanel.update_tabs(tabs)
+        if bReload or bAdd:
+            self.selPanel.update_tabs(self.tabs)
             # trigger
             self.onColSelectionChange(event=None)
             ## NOTE: stat trigger here is misplaced
@@ -873,7 +888,7 @@ class MainFrame(wx.Frame):
         else:
             #
             self.vSplitter = wx.SplitterWindow(self.nb)
-            self.selPanel = SelectionPanel(self.vSplitter, tabs)
+            self.selPanel = SelectionPanel(self.vSplitter, self.tabs)
 
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
@@ -897,7 +912,7 @@ class MainFrame(wx.Frame):
             self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.lbTab)
             self.onColSelectionChange(event=None)
         # Trigger 
-        if len(tabs)>1:
+        if len(self.tabs)>1:
             #self.selPanel.lbTab.Show()
             self.resizeSideColumn(SIDE_COL_LARGE)
         else:
@@ -954,13 +969,15 @@ class MainFrame(wx.Frame):
         Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nWritten by E. Branlard. \n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReload(self, event):
-        if (self.filename is not None) and len(self.filename)>0:
+        if (self.filenames is not None) and len(self.filenames)==1 and len(self.filenames[0])>0:
             iFormat=self.comboFormats.GetSelection()
             if iFormat==0: # auto-format
                 Format = None
             else:
                 Format = FILE_FORMATS[iFormat-1]
-            self.load_file(self.filename,fileformat=Format,bReload=True)
+            self.load_file(self.filenames[0],fileformat=Format,bReload=True)
+        elif len(self.filenames)>=1 :
+           Error(self,'Reloading only implemented for one file for now.')
         else:
            Error(self,'Open a file first')
 
@@ -981,8 +998,13 @@ class MainFrame(wx.Frame):
         #else:
         #    ptr.Show()
         #    self.resizeSideColumn(SIDE_COL_LARGE)
-
     def onLoad(self, event):
+           self.selectFile(bAdd=False)
+
+    def onAdd(self, event):
+           self.selectFile(bAdd=True)
+
+    def selectFile(self,bAdd=False):
         # --- File Format extension
         iFormat=self.comboFormats.GetSelection()
         sFormat=self.comboFormats.GetStringSelection()
@@ -1001,7 +1023,11 @@ class MainFrame(wx.Frame):
             #dlg.Center()
            if dlg.ShowModal() == wx.ID_CANCEL:
                return     # the user changed their mind
-           self.load_file(dlg.GetPath(),fileformat=Format)
+           if bAdd and (dlg.GetPath() in self.filenames):
+               Error(self,'Cannot add a file already opened')
+           else:
+               self.load_file(dlg.GetPath(),fileformat=Format,bAdd=bAdd)
+
 
     # --- Side column
     def resizeSideColumn(self,width):
