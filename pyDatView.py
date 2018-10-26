@@ -13,6 +13,9 @@ def main(inputfile=''):
 
 def tests():
     # for now only weio tests
+    #import pydatview
+    #pydatview.test()
+
     import weio 
     import glob
     Files = glob.glob('_tests/*')+ glob.glob('weio/_tests/*')

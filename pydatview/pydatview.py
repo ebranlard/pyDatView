@@ -3,10 +3,13 @@ from __future__ import division, print_function
 #import pdb
 import wx
 import dateutil # required by matplotlib
+import matplotlib
+# matplotlib.use('Agg')
 from matplotlib import rc as matplotlib_rc
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
+from matplotlib.pyplot import rcParams as pyplot_rc
 #from matplotlib import pyplot as plt
 import numpy as np
 import os.path 
@@ -36,6 +39,7 @@ SIDE_COL_LARGE = 230
 
 font = {'size'   : 9}
 matplotlib_rc('font', **font)
+pyplot_rc['agg.path.chunksize'] = 20000
 def getMonoFont():
     return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
 
@@ -921,9 +925,22 @@ def MyExceptionHook(etype, value, trace):
 # --- Tests 
 # --------------------------------------------------------------------------------{
 def test():
+    import time
+    import sys
     # --- Test df
-    size=10;
-    df = pd.DataFrame(data={'col1': np.linspace(0,1,size), 'col2': np.random.normal(0,1,size)})
+    tstart = time.time()
+    nRow =10**7;
+    nCols=10;
+    d={}
+    d['col0'] = np.linspace(0,1,nRow);
+    for iC in range(1,nCols):
+        name='col{}'.format(iC)
+        d[name] = np.random.normal(0,1,nRow)+2*iC
+#     df = pd.DataFrame(data={'col1':np.linspace(0,1,size) , 'col2': np.random.normal(0,1,size)})
+    tend = time.time()
+    df = pd.DataFrame(data=d)
+    print('Size:',sys.getsizeof(df)/10**6)
+    print('Creation time: ',tend-tstart)
     pydatview(df)
 
  
@@ -938,7 +955,11 @@ def pydatview(dataframe=None,filename=''):
     frame = MainFrame()
 
     if (dataframe is not None) and (len(dataframe)>0):
+        import time
+        tstart = time.time()
         frame.load_df(dataframe)
+        tend = time.time()
+        print('PydatView time: ',tend-tstart)
     elif len(filename)>0:
         frame.load_file(filename,fileformat=None)
 
