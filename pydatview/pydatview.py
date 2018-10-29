@@ -192,6 +192,7 @@ class Table(object):
             self.name=name
             self.data=data
             self.columns=columns
+        self.columns_clean = [no_unit(s.replace('_',' ')) for s in self.columns]
         self.filename = filename
         self.name=os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
         
@@ -234,7 +235,8 @@ def haveSameColumns(tabs,I=None):
         I=list(range(len(tabs)))
     A=[len(tabs[i].columns)==len(tabs[I[0]].columns) for i in I ]
     if all(A):
-        B=[all(tabs[i].columns==tabs[I[0]].columns) for i in I ]
+        B=[tabs[i].columns_clean==tabs[I[0]].columns_clean for i in I] #list comparison
+        #B=[all(tabs[i].columns==tabs[I[0]].columns) for i in I ] #np array comparison
         return all(B)
     else:
         return False
@@ -258,7 +260,7 @@ class InfoPanel(wx.Panel):
 
     def showStats(self,tabs,ITab,ColIndexes,ColNames,erase=False):
         if erase:
-            self.tInfo.SetValue("")
+            self.clean()
         for iTab in ITab:
             tab = tabs[iTab]
             for i,s in zip(ColIndexes,ColNames):
@@ -273,6 +275,9 @@ class InfoPanel(wx.Panel):
                 else:
                     self.tInfo.AppendText('{:15s} mean:{:10.3e}  std:{:10.3e}  min:{:10.3e}  max:{:10.3e}\n'.format(s,np.nanmean(y),np.nanstd(y),np.nanmin(y),np.nanmax(y)))
         self.tInfo.ShowPosition(0)
+
+    def clean(self):
+        self.tInfo.SetValue("")
 
         
 # --------------------------------------------------------------------------------}
@@ -372,7 +377,10 @@ class TablePanel(wx.Panel):
         sizer.Add(label, 0, border=5)
         sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
         self.SetSizer(sizer)
-        
+
+    def empty(self):    
+        for i in reversed(range(self.lbTab.GetCount())):
+            self.lbTab.Delete(i)
 
 
 SEL_MODES    = ['auto','Same tables'    ,'Different tables'  ]
@@ -424,22 +432,24 @@ class SelectionPanel(wx.Panel):
 
 
     def autoMode(self):
-        if len(self.tabs)<=0:
-            self._mode='auto'
-            self.splitter.removeAll()
-        elif len(self.tabs)==1:
-            self.sameColumnsMode()
-        else:
-            if haveSameColumns(self.tabs):
+        if hasattr(self,'tabs'):
+            if len(self.tabs)<=0:
+                self._mode='auto'
+                self.splitter.removeAll()
+            elif len(self.tabs)==1:
                 self.sameColumnsMode()
             else:
-                self.twoColumnsMode()
+                if haveSameColumns(self.tabs):
+                    self.sameColumnsMode()
+                else:
+                    self.twoColumnsMode()
 
     def sameColumnsMode(self):
         self._mode='sameColumnsMode'
         self.splitter.removeAll()
-        if len(self.tabs)>1:
-            self.splitter.AppendWindow(self.tabPanel) 
+        if hasattr(self,'tabs'):
+            if len(self.tabs)>1:
+                self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel1) 
 
     def twoColumnsMode(self):
@@ -448,17 +458,20 @@ class SelectionPanel(wx.Panel):
         self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel2) 
         self.splitter.AppendWindow(self.colPanel1) 
+        self.splitter.setEquiSash()
         #self.parent.GetParent().GetParent().GetParent().resizeSideColumn(SIDE_COL_LARGE)
 
     def updateTables(self,tabs):
         """ Update the list of tables, while keeping the selection if any """
+        # TODO PUT ME IN TABLE PANEL
         self.tabs = tabs
+        # Saving selection
         ISel=self.tabPanel.lbTab.GetSelections()
         tabnames=[t.name for t in tabs]
         etabnames=ellude_common(tabnames)
-        for i in reversed(range(self.tabPanel.lbTab.GetCount())):
-            self.tabPanel.lbTab.Delete(i)
-
+        # Emptying
+        self.tabPanel.empty()
+        # Adding
         for t in etabnames:
             self.tabPanel.lbTab.Append(t)
 
@@ -497,31 +510,28 @@ class SelectionPanel(wx.Panel):
         self.updateTables(tabs)
 
     def getFullSelection(self):
-        ITab,STab = self.getSelectedTables()
-        iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
         ID = []
-        if self._mode =='sameColumnsMode':
-            for i,itab in enumerate(ITab):
-                for j,iy in enumerate(IY1):
-                    ID.append([itab,iX1,iy])
-            iX2=None
-            IY2=None
-            sX2=None
-            SY2=None
-        elif self._mode =='twoColumnsMode':
-            if len(ITab)>=1:
-                for j,iy in enumerate(IY1):
-                    ID.append([ITab[0],iX1,iy])
-                iX2=None
-                IY2=None
-                sX2=None
-                SY2=None
-            if len(ITab)>=2:
-                iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
-                for j,iy in enumerate(IY2):
-                    ID.append([ITab[1],iX2,iy])
-        else:
-            raise Exception('Unknown mode {}'.format(self._mode))
+        iX1=None; IY1=None; sX1=None; SY1=None;
+        iX2=None; IY2=None; sX2=None; SY2=None;
+        ITab=None;
+        STab=None;
+        if hasattr(self,'tabs') and len(self.tabs)>0:
+            ITab,STab = self.getSelectedTables()
+            iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
+            if self._mode =='sameColumnsMode':
+                for i,itab in enumerate(ITab):
+                    for j,iy in enumerate(IY1):
+                        ID.append([itab,iX1,iy])
+            elif self._mode =='twoColumnsMode':
+                if len(ITab)>=1:
+                    for j,iy in enumerate(IY1):
+                        ID.append([ITab[0],iX1,iy])
+                if len(ITab)>=2:
+                    iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
+                    for j,iy in enumerate(IY2):
+                        ID.append([ITab[1],iX2,iy])
+            else:
+                raise Exception('Unknown mode {}'.format(self._mode))
         return ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2
 
     def getSelectedTables(self):
@@ -530,6 +540,9 @@ class SelectionPanel(wx.Panel):
         return I,S
 
     def clean_memory(self):
+        self.colPanel1.empty()
+        self.colPanel2.empty()
+        self.tabPanel.empty()
         if hasattr(self,'tabs'):
             del self.tabs
 
@@ -790,14 +803,13 @@ class PlotPanel(wx.Panel):
 
     def _redraw(self):
         #print('Redraw event')
-
         ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2=self.selPanel.getFullSelection()
         if len(ID)==0:
             #Error(self.parent,'Open a file to plot the data.')
             return
-
+        #print(ID,iX2,ITab,IY1)
         tabs=self.selPanel.tabs
-        if iX2 is None:
+        if iX2 is None or iX2==-1: #iX2==-1 when two table have same columns in mode twocolumns..
             nPlots = len(IY1)
             nTabs = len(ITab)
             self.set_subplots(nPlots)
@@ -933,6 +945,8 @@ class MainFrame(wx.Frame):
             del self.tabs
         if hasattr(self,'selPanel'):
             self.selPanel.clean_memory()
+        if hasattr(self,'infoPanel'):
+            self.infoPanel.clean()
 
         if hasattr(self,'plotPanel'):
             self.plotPanel.cleanPlot()
@@ -940,22 +954,25 @@ class MainFrame(wx.Frame):
 
     def load_files(self,filenames=[],fileformat=None, bReload=False,bAdd=False):
         """ load multiple files, only trigger the plot at the end """
+        status = []
         for i,f in enumerate(filenames):
             if i>0:
                 bAdd = True
             if bAdd and (f in self.filenames):
                 Error(self,'Cannot add a file already opened')
             else:
-                self.load_file(f,fileformat=fileformat,bAdd=bAdd,bPlot=False)
-        # Trigger a plot event at the end, in case an error occured
-        self.updateLayout()
-        self.onColSelectionChange(event=None)
+                bOK=self._load_file(f,fileformat=fileformat,bAdd=bAdd,bPlot=False)
+                status.append(bOK)
+        if any(status):
+            # Trigger a plot event at the end if at least on load succeeded
+            self.updateLayout()
+            self.onColSelectionChange(event=None)
 
-    def load_file(self,filename,fileformat=None,bReload=False,bAdd=False,bPlot=True):
+    def _load_file(self,filename,fileformat=None,bReload=False,bAdd=False,bPlot=True):
         """ load a single file, adds table, and potentially trigger plotting """
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)
-            return
+            return False
         if bAdd:
             self.filenames.append(filename)
         else:
@@ -968,19 +985,19 @@ class MainFrame(wx.Frame):
             dfs = F.toDataFrame()
         except IOError:
             Error(self, 'IO Error,  cannot open file: '+filename )
-            return
+            return False
         except MemoryError:
-            Error(self,'Insufficient memory!\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).')
+            Error(self,'Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).')
             return
         except weio.FormatNotDetectedError:
-            Error(self,'File format not detected!\n\nUse an explicit file-format from the list')
-            return
+            Error(self,'File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list')
+            return False
         except weio.WrongFormatError as e:
-            Error(self,'Wrong file format!\n\n'+   \
+            Error(self,'Wrong file format!\n\nFile: '+filename+'\n\n'   \
                     'The file parser for the selected format failed to open the file.\n\n'+   \
                     'The reported error was:\n'+e.args[0]+'\n\n' +   \
                     'Double-check your file format and report this error if you think it''s a bug.')
-            return
+            return False
         except:
             raise
 
@@ -1002,10 +1019,12 @@ class MainFrame(wx.Frame):
         self.fileformatName = F.formatName()
         if len(tabs)<=0:
             Warn(self,'No dataframe found in file: '+filename)
+            return False
         else:
             self.load_tabs(tabs,bReload=bReload,bAdd=bAdd,bPlot=bPlot)
         del dfs
         del F
+        return True
             
 
     def load_df(self, df):
@@ -1081,6 +1100,7 @@ class MainFrame(wx.Frame):
                         self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
                         self.selPanel.tabPanel.lbTab.SetSelection(ISel[0])
                         self.selPanel.setTabForCol(ISel[0],1) 
+                        self.selPanel.colPanel2.empty()
                     else:
                         self.selPanel.setTabForCol(ISel[0],1) 
                         self.selPanel.setTabForCol(ISel[1],2) 
@@ -1098,7 +1118,10 @@ class MainFrame(wx.Frame):
     def onColSelectionChange(self,event):
         if hasattr(self,'plotPanel'):
             if self.selPanel._mode=='twoColumnsMode':
-                if len(self.selPanel.tabPanel.lbTab.GetSelections())==2:
+                ISel=self.selPanel.tabPanel.lbTab.GetSelections()
+                if haveSameColumns(self.tabs,ISel):
+                    pass # NOTE: this test is identical to onTabSelectionChange. Unification.
+                elif len(ISel)==2:
                     self.selPanel.colPanel1.forceOneSelection()
                     self.selPanel.colPanel2.forceOneSelection()
             self.plotPanel.redraw()
@@ -1138,7 +1161,7 @@ class MainFrame(wx.Frame):
                 Format = None
             else:
                 Format = FILE_FORMATS[iFormat-1]
-            self.load_file(self.filenames[0],fileformat=Format,bReload=True)
+            self._load_file(self.filenames[0],fileformat=Format,bReload=True)
         elif len(self.filenames)>=1 :
            Error(self,'Reloading only implemented for one file for now.')
         else:
