@@ -6,9 +6,9 @@ import sys
 #@click.option('-i','--inputfile', default='', help='Input file to read')
 #@click.command()
 #@click.argument('inputfile', default='')
-def main(inputfile=''):
+def main(inputfiles=[]):
     import pydatview
-    pydatview.pydatview(filename=inputfile)
+    pydatview.pydatview(filenames=inputfiles)
 
 
 def tests():
@@ -37,6 +37,6 @@ if __name__ == '__main__':
         if sys.argv[1]=='--test':
             tests()
         else:
-            main(sys.argv[1])
+            main(sys.argv[1:])
     else:
         main()

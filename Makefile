@@ -1,11 +1,14 @@
 
 all:
-	python pyDatView.py 
+	python pyDatView.py weio/_tests/FASTIn_arf_coords.txt
+# 	python pyDatView.py weio/_tests/FASTIn_HD.dat
+# 	python pyDatView.py weio/_tests/FASTIn_AD14_arf.dat weio/_tests/FASTIn_arf_coords.txt
+
+
 
 
 deb:
-	python pyDatView.py Test.outb
-# 	python pyDatView.py weio/_tests/HAWC2_ae.dat
+	python DEBUG.py
 
 install:
 	python setup.py install

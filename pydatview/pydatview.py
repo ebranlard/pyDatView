@@ -39,9 +39,7 @@ FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_
 FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
 FILE_READER             = weio.read
 
-SIDE_COL_SMALL = 130
-SIDE_COL_LARGE = 230
-SIDE_COL = [130,130,230,300]
+SIDE_COL = [150,150,250,350]
 
 font = {'size'   : 9}
 matplotlib_rc('font', **font)
@@ -258,8 +256,9 @@ class InfoPanel(wx.Panel):
         self.SetSizer(sizer)
         self.SetMaxSize((-1, 50))
 
-    def showStats(self,tabs,ITab,ColIndexes,ColNames):
-        self.tInfo.SetValue("")
+    def showStats(self,tabs,ITab,ColIndexes,ColNames,erase=False):
+        if erase:
+            self.tInfo.SetValue("")
         for iTab in ITab:
             tab = tabs[iTab]
             for i,s in zip(ColIndexes,ColNames):
@@ -288,16 +287,74 @@ class ColumnPanel(wx.Panel):
         self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont())
+        #self.SetBackgroundColour('blue')
 
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
         sizerX.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
         sizerX.Add(self.comboX   ,0,wx.ALL | wx.ALIGN_CENTER,5)
 
         sizerCol = wx.BoxSizer(wx.VERTICAL)
-        sizerCol.Add(sizerX       , 0, border=5)
-        sizerCol.Add(self.lbColumns, 2, flag=wx.EXPAND, border=5)
+        sizerCol.Add(sizerX        , 0, border=5)
+        sizerCol.Add(self.lbColumns, 2, flag=wx.EXPAND, border=0)
 
         self.SetSizer(sizerCol)
+
+    def selectDefaultColumns(self,tab):
+        df=tab.data
+        # Selecting the first column for x-axis
+        iSelect = min(1,self.comboX.GetCount())
+        _,isString,_,_=getColumn(df,iSelect)
+        if isString:
+            iSelect = 0 # we roll back and select the index
+        self.comboX.SetSelection(iSelect)
+
+        # Selecting the second column for y-axis
+        iSelect=min(2,self.lbColumns.GetCount())
+        _,isString,_,_=getColumn(df,iSelect)
+        if isString:
+            iSelect=0 # we roll back to selecting the index
+        self.lbColumns.SetSelection(iSelect)
+
+    def updateColumnNames(self,tab):
+        """ Update of column names """
+        # Backup of selection first
+        ISel=self.lbColumns.GetSelections()
+        iSel = self.comboX.GetSelection()
+        # ..then empty
+        self.empty()
+        # ..then replace
+        columns=['Index']+list(tab.columns[:])
+        columns=[s.replace('_',' ') for s in columns]
+        for c in columns:
+            self.lbColumns.Append(c)
+        for i in ISel:
+            if i<len(columns):
+                self.lbColumns.SetSelection(i)
+        for c in columns:
+            self.comboX.Append(c)
+        if iSel<0:
+            self.selectDefaultColumns(tab) # not pretty
+        elif iSel<len(columns):
+            self.comboX.SetSelection(iSel)
+
+    def forceOneSelection(self):
+        ISel=self.lbColumns.GetSelections()
+        self.lbColumns.SetSelection(-1)
+        if len(ISel)>0:
+            self.lbColumns.SetSelection(ISel[0])
+
+    def empty(self):
+        for i in reversed(range(self.lbColumns.GetCount())):
+            self.lbColumns.Delete(i)
+        for i in reversed(range(self.comboX.GetCount())):
+            self.comboX.Delete(i)
+
+    def getColumnSelection(self):
+        iX = self.comboX.GetSelection()
+        sX = self.comboX.GetStringSelection()
+        IY = self.lbColumns.GetSelections()
+        SY = [self.lbColumns.GetString(i) for i in IY]
+        return iX,IY,sX,SY
 
 class TablePanel(wx.Panel):
     """ Display list of tables """
@@ -328,7 +385,6 @@ class SelectionPanel(wx.Panel):
         self.tabs       = []
         self.itabForCol = None
         self.parent     = parent
-        self.mode       = mode
 
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
@@ -340,38 +396,34 @@ class SelectionPanel(wx.Panel):
         self.colPanel1.Hide()
         self.colPanel2.Hide()
         # Layout
-        self.updateLayout()
+        self.updateLayout(mode)
         VertSizer = wx.BoxSizer(wx.VERTICAL)
-        #VertSizer.Add(self.comboMode, 0, flag=wx.LEFT|wx.ALL  , border=5)
-        VertSizer.Add(self.splitter, 2, flag=wx.EXPAND|wx.ALL, border=5)
-        #sizer = wx.BoxSizer(wx.HORIZONTAL)
-        #sizer.Add(VertSizer, 2, flag=wx.EXPAND|wx.ALL, border=5)
+        VertSizer.Add(self.splitter, 2, flag=wx.EXPAND, border=0)
         self.SetSizer(VertSizer)
-
 
         # TRIGGERS
         if len(tabs)>0:
             #print(tabs)
             self.updateTables(tabs)
             self.selectDefaultTable()
-            self.selectDefaultColumns(self.tabs[self.itabForCol])
+            # TODO
+            #self.colPanel1.selectDefaultColumns(self.tabs[self.itabForCol])
 
-    def updateLayout(self,mode=None):
-        if mode is not None:
-            self.mode=mode
-        if self.mode=='auto':
+    def updateLayout(self,mode):
+        self.modeRequested = mode
+        if mode=='auto':
             self.autoMode()
-        elif self.mode=='sameColumnsMode':
+        elif mode=='sameColumnsMode':
             self.sameColumnsMode()
-        elif self.mode=='twoColumnsMode':
+        elif mode=='twoColumnsMode':
             self.twoColumnsMode()
         else:
             raise Exception('Wrong mode for selection layout: {}'.format(self.mode))
 
 
     def autoMode(self):
-        self.mode='auto'
         if len(self.tabs)<=0:
+            self._mode='auto'
             self.splitter.removeAll()
         elif len(self.tabs)==1:
             self.sameColumnsMode()
@@ -382,20 +434,14 @@ class SelectionPanel(wx.Panel):
                 self.twoColumnsMode()
 
     def sameColumnsMode(self):
-        self.mode='sameColumnsMode'
-        print('update layout ',self.mode)
+        self._mode='sameColumnsMode'
         self.splitter.removeAll()
         if len(self.tabs)>1:
             self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel1) 
-        #if len(self.tabs)>1:
-        #    self.parent.GetParent().GetParent().GetParent().resizeSideColumn(SIDE_COL_LARGE)
-        #else:
-        #    self.parent.GetParent().GetParent().GetParent().resizeSideColumn(SIDE_COL_SMALL)
 
     def twoColumnsMode(self):
-        self.mode='twoColumnsMode'
-        print('update layout ',self.mode)
+        self._mode='twoColumnsMode'
         self.splitter.removeAll()
         self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel2) 
@@ -408,8 +454,6 @@ class SelectionPanel(wx.Panel):
         ISel=self.tabPanel.lbTab.GetSelections()
         tabnames=[t.name for t in tabs]
         etabnames=ellude_common(tabnames)
-        #print('Updating tables with:')
-        #print(tabs)
         for i in reversed(range(self.tabPanel.lbTab.GetCount())):
             self.tabPanel.lbTab.Delete(i)
 
@@ -419,7 +463,7 @@ class SelectionPanel(wx.Panel):
         # Reselecting
         if len(ISel)>0:        
             if not haveSameColumns(tabs,ISel):
-                ISel=ISel[0]
+                ISel=[ISel[0]]
             for i in ISel:
                 if i<len(tabs):
                     self.tabPanel.lbTab.SetSelection(i)
@@ -429,69 +473,54 @@ class SelectionPanel(wx.Panel):
 
         # Trigger - updating columns and layout
         ISel=self.tabPanel.lbTab.GetSelections()
-        self.setTabForCol(ISel[0])
-        self.updateLayout()
+        # TODO
+        self.setTabForCol(ISel[0],1) # TODO
+        self.updateLayout(self.modeRequested)
 
-    def setTabForCol(self,iSel):
-        self.itabForCol=iSel
-        self.updateColumnNames(self.tabs[self.itabForCol])
+    def setTabForCol(self,iTabSel,iPanel):
+        if iPanel==1:
+            self.colPanel1.updateColumnNames(self.tabs[iTabSel])
+        elif iPanel==2:
+            self.colPanel2.updateColumnNames(self.tabs[iTabSel])
+        else:
+            raise Exception('Wrong ipanel')
 
     def selectDefaultTable(self):
         # Selecting the first table
         if self.tabPanel.lbTab.GetCount()>0:
             self.tabPanel.lbTab.SetSelection(0)
 
-    def selectDefaultColumns(self,tab):
-        df=tab.data
-        # Selecting the first column for x-axis
-        iSelect = min(1,self.colPanel1.comboX.GetCount())
-        _,isString,_,_=getColumn(df,iSelect)
-        if isString:
-            iSelect = 0 # we roll back and select the index
-        self.colPanel1.comboX.SetSelection(iSelect)
-
-        # Selecting the second column for y-axis
-        iSelect=min(2,self.colPanel1.lbColumns.GetCount())
-        _,isString,_,_=getColumn(df,iSelect)
-        if isString:
-            iSelect=0 # we roll back to selecting the index
-        self.colPanel1.lbColumns.SetSelection(iSelect)
-
-    def updateColumnNames(self,df):
-        """ Update of column names """
-        ISel=self.colPanel1.lbColumns.GetSelections()
-        columns=['Index']+list(df.columns[:])
-        columns=[s.replace('_',' ') for s in columns]
-
-        for i in reversed(range(self.colPanel1.lbColumns.GetCount())):
-            self.colPanel1.lbColumns.Delete(i)
-        for c in columns:
-            self.colPanel1.lbColumns.Append(c)
-        for i in ISel:
-            if i<len(columns):
-                self.colPanel1.lbColumns.SetSelection(i)
-
-        iSel    = self.colPanel1.comboX.GetSelection()
-        for i in reversed(range(self.colPanel1.comboX.GetCount())):
-            self.colPanel1.comboX.Delete(i)
-        for c in columns:
-            self.colPanel1.comboX.Append(c)
-        if iSel<len(columns):
-            self.colPanel1.comboX.SetSelection(iSel)
 
     def update_tabs(self, tabs):
         self.updateTables(tabs)
 
-    def getSelectionIndexes(self):
-        iSelTab = self.itabForCol
-        ISelYColumns=self.colPanel1.lbColumns.GetSelections()
-        iSelX= self.colPanel1.comboX.GetSelection()
-        return iSelTab,iSelX,ISelYColumns
-
-    def getSelectedColumns(self):
-        I=self.colPanel1.lbColumns.GetSelections()
-        S=[self.colPanel1.lbColumns.GetString(i) for i in I]
-        return I,S
+    def getFullSelection(self):
+        ITab,STab = self.getSelectedTables()
+        iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
+        ID = []
+        if self._mode =='sameColumnsMode':
+            for i,itab in enumerate(ITab):
+                for j,iy in enumerate(IY1):
+                    ID.append([itab,iX1,iy])
+            iX2=None
+            IY2=None
+            sX2=None
+            SY2=None
+        elif self._mode =='twoColumnsMode':
+            if len(ITab)>=1:
+                for j,iy in enumerate(IY1):
+                    ID.append([ITab[0],iX1,iy])
+                iX2=None
+                IY2=None
+                sX2=None
+                SY2=None
+            if len(ITab)>=2:
+                iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
+                for j,iy in enumerate(IY2):
+                    ID.append([ITab[1],iX2,iy])
+        else:
+            raise Exception('Unknown mode {}'.format(self._mode))
+        return ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2
 
     def getSelectedTables(self):
         I=self.tabPanel.lbTab.GetSelections()
@@ -758,38 +787,37 @@ class PlotPanel(wx.Panel):
         self._redraw()
 
     def _redraw(self):
-        print('Redraw event')
-        if not hasattr(self.selPanel,'tabs'):
-            Error(self.parent,'Open a file to plot the data.')
+        #print('Redraw event')
+
+        ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2=self.selPanel.getFullSelection()
+        if len(ID)==0:
+            #Error(self.parent,'Open a file to plot the data.')
             return
 
         tabs=self.selPanel.tabs
-        if len(tabs) <= 0:
-            return
-
-        # TODO TODO GETDATA FROM SOMETHING ELSE
-        ITab,STab= self.selPanel.getSelectedTables()
-        nTabs = len(ITab)
-        if len(ITab)<=0:
-            return
-        
-        # --- Setting the scene
-        # TODO Multiple Columns to chose from
-        I,S = self.selPanel.getSelectedColumns()
-        nPlots=len(I)
-        if nPlots<0:
-            return
-
-        self.set_subplots(nPlots)
-
-        for i,sTab in zip(ITab,STab):
-            df = tabs[i].data
-
-            # Selecting x values
-            ix     = self.selPanel.colPanel1.comboX.GetSelection()
-            xlabel = self.selPanel.colPanel1.comboX.GetStringSelection()
-
-            self.draw_tab(df,ix,xlabel,I,S,sTab,nTabs,bFirst=(i==ITab[0]))
+        if iX2 is None:
+            nPlots = len(IY1)
+            nTabs = len(ITab)
+            self.set_subplots(nPlots)
+            for i,sTab in zip(ITab,STab):
+                self.draw_tab(tabs[i].data,iX1,sX1,IY1,SY1,sTab,nTabs,bFirst=(i==ITab[0]))
+        else:
+            nPlots = 1
+            self.set_subplots(nPlots)
+            if len(IY1)==0:
+                xlabel  = sX2
+                Ylabels = SY2
+            elif len(IY2)==0:
+                xlabel  = sX1
+                Ylabels = SY1
+            else:
+                if sX1!=sX2:
+                    xlabel=sX1+' and '+ sX2
+                else:
+                    xlabel=sX1
+                Ylabels = [s1+' and '+s2 for s1,s2 in zip(SY1,SY2)]
+            self.draw_tab(tabs[ITab[0]].data,iX1,xlabel,IY1,Ylabels,STab[0],2,bFirst=True)
+            self.draw_tab(tabs[ITab[1]].data,iX2,xlabel,IY2,Ylabels,STab[1],2,bFirst=False)
 
 
         bSubPlots=self.cbSub.IsChecked()
@@ -996,9 +1024,6 @@ class MainFrame(wx.Frame):
 
         if bReload or bAdd:
             self.selPanel.update_tabs(self.tabs)
-            ## NOTE: stat trigger here is misplaced
-            #I,S = self.selPanel.getSelectedColumns()
-            #self.infoPanel.showStats(df,I,S)
         else:
             #
             mode = SEL_MODES_ID[self.comboMode.GetSelection()]
@@ -1015,27 +1040,22 @@ class MainFrame(wx.Frame):
             self.tSplitter.SetSashPosition(400)
 
             self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
-            self.vSplitter.SetMinimumPaneSize(SIDE_COL_SMALL)
-            self.tSplitter.SetSashPosition(SIDE_COL_SMALL)
+            self.vSplitter.SetMinimumPaneSize(SIDE_COL[0])
+            self.tSplitter.SetSashPosition(SIDE_COL[0])
 
             self.nb.AddPage(self.vSplitter, "Plot")
             self.nb.SendSizeEvent()
 
             self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel1.comboX   )
             self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel1.lbColumns)
+            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel2.comboX   )
+            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel2.lbColumns)
             self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.tabPanel.lbTab)
             self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
         # plot trigger
         if bPlot:
             self.updateLayout()
             self.onColSelectionChange(event=None)
-        # Trigger 
-        #if len(self.tabs)>1:
-        #    #self.selPanel.lbTab.Show()
-        #    self.resizeSideColumn(SIDE_COL_LARGE)
-        #else:
-        #    #self.lbTab.Hide()
-        #    self.resizeSideColumn(SIDE_COL_SMALL)
 
     def onSashChangeMain(self,event):
         pass
@@ -1045,31 +1065,49 @@ class MainFrame(wx.Frame):
         #    self.selPanel.setEquiSash(event)
 
     def onTabSelectionChange(self,event):
+        # TODO all this can go in TabPanel
         ISel=self.selPanel.tabPanel.lbTab.GetSelections()
         if len(ISel)>0:
             if haveSameColumns(self.tabs,ISel):
-                pass # All good for now
+                # Setting tab
+                self.selPanel.setTabForCol(ISel[0],1) 
+                self.selPanel.colPanel2.empty()
             else:
-                Error(self,'The two tables have different columns. Multiple table selection is only limited to identical tables for now.')
-                # unselect all and select only the first one
-                self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
-                self.selPanel.tabPanel.lbTab.SetSelection(ISel[0])
-                ISel=[ISel[0]]
+                if self.selPanel._mode=='twoColumnsMode':
+                    if len(ISel)>2:
+                        Error(self,'In this mode, only two tables can be selected. To compare more than two tables, the tables need to have the same columns.')
+                        self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
+                        self.selPanel.tabPanel.lbTab.SetSelection(ISel[0])
+                        self.selPanel.setTabForCol(ISel[0],1) 
+                    else:
+                        self.selPanel.setTabForCol(ISel[0],1) 
+                        self.selPanel.setTabForCol(ISel[1],2) 
+                else:
+                    Error(self,'The two tables have different columns. Chose the "two table mode" to compare them.')
+                    # unselect all and select only the first one
+                    self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
+                    self.selPanel.tabPanel.lbTab.SetSelection(ISel[0])
+                    self.selPanel.setTabForCol(ISel[0],1) 
 
-            # Setting tab
-            self.selPanel.setTabForCol(ISel[0])
 
             # Trigger the colSelection Event
             self.onColSelectionChange(event=None)
 
     def onColSelectionChange(self,event):
         if hasattr(self,'plotPanel'):
+            if self.selPanel._mode=='twoColumnsMode':
+                if len(self.selPanel.tabPanel.lbTab.GetSelections())==2:
+                    self.selPanel.colPanel1.forceOneSelection()
+                    self.selPanel.colPanel2.forceOneSelection()
             self.plotPanel.redraw()
             #print(self.tabs)
-            # --- Stats
-            ITab,STab = self.selPanel.getSelectedTables()
-            I,S = self.selPanel.getSelectedColumns()
-            self.infoPanel.showStats(self.tabs,ITab,I,S)
+            # --- Stats trigger
+            ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2=self.selPanel.getFullSelection()
+            if sX2 is None:
+                self.infoPanel.showStats(self.tabs,ITab,IY1,SY1,erase=True)
+            else:
+                self.infoPanel.showStats(self.tabs,[ITab[0]],IY1,SY1,erase=True)
+                self.infoPanel.showStats(self.tabs,[ITab[1]],IY2,SY2)
 
     def onExit(self, event):
         self.Close()
@@ -1158,7 +1196,6 @@ class MainFrame(wx.Frame):
         self.updateLayout()
 
     def updateLayout(self, event=None):
-        print('Main update layout')
         if hasattr(self,'selPanel'):
             nWind=self.selPanel.splitter.nWindows
             self.resizeSideColumn(SIDE_COL[nWind])
@@ -1166,7 +1203,6 @@ class MainFrame(wx.Frame):
 
     # --- Side column
     def resizeSideColumn(self,width):
-        print('Resize side',width)
         # To force the replot we do an epic unsplit/split...
         #self.vSplitter.Unsplit()
         #self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
@@ -1232,7 +1268,7 @@ def test():
 # --------------------------------------------------------------------------------}
 # --- Mains 
 # --------------------------------------------------------------------------------{
-def pydatview(dataframe=None,filename=''):
+def pydatview(dataframe=None,filenames=[]):
     """
     The main function to start the data frame GUI.
     """
@@ -1240,13 +1276,13 @@ def pydatview(dataframe=None,filename=''):
     frame = MainFrame()
 
     if (dataframe is not None) and (len(dataframe)>0):
-        import time
-        tstart = time.time()
+        #import time
+        #tstart = time.time()
         frame.load_df(dataframe)
-        tend = time.time()
-        print('PydatView time: ',tend-tstart)
-    elif len(filename)>0:
-        frame.load_file(filename,fileformat=None)
+        #tend = time.time()
+        #print('PydatView time: ',tend-tstart)
+    elif len(filenames)>0:
+        frame.load_files(filenames,fileformat=None)
 
     app.MainLoop()
 

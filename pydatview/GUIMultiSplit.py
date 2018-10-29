@@ -36,16 +36,19 @@ class MultiSplit(MultiSplitterWindow):
             w.Hide()
 
     def onParentChangeSize(self,Event=None):
-        print('here',self.GetClientSize())
+        #print('here',self.GetClientSize())
         self.setEquiSash()
 
     def setEquiSash(self,event=None):
         if self.nWindows>0:
-            S=self.GetClientSize()
-            borders=5*self.nWindows-1
-            equi=int((S[0]-borders)/self.nWindows)
-            for i in range(self.nWindows-1):
-                self.SetSashPosition(i, equi)
+            if self.nWindows==1:
+                self.SetSashPosition(0, 0)
+            else:
+                S=self.GetClientSize()
+                borders=5*self.nWindows-1
+                equi=int((S[0]-borders)/self.nWindows)
+                for i in range(self.nWindows-1):
+                    self.SetSashPosition(i, equi)
 
     def onSashChange(self,event=None):
         # Not really pretty but will ensure the size don't go out of screen
