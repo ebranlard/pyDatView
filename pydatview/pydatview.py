@@ -92,26 +92,26 @@ def pretty_time(t):
         s='------';
     elif (t<1) :
         c=np.floor(t*100);
-        s='{:2d}.{:2d}s'.format(0,int(c))
+        s='{:2d}.{:02d}s'.format(0,int(c))
     elif(t<60) :
         s=np.floor(t);
         c=np.floor((t-s)*100);
-        s='{:2d}.{:2d}s'.format(int(s),int(c))
+        s='{:2d}.{:02d}s'.format(int(s),int(c))
     elif(t<3600) :
         m=np.floor(t/60);
         s=np.mod( np.floor(t), 60);
-        s='{:2d}m{:2d}s'.format(int(m),int(s))
+        s='{:2d}m{:02d}s'.format(int(m),int(s))
     elif(t<86400) :
         h=np.floor(t/3600);
         m=np.floor(( np.mod( np.floor(t) , 3600))/60);
-        s='{:2d}h{:2d}m'.format(int(h),int(m))
+        s='{:2d}h{:02d}m'.format(int(h),int(m))
     elif(t<8553600) : #below 3month
         d=np.floor(t/86400);
         h=np.floor( np.mod(np.floor(t), 86400)/3600);
-        s='{:2d}d{:2d}h'.format(int(d),int(h))
+        s='{:2d}d{:02d}h'.format(int(d),int(h))
     elif(t<31536000):
         m=t/(3600*24*30.5);
-        s='{:4.1f}mh'.format(m)
+        s='{:4.1f}mo'.format(m)
         #s='+3mon.';
     else:
         y=t/(3600*24*365.25);
@@ -283,15 +283,16 @@ class ColumnPanel(wx.Panel):
     def __init__(self, parent):
         # Superclass constructor
         super(ColumnPanel,self).__init__(parent)
-        lbX = wx.StaticText( self, -1, 'x: ')
+        #lbX = wx.StaticText( self, -1, 'x: ')
         self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
+        self.comboX.SetFont(getMonoFont())
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont())
         #self.SetBackgroundColour('blue')
 
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
-        sizerX.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
-        sizerX.Add(self.comboX   ,0,wx.ALL | wx.ALIGN_CENTER,5)
+        #sizerX.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
+        sizerX.Add(self.comboX   , 0, flag=wx.TOP | wx.BOTTOM | wx.EXPAND, border=5)
 
         sizerCol = wx.BoxSizer(wx.VERTICAL)
         sizerCol.Add(sizerX        , 0, border=5)
@@ -330,6 +331,7 @@ class ColumnPanel(wx.Panel):
         for i in ISel:
             if i<len(columns):
                 self.lbColumns.SetSelection(i)
+                self.lbColumns.EnsureVisible(i)
         for c in columns:
             self.comboX.Append(c)
         if iSel<0:
@@ -700,12 +702,12 @@ class PlotPanel(wx.Panel):
 
             # Scaling
             if self.cbMinMax.IsChecked():
-                mi= np.min(y)
-                mx= np.max(y)
+                mi= np.nanmin(y)
+                mx= np.nanmax(y)
                 if mi == mx:
                     y=y*0
                 else:
-                    y = (y-np.min(y))/(max(y)-min(y))
+                    y = (y-np.nanmin(y))/(np.nanmax(y)-np.nanmin(y))
             n = len(y)
 
 
@@ -1160,10 +1162,10 @@ class MainFrame(wx.Frame):
         #    ptr.Show()
         #    self.resizeSideColumn(SIDE_COL_LARGE)
     def onLoad(self, event):
-           self.selectFile(bAdd=False)
+        self.selectFile(bAdd=False)
 
     def onAdd(self, event):
-           self.selectFile(bAdd=True)
+        self.selectFile(bAdd=len(self.tabs)>0)
 
     def selectFile(self,bAdd=False):
         # --- File Format extension
