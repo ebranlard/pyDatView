@@ -23,7 +23,7 @@ before_deploy:
   - if [[ "$TRAVIS_TAG" == "dev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
   - pip install pynsist
   - git clone https://github.com/takluyver/pynsist
-  - mv pynsist\nsist nsist 
+  - mv pynsist/nsist nsist 
   - make installer
   - mv build/nsis/pyDatView.exe pyDatView_setup_$VERSION_NAME.exe
 
