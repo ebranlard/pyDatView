@@ -467,18 +467,19 @@ class SelectionPanel(wx.Panel):
         self.tabs = tabs
         # Saving selection
         ISel=self.tabPanel.lbTab.GetSelections()
-        tabnames=[t.name for t in tabs]
-        etabnames=ellude_common(tabnames)
         # Emptying
         self.tabPanel.empty()
         # Adding
+        tabnames=[t.name for t in tabs]
+        etabnames=ellude_common(tabnames)
         for t in etabnames:
             self.tabPanel.lbTab.Append(t)
 
         # Reselecting
         if len(ISel)>0:        
-            if not haveSameColumns(tabs,ISel):
-                ISel=[ISel[0]]
+            # Removed line below since two column mode implemented
+            #if not haveSameColumns(tabs,ISel):
+            #    ISel=[ISel[0]]
             for i in ISel:
                 if i<len(tabs):
                     self.tabPanel.lbTab.SetSelection(i)
@@ -939,65 +940,61 @@ class MainFrame(wx.Frame):
     def clean_memory(self,bReload=False):
         #print('Clean memory')
         # force Memory cleanup
-        if hasattr(self,'dfs'):
-            del self.dfs
         if hasattr(self,'tabs'):
             del self.tabs
-        if hasattr(self,'selPanel'):
-            self.selPanel.clean_memory()
-        if hasattr(self,'infoPanel'):
-            self.infoPanel.clean()
-
-        if hasattr(self,'plotPanel'):
-            self.plotPanel.cleanPlot()
+            self.tabs=[]
+        self.filenames=[]
+        if not bReload:
+            if hasattr(self,'selPanel'):
+                self.selPanel.clean_memory()
+            if hasattr(self,'infoPanel'):
+                self.infoPanel.clean()
+            if hasattr(self,'plotPanel'):
+                self.plotPanel.cleanPlot()
         gc.collect()
 
-    def load_files(self,filenames=[],fileformat=None, bReload=False,bAdd=False):
+    def load_files(self, filenames=[], fileformat=None, bReload=False, bAdd=False):
         """ load multiple files, only trigger the plot at the end """
-        status = []
-        for i,f in enumerate(filenames):
-            if i>0:
-                bAdd = True
-            if bAdd and (f in self.filenames):
+        if not bAdd:
+            self.clean_memory(bReload=bReload)
+
+        tabs=[]
+        for f in filenames:
+            if f in self.filenames:
                 Error(self,'Cannot add a file already opened')
             else:
-                bOK=self._load_file(f,fileformat=fileformat,bAdd=bAdd,bPlot=False)
-                status.append(bOK)
-        if any(status):
+                self.filenames.append(f)
+                tabs += self._load_file_tabs(f,fileformat=fileformat)
+        if len(tabs)>0:
+            # Adding tables
+            self.load_tabs(tabs,bReload=bReload,bAdd=bAdd,bPlot=True)
             # Trigger a plot event at the end if at least on load succeeded
             self.updateLayout()
             self.onColSelectionChange(event=None)
 
-    def _load_file(self,filename,fileformat=None,bReload=False,bAdd=False,bPlot=True):
+    def _load_file_tabs(self,filename,fileformat=None):
         """ load a single file, adds table, and potentially trigger plotting """
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)
-            return False
-        if bAdd:
-            self.filenames.append(filename)
-        else:
-            # Cleaning memory
-            self.clean_memory(bReload=bReload)
-            self.filenames=[filename]
+            return []
         try:
-            #
             F = FILE_READER(filename,fileformat = fileformat)
             dfs = F.toDataFrame()
         except IOError:
             Error(self, 'IO Error,  cannot open file: '+filename )
-            return False
+            return []
         except MemoryError:
             Error(self,'Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).')
-            return
+            return []
         except weio.FormatNotDetectedError:
             Error(self,'File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list')
-            return False
+            return []
         except weio.WrongFormatError as e:
             Error(self,'Wrong file format!\n\nFile: '+filename+'\n\n'   \
                     'The file parser for the selected format failed to open the file.\n\n'+   \
                     'The reported error was:\n'+e.args[0]+'\n\n' +   \
                     'Double-check your file format and report this error if you think it''s a bug.')
-            return False
+            return []
         except:
             raise
 
@@ -1019,12 +1016,9 @@ class MainFrame(wx.Frame):
         self.fileformatName = F.formatName()
         if len(tabs)<=0:
             Warn(self,'No dataframe found in file: '+filename)
-            return False
+            return []
         else:
-            self.load_tabs(tabs,bReload=bReload,bAdd=bAdd,bPlot=bPlot)
-        del dfs
-        del F
-        return True
+            return tabs
             
 
     def load_df(self, df):
@@ -1155,15 +1149,16 @@ class MainFrame(wx.Frame):
         Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nWritten by E. Branlard. \n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReload(self, event):
-        if (self.filenames is not None) and len(self.filenames)==1 and len(self.filenames[0])>0:
+        #if (self.filenames is not None) and len(self.filenames)==1 and len(self.filenames[0])>0:
+        if (self.filenames is not None) and len(self.filenames)>=0:
             iFormat=self.comboFormats.GetSelection()
             if iFormat==0: # auto-format
                 Format = None
             else:
                 Format = FILE_FORMATS[iFormat-1]
-            self._load_file(self.filenames[0],fileformat=Format,bReload=True)
-        elif len(self.filenames)>=1 :
-           Error(self,'Reloading only implemented for one file for now.')
+            self.load_files(self.filenames,fileformat=Format,bReload=True,bAdd=False)
+        #elif len(self.filenames)>=1 :
+        #   Error(self,'Reloading only implemented for one file for now.')
         else:
            Error(self,'Open a file first')
 

@@ -1,6 +1,6 @@
 
 all:
-	python pyDatView.py weio/_tests/FASTIn_arf_coords.txt
+	python pyDatView.py weio/_tests/FASTIn_arf_coords.txt weio/_tests/FASTIn_AD14_arf_3col.dat
 # 	python pyDatView.py weio/_tests/FASTIn_HD.dat
 # 	python pyDatView.py weio/_tests/FASTIn_AD14_arf.dat weio/_tests/FASTIn_arf_coords.txt
 
