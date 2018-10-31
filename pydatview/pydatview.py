@@ -11,8 +11,10 @@ matplotlib.use('Agg') # Important for Windows version of installer
 from matplotlib import rc as matplotlib_rc
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
+from matplotlib.backend_bases import NavigationToolbar2
 from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
+from matplotlib.widgets import Cursor
 #from matplotlib import pyplot as plt
 import numpy as np
 import os.path 
@@ -551,10 +553,20 @@ class SelectionPanel(wx.Panel):
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
-    def __init__(self, plotCanvas):
-        NavigationToolbar2Wx.__init__(self, plotCanvas)
+    def __init__(self, canvas):
+        # Taken from matplotlib/backend_wx.py but added style:
+        wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
+        NavigationToolbar2.__init__(self, canvas)
+        self.canvas = canvas
+        self._idle = True
+        self.statbar = None
+        self.prevZoomRect = None
+        self.retinaFix = 'wxMac' in wx.PlatformInfo
+        # --- Modif
+        #NavigationToolbar2Wx.__init__(self, plotCanvas)
         self.DeleteToolByPos(1)
         self.DeleteToolByPos(1)
+        self.SetBackgroundColour('white')
         #self.SetToolBitmapSize((22,22))
 
 class PlotPanel(wx.Panel):
@@ -562,6 +574,7 @@ class PlotPanel(wx.Panel):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
+        self.SetBackgroundColour('white')
         # data
         self.selPanel=selPanel
         self.parent=parent
@@ -569,22 +582,28 @@ class PlotPanel(wx.Panel):
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
         self.canvas = FigureCanvas(self, -1, self.fig)
+        self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 
         self.navTB = MyNavigationToolbar2Wx(self.canvas)
 
         #lbX = wx.StaticText( self, -1, 'x-axis: ')
+        self.ctrlPanel= wx.Panel(self)
         # Check Boxes
-        self.cbScatter = wx.CheckBox(self, -1, 'Scatter',(10,10))
-        self.cbPDF     = wx.CheckBox(self, -1, 'PDF',(10,10))
-        self.cbFFT     = wx.CheckBox(self, -1, 'FFT',(10,10))
-        self.cbSub     = wx.CheckBox(self, -1, 'Subplot',(10,10))
-        self.cbLogX    = wx.CheckBox(self, -1, 'Log-x',(10,10))
-        self.cbLogY    = wx.CheckBox(self, -1, 'Log-y',(10,10))
-        self.cbMinMax  = wx.CheckBox(self, -1, 'MinMax',(10,10))
-        self.cbSync    = wx.CheckBox(self, -1, 'Sync-x',(10,10))
+        self.cbScatter = wx.CheckBox(self.ctrlPanel, -1, 'Scatter',(10,10))
+        self.cbPDF     = wx.CheckBox(self.ctrlPanel, -1, 'PDF',(10,10))
+        self.cbFFT     = wx.CheckBox(self.ctrlPanel, -1, 'FFT',(10,10))
+        self.cbSub     = wx.CheckBox(self.ctrlPanel, -1, 'Subplot',(10,10))
+        self.cbLogX    = wx.CheckBox(self.ctrlPanel, -1, 'Log-x',(10,10))
+        self.cbLogY    = wx.CheckBox(self.ctrlPanel, -1, 'Log-y',(10,10))
+        self.cbMinMax  = wx.CheckBox(self.ctrlPanel, -1, 'MinMax',(10,10))
+        self.cbSync    = wx.CheckBox(self.ctrlPanel, -1, 'Sync-x',(10,10))
+        self.lbCrossHairX = wx.StaticText(self.ctrlPanel, -1, ' x= ...      ')
+        self.lbCrossHairY = wx.StaticText(self.ctrlPanel, -1, ' y= ...      ')
+        self.lbCrossHairX.SetFont(getMonoFont())
+        self.lbCrossHairY.SetFont(getMonoFont())
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
-        self.Bind(wx.EVT_CHECKBOX, self.scatter_select  , self.cbScatter)
+        self.Bind(wx.EVT_CHECKBOX, self.scatter_select, self.cbScatter)
         self.Bind(wx.EVT_CHECKBOX, self.pdf_select    , self.cbPDF    )
         self.Bind(wx.EVT_CHECKBOX, self.fft_select    , self.cbFFT    )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSub    )
@@ -595,28 +614,36 @@ class PlotPanel(wx.Panel):
         #
         #side_panel = wx.Panel(self,parent)
         # LAYOUT
-        if sys.version_info[0] < 3:
-            cb_sizer = wx.GridSizer(2,4,3)
-        else:
-            cb_sizer = wx.GridSizer(4,2,3)
+#         if sys.version_info[0] < 3:
+#             cb_sizer = wx.GridSizer(2,5,3)
+#         else:
+#             cb_sizer = wx.GridSizer(5,2,3)
+        cb_sizer  = wx.FlexGridSizer(rows=2, cols=5, hgap=2, vgap=0)
         cb_sizer.Add(self.cbScatter, 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbPDF    , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbFFT    , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub    , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.lbCrossHairX   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogX   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogY   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbMinMax , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSync   , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.lbCrossHairY   , 0, flag=wx.ALL, border=1)
+
+        self.ctrlPanel.SetSizer(cb_sizer)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        #row_sizer.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
-        #row_sizer.Add(self.colPanel1.comboX   ,0,wx.ALL | wx.ALIGN_CENTER,5)
-        row_sizer.Add(self.navTB    ,0, flag=wx.ALL, border=5)
-        row_sizer.Add(cb_sizer      ,0, flag=wx.ALL, border=5)
+        row_sizer.Add(self.navTB        ,0, flag=wx.ALL, border=0)
+        #row_sizer.Add(cb_sizer          ,0, flag=wx.ALL, border=5)
+        row_sizer.Add(self.ctrlPanel     ,1, flag=wx.ALL|wx.EXPAND, border=5)
+        #row_sizer.Add(self.lbCrossHair  ,0, flag=wx.ALL, border=5)
+        #row_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
+        #row_sizer2.Add(self.navTB        ,0, flag=wx.ALL, border=5)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
+        #plotsizer.Add(row_sizer2)
         plotsizer.Add(self.canvas, 1, flag=wx.EXPAND, border=5)
-        plotsizer.Add(row_sizer)
+        plotsizer.Add(row_sizer,0   , flag=wx.NORTH, border=20)
 
         self.SetSizer(plotsizer)
         #self.redraw()
@@ -686,6 +713,9 @@ class PlotPanel(wx.Panel):
 
         nPlots=len(I)
         bSubPlots=self.cbSub.IsChecked()
+
+        if bFirst:
+            self.cursors=[]
 
         for i in range(nPlots):
             if bSubPlots:
@@ -799,6 +829,19 @@ class PlotPanel(wx.Panel):
                                 pass
                             else:
                                 ax.set_yscale("log", nonposy='clip')
+            # Cross Hair 
+            #cursor = Cursor(ax, useblit=True, color='red', linewidth=2)
+            if bFirst:
+                if bSubPlots or i==0:
+                    self.cursors.append(Cursor(ax,horizOn=True, vertOn=True, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
+
+    def onMouseMove(self, event):
+        if event.inaxes:
+            x, y = event.xdata, event.ydata
+            #self.lbCrossHairX.SetLabel("x={:.5e}  y={:.5e}".format(x,y))
+            self.lbCrossHairX.SetLabel(" x={:10.3e}".format(x))
+            self.lbCrossHairY.SetLabel(" y={:10.3e}".format(y))
+
     def redraw(self):
         self._redraw()
 
@@ -1163,22 +1206,11 @@ class MainFrame(wx.Frame):
            Error(self,'Open a file first')
 
     def onDEBUG(self, event):
-        self.clean_memory()
-        #del self.plotPanel.fig
-        #del self.plotPanel.canvas
-        #del self.plotPanel.navTB
-        #del self.plotPanel
-        #del self.selPanel
-        #gc.collect()
-        #self.cleanGUI()
-        #gc.collect()
-        #ptr = self.selPanel.tabPanel.lbTab
-        #if ptr.IsShown():
-        #    ptr.Hide()
-        #    self.resizeSideColumn(SIDE_COL_SMALL)
-        #else:
-        #    ptr.Show()
-        #    self.resizeSideColumn(SIDE_COL_LARGE)
+        #self.clean_memory()
+        self.plotPanel.ctrlPanel.Refresh()
+        self.plotPanel.cb_sizer.ForceRefresh()
+
+
     def onLoad(self, event):
         self.selectFile(bAdd=False)
 
