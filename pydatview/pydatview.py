@@ -147,8 +147,14 @@ def ellude_common(strings):
     ss = common_start(strings)
     se = common_end(strings)
     iu = ss[:-1].rfind('_')
+    ip = ss[:-1].rfind('_')
     if iu > 0:
-        ss=ss[:iu+1]
+        if ip>0:
+            if iu>ip:
+                ss=ss[:iu+1]
+        else:
+            ss=ss[:iu+1]
+
     iu = se[:-1].find('_')
     if iu > 0:
         se=se[iu:]
@@ -163,6 +169,7 @@ def ellude_common(strings):
     if ne>0:
         strings = [s[:-ne] for s in strings] 
     for i,s in enumerate(strings):
+        strings[i]=s.lstrip('_')
         if len(s)==0:
             strings[i]='tab{}'.format(i)
     return strings
@@ -196,7 +203,8 @@ class Table(object):
             self.columns=columns
         self.columns_clean = [no_unit(s.replace('_',' ')) for s in self.columns]
         self.filename = filename
-        self.name=os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
+        #self.name=os.path.dirname(filename)+'|'+os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
+        self.name=os.path.splitext(self.filename)[0].replace('/','|').replace('\\','|')+'|'+ self.name
         
         self.convertTimeColumns()
 
@@ -869,11 +877,16 @@ class PlotPanel(wx.Panel):
                 xlabel  = sX1
                 Ylabels = SY1
             else:
-                if sX1!=sX2:
+                if no_unit(sX1)!=no_unit(sX2):
                     xlabel=sX1+' and '+ sX2
                 else:
                     xlabel=sX1
-                Ylabels = [s1+' and '+s2 for s1,s2 in zip(SY1,SY2)]
+                Ylabels=[]
+                for s1,s2 in zip(SY1,SY2):
+                    if no_unit(s1)!=no_unit(s2):
+                        Ylabels.append(s1+' and '+s2)
+                    else:
+                        Ylabels.append(s1)
             self.draw_tab(tabs[ITab[0]].data,iX1,xlabel,IY1,Ylabels,STab[0],2,bFirst=True)
             self.draw_tab(tabs[ITab[1]].data,iX2,xlabel,IY2,Ylabels,STab[1],2,bFirst=False)
 
