@@ -1,0 +1,10 @@
+[TIME] Main import                    Elapsed:  0.00s
+[PERF] Data creation                  Perf:  3.24s -  763.2Mb
+[PERF] Plot 1                         Perf:  1.45s -  475.1Mb
+[PERF] Redraw 1                       Perf:  0.99s -  458.7Mb
+[PERF] Redraw 1 (igen)                Perf:  1.11s - ------
+[PERF] FFT 1                          Perf:  3.08s -  611.3Mb
+[PERF] Plot 3                         Perf: 26.54s -    1.3Gb
+[PERF] Redraw 3                       Perf: 26.35s - ------
+[PERF] FFT 3                          Perf: 10.47s -  889.2Mb
+[TIME] Test                           Elapsed:  1m34s
