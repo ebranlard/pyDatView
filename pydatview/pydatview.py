@@ -1024,9 +1024,6 @@ class MainFrame(wx.Frame):
         if len(tabs)>0:
             # Adding tables
             self.load_tabs(tabs,bReload=bReload,bAdd=bAdd,bPlot=True)
-            # Trigger a plot event at the end if at least on load succeeded
-            self.updateLayout()
-            self.onColSelectionChange(event=None)
 
     def _load_file_tabs(self,filename,fileformat=None):
         """ load a single file, adds table, and potentially trigger plotting """
