@@ -41,7 +41,7 @@ FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_
 FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
 FILE_READER             = weio.read
 
-SIDE_COL = [150,150,250,350]
+SIDE_COL = [150,150,280,400]
 
 font = {'size'   : 9}
 matplotlib_rc('font', **font)
@@ -1125,14 +1125,14 @@ class MainFrame(wx.Frame):
             self.updateLayout()
             self.onColSelectionChange(event=None)
 
-    def onSashChangeMain(self,event):
+    def onSashChangeMain(self,event=None):
         pass
         # doent work because size is not communicated yet
         #if hasattr(self,'selPanel'):
         #    print('ON SASH')
         #    self.selPanel.setEquiSash(event)
 
-    def onTabSelectionChange(self,event):
+    def onTabSelectionChange(self,event=None):
         # TODO all this can go in TabPanel
         ISel=self.selPanel.tabPanel.lbTab.GetSelections()
         if len(ISel)>0:
@@ -1162,7 +1162,7 @@ class MainFrame(wx.Frame):
             # Trigger the colSelection Event
             self.onColSelectionChange(event=None)
 
-    def onColSelectionChange(self,event):
+    def onColSelectionChange(self,event=None):
         if hasattr(self,'plotPanel'):
             if self.selPanel._mode=='twoColumnsMode':
                 ISel=self.selPanel.tabPanel.lbTab.GetSelections()
@@ -1194,14 +1194,14 @@ class MainFrame(wx.Frame):
         self.deletePages()
         gc.collect()
 
-    def onSave(self, event):
+    def onSave(self, event=None):
         # using the navigation toolbar save functionality
         self.plotPanel.navTB.save_figure()
 
-    def onAbout(self, event):
+    def onAbout(self, event=None):
         Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nWritten by E. Branlard. \n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
-    def onReload(self, event):
+    def onReload(self, event=None):
         #if (self.filenames is not None) and len(self.filenames)==1 and len(self.filenames[0])>0:
         if (self.filenames is not None) and len(self.filenames)>=0:
             iFormat=self.comboFormats.GetSelection()
@@ -1215,16 +1215,16 @@ class MainFrame(wx.Frame):
         else:
            Error(self,'Open a file first')
 
-    def onDEBUG(self, event):
+    def onDEBUG(self, event=None):
         #self.clean_memory()
         self.plotPanel.ctrlPanel.Refresh()
         self.plotPanel.cb_sizer.ForceRefresh()
 
 
-    def onLoad(self, event):
+    def onLoad(self, event=None):
         self.selectFile(bAdd=False)
 
-    def onAdd(self, event):
+    def onAdd(self, event=None):
         self.selectFile(bAdd=len(self.tabs)>0)
 
     def selectFile(self,bAdd=False):
@@ -1278,7 +1278,7 @@ class MainFrame(wx.Frame):
             self.nb.DeletePage(index)
         self.nb.SendSizeEvent()
         gc.collect()
-    def on_tab_change(self, event):
+    def on_tab_change(self, event=None):
         page_to_select = event.GetSelection()
         wx.CallAfter(self.fix_focus, page_to_select)
         event.Skip(True)
@@ -1310,21 +1310,56 @@ def MyExceptionHook(etype, value, trace):
 def test():
     import time
     import sys
+    from .perfmon import PerfMon
+    dt = 3
     # --- Test df
-    tstart = time.time()
-    nRow =10**7;
-    nCols=10;
-    d={}
-    d['col0'] = np.linspace(0,1,nRow);
-    for iC in range(1,nCols):
-        name='col{}'.format(iC)
-        d[name] = np.random.normal(0,1,nRow)+2*iC
-#     df = pd.DataFrame(data={'col1':np.linspace(0,1,size) , 'col2': np.random.normal(0,1,size)})
-    tend = time.time()
-    df = pd.DataFrame(data=d)
-    print('Size:',sys.getsizeof(df)/10**6)
-    print('Creation time: ',tend-tstart)
-    pydatview(df)
+    with PerfMon('Data creation'):
+        nRow =10**7;
+        nCols=10;
+        d={}
+        d['col0'] = np.linspace(0,1,nRow);
+        for iC in range(1,nCols):
+            name='col{}'.format(iC)
+            d[name] = np.random.normal(0,1,nRow)+2*iC
+        tend = time.time()
+        df = pd.DataFrame(data=d)
+        del d
+    time.sleep(dt) 
+    with PerfMon('Plot 1'):
+        app = wx.App(False)
+        frame = MainFrame()
+        frame.load_df(df)
+    time.sleep(dt) 
+    with PerfMon('Redraw 1'):
+        frame.selPanel.colPanel1.lbColumns.SetSelection(-1)
+        frame.selPanel.colPanel1.lbColumns.SetSelection(2)
+        frame.plotPanel.redraw()
+    time.sleep(dt) 
+    with PerfMon('Redraw 1 (igen)'):
+        frame.selPanel.colPanel1.lbColumns.SetSelection(-1)
+        frame.selPanel.colPanel1.lbColumns.SetSelection(2)
+        frame.plotPanel.redraw()
+    time.sleep(dt) 
+    with PerfMon('FFT 1'):
+        frame.plotPanel.cbFFT.SetValue(True)
+        #frame.plotPanel.cbLogX.SetValue(True)
+        #frame.plotPanel.cbLogY.SetValue(True)
+        frame.plotPanel.redraw()
+        frame.plotPanel.cbFFT.SetValue(False)
+    time.sleep(dt) 
+    with PerfMon('Plot 3'):
+        frame.selPanel.colPanel1.lbColumns.SetSelection(4)
+        frame.selPanel.colPanel1.lbColumns.SetSelection(6)
+        frame.onColSelectionChange()
+    time.sleep(dt) 
+    with PerfMon('Redraw 3'):
+        frame.plotPanel.redraw()
+    time.sleep(dt) 
+    with PerfMon('FFT 3'):
+        frame.plotPanel.cbFFT.SetValue(True)
+        frame.plotPanel.redraw()
+        frame.plotPanel.cbFFT.SetValue(False)
+    #app.MainLoop()
 
  
 # --------------------------------------------------------------------------------}
