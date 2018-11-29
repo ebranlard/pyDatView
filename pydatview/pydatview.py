@@ -1033,8 +1033,11 @@ class MainFrame(wx.Frame):
         try:
             F = FILE_READER(filename,fileformat = fileformat)
             dfs = F.toDataFrame()
+        except FileNotFoundError as e:
+            Error(self, 'A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}'.format(filename, e.filename))
+            return []
         except IOError:
-            Error(self, 'IO Error,  cannot open file: '+filename )
+            Error(self, 'IO Error thrown while opening file: '+filename )
             return []
         except MemoryError:
             Error(self,'Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).')
