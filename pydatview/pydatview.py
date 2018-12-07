@@ -251,6 +251,44 @@ def haveSameColumns(tabs,I=None):
     else:
         return False
 
+
+
+# --------------------------------------------------------------------------------}
+# --- Popup menus
+# --------------------------------------------------------------------------------{
+class TablePopup(wx.Menu):
+    def __init__(self, mainframe, parent):
+        wx.Menu.__init__(self)
+        self.parent = parent
+        self.mainframe = mainframe
+
+        item = wx.MenuItem(self, -1, "Delete")
+        self.Append(item)
+        self.Bind(wx.EVT_MENU, self.OnDelete, item)
+
+    def OnDelete(self, event):
+        ISel=self.parent.GetSelections()
+        self.mainframe.deleteTabs(ISel)
+
+# class ColumnsPopup(wx.Menu):
+#     def __init__(self, parent):
+#         wx.Menu.__init__(self)
+#         self.parent = parent
+# 
+#         item = wx.MenuItem(self, -1, "Rename")
+#         self.Append(item)
+#         self.Bind(wx.EVT_MENU, self.OnRename, item)
+# 
+#     def OnAdd(self, event):
+#         ISel=self.parent.GetSelections()
+#         print("Column add event",ISel)
+#     def OnRename(self, event):
+#         ISel=self.parent.GetSelections()
+#         print("Column rename event",ISel)
+#     def OnDelete(self, event):
+#         ISel=self.parent.GetSelections()
+#         print("Column delete event",ISel)
+
 # --------------------------------------------------------------------------------}
 # --- InfoPanel 
 # --------------------------------------------------------------------------------{
@@ -490,6 +528,8 @@ class SelectionPanel(wx.Panel):
         ISel=self.tabPanel.lbTab.GetSelections()
         # Emptying
         self.tabPanel.empty()
+        self.colPanel1.empty()
+        self.colPanel2.empty()
         # Adding
         tabnames=[t.name for t in tabs]
         etabnames=ellude_common(tabnames)
@@ -507,11 +547,11 @@ class SelectionPanel(wx.Panel):
         #
         if len(self.tabPanel.lbTab.GetSelections())==0:
             self.selectDefaultTable()
-
-        # Trigger - updating columns and layout
-        ISel=self.tabPanel.lbTab.GetSelections()
-        # TODO
-        self.setTabForCol(ISel[0],1) # TODO
+        if len(self.tabs)>0:
+            # Trigger - updating columns and layout
+            ISel=self.tabPanel.lbTab.GetSelections()
+            # TODO
+            self.setTabForCol(ISel[0],1) # TODO
         self.updateLayout(self.modeRequested)
 
     def setTabForCol(self,iTabSel,iPanel):
@@ -695,6 +735,9 @@ class PlotPanel(wx.Panel):
         self.cbFFT.SetValue(False)
         self.cbPDF.SetValue(False)
         self.redraw()
+
+    def empty(self):
+        self.cleanPlot()
 
     def cleanPlot(self):
         for ax in self.fig.axes:
@@ -1139,10 +1182,26 @@ class MainFrame(wx.Frame):
             self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel2.lbColumns)
             self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.tabPanel.lbTab)
             self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
+
+            self.selPanel.tabPanel.lbTab.Bind(wx.EVT_RIGHT_DOWN, self.OnTabPopup)
+        
+
         # plot trigger
         if bPlot:
             self.updateLayout()
             self.onColSelectionChange(event=None)
+
+
+    def deleteTabs(self, I):
+        self.tabs = [t for i,t in enumerate(self.tabs) if i not in I]
+        # Invalidating selections
+        self.selPanel.tabPanel.lbTab.SetSelection(-1)
+        # Until we have something better, we empty plot
+        self.plotPanel.empty()
+        # Updating tables
+        self.selPanel.update_tabs(self.tabs)
+        # Trigger a replot
+        self.onTabSelectionChange()
 
     def onSashChangeMain(self,event=None):
         pass
@@ -1150,6 +1209,11 @@ class MainFrame(wx.Frame):
         #if hasattr(self,'selPanel'):
         #    print('ON SASH')
         #    self.selPanel.setEquiSash(event)
+
+    def OnTabPopup(self,event):
+        menu = TablePopup(self,self.selPanel.tabPanel.lbTab)
+        self.PopupMenu(menu, event.GetPosition())
+        menu.Destroy()
 
     def onTabSelectionChange(self,event=None):
         # TODO all this can go in TabPanel
@@ -1337,6 +1401,11 @@ def test():
     import time
     import sys
     from .perfmon import PerfMon
+    # TODO unit test for #25
+    S=ellude_common(['A.txt','A_.txt'])
+    if any([len(s)<=1 for s in S]):
+        raise Exception('[FAIL] ellude common with underscore difference, Bug #25')
+
     dt = 3
     # --- Test df
     with PerfMon('Data creation'):
