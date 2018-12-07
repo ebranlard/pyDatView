@@ -268,9 +268,13 @@ class InfoPanel(wx.Panel):
         self.SetSizer(sizer)
         self.SetMaxSize((-1, 50))
 
-    def showStats(self,tabs,ITab,ColIndexes,ColNames,erase=False):
+    def showStats(self,files,tabs,ITab,ColIndexes,ColNames,erase=False):
         if erase:
             self.clean()
+#        if files is not None:
+#            for i,f in enumerate(files):
+#                self.tInfo.AppendText('File {}: {}\n'.format(i,f))
+#
         for iTab in ITab:
             tab = tabs[iTab]
             for i,s in zip(ColIndexes,ColNames):
@@ -291,7 +295,7 @@ class InfoPanel(wx.Panel):
 
         
 # --------------------------------------------------------------------------------}
-# --- SelectionPanel:  
+# --- ColumnPanel
 # --------------------------------------------------------------------------------{
 class ColumnPanel(wx.Panel):
     """ A list of columns for x and y axis """
@@ -373,6 +377,10 @@ class ColumnPanel(wx.Panel):
         SY = [self.lbColumns.GetString(i) for i in IY]
         return iX,IY,sX,SY
 
+
+# --------------------------------------------------------------------------------}
+# --- Table Panel
+# --------------------------------------------------------------------------------{
 class TablePanel(wx.Panel):
     """ Display list of tables """
     def __init__(self, parent):
@@ -393,6 +401,9 @@ class TablePanel(wx.Panel):
             self.lbTab.Delete(i)
 
 
+# --------------------------------------------------------------------------------}
+# --- Selection Panel 
+# --------------------------------------------------------------------------------{
 SEL_MODES    = ['auto','Same tables'    ,'Different tables'  ]
 SEL_MODES_ID = ['auto','sameColumnsMode','twoColumnsMode']
 
@@ -909,10 +920,6 @@ class MainFrame(wx.Frame):
         # Parent constructor
         wx.Frame.__init__(self, None, -1, PROG_NAME+' '+PROG_VERSION)
         # Data
-        if filename is not None:
-            self.filenames=[filename]
-        else:
-            self.filenames=[]
         self.tabs=[]
             
         # Hooking exceptions to display them to the user
@@ -993,13 +1000,19 @@ class MainFrame(wx.Frame):
 
         self.Show()
 
+    @property
+    def filenames(self):
+        filenames=[]
+        if hasattr(self,'tabs'):
+            filenames=[t.filename for t in self.tabs]
+        return filenames
+
     def clean_memory(self,bReload=False):
         #print('Clean memory')
         # force Memory cleanup
         if hasattr(self,'tabs'):
             del self.tabs
             self.tabs=[]
-        self.filenames=[]
         if not bReload:
             if hasattr(self,'selPanel'):
                 self.selPanel.clean_memory()
@@ -1019,13 +1032,16 @@ class MainFrame(wx.Frame):
             if f in self.filenames:
                 Error(self,'Cannot add a file already opened')
             else:
-                self.filenames.append(f)
                 tabs += self._load_file_tabs(f,fileformat=fileformat)
         if len(tabs)>0:
             # Adding tables
             self.load_tabs(tabs,bReload=bReload,bAdd=bAdd,bPlot=True)
 
     def _load_file_tabs(self,filename,fileformat=None):
+        self.statusbar.SetStatusText('');
+        self.statusbar.SetStatusText('',1);
+        self.statusbar.SetStatusText('',2);
+
         """ load a single file, adds table, and potentially trigger plotting """
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)
@@ -1179,10 +1195,10 @@ class MainFrame(wx.Frame):
             # --- Stats trigger
             ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2=self.selPanel.getFullSelection()
             if sX2 is None:
-                self.infoPanel.showStats(self.tabs,ITab,IY1,SY1,erase=True)
-            else:
-                self.infoPanel.showStats(self.tabs,[ITab[0]],IY1,SY1,erase=True)
-                self.infoPanel.showStats(self.tabs,[ITab[1]],IY2,SY2)
+                self.infoPanel.showStats(self.filenames,self.tabs, ITab,IY1,SY1,erase=True)
+            else:                                        
+                self.infoPanel.showStats(self.filenames,self.tabs, [ITab[0]],IY1,SY1,erase=True)
+                self.infoPanel.showStats(None,          self.tabs, [ITab[1]],IY2,SY2)
 
     def onExit(self, event):
         self.Close()
@@ -1205,16 +1221,14 @@ class MainFrame(wx.Frame):
         Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nWritten by E. Branlard. \n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReload(self, event=None):
-        #if (self.filenames is not None) and len(self.filenames)==1 and len(self.filenames[0])>0:
-        if (self.filenames is not None) and len(self.filenames)>=0:
+        filenames = self.filenames
+        if len(filenames)>=0:
             iFormat=self.comboFormats.GetSelection()
             if iFormat==0: # auto-format
                 Format = None
             else:
                 Format = FILE_FORMATS[iFormat-1]
-            self.load_files(self.filenames,fileformat=Format,bReload=True,bAdd=False)
-        #elif len(self.filenames)>=1 :
-        #   Error(self,'Reloading only implemented for one file for now.')
+            self.load_files(filenames,fileformat=Format,bReload=True,bAdd=False)
         else:
            Error(self,'Open a file first')
 
