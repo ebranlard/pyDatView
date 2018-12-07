@@ -170,7 +170,7 @@ def ellude_common(strings):
         strings = [s[:-ne] for s in strings] 
     for i,s in enumerate(strings):
         strings[i]=s.lstrip('_')
-        if len(s)==0:
+        if len(strings[i])==0:
             strings[i]='tab{}'.format(i)
     return strings
 
@@ -1163,20 +1163,29 @@ class MainFrame(wx.Frame):
                 if self.selPanel._mode=='twoColumnsMode':
                     if len(ISel)>2:
                         Error(self,'In this mode, only two tables can be selected. To compare more than two tables, the tables need to have the same columns.')
+                        ISel=[ISel[0]]
                         self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
                         self.selPanel.tabPanel.lbTab.SetSelection(ISel[0])
                         self.selPanel.setTabForCol(ISel[0],1) 
                         self.selPanel.colPanel2.empty()
-                    else:
+                    else: # two panels selected
                         self.selPanel.setTabForCol(ISel[0],1) 
                         self.selPanel.setTabForCol(ISel[1],2) 
                 else:
                     Error(self,'The two tables have different columns. Chose the "two table mode" to compare them.')
                     # unselect all and select only the first one
+                    ISel=[ISel[0]]
                     self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
                     self.selPanel.tabPanel.lbTab.SetSelection(ISel[0])
                     self.selPanel.setTabForCol(ISel[0],1) 
 
+            # Update of status bar
+            self.statusbar.SetStatusText('',0)
+            self.statusbar.SetStatusText(", ".join([t.filename for (i,t) in enumerate(self.tabs) if i in ISel]),1)
+            if len(ISel)==1:
+                self.statusbar.SetStatusText('{}x{}'.format(self.tabs[ISel[0]].nCols,self.tabs[ISel[0]].nRows),2)
+            else:
+                self.statusbar.SetStatusText('',2)
 
             # Trigger the colSelection Event
             self.onColSelectionChange(event=None)
