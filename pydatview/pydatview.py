@@ -268,8 +268,16 @@ class TablePopup(wx.Menu):
 
     def OnDelete(self, event):
         ISel=self.parent.GetSelections()
-        self.mainframe.deleteTabs(ISel)
-
+        #self.mainframe.deleteTabs(ISel)
+# dialog = wx.TextEntryDialog(self.ParentWindow,
+#                                     _("Edit comment"),
+#                                     _("Please enter comment text"),
+#                                     "", wx.OK | wx.CANCEL | wx.TE_MULTILINE)
+        dlg = wx.TextEntryDialog(self.parent, 'New table name:', 'Rename table','',wx.OK|wx.CANCEL)
+        dlg.CentreOnParent()
+        if dlg.ShowModal() == wx.ID_OK:
+            meta=dlg.GetValue()
+            print(meta);
 # class ColumnsPopup(wx.Menu):
 #     def __init__(self, parent):
 #         wx.Menu.__init__(self)
@@ -1107,6 +1115,11 @@ class MainFrame(wx.Frame):
         except weio.WrongFormatError as e:
             Error(self,'Wrong file format!\n\nFile: '+filename+'\n\n'   \
                     'The file parser for the selected format failed to open the file.\n\n'+   \
+                    'The reported error was:\n'+e.args[0]+'\n\n' +   \
+                    'Double-check your file format and report this error if you think it''s a bug.')
+            return []
+        except weio.BrokenFormatError as e:
+            Error(self,'Inconsistency in the file format!\n\nFile: '+filename+'\n\n'   \
                     'The reported error was:\n'+e.args[0]+'\n\n' +   \
                     'Double-check your file format and report this error if you think it''s a bug.')
             return []
