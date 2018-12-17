@@ -72,7 +72,7 @@ def Error(parent, message, caption = 'Error!'):
 
 def getColumn(df,i):
     if i == wx.NOT_FOUND or i == 0:
-        x = range(len(df.iloc[:, 1]))
+        x = np.array(range(len(df.iloc[:, 1])))
         c = None
         isString = False
         isDate   = False
