@@ -252,6 +252,21 @@ def haveSameColumns(tabs,I=None):
         return False
 
 
+# --------------------------------------------------------------------------------}
+# --- Drag and drop 
+# --------------------------------------------------------------------------------{
+# Implement File Drop Target class
+class FileDropTarget(wx.FileDropTarget):
+   def __init__(self, parent):
+      wx.FileDropTarget.__init__(self)
+      self.parent = parent
+   def OnDropFiles(self, x, y, filenames):
+      filenames = [f for f in filenames if not os.path.isdir(f)]
+      if len(filenames)>0:
+          # TODO detect if ctrl is held for bAdd or not
+          self.parent.load_files(filenames,fileformat=None,bAdd=True)
+      return True
+
 
 # --------------------------------------------------------------------------------}
 # --- Popup menus
@@ -1073,6 +1088,10 @@ class MainFrame(wx.Frame):
         sizer = wx.BoxSizer()
         sizer.Add(self.nb, 1, flag=wx.EXPAND)
         self.MainPanel.SetSizer(sizer)
+
+        # --- Drag and drop
+        dd = FileDropTarget(self)
+        self.SetDropTarget(dd)
 
         # --- Main Frame (self)
         FrameSizer = wx.BoxSizer(wx.VERTICAL)
