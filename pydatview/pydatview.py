@@ -1088,7 +1088,10 @@ class MainFrame(wx.Frame):
     def filenames(self):
         filenames=[]
         if hasattr(self,'tabs'):
-            filenames=[t.filename for t in self.tabs]
+            for t in self.tabs:
+                if t.filename not in filenames:
+                    filenames.append(t.filename)
+            #filenames=[t.filename for t in self.tabs] 
         return filenames
 
     def clean_memory(self,bReload=False):
