@@ -216,7 +216,6 @@ class Table(object):
         else: 
             # ndarray??
             raise Exception('Implementation of tables with ndarray dropped for now')
-        self.columns_clean = [no_unit(s.replace('_',' ')) for s in self.columns]
         self.filename = filename
         #self.name=os.path.dirname(filename)+'|'+os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
         self.name=os.path.splitext(self.filename)[0].replace('/','|').replace('\\','|')+'|'+ self.name
@@ -242,11 +241,16 @@ class Table(object):
                     if isDate:
                         print('Converting column {} to datetime'.format(c))
                         self.data.iloc[:,i]=pd.to_datetime(self.data.iloc[:,i].values).to_pydatetime()
-    def renameColumn(self,old_column,new_column):
-        pass
+
+    def renameColumn(self,iCol,newName):
+        self.columns[iCol]=newName
 
     def rename(self,new_name):
         self.name='>'+new_name
+
+    @property
+    def columns_clean(self):
+        return [no_unit(s.replace('_',' ')) for s in self.columns]
 
     @property
     def name(self):
@@ -326,32 +330,37 @@ class TablePopup(wx.Menu):
 
     def OnRename(self, event):
         ISel    = self.parent.GetSelections()
+        if len(ISel)<=0:
+            return
         oldName = self.parent.GetString(ISel[0])
-#         dialog = wx.TextEntryDialog(self.parent,
-#                                     _("Edit comment"),
-#                                     _("Please enter comment text"),
-#                                     oldName, wx.OK | wx.CANCEL | wx.TE_MULTILINE)
         dlg = wx.TextEntryDialog(self.parent, 'New table name:', 'Rename table',oldName,wx.OK|wx.CANCEL)
         dlg.CentreOnParent()
         if dlg.ShowModal() == wx.ID_OK:
             newName=dlg.GetValue()
             self.mainframe.renameTable(ISel[0],newName)
 
-# class ColumnsPopup(wx.Menu):
-#     def __init__(self, parent):
-#         wx.Menu.__init__(self)
-#         self.parent = parent
-# 
-#         item = wx.MenuItem(self, -1, "Rename")
-#         self.Append(item)
-#         self.Bind(wx.EVT_MENU, self.OnRename, item)
-# 
-#     def OnAdd(self, event):
-#         ISel=self.parent.GetSelections()
-#         print("Column add event",ISel)
-#     def OnRename(self, event):
-#         ISel=self.parent.GetSelections()
-#         print("Column rename event",ISel)
+class ColumnPopup(wx.Menu):
+    def __init__(self, parent):
+        wx.Menu.__init__(self)
+        self.parent = parent
+        self.ISel = self.parent.lbColumns.GetSelections()
+
+        if len(self.ISel)>=1 and self.ISel[0]>0: 
+            item = wx.MenuItem(self, -1, "Rename")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnRename, item)
+
+    def OnRename(self, event):
+        oldName = self.parent.lbColumns.GetString(self.ISel[0])
+        dlg = wx.TextEntryDialog(self.parent, 'New column name:', 'Rename column',oldName,wx.OK|wx.CANCEL)
+        dlg.CentreOnParent()
+        if dlg.ShowModal() == wx.ID_OK:
+            newName=dlg.GetValue()
+            self.parent.tab.renameColumn(self.ISel[0]-1,newName)
+            self.parent.updateColumn(self.ISel[0],newName) #faster
+            self.parent.selPanel.updateLayout()
+            #self.parent.updateColumnNames()
+
 #     def OnDelete(self, event):
 #         ISel=self.parent.GetSelections()
 #         print("Column delete event",ISel)
@@ -404,29 +413,31 @@ class InfoPanel(wx.Panel):
 # --------------------------------------------------------------------------------{
 class ColumnPanel(wx.Panel):
     """ A list of columns for x and y axis """
-    def __init__(self, parent):
+    def __init__(self, parent, selPanel):
         # Superclass constructor
         super(ColumnPanel,self).__init__(parent)
+        self.selPanel = selPanel;
         # Data
-        self.ISel=[]
-        self.iSel=-1
+        self.tab=[]
         # GUI
-        #lbX = wx.StaticText( self, -1, 'x: ')
         self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
         self.comboX.SetFont(getMonoFont())
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont())
-        #self.SetBackgroundColour('blue')
-
+        # Events
+        self.lbColumns.Bind(wx.EVT_RIGHT_DOWN, self.OnColPopup)
+        # Layout
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
-        #sizerX.Add(lbX           ,0,wx.ALL | wx.ALIGN_CENTER,5)
         sizerX.Add(self.comboX   , 0, flag=wx.TOP | wx.BOTTOM | wx.EXPAND, border=5)
-
         sizerCol = wx.BoxSizer(wx.VERTICAL)
         sizerCol.Add(sizerX        , 0, border=5)
         sizerCol.Add(self.lbColumns, 2, flag=wx.EXPAND, border=0)
-
         self.SetSizer(sizerCol)
+        
+    def OnColPopup(self,event):
+        menu = ColumnPopup(self)
+        self.PopupMenu(menu, event.GetPosition())
+        menu.Destroy()
 
     def getDefaultColumn(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
@@ -436,29 +447,43 @@ class ColumnPanel(wx.Panel):
             iSelect = 0 # we roll back and select the index
         return iSelect
 
-    def updateColumnNames(self,tab,xSel=-1,ySel=[]):
-        """ Update of column names """
+    def setTab(self,tab,xSel=-1,ySel=[]):
+        """ Set the table used for the columns, update the GUI """
+        self.tab=tab;
+        self.setColumnNames(xSel,ySel)
+
+    def updateColumnNames(self):
+        """ Update of column names from table, keeping selection """
+        xSel,ySel,_,_ = self.getColumnSelection()
+        self.setColumnNames(xSel,ySel)
+
+    def updateColumn(self,i,newName):
+        """ Update of one column name"""
+        self.lbColumns.SetString(i,newName)
+        self.comboX.SetString(i,newName)
+
+    def setColumnNames(self,xSel=-1,ySel=[]):
+        """ Set columns from table """
         # Empty # 
         self.empty()
         # Populating..
-        columns=['Index']+list(tab.columns[:])
+        columns=['Index']+list(self.tab.columns[:])
         columns=[s.replace('_',' ') for s in columns]
         for c in columns:
             self.lbColumns.Append(c) # TODO find a way to do it at once
         for c in columns:
             self.comboX.Append(c) # TODO find a way to do it at once
-        #  Restoring previous selection
+        # Restoring previous selection
         for i in ySel:
             if i<len(columns):
                 self.lbColumns.SetSelection(i)
                 self.lbColumns.EnsureVisible(i)
         if len(self.lbColumns.GetSelections())<=0:
-            self.lbColumns.SetSelection(self.getDefaultColumn(tab,len(columns)))
+            self.lbColumns.SetSelection(self.getDefaultColumn(self.tab,len(columns)))
         if (xSel<0) or xSel>len(columns):
-            self.comboX.SetSelection(self.getDefaultColumn(tab,len(columns)))
+            self.comboX.SetSelection(self.getDefaultColumn(self.tab,len(columns)))
         else:
             self.comboX.SetSelection(xSel)
-
 
     def forceOneSelection(self):
         ISel=self.lbColumns.GetSelections()
@@ -520,23 +545,25 @@ class SelectionPanel(wx.Panel):
         # Superclass constructor
         super(SelectionPanel,self).__init__(parent)
         # DATA
-        self.tabs       = []
-        self.itabForCol = None
-        self.parent     = parent
-        self.tabSelections  = {}
-        self.tabSelected  = []
+        self.tabs          = []
+        self.itabForCol    = None
+        self.parent        = parent
+        self.tabSelections = {}
+        self.tabSelected   = []
+        self.modeRequested = mode
 
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
         self.splitter.SetMinimumPaneSize(70)
         self.tabPanel  = TablePanel (self.splitter);
-        self.colPanel1 = ColumnPanel(self.splitter);
-        self.colPanel2 = ColumnPanel(self.splitter);
+        self.colPanel1 = ColumnPanel(self.splitter, self);
+        self.colPanel2 = ColumnPanel(self.splitter, self);
         self.tabPanel.Hide()
         self.colPanel1.Hide()
         self.colPanel2.Hide()
+
         # Layout
-        self.updateLayout(mode)
+        self.updateLayout()
         VertSizer = wx.BoxSizer(wx.VERTICAL)
         VertSizer.Add(self.splitter, 2, flag=wx.EXPAND, border=0)
         self.SetSizer(VertSizer)
@@ -549,8 +576,11 @@ class SelectionPanel(wx.Panel):
             # TODO
             #self.colPanel1.selectDefaultColumns(self.tabs[self.itabForCol])
 
-    def updateLayout(self,mode):
-        self.modeRequested = mode
+    def updateLayout(self,mode=None):
+        if mode is None:
+            mode=self.modeRequested
+        else:
+            self.modeRequested = mode
         if mode=='auto':
             self.autoMode()
         elif mode=='sameColumnsMode':
@@ -636,9 +666,9 @@ class SelectionPanel(wx.Panel):
         t  = self.tabs[iTabSel]
         ts = self.tabSelections[t.name]
         if iPanel==1:
-            self.colPanel1.updateColumnNames(t,ts['xSel'],ts['ySel'])
+            self.colPanel1.setTab(t,ts['xSel'],ts['ySel'])
         elif iPanel==2:
-            self.colPanel2.updateColumnNames(t,ts['xSel'],ts['ySel'])
+            self.colPanel2.setTab(t,ts['xSel'],ts['ySel'])
         else:
             raise Exception('Wrong ipanel')
 
@@ -750,8 +780,8 @@ class PlotPanel(wx.Panel):
         super(PlotPanel,self).__init__(parent)
         self.SetBackgroundColour('white')
         # data
-        self.selPanel=selPanel
-        self.parent=parent
+        self.selPanel = selPanel
+        self.parent   = parent
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
@@ -1023,7 +1053,7 @@ class PlotPanel(wx.Panel):
         self._redraw()
 
     def _redraw(self):
-        #print('Redraw event')
+        #print('>>>>>>> Redraw event')
         ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2=self.selPanel.getFullSelection()
         if len(ID)==0:
             #Error(self.parent,'Open a file to plot the data.')
@@ -1318,7 +1348,7 @@ class MainFrame(wx.Frame):
 
         # plot trigger
         if bPlot:
-            self.updateLayout()
+            self.mainFrameUpdateLayout()
             self.onColSelectionChange(event=None)
 
     def renameTable(self, iTab, newName):
@@ -1495,9 +1525,9 @@ class MainFrame(wx.Frame):
         mode = SEL_MODES_ID[self.comboMode.GetSelection()]
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(mode)
-        self.updateLayout()
+        self.mainFrameUpdateLayout()
 
-    def updateLayout(self, event=None):
+    def mainFrameUpdateLayout(self, event=None):
         if hasattr(self,'selPanel'):
             nWind=self.selPanel.splitter.nWindows
             self.resizeSideColumn(SIDE_COL[nWind])
