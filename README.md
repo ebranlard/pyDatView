@@ -11,6 +11,7 @@ Additional file formats can easily be added.
 ## QuickStart
 For windows users, an installer executable is available here:
  - https://github.com/ebranlard/pyDatView/releases
+
 For command line users:
 ```bash
 git clone --recurse-submodules https://github.com/ebranlard/pyDatView
