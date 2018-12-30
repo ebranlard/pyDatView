@@ -154,34 +154,42 @@ def common_end(*strings):
 
 
 def ellude_common(strings):
-    ss = common_start(strings)
-    se = common_end(strings)
-    iu = ss[:-1].rfind('_')
-    ip = ss[:-1].rfind('_')
-    if iu > 0:
-        if ip>0:
-            if iu>ip:
+    # Selecting only the strings that do not start with the safe '>' char
+    S = [s for i,s in enumerate(strings) if ((len(s)>0) and (s[0]!= '>'))]
+    if len(S)==1:
+        ns=S[0].rfind('|')+1
+        ne=0;
+    else:
+        ss = common_start(S)
+        se = common_end(S)
+        iu = ss[:-1].rfind('_')
+        ip = ss[:-1].rfind('_')
+        if iu > 0:
+            if ip>0:
+                if iu>ip:
+                    ss=ss[:iu+1]
+            else:
                 ss=ss[:iu+1]
-        else:
-            ss=ss[:iu+1]
 
-    iu = se[:-1].find('_')
-    if iu > 0:
-        se=se[iu:]
-    iu = se[:-1].find('.')
-    if iu > 0:
-        se=se[iu:]
+        iu = se[:-1].find('_')
+        if iu > 0:
+            se=se[iu:]
+        iu = se[:-1].find('.')
+        if iu > 0:
+            se=se[iu:]
+        ns=len(ss)     
+        ne=len(se)     
 
-    ns=len(ss)     
-    ne=len(se)     
-
-    strings = [s[ns:] for s in strings] 
-    if ne>0:
-        strings = [s[:-ne] for s in strings] 
     for i,s in enumerate(strings):
-        strings[i]=s.lstrip('_')
-        if len(strings[i])==0:
-            strings[i]='tab{}'.format(i)
+        if len(s)>0 and s[0]=='>':
+            strings[i]=s[1:]
+        else:
+            s=s[ns:]
+            if ne>0:
+                s = s[:-ne]
+            strings[i]=s.lstrip('_')
+            if len(strings[i])==0:
+                strings[i]='tab{}'.format(i)
     return strings
 
 def no_unit(s):
@@ -208,9 +216,6 @@ class Table(object):
         else: 
             # ndarray??
             raise Exception('Implementation of tables with ndarray dropped for now')
-            self.name=name
-            self.data=data
-            self.columns=columns
         self.columns_clean = [no_unit(s.replace('_',' ')) for s in self.columns]
         self.filename = filename
         #self.name=os.path.dirname(filename)+'|'+os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
@@ -237,6 +242,26 @@ class Table(object):
                     if isDate:
                         print('Converting column {} to datetime'.format(c))
                         self.data.iloc[:,i]=pd.to_datetime(self.data.iloc[:,i].values).to_pydatetime()
+    def renameColumn(self,old_column,new_column):
+        pass
+
+    def rename(self,new_name):
+        self.name='>'+new_name
+
+    @property
+    def name(self):
+        if self.__name[0]=='>':
+            return self.__name[1:]
+        else:
+            return self.__name
+
+    @property
+    def raw_name(self):
+        return self.__name
+
+    @name.setter
+    def name(self,new_name):
+        self.__name=new_name
 
     @property
     def nCols(self):
@@ -291,18 +316,26 @@ class TablePopup(wx.Menu):
         self.Append(item)
         self.Bind(wx.EVT_MENU, self.OnDelete, item)
 
+        item = wx.MenuItem(self, -1, "Rename")
+        self.Append(item)
+        self.Bind(wx.EVT_MENU, self.OnRename, item)
+
     def OnDelete(self, event):
         ISel=self.parent.GetSelections()
         self.mainframe.deleteTabs(ISel)
-# dialog = wx.TextEntryDialog(self.ParentWindow,
+
+    def OnRename(self, event):
+        ISel    = self.parent.GetSelections()
+        oldName = self.parent.GetString(ISel[0])
+#         dialog = wx.TextEntryDialog(self.parent,
 #                                     _("Edit comment"),
 #                                     _("Please enter comment text"),
-#                                     "", wx.OK | wx.CANCEL | wx.TE_MULTILINE)
-#         dlg = wx.TextEntryDialog(self.parent, 'New table name:', 'Rename table','',wx.OK|wx.CANCEL)
-#         dlg.CentreOnParent()
-#         if dlg.ShowModal() == wx.ID_OK:
-#             meta=dlg.GetValue()
-#             print(meta);
+#                                     oldName, wx.OK | wx.CANCEL | wx.TE_MULTILINE)
+        dlg = wx.TextEntryDialog(self.parent, 'New table name:', 'Rename table',oldName,wx.OK|wx.CANCEL)
+        dlg.CentreOnParent()
+        if dlg.ShowModal() == wx.ID_OK:
+            newName=dlg.GetValue()
+            self.mainframe.renameTable(ISel[0],newName)
 
 # class ColumnsPopup(wx.Menu):
 #     def __init__(self, parent):
@@ -465,6 +498,11 @@ class TablePanel(wx.Panel):
         sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
         self.SetSizer(sizer)
 
+    def setTabNames(self,tabnames):    
+        self.empty()
+        for tn in zip(tabnames):
+            self.lbTab.Append(tn) # TODO there might be a way to add at once
+
     def empty(self):    
         for i in reversed(range(self.lbTab.GetCount())):
             self.lbTab.Delete(i)
@@ -558,15 +596,15 @@ class SelectionPanel(wx.Panel):
         # TODO PUT ME IN TABLE PANEL
         #print('UPDATING TABLES')
         # Emptying GUI - TODO only if needed
-        self.tabPanel.empty()
         self.colPanel1.empty()
         self.colPanel2.empty()
         # Adding
         self.tabs = tabs
-        tabnames=[t.name for t in tabs]
-        etabnames=ellude_common(tabnames)
-        for et,tn in zip(etabnames,tabnames):
-            self.tabPanel.lbTab.Append(et) # TODO there might be a way to add at once
+        tabnames =[t.name for t in tabs]
+        raw_names=[t.raw_name for t in tabs]
+        etabnames=ellude_common(raw_names)
+        self.tabPanel.setTabNames(etabnames);
+        for tn in tabnames:
             if tn not in self.tabSelections.keys():
                 self.tabSelections[tn]={'xSel':-1,'ySel':[]}
             else:
@@ -616,6 +654,14 @@ class SelectionPanel(wx.Panel):
     def update_tabs(self, tabs):
         self.updateTables(tabs)
 
+    def renameTable(self,iTab, oldName, newName):
+        #self.printSelection()
+        self.tabSelections[newName] = self.tabSelections.pop(oldName)
+        raw_names=[t.raw_name for t in self.tabs]
+        etabnames=ellude_common(raw_names)
+        self.tabPanel.setTabNames(etabnames);
+        #self.printSelection()
+
     def saveSelection(self):
         #self.ISel=self.tabPanel.lbTab.GetSelections()
         ISel=self.tabSelected # 
@@ -635,7 +681,10 @@ class SelectionPanel(wx.Panel):
         TS=self.tabSelections
         for i,t in enumerate(self.tabs):
             tn=t.name
-            print('Tab',i,'xSel:',TS[t.name]['xSel'],'ySel:',TS[t.name]['ySel'],'Name:',t.name)
+            if tn not in TS.keys():
+                print('Tab',i,'>>> Name {} not found in selection'.format(tn))
+            else:
+                print('Tab',i,'xSel:',TS[tn]['xSel'],'ySel:',TS[tn]['ySel'],'Name:',tn)
 
     def getFullSelection(self):
         ID = []
@@ -1157,11 +1206,11 @@ class MainFrame(wx.Frame):
             self.load_tabs(tabs,bReload=bReload,bAdd=bAdd,bPlot=True)
 
     def _load_file_tabs(self,filename,fileformat=None):
+        """ load a single file, adds table, and potentially trigger plotting """
         self.statusbar.SetStatusText('');
         self.statusbar.SetStatusText('',1);
         self.statusbar.SetStatusText('',2);
 
-        """ load a single file, adds table, and potentially trigger plotting """
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)
             return []
@@ -1272,6 +1321,15 @@ class MainFrame(wx.Frame):
             self.updateLayout()
             self.onColSelectionChange(event=None)
 
+    def renameTable(self, iTab, newName):
+        oldName = self.tabs[iTab].name
+        if newName in [t.name for t in self.tabs]:
+            Error(self,'This table already exist, choose a different name.')
+            return
+        # Renaming table
+        self.tabs[iTab].rename(newName)
+        # Lowlevel update of GUI
+        self.selPanel.renameTable(iTab, oldName, newName)
 
     def deleteTabs(self, I):
         # removing table slections
