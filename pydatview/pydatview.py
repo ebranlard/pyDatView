@@ -35,7 +35,17 @@ import weio # File Formats and File Readers
 # --------------------------------------------------------------------------------{
 PROG_NAME='pyDatView'
 PROG_VERSION='v0.1-local'
-FILE_FORMATS            = weio.fileFormats()
+try:
+    FILE_FORMATS            = weio.fileFormats()
+except:
+    print('')
+    print('Error: the python package `weio` was not imported successfully.\n')
+    print('Most likely the submodule `weio` was not cloned with `pyDatView`')
+    print('Type the following command to retrieve it:\n')
+    print('   git submodule update --init --recursive\n')
+    print('Alternatively re-clone this repository into a separate folder:\n')
+    print('   git clone --recurse-submodules https://github.com/ebranlard/pyDatView\n')
+    sys.exit(-1)
 FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in FILE_FORMATS]
 FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
 FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
