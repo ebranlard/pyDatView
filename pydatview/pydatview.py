@@ -212,7 +212,7 @@ class Table(object):
             else:
                 self.name=name
             self.data    = df
-            self.columns = df.columns.values
+            self.columns = [s.replace('_',' ') for s in df.columns.values]
         else: 
             # ndarray??
             raise Exception('Implementation of tables with ndarray dropped for now')
@@ -250,7 +250,7 @@ class Table(object):
 
     @property
     def columns_clean(self):
-        return [no_unit(s.replace('_',' ')) for s in self.columns]
+        return [no_unit(s) for s in self.columns]
 
     @property
     def name(self):
@@ -359,7 +359,7 @@ class ColumnPopup(wx.Menu):
             self.parent.tab.renameColumn(self.ISel[0]-1,newName)
             self.parent.updateColumn(self.ISel[0],newName) #faster
             self.parent.selPanel.updateLayout()
-            #self.parent.updateColumnNames()
+            # a trigger for the plot is required but skipped for now
 
 #     def OnDelete(self, event):
 #         ISel=self.parent.GetSelections()
@@ -464,15 +464,10 @@ class ColumnPanel(wx.Panel):
 
     def setColumnNames(self,xSel=-1,ySel=[]):
         """ Set columns from table """
-        # Empty # 
-        self.empty()
         # Populating..
-        columns=['Index']+list(self.tab.columns[:])
-        columns=[s.replace('_',' ') for s in columns]
-        for c in columns:
-            self.lbColumns.Append(c) # TODO find a way to do it at once
-        for c in columns:
-            self.comboX.Append(c) # TODO find a way to do it at once
+        columns=['Index']+self.tab.columns
+        self.lbColumns.Set(columns)
+        self.comboX.Set(columns)
         # Restoring previous selection
         for i in ySel:
             if i<len(columns):
@@ -492,10 +487,8 @@ class ColumnPanel(wx.Panel):
             self.lbColumns.SetSelection(ISel[0])
 
     def empty(self):
-        for i in reversed(range(self.lbColumns.GetCount())):
-            self.lbColumns.Delete(i)
-        for i in reversed(range(self.comboX.GetCount())):
-            self.comboX.Delete(i)
+        self.lbColumns.Clear()
+        self.comboX.Clear()
 
     def getColumnSelection(self):
         iX = self.comboX.GetSelection()
@@ -524,13 +517,10 @@ class TablePanel(wx.Panel):
         self.SetSizer(sizer)
 
     def setTabNames(self,tabnames):    
-        self.empty()
-        for tn in zip(tabnames):
-            self.lbTab.Append(tn) # TODO there might be a way to add at once
+        self.lbTab.Set(tabnames)
 
     def empty(self):    
-        for i in reversed(range(self.lbTab.GetCount())):
-            self.lbTab.Delete(i)
+        self.lbTab.Clear()
 
 
 # --------------------------------------------------------------------------------}
