@@ -389,7 +389,7 @@ class InfoPanel(wx.Panel):
         self.SetSizer(sizer)
         self.SetMaxSize((-1, 50))
 
-    def showStats(self,files,tabs,ITab,ColIndexes,ColNames,erase=False):
+    def showStats(self,files,tabs,ITab,ColIndexes,ColNames,iX,erase=False):
         if erase:
             self.clean()
 #        if files is not None:
@@ -398,6 +398,7 @@ class InfoPanel(wx.Panel):
 #
         for iTab in ITab:
             tab = tabs[iTab]
+            x,_,_,_=getColumn(tab.data,iX)
             for i,s in zip(ColIndexes,ColNames):
                 y,yIsString,yIsDate,_=getColumn(tab.data,i)
                 if yIsString:
@@ -446,9 +447,17 @@ class ColumnPanel(wx.Panel):
         self.PopupMenu(menu, event.GetPosition())
         menu.Destroy()
 
-    def getDefaultColumn(self,tab,nColsMax):
+    def getDefaultColumnX(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
         iSelect = min(1,nColsMax)
+        _,isString,_,_=getColumn(tab.data,iSelect)
+        if isString:
+            iSelect = 0 # we roll back and select the index
+        return iSelect
+
+    def getDefaultColumnY(self,tab,nColsMax):
+        # Try the first column for x-axis, except if it's a string
+        iSelect = min(2,nColsMax)
         _,isString,_,_=getColumn(tab.data,iSelect)
         if isString:
             iSelect = 0 # we roll back and select the index
@@ -481,9 +490,9 @@ class ColumnPanel(wx.Panel):
                 self.lbColumns.SetSelection(i)
                 self.lbColumns.EnsureVisible(i)
         if len(self.lbColumns.GetSelections())<=0:
-            self.lbColumns.SetSelection(self.getDefaultColumn(self.tab,len(columns)))
+            self.lbColumns.SetSelection(self.getDefaultColumnY(self.tab,len(columns)))
         if (xSel<0) or xSel>len(columns):
-            self.comboX.SetSelection(self.getDefaultColumn(self.tab,len(columns)))
+            self.comboX.SetSelection(self.getDefaultColumnX(self.tab,len(columns)))
         else:
             self.comboX.SetSelection(xSel)
 
@@ -1457,10 +1466,10 @@ class MainFrame(wx.Frame):
             # --- Stats trigger
             ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2=self.selPanel.getFullSelection()
             if sX2 is None:
-                self.infoPanel.showStats(self.filenames,self.tabs, ITab,IY1,SY1,erase=True)
+                self.infoPanel.showStats(self.filenames,self.tabs, ITab,IY1,SY1, iX1 ,erase=True)
             else:                                        
-                self.infoPanel.showStats(self.filenames,self.tabs, [ITab[0]],IY1,SY1,erase=True)
-                self.infoPanel.showStats(None,          self.tabs, [ITab[1]],IY2,SY2)
+                self.infoPanel.showStats(self.filenames,self.tabs, [ITab[0]],IY1,SY1,iX1,erase=True)
+                self.infoPanel.showStats(None          ,self.tabs, [ITab[1]],IY2,SY2,iX2)
 
     def onExit(self, event):
         self.Close()
