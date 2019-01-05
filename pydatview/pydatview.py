@@ -315,29 +315,36 @@ class TablePopup(wx.Menu):
         wx.Menu.__init__(self)
         self.parent = parent
         self.mainframe = mainframe
+        self.ISel = self.parent.GetSelections()
 
-        item = wx.MenuItem(self, -1, "Delete")
-        self.Append(item)
-        self.Bind(wx.EVT_MENU, self.OnDelete, item)
+        if len(self.ISel)>0:
+            item = wx.MenuItem(self, -1, "Delete")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnDelete, item)
 
-        item = wx.MenuItem(self, -1, "Rename")
-        self.Append(item)
-        self.Bind(wx.EVT_MENU, self.OnRename, item)
+        if len(self.ISel)==1:
+            item = wx.MenuItem(self, -1, "Rename")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnRename, item)
+
+        if len(self.ISel)==1:
+            item = wx.MenuItem(self, -1, "Export")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnExport, item)
 
     def OnDelete(self, event):
-        ISel=self.parent.GetSelections()
-        self.mainframe.deleteTabs(ISel)
+        self.mainframe.deleteTabs(self.ISel)
 
     def OnRename(self, event):
-        ISel    = self.parent.GetSelections()
-        if len(ISel)<=0:
-            return
-        oldName = self.parent.GetString(ISel[0])
+        oldName = self.parent.GetString(self.ISel[0])
         dlg = wx.TextEntryDialog(self.parent, 'New table name:', 'Rename table',oldName,wx.OK|wx.CANCEL)
         dlg.CentreOnParent()
         if dlg.ShowModal() == wx.ID_OK:
             newName=dlg.GetValue()
-            self.mainframe.renameTable(ISel[0],newName)
+            self.mainframe.renameTable(self.ISel[0],newName)
+
+    def OnExport(self, event):
+        self.mainframe.exportTab(self.ISel[0]);
 
 class ColumnPopup(wx.Menu):
     def __init__(self, parent):
@@ -1365,6 +1372,18 @@ class MainFrame(wx.Frame):
         self.selPanel.update_tabs(self.tabs)
         # Trigger a replot
         self.onTabSelectionChange()
+
+    def exportTab(self, iTab):
+        default_filename=os.path.splitext(os.path.basename(self.tabs[iTab].filename))[0]+'.csv'
+        with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename, wildcard="CSV files (*.csv)|*.csv",
+                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            dlg.CentreOnParent()
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                return     # the user changed their mind
+            if isinstance(self.tabs[iTab].data, pd.DataFrame):
+                self.tabs[iTab].data.to_csv(dlg.GetPath(),sep=',',index=False)
+            else:
+                raise NotImplementedError('Export of data that is not a dataframe')
 
     def onSashChangeMain(self,event=None):
         pass
