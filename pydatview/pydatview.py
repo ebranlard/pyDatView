@@ -23,9 +23,9 @@ import sys
 import traceback 
 from dateutil import parser
 import gc
-import pdb
 
 from .GUIMultiSplit import MultiSplit
+from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
 import weio # File Formats and File Readers
 
 
@@ -52,6 +52,12 @@ FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FO
 FILE_READER             = weio.read
 
 SIDE_COL = [150,150,280,400]
+
+#matplotlib.rcParams['text.usetex'] = False
+# matplotlib.rcParams['font.sans-serif'] = 'DejaVu Sans'
+#matplotlib.rcParams['font.family'] = 'Arial'
+#matplotlib.rcParams['font.sans-serif'] = 'Arial'
+# matplotlib.rcParams['font.family'] = 'sans-serif'
 
 font = {'size'   : 9}
 matplotlib_rc('font', **font)
@@ -409,7 +415,8 @@ class InfoPanel(wx.Panel):
                     dtAll = pretty_time(np.timedelta64((y[-1]-y[0]),'s').item().total_seconds())
                     self.tInfo.AppendText('{:15s} (date) first:{} last:{} dt:{} range:{}\n'.format(s,y[0],y[-1],dt,dtAll))
                 else:
-                    self.tInfo.AppendText('{:15s} mean:{:10.3e}  std:{:10.3e}  min:{:10.3e}  max:{:10.3e}\n'.format(s,np.nanmean(y),np.nanstd(y),np.nanmin(y),np.nanmax(y)))
+                    #self.tInfo.AppendText('{:15s} mean:{:10.3e}  std:{:10.3e}  min:{:10.3e}  max:{:10.3e}  dx:{:10.3e}  n:{:d}\n'.format(s,np.nanmean(y),np.nanstd(y),np.nanmin(y),np.nanmax(y),x[1]-x[0],len(y) ))
+                    self.tInfo.AppendText('{:15s} mean:{:10.3e}  std:{:10.3e}  min:{:10.3e}  max:{:10.3e}\n'.format(s,np.nanmean(y),np.nanstd(y),np.nanmin(y),np.nanmax(y),x[1]-x[0],len(y) ))
         self.tInfo.ShowPosition(0)
 
     def clean(self):
@@ -526,7 +533,6 @@ class TablePanel(wx.Panel):
         label = wx.StaticText( self, -1, 'Tables: ')
         self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
         self.lbTab.SetFont(getMonoFont())
-        #self.lbTab.Hide()
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(label, 0, border=5)
         sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
@@ -702,14 +708,20 @@ class SelectionPanel(wx.Panel):
         #self.ISel=self.tabPanel.lbTab.GetSelections()
         ISel=self.tabSelected # 
         #print('Saving selection, tabSelected were:',self.tabSelected)
-        if len(ISel)>=1:
-            t=self.tabs[ISel[0]]
-            self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
-            self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
-        if len(ISel)>=2:
-            t=self.tabs[ISel[1]]
-            self.tabSelections[t.name]['xSel'] = self.colPanel2.comboX.GetSelection()
-            self.tabSelections[t.name]['ySel'] = self.colPanel2.lbColumns.GetSelections()
+        if haveSameColumns(self.tabs,ISel):
+            for ii in ISel:
+                t=self.tabs[ii]
+                self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
+                self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
+        else:
+            if len(ISel)>=1:
+                t=self.tabs[ISel[0]]
+                self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
+                self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
+            if len(ISel)>=2:
+                t=self.tabs[ISel[1]]
+                self.tabSelections[t.name]['xSel'] = self.colPanel2.comboX.GetSelection()
+                self.tabSelections[t.name]['ySel'] = self.colPanel2.lbColumns.GetSelections()
         self.tabSelected = self.tabPanel.lbTab.GetSelections();
 
     def printSelection(self):
@@ -779,6 +791,68 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         self.SetBackgroundColour('white')
         #self.SetToolBitmapSize((22,22))
 
+class SpectralCtrlPanel(wx.Panel):
+    def __init__(self, parent):
+        # Superclass constructor
+        super(SpectralCtrlPanel,self).__init__(parent)
+        #self.SetBackgroundColour('gray')
+        # data
+        self.parent   = parent
+        # GUI
+        lb = wx.StaticText( self, -1, 'Type:')
+        self.cbType            = wx.ComboBox(self, choices=['PSD','f x PSD','Amplitude'] , style=wx.CB_READONLY)
+        self.cbType.SetSelection(0)
+        lbAveraging            = wx.StaticText( self, -1, 'Avg.:')
+        self.cbAveraging       = wx.ComboBox(self, choices=['None','Welch'] , style=wx.CB_READONLY)
+        self.cbAveraging.SetSelection(1)
+        self.lbAveragingMethod = wx.StaticText( self, -1, 'Window:')
+        self.cbAveragingMethod = wx.ComboBox(self, choices=['Hamming','Hann','Rectangular'] , style=wx.CB_READONLY)
+        self.cbAveragingMethod.SetSelection(0)
+        self.lbP2 = wx.StaticText( self, -1, '2^n:')
+        self.scP2 = wx.SpinCtrl(self, value='11',size=wx.Size(40,-1))
+        self.lbWinLength = wx.StaticText( self, -1, '(2048)  ')
+        self.scP2.SetRange(3, 19)
+        lbMaxFreq     = wx.StaticText( self, -1, 'Xlim:')
+        self.tMaxFreq = wx.TextCtrl(self,size = (30,-1),style=wx.TE_PROCESS_ENTER)
+        self.tMaxFreq.SetValue("-1")
+        self.cbDetrend = wx.CheckBox(self, -1, 'Detrend',(10,10))
+        dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        dummy_sizer.Add(lb                    ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.cbType           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(lbAveraging           ,0, flag = wx.CENTER|wx.LEFT,border = 6)
+        dummy_sizer.Add(self.cbAveraging      ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.lbAveragingMethod,0, flag = wx.CENTER|wx.LEFT,border = 6)
+        dummy_sizer.Add(self.cbAveragingMethod,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.lbP2             ,0, flag = wx.CENTER|wx.LEFT,border = 6)
+        dummy_sizer.Add(self.scP2             ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.lbWinLength      ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(lbMaxFreq             ,0, flag = wx.CENTER|wx.LEFT,border = 6)
+        dummy_sizer.Add(self.tMaxFreq         ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.cbDetrend        ,0, flag = wx.CENTER|wx.LEFT,border = 7)
+        self.SetSizer(dummy_sizer)
+        self.Bind(wx.EVT_COMBOBOX  ,self.onSpecCtrlChange)
+        self.Bind(wx.EVT_TEXT      ,self.onP2ChangeText  ,self.scP2     )
+        self.Bind(wx.EVT_TEXT_ENTER,self.onXlimChange    ,self.tMaxFreq )
+        self.Bind(wx.EVT_CHECKBOX  ,self.onDetrendChange ,self.cbDetrend)
+        self.Hide() 
+
+    def onXlimChange(self,event=None):
+        self.parent.redraw();
+    def onSpecCtrlChange(self,event=None):
+        self.parent.redraw();
+    def onDetrendChange(self,event=None):
+        self.parent.redraw();
+
+    def onP2ChangeText(self,event=None):
+        nExp=self.scP2.GetValue()
+        self.updateP2(nExp)
+        self.parent.redraw();
+
+    def updateP2(self,P2):
+        self.lbWinLength.SetLabel("({})".format(2**P2))
+
+
+
 class PlotPanel(wx.Panel):
     def __init__(self, parent, selPanel):
 
@@ -796,7 +870,7 @@ class PlotPanel(wx.Panel):
 
         self.navTB = MyNavigationToolbar2Wx(self.canvas)
 
-        #lbX = wx.StaticText( self, -1, 'x-axis: ')
+        # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
         # Check Boxes
         self.cbScatter = wx.CheckBox(self.ctrlPanel, -1, 'Scatter',(10,10))
@@ -842,29 +916,50 @@ class PlotPanel(wx.Panel):
 
         self.ctrlPanel.SetSizer(cb_sizer)
 
+        # --- Spectral panel
+        self.spectralPanel= SpectralCtrlPanel(self)
+
+        # --- layout of panels
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        row_sizer.Add(self.navTB        ,0, flag=wx.ALL, border=0)
+        sl3 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
+        row_sizer.Add(self.navTB        ,0, flag=wx.ALL|wx.CENTER, border=0)
+        row_sizer.Add(sl3               ,0, flag=wx.EXPAND|wx.CENTER, border=0)
         #row_sizer.Add(cb_sizer          ,0, flag=wx.ALL, border=5)
-        row_sizer.Add(self.ctrlPanel     ,1, flag=wx.ALL|wx.EXPAND, border=5)
+        row_sizer.Add(self.ctrlPanel    ,1, flag=wx.ALL|wx.EXPAND|wx.CENTER, border=5)
         #row_sizer.Add(self.lbCrossHair  ,0, flag=wx.ALL, border=5)
         #row_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
         #row_sizer2.Add(self.navTB        ,0, flag=wx.ALL, border=5)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
+        sl1 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
+        sl2 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         #plotsizer.Add(row_sizer2)
-        plotsizer.Add(self.canvas, 1, flag=wx.EXPAND, border=5)
-        plotsizer.Add(row_sizer,0   , flag=wx.NORTH, border=20)
+        plotsizer.Add(self.canvas       ,1,flag = wx.EXPAND,border = 5 )
+        plotsizer.Add(sl1               ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(row_sizer         ,0,flag = wx.NORTH ,border = 5)
+        plotsizer.Add(sl2               ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(self.spectralPanel,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
 
         self.SetSizer(plotsizer)
+        self.plotsizer=plotsizer;
         #self.redraw()
 
     def redraw_event(self, event):
         self.redraw()
+
     def fft_select(self, event):
-        self.cbPDF.SetValue(False)
-        self.cbMinMax.SetValue(False)
-        self.cbLogY.SetValue(True)
+        if self.cbFFT.IsChecked():
+            self.cbLogY.SetValue(True)
+            self.cbPDF.SetValue(False)
+            self.cbMinMax.SetValue(False)
+            self.spectralPanel.Show();
+            self.plotsizer.Layout()
+        else:
+            self.spectralPanel.Hide();
+            self.plotsizer.Layout()
+            self.cbLogY.SetValue(False)
         self.redraw()
+
     def pdf_select(self, event):
         self.cbFFT.SetValue(False)
         self.cbMinMax.SetValue(False)
@@ -920,8 +1015,6 @@ class PlotPanel(wx.Panel):
             self.fig.add_subplot(111)
         
     def draw_tab(self,df,ix,xlabel,I,S,sTab,nTabs,bFirst=True):
-        #import pdb
-        #pdb.set_trace()
         x,xIsString,xIsDate,_=getColumn(df,ix)
 
         nPlots=len(I)
@@ -994,21 +1087,80 @@ class PlotPanel(wx.Panel):
                 elif xIsString:
                     Warn(self,'Cannot plot FFT if x axis is string')
                 else:
+                    #y = np.sin(2*np.pi*2*t)
+                    y = np.array(y)
+                    y = y[~np.isnan(y)]
+                    n = len(y) 
                     if xIsDate:
                         dt = np.timedelta64((x[1]-x[0]),'s').item().total_seconds()
                     else:
                         dt = x[1]-x[0]
-                    y = np.array(y)
-                    y = y[~np.isnan(y)]
-                    n = len(y) 
+                        # Hack to use a constant dt
+                        dt = (x[-1]-x[0])/(n-1)
+                        #uu,cc= np.unique(np.diff(x), return_counts=True)
+                        #print(np.asarray((uu,cc)).T)
                     Fs = 1/dt
-                    k = np.arange(n)
-                    T = n/Fs
-                    frq = k/T # two sides frequency range
-                    frq = frq[range(int(n/2))] # one side frequency range
-                    Y = np.fft.fft(y)/n # fft computing and normalization
-                    Y = Y[range(int(n/2))]
-                    ax.plot(frq, abs(Y), label=ylabelLeg)
+                    #print('dt=',dt,'Fs=',Fs)
+                    if n%2==0:
+                        nhalf = int(n/2+1)
+                    else:
+                        nhalf = int((n+1)/2)
+                    sType    = self.spectralPanel.cbType.GetStringSelection()
+                    sAvg     = self.spectralPanel.cbAveraging.GetStringSelection()
+                    bDetrend = self.spectralPanel.cbDetrend.IsChecked()
+                    if sAvg=='None':
+                        if bDetrend:
+                            m=np.mean(y);
+                        else:
+                            m=0;
+                        frq = np.arange(nhalf)*Fs/n;
+                        Y   = np.fft.rfft(y-m) #Y = np.fft.fft(y) 
+                        PSD = abs(Y[range(nhalf)])**2 /(n*Fs) # PSD
+                        PSD[1:-1] = PSD[1:-1]*2;
+                    elif sAvg=='Welch':
+                        # --- Welch - PSD
+                        #overlap_frac=0.5
+                        nFFTAll=fnextpow2(n)
+                        nExp=self.spectralPanel.scP2.GetValue()
+                        nPerSeg=2**nExp
+                        sAvgMethod = self.spectralPanel.cbAveragingMethod.GetStringSelection()
+                        if nPerSeg>n:
+                            #Warn(self, 'Power of 2 value was too high and was reduced. Disable averaging to use the full spectrum.');
+                            nExp=int(np.log(nFFTAll)/np.log(2))-1
+                            nPerSeg=2**nExp
+                            self.spectralPanel.scP2.SetValue(nExp)
+                            self.spectralPanel.updateP2(nExp)
+                            #nPerSeg=n # <<< Possibility to use this with a rectangular window
+                        if sAvgMethod=='Hamming':
+                           window = hamming(nPerSeg, True)# True=Symmetric, like matlab
+                        elif sAvgMethod=='Hann':
+                           window = hann(nPerSeg, True)
+                        elif sAvgMethod=='Rectangular':
+                           window = boxcar(nPerSeg)
+                        else:
+                            raise NotImplementedError('Contact developer')
+                        if bDetrend:
+                            frq, PSD = pwelch(y, fs=Fs, window=window, detrend='constant')
+                        else:
+                            frq, PSD = pwelch(y, fs=Fs, window=window)
+                        #print(window)
+                        #print(frq)
+                        #print(Y)
+                    if sType=='Amplitude':
+                        deltaf = frq[1]-frq[0]
+                        Y = np.sqrt(PSD*2*deltaf)
+                        # NOTE: the above should be the same as:Y=abs(Y[range(nhalf)])/n;Y[1:-1]=Y[1:-1]*2;
+                    elif sType=='PSD': # One sided
+                        Y = PSD
+                    elif sType=='f x PSD':
+                        Y = PSD*frq
+                    else:
+                        raise NotImplementedError('Contact developer')
+                    if bDetrend:
+                        frq=frq[1:]
+                        Y  =Y[1:]
+
+                    ax.plot(frq, Y, label=ylabelLeg)
                     if bFirst:
                         ax.set_ylabel('FFT ('+ylabel+')')
                         if self.cbLogX.IsChecked():
@@ -1018,6 +1170,12 @@ class PlotPanel(wx.Panel):
                                 pass
                             else:
                                 ax.set_yscale("log", nonposy='clip')
+                        try:
+                            xlim=float(self.spectralPanel.tMaxFreq.GetLineText(0))
+                            if xlim>0:
+                                ax.set_xlim([0,xlim])
+                        except:
+                            pass
 
             else:
                 if xIsString and n>100:

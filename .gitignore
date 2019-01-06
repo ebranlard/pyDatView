@@ -1,7 +1,10 @@
 *.pyc
+*.pyw
+*.lnk
 *.egg-info
 build
 dist
 *.spec
 DEBUG.py
 _TODO
+_FFT
