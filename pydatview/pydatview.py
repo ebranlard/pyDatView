@@ -1465,6 +1465,10 @@ class MainFrame(wx.Frame):
         self.load_tabs(tab)
 
     def load_tabs(self, tabs, bReload=False, bAdd=False, bPlot=True):
+        if bAdd:
+            if not hasattr(self,'selPanel'):
+                bAdd=False
+
         if (not bReload) and (not bAdd):
             self.cleanGUI()
 
