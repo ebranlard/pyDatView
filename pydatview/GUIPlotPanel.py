@@ -12,6 +12,7 @@ from matplotlib.backend_bases import NavigationToolbar2
 from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
 from matplotlib.widgets import Cursor
+import gc
 
 from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
 

@@ -21,3 +21,13 @@ def getColumn(df,i):
             x=x.astype('datetime64[s]')
 
     return x,isString,isDate,c
+
+
+
+def no_unit(s):
+    iu=s.rfind(' [')
+    if iu>1:
+        return s[:iu]
+    else:
+        return s
+

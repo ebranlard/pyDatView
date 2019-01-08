@@ -2,9 +2,10 @@ import wx
 # TODO get rid of me
 from .common import getMonoFont, getColumn
 from .GUIMultiSplit import MultiSplit
+from .Tables import haveSameColumns
 
 
-__all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES_ID']
+__all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES_ID','TablePopup','ColumnPopup']
 
 SEL_MODES    = ['auto','Same tables'    ,'Different tables'  ]
 SEL_MODES_ID = ['auto','sameColumnsMode','twoColumnsMode']
@@ -74,6 +75,71 @@ def ellude_common(strings):
             if len(strings[i])==0:
                 strings[i]='tab{}'.format(i)
     return strings
+
+# --------------------------------------------------------------------------------}
+# --- Popup menus
+# --------------------------------------------------------------------------------{
+class TablePopup(wx.Menu):
+    def __init__(self, mainframe, parent):
+        wx.Menu.__init__(self)
+        self.parent = parent
+        self.mainframe = mainframe
+        self.ISel = self.parent.GetSelections()
+
+        if len(self.ISel)>0:
+            item = wx.MenuItem(self, -1, "Delete")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnDelete, item)
+
+        if len(self.ISel)==1:
+            item = wx.MenuItem(self, -1, "Rename")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnRename, item)
+
+        if len(self.ISel)==1:
+            item = wx.MenuItem(self, -1, "Export")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnExport, item)
+
+    def OnDelete(self, event):
+        self.mainframe.deleteTabs(self.ISel)
+
+    def OnRename(self, event):
+        oldName = self.parent.GetString(self.ISel[0])
+        dlg = wx.TextEntryDialog(self.parent, 'New table name:', 'Rename table',oldName,wx.OK|wx.CANCEL)
+        dlg.CentreOnParent()
+        if dlg.ShowModal() == wx.ID_OK:
+            newName=dlg.GetValue()
+            self.mainframe.renameTable(self.ISel[0],newName)
+
+    def OnExport(self, event):
+        self.mainframe.exportTab(self.ISel[0]);
+
+class ColumnPopup(wx.Menu):
+    def __init__(self, parent):
+        wx.Menu.__init__(self)
+        self.parent = parent
+        self.ISel = self.parent.lbColumns.GetSelections()
+
+        if len(self.ISel)>=1 and self.ISel[0]>0: 
+            item = wx.MenuItem(self, -1, "Rename")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnRename, item)
+
+    def OnRename(self, event):
+        oldName = self.parent.lbColumns.GetString(self.ISel[0])
+        dlg = wx.TextEntryDialog(self.parent, 'New column name:', 'Rename column',oldName,wx.OK|wx.CANCEL)
+        dlg.CentreOnParent()
+        if dlg.ShowModal() == wx.ID_OK:
+            newName=dlg.GetValue()
+            self.parent.tab.renameColumn(self.ISel[0]-1,newName)
+            self.parent.updateColumn(self.ISel[0],newName) #faster
+            self.parent.selPanel.updateLayout()
+            # a trigger for the plot is required but skipped for now
+
+#     def OnDelete(self, event):
+#         ISel=self.parent.GetSelections()
+#         print("Column delete event",ISel)
 
 
 # --------------------------------------------------------------------------------}
