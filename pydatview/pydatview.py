@@ -289,7 +289,8 @@ class MainFrame(wx.Frame):
     def load_files(self, filenames=[], fileformat=None, bReload=False, bAdd=False):
         """ load multiple files, only trigger the plot at the end """
         if bReload:
-            self.selPanel.saveSelection()
+            if hasattr(self,'selPanel'):
+                self.selPanel.saveSelection()
 
         if not bAdd:
             self.clean_memory(bReload=bReload)
@@ -560,7 +561,7 @@ class MainFrame(wx.Frame):
 
     def onReload(self, event=None):
         filenames = self.filenames
-        if len(filenames)>=0:
+        if len(filenames)>0:
             iFormat=self.comboFormats.GetSelection()
             if iFormat==0: # auto-format
                 Format = None
@@ -568,7 +569,7 @@ class MainFrame(wx.Frame):
                 Format = FILE_FORMATS[iFormat-1]
             self.load_files(filenames,fileformat=Format,bReload=True,bAdd=False)
         else:
-           Error(self,'Open a file first')
+           Error(self,'Open one or more file first.')
 
     def onDEBUG(self, event=None):
         #self.clean_memory()
@@ -666,6 +667,7 @@ def test():
     import time
     import sys
     from .perfmon import PerfMon
+    from .GUISelectionPanel import ellude_common
     # TODO unit test for #25
     S=ellude_common(['A.txt','A_.txt'])
     if any([len(s)<=1 for s in S]):
