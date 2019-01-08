@@ -59,7 +59,7 @@ SIDE_COL = [150,150,280,400]
 #matplotlib.rcParams['font.sans-serif'] = 'Arial'
 # matplotlib.rcParams['font.family'] = 'sans-serif'
 
-font = {'size'   : 9}
+font = {'size'   : 8}
 matplotlib_rc('font', **font)
 pyplot_rc['agg.path.chunksize'] = 20000
 def getMonoFont():
@@ -776,7 +776,7 @@ class SelectionPanel(wx.Panel):
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
-    def __init__(self, canvas):
+    def __init__(self, canvas,bg):
         # Taken from matplotlib/backend_wx.py but added style:
         wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
         NavigationToolbar2.__init__(self, canvas)
@@ -789,7 +789,7 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         #NavigationToolbar2Wx.__init__(self, plotCanvas)
         self.DeleteToolByPos(1)
         self.DeleteToolByPos(1)
-        self.SetBackgroundColour('white')
+        #self.SetBackgroundColour('white')
         #self.SetToolBitmapSize((22,22))
 
 class SpectralCtrlPanel(wx.Panel):
@@ -859,17 +859,19 @@ class PlotPanel(wx.Panel):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
-        self.SetBackgroundColour('white')
         # data
         self.selPanel = selPanel
         self.parent   = parent
+        bg=selPanel.BackgroundColour
+        self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
         # GUI
+        #self.fig = Figure(facecolor="white", figsize=(1, 1))
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
         self.canvas = FigureCanvas(self, -1, self.fig)
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 
-        self.navTB = MyNavigationToolbar2Wx(self.canvas)
+        self.navTB = MyNavigationToolbar2Wx(self.canvas,'red')
 
         # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
@@ -932,14 +934,14 @@ class PlotPanel(wx.Panel):
         #row_sizer2.Add(self.navTB        ,0, flag=wx.ALL, border=5)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
+        self.slCtrl = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
+        self.slCtrl.Hide()
         sl1 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
-        sl2 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
-        #plotsizer.Add(row_sizer2)
         plotsizer.Add(self.canvas       ,1,flag = wx.EXPAND,border = 5 )
         plotsizer.Add(sl1               ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(row_sizer         ,0,flag = wx.NORTH ,border = 5)
-        plotsizer.Add(sl2               ,0,flag = wx.EXPAND,border = 0)
         plotsizer.Add(self.spectralPanel,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.slCtrl       ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(row_sizer         ,0,flag = wx.NORTH ,border = 5)
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
@@ -954,9 +956,11 @@ class PlotPanel(wx.Panel):
             self.cbPDF.SetValue(False)
             self.cbMinMax.SetValue(False)
             self.spectralPanel.Show();
+            self.slCtrl.Show();
             self.plotsizer.Layout()
         else:
             self.spectralPanel.Hide();
+            self.slCtrl.Hide();
             self.plotsizer.Layout()
             self.cbLogY.SetValue(False)
         self.redraw()
@@ -1277,6 +1281,10 @@ class MainFrame(wx.Frame):
             
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
+        # --- GUI
+        #font = self.GetFont()
+        #font.SetPointSize(8)
+        #self.SetFont(font) 
         # --- Menu
         menuBar = wx.MenuBar()
         fileMenu = wx.Menu()
@@ -1294,13 +1302,8 @@ class MainFrame(wx.Frame):
         self.SetMenuBar(menuBar)
 
         # --- ToolBar
-        tb = self.CreateToolBar(wx.TB_HORIZONTAL)
+        tb = self.CreateToolBar(wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT)
         self.toolBar = tb 
-        tb.AddSeparator()
-        btOpen   = wx.Button(tb, wx.ID_ANY, "Open"  , wx.DefaultPosition, wx.DefaultSize )
-        btReload = wx.Button(tb, wx.ID_ANY, "Reload", wx.DefaultPosition, wx.DefaultSize )
-        btAdd    = wx.Button(tb, wx.ID_ANY, "Add"   , wx.DefaultPosition, wx.DefaultSize )
-        #btDEBUG  = wx.Button( tb, wx.NewId(), "DEBUG", wx.DefaultPosition, wx.DefaultSize )
         self.comboFormats = wx.ComboBox(tb, choices = FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
         self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)  
@@ -1313,17 +1316,15 @@ class MainFrame(wx.Frame):
         tb.AddControl( wx.StaticText(tb, -1, 'Format: ' ) )
         tb.AddControl(self.comboFormats ) 
         tb.AddSeparator()
-        tb.AddControl(btOpen)
-        tb.AddSeparator()
-        tb.AddControl(btReload)
-        tb.AddSeparator()
-        tb.AddControl(btAdd)
+        #bmp = wx.Bitmap('help.png') #wx.Bitmap("NEW.BMP", wx.BITMAP_TYPE_BMP) 
+        self.AddTBBitmapTool(tb,"Open"  ,wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN),self.onLoad)
+        self.AddTBBitmapTool(tb,"Reload",wx.ArtProvider.GetBitmap(wx.ART_REDO),self.onReload)
+        try:
+            self.AddTBBitmapTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.ART_PLUS),self.onAdd)
+        except:
+            self.AddTBBitmapTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.FILE_OPEN),self.onAdd)
+        #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onAdd)
         tb.AddStretchableSpace()
-        tb.AddSeparator()
-        tb.Bind(wx.EVT_BUTTON,self.onLoad  ,btOpen  )
-        tb.Bind(wx.EVT_BUTTON,self.onReload,btReload)
-        tb.Bind(wx.EVT_BUTTON,self.onAdd   ,btAdd)
-        #tb.Bind(wx.EVT_BUTTON,self.onDEBUG,btDEBUG)
         tb.Realize() 
 
         # --- Status bar
@@ -1356,6 +1357,45 @@ class MainFrame(wx.Frame):
         self.Center()
 
         self.Show()
+
+    def AddTBBitmapTool(self,tb,label,bitmap,callback=None,Type=None):
+        """ Adding a toolbar tool, safe depending on interface"""
+        # Modern API
+        if Type is None or Type==0:
+            try:
+                tl = tb.AddTool( -1, bitmap=bitmap, label=label )
+                if callback is not None:
+                    tb.Bind(wx.EVT_TOOL, callback, tl)
+                return tl
+            except:
+                Type=None
+        # Old fashion API
+        if Type is None or Type==1:
+            try:
+                tl = tb.AddLabelTool( -1, bitmap=bitmap, label=label )
+                if callback is not None:
+                    tb.Bind(wx.EVT_TOOL, callback, tl)
+                return tl
+            except:
+                Type=None
+        # Using a Bitmap 
+        if Type is None or Type==2:
+            try:
+                bt=wx.Button(tb,wx.ID_ANY, " "+label+" ", style=wx.BU_EXACTFIT)
+                bt.SetBitmapLabel(bitmap)
+                tl=tb.AddControl(bt)
+                if callback is not None:
+                    tb.Bind(wx.EVT_BUTTON, callback, bt)
+                return tl
+            except:
+                Type=None
+        # Last resort, we add a button only
+        bt=wx.Button(tb,wx.ID_ANY, label)
+        tl=tb.AddControl(bt)
+        if callback is not None:
+            tb.Bind(wx.EVT_BUTTON, callback, bt)
+        return tl
+
 
     @property
     def filenames(self):
