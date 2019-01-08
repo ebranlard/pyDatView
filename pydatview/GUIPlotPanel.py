@@ -17,10 +17,10 @@ import gc
 try:
     from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
     # TODO get rid of that:
-    from .common import getMonoFont, getColumn
+    from .common import getMonoFont, getColumn, no_unit
 except:
     from spectral import pwelch, hamming , boxcar, hann, fnextpow2
-    from common import getMonoFont, getColumn
+    from common import getMonoFont, getColumn, no_unit
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -110,6 +110,101 @@ class SpectralCtrlPanel(wx.Panel):
         self.lbWinLength.SetLabel("({})".format(2**P2))
 
 
+class PlotTypePanel(wx.Panel):
+    def __init__(self, parent):
+        # Superclass constructor
+        super(PlotTypePanel,self).__init__(parent)
+        #self.SetBackgroundColour('gray')
+        # data
+        self.parent   = parent
+        # --- Ctrl Panel
+        self.cbRegular = wx.CheckBox(self, -1, 'Regular',(10,10))
+        self.cbPDF     = wx.CheckBox(self, -1, 'PDF'    ,(10,10))
+        self.cbFFT     = wx.CheckBox(self, -1, 'FFT'    ,(10,10))
+        self.cbMinMax  = wx.CheckBox(self, -1, 'MinMax' ,(10,10))
+#         self.cbCompare = wx.CheckBox(self, -1, 'Compare',(10,10))
+        self.cbRegular.SetValue(True)
+        self.Bind(wx.EVT_CHECKBOX, self.pdf_select    , self.cbPDF    )
+        self.Bind(wx.EVT_CHECKBOX, self.fft_select    , self.cbFFT    )
+        self.Bind(wx.EVT_CHECKBOX, self.minmax_select , self.cbMinMax )
+#         self.Bind(wx.EVT_CHECKBOX, self.compare_select, self.cbCompare)
+        self.Bind(wx.EVT_CHECKBOX, self.regular_select, self.cbRegular)
+        # LAYOUT
+        cb_sizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
+        cb_sizer.Add(self.cbRegular , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbPDF     , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbFFT     , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbMinMax  , 0, flag=wx.ALL, border=1)
+#         cb_sizer.Add(self.cbCompare , 0, flag=wx.ALL, border=1)
+        self.SetSizer(cb_sizer)
+
+    def regular_select(self, event=None):
+        self.cbFFT.SetValue(False)
+        self.cbMinMax.SetValue(False)
+        self.cbPDF.SetValue(False)
+#         self.cbCompare.SetValue(False)
+        # 
+        self.parent.spectralPanel.Hide();
+        self.parent.slCtrl.Hide();
+        self.parent.plotsizer.Layout()
+        #
+        self.parent.redraw()
+
+    def compare_select(self, event=None):
+        self.cbRegular.SetValue(False)
+        self.cbFFT.SetValue(False)
+        self.cbMinMax.SetValue(False)
+        self.cbPDF.SetValue(False)
+        # 
+        self.parent.spectralPanel.Hide();
+        self.parent.slCtrl.Hide();
+        self.parent.plotsizer.Layout()
+        #
+        self.parent.redraw()
+
+    def fft_select(self, event=None):
+        self.cbPDF.SetValue(False)
+        self.cbMinMax.SetValue(False)
+        self.cbRegular.SetValue(False)
+#         self.cbCompare.SetValue(False)
+        if self.cbFFT.IsChecked():
+            self.parent.cbLogY.SetValue(True)
+            self.parent.spectralPanel.Show();
+            self.parent.slCtrl.Show();
+            self.parent.plotsizer.Layout()
+        else:
+            # 
+            self.parent.spectralPanel.Hide();
+            self.parent.slCtrl.Hide();
+            self.parent.plotsizer.Layout()
+            #
+            self.parent.cbLogY.SetValue(False)
+        self.parent.redraw()
+
+    def pdf_select(self, event=None):
+        self.cbFFT.SetValue(False)
+        self.cbMinMax.SetValue(False)
+#         self.cbCompare.SetValue(False)
+        self.cbRegular.SetValue(False)
+        self.parent.cbLogX.SetValue(False)
+        self.parent.cbLogY.SetValue(False)
+        # 
+        self.parent.spectralPanel.Hide();
+        self.parent.slCtrl.Hide();
+        self.parent.plotsizer.Layout()
+        #
+        self.parent.redraw()
+    def minmax_select(self, event):
+        self.cbFFT.SetValue(False)
+        self.cbPDF.SetValue(False)
+#         self.cbCompare.SetValue(False)
+        self.cbRegular.SetValue(False)
+        # 
+        self.parent.spectralPanel.Hide();
+        self.parent.slCtrl.Hide();
+        self.parent.plotsizer.Layout()
+        #
+        self.parent.redraw()
 
 class PlotPanel(wx.Panel):
     def __init__(self, parent, selPanel):
@@ -130,56 +225,59 @@ class PlotPanel(wx.Panel):
 
         self.navTB = MyNavigationToolbar2Wx(self.canvas)
 
+        # --- PlotType Panel
+        self.pltTypePanel= PlotTypePanel(self);
+        # --- Spectral panel
+        self.spectralPanel= SpectralCtrlPanel(self)
+
         # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
         # Check Boxes
         self.cbScatter = wx.CheckBox(self.ctrlPanel, -1, 'Scatter',(10,10))
-        self.cbPDF     = wx.CheckBox(self.ctrlPanel, -1, 'PDF',(10,10))
-        self.cbFFT     = wx.CheckBox(self.ctrlPanel, -1, 'FFT',(10,10))
         self.cbSub     = wx.CheckBox(self.ctrlPanel, -1, 'Subplot',(10,10))
         self.cbLogX    = wx.CheckBox(self.ctrlPanel, -1, 'Log-x',(10,10))
         self.cbLogY    = wx.CheckBox(self.ctrlPanel, -1, 'Log-y',(10,10))
-        self.cbMinMax  = wx.CheckBox(self.ctrlPanel, -1, 'MinMax',(10,10))
         self.cbSync    = wx.CheckBox(self.ctrlPanel, -1, 'Sync-x',(10,10))
-        self.lbCrossHairX = wx.StaticText(self.ctrlPanel, -1, ' x= ...      ')
-        self.lbCrossHairY = wx.StaticText(self.ctrlPanel, -1, ' y= ...      ')
-        self.lbCrossHairX.SetFont(getMonoFont())
-        self.lbCrossHairY.SetFont(getMonoFont())
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.Bind(wx.EVT_CHECKBOX, self.scatter_select, self.cbScatter)
-        self.Bind(wx.EVT_CHECKBOX, self.pdf_select    , self.cbPDF    )
-        self.Bind(wx.EVT_CHECKBOX, self.fft_select    , self.cbFFT    )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSub    )
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogX   )
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogY   )
-        self.Bind(wx.EVT_CHECKBOX, self.minmax_select , self.cbMinMax )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSync )
         # LAYOUT
         #   cb_sizer = wx.GridSizer(5,2,3)
-        cb_sizer  = wx.FlexGridSizer(rows=2, cols=5, hgap=2, vgap=0)
+        cb_sizer  = wx.FlexGridSizer(rows=2, cols=3, hgap=2, vgap=0)
         cb_sizer.Add(self.cbScatter, 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbPDF    , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbFFT    , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub    , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.lbCrossHairX   , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbSync   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogX   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogY   , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbMinMax , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbSync   , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.lbCrossHairY   , 0, flag=wx.ALL, border=1)
-
         self.ctrlPanel.SetSizer(cb_sizer)
+        # --- Ctrl Panel
+        crossHairPanel= wx.Panel(self)
+        self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x= ...      ')
+        self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y= ...      ')
+        self.lbCrossHairX.SetFont(getMonoFont())
+        self.lbCrossHairY.SetFont(getMonoFont())
+        cbCH  = wx.FlexGridSizer(rows=2, cols=1, hgap=2, vgap=0)
+        cbCH.Add(self.lbCrossHairX   , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbCrossHairY   , 0, flag=wx.ALL, border=1)
+        crossHairPanel.SetSizer(cbCH)
 
-        # --- Spectral panel
-        self.spectralPanel= SpectralCtrlPanel(self)
 
         # --- layout of panels
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sl2 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         sl3 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
-        row_sizer.Add(self.navTB        ,0, flag=wx.ALL|wx.CENTER, border=0)
-        row_sizer.Add(sl3               ,0, flag=wx.EXPAND|wx.CENTER, border=0)
-        row_sizer.Add(self.ctrlPanel    ,1, flag=wx.ALL|wx.EXPAND|wx.CENTER, border=5)
+        sl4 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
+        row_sizer.Add(self.pltTypePanel , 0 , flag=wx.ALL|wx.CENTER           , border=2)
+        row_sizer.Add(sl2               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
+        row_sizer.Add(self.navTB        , 0 , flag=wx.ALL|wx.CENTER           , border=0)
+        row_sizer.Add(sl3               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
+        row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.ALL|wx.EXPAND|wx.CENTER , border=2)
+        row_sizer.Add(sl4               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
+        row_sizer.Add(crossHairPanel,0, flag=wx.EXPAND|wx.CENTER|wx.LEFT    , border=2)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
         self.slCtrl = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
@@ -198,42 +296,17 @@ class PlotPanel(wx.Panel):
     def redraw_event(self, event):
         self.redraw()
 
-    def fft_select(self, event):
-        if self.cbFFT.IsChecked():
-            self.cbLogY.SetValue(True)
-            self.cbPDF.SetValue(False)
-            self.cbMinMax.SetValue(False)
-            self.spectralPanel.Show();
-            self.slCtrl.Show();
-            self.plotsizer.Layout()
-        else:
-            self.spectralPanel.Hide();
-            self.slCtrl.Hide();
-            self.plotsizer.Layout()
-            self.cbLogY.SetValue(False)
-        self.redraw()
-
-    def pdf_select(self, event):
-        self.cbFFT.SetValue(False)
-        self.cbMinMax.SetValue(False)
-        self.cbLogX.SetValue(False)
-        self.cbLogY.SetValue(False)
-        self.redraw()
     def log_select(self, event):
-        if self.cbPDF.IsChecked():
+        if self.pltTypePanel.cbPDF.IsChecked():
             self.cbLogX.SetValue(False)
             self.cbLogY.SetValue(False)
         else:
             self.redraw()
     def scatter_select(self, event):
-        if self.cbPDF.IsChecked() or self.cbFFT.IsChecked():
+        if self.pltTypePanel.cbPDF.IsChecked() or self.pltTypePanel.cbFFT.IsChecked():
             self.cbScatter.SetValue(False)
         else:
             self.redraw()
-    def minmax_select(self, event):
-        self.cbFFT.SetValue(False)
-        self.cbPDF.SetValue(False)
-        self.redraw()
 
     def empty(self):
         self.cleanPlot()
@@ -258,7 +331,7 @@ class PlotPanel(wx.Panel):
                 # Vertical stack
                 if i==0:
                     ax=self.fig.add_subplot(nPlots,1,i+1)
-                    if self.cbSync.IsChecked() and (not self.cbPDF.IsChecked()) :
+                    if self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.IsChecked()) :
                         sharex=ax
                 else:
                     ax=self.fig.add_subplot(nPlots,1,i+1,sharex=sharex)
@@ -289,7 +362,7 @@ class PlotPanel(wx.Panel):
             ylabel = S[i]
             y,yIsString,yIsDate,c=getColumn(df,iy)
             if nTabs==1:
-                if self.cbMinMax.IsChecked():
+                if self.pltTypePanel.cbMinMax.IsChecked():
                     ylabelLeg  = no_unit(ylabel)
                 else:
                     ylabelLeg  = ylabel
@@ -297,14 +370,14 @@ class PlotPanel(wx.Panel):
                 if nPlots==1 or bSubPlots:
                     ylabelLeg  = sTab
                 else:
-                    if self.cbMinMax.IsChecked():
+                    if self.pltTypePanel.cbMinMax.IsChecked():
                         ylabelLeg  = sTab+' - ' + no_unit(ylabel)
                     else:
                         ylabelLeg  = sTab+' - ' + ylabel
 
 
             # Scaling
-            if self.cbMinMax.IsChecked():
+            if self.pltTypePanel.cbMinMax.IsChecked():
                 mi= np.nanmin(y)
                 mx= np.nanmax(y)
                 if mi == mx:
@@ -315,7 +388,7 @@ class PlotPanel(wx.Panel):
 
 
             # --- Plotting
-            if self.cbPDF.IsChecked():
+            if self.pltTypePanel.cbPDF.IsChecked():
                 if yIsString:
                     if n>100:
                         WarnNow('Dataset has string format and is too large to display')
@@ -334,7 +407,7 @@ class PlotPanel(wx.Panel):
                         ax.set_xlabel(ylabel)
                         ax.set_ylabel('PDF ('+ylabel+')')
 
-            elif self.cbFFT.IsChecked():
+            elif self.pltTypePanel.cbFFT.IsChecked():
                 if yIsString or yIsDate:
                     Warn(self,'Cannot plot FFT of dates or strings')
                 elif xIsString:
@@ -349,11 +422,12 @@ class PlotPanel(wx.Panel):
                     else:
                         dt = x[1]-x[0]
                         # Hack to use a constant dt
-                        dt = (x[-1]-x[0])/(n-1)
+                        dt = (np.max(x)-np.min(x))/(n-1)
                         #uu,cc= np.unique(np.diff(x), return_counts=True)
                         #print(np.asarray((uu,cc)).T)
                     Fs = 1/dt
                     #print('dt=',dt,'Fs=',Fs)
+                    #print(x[0:5])
                     if n%2==0:
                         nhalf = int(n/2+1)
                     else:
@@ -462,9 +536,8 @@ class PlotPanel(wx.Panel):
     def onMouseMove(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
-            #self.lbCrossHairX.SetLabel("x={:.5e}  y={:.5e}".format(x,y))
-            self.lbCrossHairX.SetLabel(" x={:10.3e}".format(x))
-            self.lbCrossHairY.SetLabel(" y={:10.3e}".format(y))
+            self.lbCrossHairX.SetLabel("x={:10.3e}".format(x))
+            self.lbCrossHairY.SetLabel("y={:10.3e}".format(y))
 
     def redraw(self):
         self._redraw()
