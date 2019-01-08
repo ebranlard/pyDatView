@@ -14,10 +14,13 @@ from matplotlib.pyplot import rcParams as pyplot_rc
 from matplotlib.widgets import Cursor
 import gc
 
-from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
-
-# TODO get rid of that:
-from .common import getMonoFont, getColumn
+try:
+    from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
+    # TODO get rid of that:
+    from .common import getMonoFont, getColumn
+except:
+    from spectral import pwelch, hamming , boxcar, hann, fnextpow2
+    from common import getMonoFont, getColumn
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -30,7 +33,7 @@ def getMonoFont():
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
-    def __init__(self, canvas,bg):
+    def __init__(self, canvas):
         # Taken from matplotlib/backend_wx.py but added style:
         wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
         NavigationToolbar2.__init__(self, canvas)
@@ -116,16 +119,16 @@ class PlotPanel(wx.Panel):
         # data
         self.selPanel = selPanel
         self.parent   = parent
-        bg=selPanel.BackgroundColour
-        self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
+        if selPanel is not None:
+            bg=selPanel.BackgroundColour
+            self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
         # GUI
-        #self.fig = Figure(facecolor="white", figsize=(1, 1))
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
         self.canvas = FigureCanvas(self, -1, self.fig)
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 
-        self.navTB = MyNavigationToolbar2Wx(self.canvas,'red')
+        self.navTB = MyNavigationToolbar2Wx(self.canvas)
 
         # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
@@ -152,13 +155,8 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogY   )
         self.Bind(wx.EVT_CHECKBOX, self.minmax_select , self.cbMinMax )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSync )
-        #
-        #side_panel = wx.Panel(self,parent)
         # LAYOUT
-#         if sys.version_info[0] < 3:
-#             cb_sizer = wx.GridSizer(2,5,3)
-#         else:
-#             cb_sizer = wx.GridSizer(5,2,3)
+        #   cb_sizer = wx.GridSizer(5,2,3)
         cb_sizer  = wx.FlexGridSizer(rows=2, cols=5, hgap=2, vgap=0)
         cb_sizer.Add(self.cbScatter, 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbPDF    , 0, flag=wx.ALL, border=1)
@@ -181,11 +179,7 @@ class PlotPanel(wx.Panel):
         sl3 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         row_sizer.Add(self.navTB        ,0, flag=wx.ALL|wx.CENTER, border=0)
         row_sizer.Add(sl3               ,0, flag=wx.EXPAND|wx.CENTER, border=0)
-        #row_sizer.Add(cb_sizer          ,0, flag=wx.ALL, border=5)
         row_sizer.Add(self.ctrlPanel    ,1, flag=wx.ALL|wx.EXPAND|wx.CENTER, border=5)
-        #row_sizer.Add(self.lbCrossHair  ,0, flag=wx.ALL, border=5)
-        #row_sizer2 = wx.BoxSizer(wx.HORIZONTAL)
-        #row_sizer2.Add(self.navTB        ,0, flag=wx.ALL, border=5)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
         self.slCtrl = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
@@ -521,4 +515,47 @@ class PlotPanel(wx.Panel):
         if (not bSubPlots and nPlots!=1) or (len(ITab)>1):
             ax.legend()
         self.canvas.draw()
+
+
+
+if __name__ == '__main__':
+    import pandas as pd;
+    from Tables import Table
+
+    app = wx.App(False)
+    self=wx.Frame(None,-1,"Title")
+    self.SetSize((800, 600))
+    #self.SetBackgroundColour('red')
+    class FakeSelPanel(wx.Panel):
+        def __init__(self, parent):
+            super(FakeSelPanel,self).__init__(parent)
+            d ={'ColA': np.linspace(0,1,100)+1,'ColB': np.random.normal(0,1,100)+1,'ColC':np.random.normal(0,1,100)+2}
+            df = pd.DataFrame(data=d)
+            self.tabs=[Table(df=df)]
+
+        def getFullSelection(self):
+            ID=['a']
+            ITab=[0]
+            return ID,[0],0,[2,3],None,None,['tab'],'x',['ColB','ColC'],None,None
+
+    selpanel=FakeSelPanel(self)
+    #     selpanel.SetBackgroundColour('blue')
+    p1=PlotPanel(self,selpanel)
+    p1.redraw()
+    #p1=SpectralCtrlPanel(self)
+    sizer = wx.BoxSizer(wx.VERTICAL)
+    sizer.Add(selpanel,0, flag = wx.EXPAND|wx.ALL,border = 10)
+    sizer.Add(p1,1, flag = wx.EXPAND|wx.ALL,border = 10)
+    self.SetSizer(sizer)
+
+    self.Center()
+    self.Layout()
+    self.SetSize((800, 600))
+    self.Show()
+    self.SendSizeEvent()
+
+    #p1.showStats(None,[tab],[0],[0,1],tab.columns,0,erase=False)
+
+    app.MainLoop()
+
 

@@ -1,6 +1,9 @@
 import numpy as np
 import os.path
-from .common import no_unit
+try:
+    from .common import no_unit
+except:
+    from common import no_unit
 
 # --------------------------------------------------------------------------------}
 # --- TabList 
@@ -24,7 +27,10 @@ class Table(object):
         if df is not None:
             # pandas
             if len(name)==0:
-                self.name=df.column.name
+                if df.columns.name is not None:
+                    self.name=df.columns.name
+                else:
+                    self.name='default'
             else:
                 self.name=name
             self.data    = df
@@ -34,7 +40,11 @@ class Table(object):
             raise Exception('Implementation of tables with ndarray dropped for now')
         self.filename = filename
         #self.name=os.path.dirname(filename)+'|'+os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
-        self.name=os.path.splitext(self.filename)[0].replace('/','|').replace('\\','|')+'|'+ self.name
+        if len(self.filename)>0:
+            basedir=os.path.splitext(self.filename)[0]
+        else:
+            basedir=''
+        self.name=basedir.replace('/','|').replace('\\','|')+'|'+ self.name
         
         self.convertTimeColumns()
 
@@ -70,6 +80,8 @@ class Table(object):
 
     @property
     def name(self):
+        if len(self.__name)<=0:
+            return ''
         if self.__name[0]=='>':
             return self.__name[1:]
         else:

@@ -1,8 +1,13 @@
 import wx
 # TODO get rid of me
-from .common import getMonoFont, getColumn
-from .GUIMultiSplit import MultiSplit
-from .Tables import haveSameColumns
+try:
+    from .common import getMonoFont, getColumn
+    from .GUIMultiSplit import MultiSplit
+    from .Tables import haveSameColumns
+except:
+    from common import getMonoFont, getColumn
+    from GUIMultiSplit import MultiSplit
+    from Tables import haveSameColumns
 
 
 __all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES_ID','TablePopup','ColumnPopup']
@@ -192,9 +197,7 @@ class ColumnPanel(wx.Panel):
         self.SetSizer(sizerCol)
         
     def OnColPopup(self,event):
-        menu = ColumnPopup(self)
-        self.PopupMenu(menu, event.GetPosition())
-        menu.Destroy()
+        self.PopupMenu(ColumnPopup(self), event.GetPosition())
 
     def getDefaultColumnX(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
@@ -487,4 +490,25 @@ class SelectionPanel(wx.Panel):
         self.tabPanel.empty()
         if hasattr(self,'tabs'):
             del self.tabs
+
+
+if __name__ == '__main__':
+    import pandas as pd;
+    from Tables import Table
+    import numpy as np
+
+    def OnTabPopup(event):
+        self.PopupMenu(TablePopup(self,selPanel.tabPanel.lbTab), event.GetPosition())
+
+    app = wx.App(False)
+    self=wx.Frame(None,-1,"Title")
+    tab=Table(df=pd.DataFrame(data={'ColA': np.random.normal(0,1,100)+1,'ColB':np.random.normal(0,1,100)+2}))
+    selPanel=SelectionPanel(self,[tab],mode='twoColumnsMode')
+    self.SetSize((800, 600))
+    self.Center()
+    self.Show()
+    selPanel.tabPanel.lbTab.Bind(wx.EVT_RIGHT_DOWN, OnTabPopup)
+
+
+    app.MainLoop()
 
