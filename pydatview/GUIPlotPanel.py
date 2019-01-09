@@ -160,17 +160,17 @@ class PlotTypePanel(wx.Panel):
         # data
         self.parent   = parent
         # --- Ctrl Panel
-        self.cbRegular = wx.CheckBox(self, -1, 'Regular',(10,10))
-        self.cbPDF     = wx.CheckBox(self, -1, 'PDF'    ,(10,10))
-        self.cbFFT     = wx.CheckBox(self, -1, 'FFT'    ,(10,10))
-        self.cbMinMax  = wx.CheckBox(self, -1, 'MinMax' ,(10,10))
-        self.cbCompare = wx.CheckBox(self, -1, 'Compare',(10,10))
+        self.cbRegular = wx.RadioButton(self, -1, 'Regular',(10,10),style=wx.RB_GROUP)
+        self.cbPDF     = wx.RadioButton(self, -1, 'PDF'    ,(10,10)                  )
+        self.cbFFT     = wx.RadioButton(self, -1, 'FFT'    ,(10,10)                  )
+        self.cbMinMax  = wx.RadioButton(self, -1, 'MinMax' ,(10,10)                  )
+        self.cbCompare = wx.RadioButton(self, -1, 'Compare',(10,10)                  )
         self.cbRegular.SetValue(True)
-        self.Bind(wx.EVT_CHECKBOX, self.pdf_select    , self.cbPDF    )
-        self.Bind(wx.EVT_CHECKBOX, self.fft_select    , self.cbFFT    )
-        self.Bind(wx.EVT_CHECKBOX, self.minmax_select , self.cbMinMax )
-        self.Bind(wx.EVT_CHECKBOX, self.compare_select, self.cbCompare)
-        self.Bind(wx.EVT_CHECKBOX, self.regular_select, self.cbRegular)
+        self.Bind(wx.EVT_RADIOBUTTON, self.pdf_select    , self.cbPDF    )
+        self.Bind(wx.EVT_RADIOBUTTON, self.fft_select    , self.cbFFT    )
+        self.Bind(wx.EVT_RADIOBUTTON, self.minmax_select , self.cbMinMax )
+        self.Bind(wx.EVT_RADIOBUTTON, self.compare_select, self.cbCompare)
+        self.Bind(wx.EVT_RADIOBUTTON, self.regular_select, self.cbRegular)
         # LAYOUT
         cb_sizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
         cb_sizer.Add(self.cbRegular , 0, flag=wx.ALL, border=1)
@@ -181,10 +181,6 @@ class PlotTypePanel(wx.Panel):
         self.SetSizer(cb_sizer)
 
     def regular_select(self, event=None):
-        self.cbFFT.SetValue(False)
-        self.cbMinMax.SetValue(False)
-        self.cbPDF.SetValue(False)
-        self.cbCompare.SetValue(False)
         self.parent.cbLogY.SetValue(False)
         # 
         self.parent.spcPanel.Hide();
@@ -196,11 +192,8 @@ class PlotTypePanel(wx.Panel):
         self.parent.redraw()
 
     def compare_select(self, event=None):
-        self.cbRegular.SetValue(False)
-        self.cbFFT.SetValue(False)
-        self.cbMinMax.SetValue(False)
-        self.cbPDF.SetValue(False)
-        self.parent.show_hide(self.parent.cmpPanel, self.cbCompare.IsChecked())
+        self.parent.cbLogY.SetValue(False)
+        self.parent.show_hide(self.parent.cmpPanel, self.cbCompare.GetValue())
         self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
         self.parent.plotsizer.Layout()
@@ -208,12 +201,8 @@ class PlotTypePanel(wx.Panel):
         self.parent.redraw()
 
     def fft_select(self, event=None):
-        self.cbPDF.SetValue(False)
-        self.cbMinMax.SetValue(False)
-        self.cbRegular.SetValue(False)
-        self.cbCompare.SetValue(False)
-        self.parent.show_hide(self.parent.spcPanel, self.cbFFT.IsChecked())
-        if self.cbFFT.IsChecked():
+        self.parent.show_hide(self.parent.spcPanel, self.cbFFT.GetValue())
+        if self.cbFFT.GetValue():
             self.parent.cbLogY.SetValue(True)
         else:
             self.parent.cbLogY.SetValue(False)
@@ -223,23 +212,16 @@ class PlotTypePanel(wx.Panel):
         self.parent.redraw()
 
     def pdf_select(self, event=None):
-        self.cbFFT.SetValue(False)
-        self.cbMinMax.SetValue(False)
-        self.cbCompare.SetValue(False)
-        self.cbRegular.SetValue(False)
         self.parent.cbLogX.SetValue(False)
         self.parent.cbLogY.SetValue(False)
-        self.parent.show_hide(self.parent.pdfPanel, self.cbPDF.IsChecked())
+        self.parent.show_hide(self.parent.pdfPanel, self.cbPDF.GetValue())
         self.parent.spcPanel.Hide();
         self.parent.cmpPanel.Hide();
         self.parent.plotsizer.Layout()
         self.parent.redraw()
 
     def minmax_select(self, event):
-        self.cbFFT.SetValue(False)
-        self.cbPDF.SetValue(False)
-        self.cbCompare.SetValue(False)
-        self.cbRegular.SetValue(False)
+        self.parent.cbLogY.SetValue(False)
         # 
         self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
@@ -291,12 +273,12 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogY   )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSync )
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=2, cols=3, hgap=2, vgap=0)
+        cb_sizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
         cb_sizer.Add(self.cbScatter, 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub    , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbSync   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogX   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogY   , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbSync   , 0, flag=wx.ALL, border=1)
         self.ctrlPanel.SetSizer(cb_sizer)
         # --- Ctrl Panel
         crossHairPanel= wx.Panel(self)
@@ -335,9 +317,9 @@ class PlotPanel(wx.Panel):
         plotsizer.Add(self.slCtrl       ,0,flag = wx.EXPAND,border = 0)
         plotsizer.Add(row_sizer         ,0,flag = wx.NORTH ,border = 5)
 
-        self.show_hide(self.spcPanel, self.pltTypePanel.cbFFT.IsChecked())
-        self.show_hide(self.cmpPanel, self.pltTypePanel.cbCompare.IsChecked())
-        self.show_hide(self.pdfPanel, self.pltTypePanel.cbPDF.IsChecked())
+        #self.show_hide(self.spcPanel, self.pltTypePanel.cbFFT.GetValue())
+        #self.show_hide(self.cmpPanel, self.pltTypePanel.cbCompare.GetValue())
+        #self.show_hide(self.pdfPanel, self.pltTypePanel.cbPDF.GetValue())
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
@@ -347,13 +329,13 @@ class PlotPanel(wx.Panel):
         self.redraw()
 
     def log_select(self, event):
-        if self.pltTypePanel.cbPDF.IsChecked():
+        if self.pltTypePanel.cbPDF.GetValue():
             self.cbLogX.SetValue(False)
             self.cbLogY.SetValue(False)
         else:
             self.redraw()
     def scatter_select(self, event):
-        if self.pltTypePanel.cbPDF.IsChecked() or self.pltTypePanel.cbFFT.IsChecked():
+        if self.pltTypePanel.cbPDF.GetValue() or self.pltTypePanel.cbFFT.GetValue():
             self.cbScatter.SetValue(False)
         else:
             self.redraw()
@@ -384,13 +366,13 @@ class PlotPanel(wx.Panel):
         for ax in self.fig.axes:
             self.fig.delaxes(ax)
         sharex=None
-        bSubPlots = self.cbSub.IsChecked() and (not self.pltTypePanel.cbCompare.IsChecked())
+        bSubPlots = self.cbSub.IsChecked() and (not self.pltTypePanel.cbCompare.GetValue())
         if bSubPlots:
             for i in range(nPlots):
                 # Vertical stack
                 if i==0:
                     ax=self.fig.add_subplot(nPlots,1,i+1)
-                    if self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.IsChecked()) :
+                    if self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.GetValue()) :
                         sharex=ax
                 else:
                     ax=self.fig.add_subplot(nPlots,1,i+1,sharex=sharex)
@@ -426,7 +408,7 @@ class PlotPanel(wx.Panel):
             ylabel = S[i]
             y,yIsString,yIsDate,c=getColumn(df,iy)
             if nTabs==1:
-                if self.pltTypePanel.cbMinMax.IsChecked():
+                if self.pltTypePanel.cbMinMax.GetValue():
                     ylabelLeg  = no_unit(ylabel)
                 else:
                     ylabelLeg  = ylabel
@@ -434,14 +416,14 @@ class PlotPanel(wx.Panel):
                 if nPlots==1 or bSubPlots:
                     ylabelLeg  = sTab
                 else:
-                    if self.pltTypePanel.cbMinMax.IsChecked():
+                    if self.pltTypePanel.cbMinMax.GetValue():
                         ylabelLeg  = sTab+' - ' + no_unit(ylabel)
                     else:
                         ylabelLeg  = sTab+' - ' + ylabel
 
 
             # Scaling
-            if self.pltTypePanel.cbMinMax.IsChecked():
+            if self.pltTypePanel.cbMinMax.GetValue():
                 mi= np.nanmin(y)
                 mx= np.nanmax(y)
                 if mi == mx:
@@ -452,7 +434,7 @@ class PlotPanel(wx.Panel):
 
 
             # --- Plotting
-            if self.pltTypePanel.cbPDF.IsChecked():
+            if self.pltTypePanel.cbPDF.GetValue():
                 # ---PDF
                 if yIsString:
                     if n>100:
@@ -477,7 +459,7 @@ class PlotPanel(wx.Panel):
                         ax.set_xlabel(ylabel)
                         ax.set_ylabel('PDF ('+ylabel+')')
 
-            elif self.pltTypePanel.cbFFT.IsChecked():
+            elif self.pltTypePanel.cbFFT.GetValue():
                 if yIsString or yIsDate:
                     Warn(self,'Cannot plot FFT of dates or strings')
                 elif xIsString:
@@ -771,7 +753,7 @@ class PlotPanel(wx.Panel):
             nPlots = len(IY1)
             nTabs = len(ITab)
             self.set_subplots(nPlots)
-            if self.pltTypePanel.cbCompare.IsChecked():
+            if self.pltTypePanel.cbCompare.GetValue():
                 self.draw_tab_comp(tabs,ITab,iX1,sX1,IY1,SY1,STab)
             else:
                 for i,sTab in zip(ITab,STab):
@@ -797,7 +779,7 @@ class PlotPanel(wx.Panel):
                         Ylabels.append(s1+' and '+s2)
                     else:
                         Ylabels.append(s1)
-            if self.pltTypePanel.cbCompare.IsChecked():
+            if self.pltTypePanel.cbCompare.GetValue():
                 self.draw_tab_comp(tabs,ITab,[iX1,iX2],sX1,[IY1,IY2],Ylabels,STab)
             else:
                 self.draw_tab(tabs[ITab[0]].data,iX1,xlabel,IY1,Ylabels,STab[0],2,bFirst=True)
