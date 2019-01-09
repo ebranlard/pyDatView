@@ -49,6 +49,28 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         #self.SetBackgroundColour('white')
         #self.SetToolBitmapSize((22,22))
 
+class PDFCtrlPanel(wx.Panel):
+    def __init__(self, parent):
+        # Superclass constructor
+        super(PDFCtrlPanel,self).__init__(parent)
+        #self.SetBackgroundColour('gray')
+        # data
+        self.parent   = parent
+        # GUI
+        lb = wx.StaticText( self, -1, 'Number of bins:')
+        self.scBins = wx.SpinCtrl(self, value='50',size=wx.Size(70,-1))
+        self.scBins.SetRange(3, 10000)
+        dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        dummy_sizer.Add(lb                    ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.scBins           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        self.SetSizer(dummy_sizer)
+        self.Bind(wx.EVT_TEXT      ,self.onBinsChange  ,self.scBins     )
+        self.Hide() 
+
+    def onBinsChange(self,event=None):
+        self.parent.redraw();
+
+
 class SpectralCtrlPanel(wx.Panel):
     def __init__(self, parent):
         # Superclass constructor
@@ -145,6 +167,7 @@ class PlotTypePanel(wx.Panel):
 #         self.cbCompare.SetValue(False)
         # 
         self.parent.spectralPanel.Hide();
+        self.parent.pdfPanel.Hide();
         self.parent.slCtrl.Hide();
         self.parent.plotsizer.Layout()
         #
@@ -158,6 +181,7 @@ class PlotTypePanel(wx.Panel):
         # 
         self.parent.spectralPanel.Hide();
         self.parent.slCtrl.Hide();
+        self.parent.pdfPanel.Hide();
         self.parent.plotsizer.Layout()
         #
         self.parent.redraw()
@@ -171,14 +195,13 @@ class PlotTypePanel(wx.Panel):
             self.parent.cbLogY.SetValue(True)
             self.parent.spectralPanel.Show();
             self.parent.slCtrl.Show();
-            self.parent.plotsizer.Layout()
         else:
-            # 
             self.parent.spectralPanel.Hide();
             self.parent.slCtrl.Hide();
-            self.parent.plotsizer.Layout()
-            #
             self.parent.cbLogY.SetValue(False)
+
+        self.parent.pdfPanel.Hide();
+        self.parent.plotsizer.Layout()
         self.parent.redraw()
 
     def pdf_select(self, event=None):
@@ -188,11 +211,14 @@ class PlotTypePanel(wx.Panel):
         self.cbRegular.SetValue(False)
         self.parent.cbLogX.SetValue(False)
         self.parent.cbLogY.SetValue(False)
-        # 
+        if self.cbPDF.IsChecked():
+            self.parent.pdfPanel.Show();
+            self.parent.slCtrl.Show();
+        else:
+            self.parent.pdfPanel.Hide();
+            self.parent.slCtrl.Hide();
         self.parent.spectralPanel.Hide();
-        self.parent.slCtrl.Hide();
         self.parent.plotsizer.Layout()
-        #
         self.parent.redraw()
     def minmax_select(self, event):
         self.cbFFT.SetValue(False)
@@ -201,6 +227,7 @@ class PlotTypePanel(wx.Panel):
         self.cbRegular.SetValue(False)
         # 
         self.parent.spectralPanel.Hide();
+        self.parent.pdfPanel.Hide();
         self.parent.slCtrl.Hide();
         self.parent.plotsizer.Layout()
         #
@@ -229,6 +256,8 @@ class PlotPanel(wx.Panel):
         self.pltTypePanel= PlotTypePanel(self);
         # --- Spectral panel
         self.spectralPanel= SpectralCtrlPanel(self)
+        # --- PDF panel
+        self.pdfPanel= PDFCtrlPanel(self)
 
         # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
@@ -286,6 +315,7 @@ class PlotPanel(wx.Panel):
         plotsizer.Add(self.canvas       ,1,flag = wx.EXPAND,border = 5 )
         plotsizer.Add(sl1               ,0,flag = wx.EXPAND,border = 0)
         plotsizer.Add(self.spectralPanel,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.pdfPanel     ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.slCtrl       ,0,flag = wx.EXPAND,border = 0)
         plotsizer.Add(row_sizer         ,0,flag = wx.NORTH ,border = 5)
 
@@ -398,7 +428,12 @@ class PlotPanel(wx.Panel):
                 elif yIsDate:
                     Warn(self,'Cannot plot PDF of dates')
                 else:
-                    pdf, xx = np.histogram(y[~np.isnan(y)], bins=min(int(n/10),50))
+                    nBins=self.pdfPanel.scBins.GetValue()
+                    #min(int(n/10),50)
+                    if nBins>=n:
+                        nBins=n
+                        self.pdfPanel.scBins.SetValue(nBins)
+                    pdf, xx = np.histogram(y[~np.isnan(y)], bins=nBins)
                     dx  = xx[1] - xx[0]
                     xx  = xx[:-1] + dx/2
                     pdf = pdf / (n*dx)
