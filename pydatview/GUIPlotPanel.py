@@ -17,10 +17,10 @@ import gc
 try:
     from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
     # TODO get rid of that:
-    from .common import getMonoFont, getColumn, no_unit
+    from .common import getMonoFont, getColumn, no_unit, unit
 except:
     from spectral import pwelch, hamming , boxcar, hann, fnextpow2
-    from common import getMonoFont, getColumn, no_unit
+    from common import getMonoFont, getColumn, no_unit, unit
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -53,7 +53,6 @@ class PDFCtrlPanel(wx.Panel):
     def __init__(self, parent):
         # Superclass constructor
         super(PDFCtrlPanel,self).__init__(parent)
-        #self.SetBackgroundColour('gray')
         # data
         self.parent   = parent
         # GUI
@@ -68,6 +67,27 @@ class PDFCtrlPanel(wx.Panel):
         self.Hide() 
 
     def onBinsChange(self,event=None):
+        self.parent.redraw();
+
+class CompCtrlPanel(wx.Panel):
+    def __init__(self, parent):
+        # Superclass constructor
+        super(CompCtrlPanel,self).__init__(parent)
+        # data
+        self.parent   = parent
+        # GUI
+        #lb = wx.StaticText( self, -1, ' NOTE: this feature is beta.')
+        lblList = ['Relative', '|Relative|','Absolute','Y-Y'] 
+        self.rbType = wx.RadioBox(self, label = 'Type', choices = lblList,
+             majorDimension = 1, style = wx.RA_SPECIFY_ROWS) 
+        dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        dummy_sizer.Add(self.rbType           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        #dummy_sizer.Add(lb                    ,0, flag = wx.CENTER|wx.LEFT,border = 2)
+        self.SetSizer(dummy_sizer)
+        self.rbType.Bind(wx.EVT_RADIOBOX,self.onTypeChange)
+        self.Hide() 
+
+    def onTypeChange(self,e): 
         self.parent.redraw();
 
 
@@ -144,30 +164,32 @@ class PlotTypePanel(wx.Panel):
         self.cbPDF     = wx.CheckBox(self, -1, 'PDF'    ,(10,10))
         self.cbFFT     = wx.CheckBox(self, -1, 'FFT'    ,(10,10))
         self.cbMinMax  = wx.CheckBox(self, -1, 'MinMax' ,(10,10))
-#         self.cbCompare = wx.CheckBox(self, -1, 'Compare',(10,10))
+        self.cbCompare = wx.CheckBox(self, -1, 'Compare',(10,10))
         self.cbRegular.SetValue(True)
         self.Bind(wx.EVT_CHECKBOX, self.pdf_select    , self.cbPDF    )
         self.Bind(wx.EVT_CHECKBOX, self.fft_select    , self.cbFFT    )
         self.Bind(wx.EVT_CHECKBOX, self.minmax_select , self.cbMinMax )
-#         self.Bind(wx.EVT_CHECKBOX, self.compare_select, self.cbCompare)
+        self.Bind(wx.EVT_CHECKBOX, self.compare_select, self.cbCompare)
         self.Bind(wx.EVT_CHECKBOX, self.regular_select, self.cbRegular)
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
+        cb_sizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
         cb_sizer.Add(self.cbRegular , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbPDF     , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbFFT     , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbMinMax  , 0, flag=wx.ALL, border=1)
-#         cb_sizer.Add(self.cbCompare , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbCompare , 0, flag=wx.ALL, border=1)
         self.SetSizer(cb_sizer)
 
     def regular_select(self, event=None):
         self.cbFFT.SetValue(False)
         self.cbMinMax.SetValue(False)
         self.cbPDF.SetValue(False)
-#         self.cbCompare.SetValue(False)
+        self.cbCompare.SetValue(False)
+        self.parent.cbLogY.SetValue(False)
         # 
-        self.parent.spectralPanel.Hide();
+        self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
+        self.parent.cmpPanel.Hide();
         self.parent.slCtrl.Hide();
         self.parent.plotsizer.Layout()
         #
@@ -178,9 +200,8 @@ class PlotTypePanel(wx.Panel):
         self.cbFFT.SetValue(False)
         self.cbMinMax.SetValue(False)
         self.cbPDF.SetValue(False)
-        # 
-        self.parent.spectralPanel.Hide();
-        self.parent.slCtrl.Hide();
+        self.parent.show_hide(self.parent.cmpPanel, self.cbCompare.IsChecked())
+        self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
         self.parent.plotsizer.Layout()
         #
@@ -190,14 +211,11 @@ class PlotTypePanel(wx.Panel):
         self.cbPDF.SetValue(False)
         self.cbMinMax.SetValue(False)
         self.cbRegular.SetValue(False)
-#         self.cbCompare.SetValue(False)
+        self.cbCompare.SetValue(False)
+        self.parent.show_hide(self.parent.spcPanel, self.cbFFT.IsChecked())
         if self.cbFFT.IsChecked():
             self.parent.cbLogY.SetValue(True)
-            self.parent.spectralPanel.Show();
-            self.parent.slCtrl.Show();
         else:
-            self.parent.spectralPanel.Hide();
-            self.parent.slCtrl.Hide();
             self.parent.cbLogY.SetValue(False)
 
         self.parent.pdfPanel.Hide();
@@ -207,27 +225,25 @@ class PlotTypePanel(wx.Panel):
     def pdf_select(self, event=None):
         self.cbFFT.SetValue(False)
         self.cbMinMax.SetValue(False)
-#         self.cbCompare.SetValue(False)
+        self.cbCompare.SetValue(False)
         self.cbRegular.SetValue(False)
         self.parent.cbLogX.SetValue(False)
         self.parent.cbLogY.SetValue(False)
-        if self.cbPDF.IsChecked():
-            self.parent.pdfPanel.Show();
-            self.parent.slCtrl.Show();
-        else:
-            self.parent.pdfPanel.Hide();
-            self.parent.slCtrl.Hide();
-        self.parent.spectralPanel.Hide();
+        self.parent.show_hide(self.parent.pdfPanel, self.cbPDF.IsChecked())
+        self.parent.spcPanel.Hide();
+        self.parent.cmpPanel.Hide();
         self.parent.plotsizer.Layout()
         self.parent.redraw()
+
     def minmax_select(self, event):
         self.cbFFT.SetValue(False)
         self.cbPDF.SetValue(False)
-#         self.cbCompare.SetValue(False)
+        self.cbCompare.SetValue(False)
         self.cbRegular.SetValue(False)
         # 
-        self.parent.spectralPanel.Hide();
+        self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
+        self.parent.cmpPanel.Hide();
         self.parent.slCtrl.Hide();
         self.parent.plotsizer.Layout()
         #
@@ -254,10 +270,10 @@ class PlotPanel(wx.Panel):
 
         # --- PlotType Panel
         self.pltTypePanel= PlotTypePanel(self);
-        # --- Spectral panel
-        self.spectralPanel= SpectralCtrlPanel(self)
-        # --- PDF panel
-        self.pdfPanel= PDFCtrlPanel(self)
+        # --- Plot type specific options
+        self.spcPanel = SpectralCtrlPanel(self)
+        self.pdfPanel      = PDFCtrlPanel(self)
+        self.cmpPanel     = CompCtrlPanel(self)
 
         # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
@@ -275,7 +291,6 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogY   )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSync )
         # LAYOUT
-        #   cb_sizer = wx.GridSizer(5,2,3)
         cb_sizer  = wx.FlexGridSizer(rows=2, cols=3, hgap=2, vgap=0)
         cb_sizer.Add(self.cbScatter, 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub    , 0, flag=wx.ALL, border=1)
@@ -314,10 +329,15 @@ class PlotPanel(wx.Panel):
         sl1 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         plotsizer.Add(self.canvas       ,1,flag = wx.EXPAND,border = 5 )
         plotsizer.Add(sl1               ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(self.spectralPanel,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.spcPanel,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.pdfPanel     ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.cmpPanel    ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.slCtrl       ,0,flag = wx.EXPAND,border = 0)
         plotsizer.Add(row_sizer         ,0,flag = wx.NORTH ,border = 5)
+
+        self.show_hide(self.spcPanel, self.pltTypePanel.cbFFT.IsChecked())
+        self.show_hide(self.cmpPanel, self.pltTypePanel.cbCompare.IsChecked())
+        self.show_hide(self.pdfPanel, self.pltTypePanel.cbPDF.IsChecked())
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
@@ -338,6 +358,15 @@ class PlotPanel(wx.Panel):
         else:
             self.redraw()
 
+    def show_hide(self,panel,bShow):
+        if bShow:
+            panel.Show()
+            self.slCtrl.Show()
+        else:
+            panel.Hide()
+            self.slCtrl.Hide()
+
+
     def empty(self):
         self.cleanPlot()
 
@@ -352,10 +381,10 @@ class PlotPanel(wx.Panel):
 
     def set_subplots(self,nPlots):
         # Creating subplots
-        bSubPlots=self.cbSub.IsChecked()
         for ax in self.fig.axes:
             self.fig.delaxes(ax)
         sharex=None
+        bSubPlots = self.cbSub.IsChecked() and (not self.pltTypePanel.cbCompare.IsChecked())
         if bSubPlots:
             for i in range(nPlots):
                 # Vertical stack
@@ -373,6 +402,11 @@ class PlotPanel(wx.Panel):
     def draw_tab(self,df,ix,xlabel,I,S,sTab,nTabs,bFirst=True):
         x,xIsString,xIsDate,_=getColumn(df,ix)
 
+        #if self.pltTypePanel.cbCompare.IsChecked():
+        #    iRef=I[0]
+        #    yRef,_,_,_=getColumn(df,iRef)
+        #    I=I[1:]
+            
         nPlots=len(I)
         bSubPlots=self.cbSub.IsChecked()
 
@@ -419,6 +453,7 @@ class PlotPanel(wx.Panel):
 
             # --- Plotting
             if self.pltTypePanel.cbPDF.IsChecked():
+                # ---PDF
                 if yIsString:
                     if n>100:
                         WarnNow('Dataset has string format and is too large to display')
@@ -467,9 +502,9 @@ class PlotPanel(wx.Panel):
                         nhalf = int(n/2+1)
                     else:
                         nhalf = int((n+1)/2)
-                    sType    = self.spectralPanel.cbType.GetStringSelection()
-                    sAvg     = self.spectralPanel.cbAveraging.GetStringSelection()
-                    bDetrend = self.spectralPanel.cbDetrend.IsChecked()
+                    sType    = self.spcPanel.cbType.GetStringSelection()
+                    sAvg     = self.spcPanel.cbAveraging.GetStringSelection()
+                    bDetrend = self.spcPanel.cbDetrend.IsChecked()
                     if sAvg=='None':
                         if bDetrend:
                             m=np.mean(y);
@@ -483,15 +518,15 @@ class PlotPanel(wx.Panel):
                         # --- Welch - PSD
                         #overlap_frac=0.5
                         nFFTAll=fnextpow2(n)
-                        nExp=self.spectralPanel.scP2.GetValue()
+                        nExp=self.spcPanel.scP2.GetValue()
                         nPerSeg=2**nExp
-                        sAvgMethod = self.spectralPanel.cbAveragingMethod.GetStringSelection()
+                        sAvgMethod = self.spcPanel.cbAveragingMethod.GetStringSelection()
                         if nPerSeg>n:
                             #Warn(self, 'Power of 2 value was too high and was reduced. Disable averaging to use the full spectrum.');
                             nExp=int(np.log(nFFTAll)/np.log(2))-1
                             nPerSeg=2**nExp
-                            self.spectralPanel.scP2.SetValue(nExp)
-                            self.spectralPanel.updateP2(nExp)
+                            self.spcPanel.scP2.SetValue(nExp)
+                            self.spcPanel.updateP2(nExp)
                             #nPerSeg=n # <<< Possibility to use this with a rectangular window
                         if sAvgMethod=='Hamming':
                            window = hamming(nPerSeg, True)# True=Symmetric, like matlab
@@ -533,7 +568,7 @@ class PlotPanel(wx.Panel):
                             else:
                                 ax.set_yscale("log", nonposy='clip')
                         try:
-                            xlim=float(self.spectralPanel.tMaxFreq.GetLineText(0))
+                            xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
                             if xlim>0:
                                 ax.set_xlim([0,xlim])
                         except:
@@ -568,6 +603,152 @@ class PlotPanel(wx.Panel):
                 if bSubPlots or i==0:
                     self.cursors.append(Cursor(ax,horizOn=True, vertOn=True, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
 
+
+    def draw_tab_comp(self,tabs,ITab,ix,xlabel,I,S,STab):
+        def getError(y,yref,method):
+            if sComp=='Relative':
+                Error=(y-yRef)/yRef*100
+            elif sComp=='|Relative|':
+                Error=abs(y-yRef)/yRef*100
+            elif sComp=='Absolute':
+                Error=y-yRef
+            else:
+                raise Exception('Something wrong '+sComp)
+            return Error
+
+
+        self.cursors=[]
+        ax=None
+        sComp = self.cmpPanel.rbType.GetStringSelection()
+        xlabelAll=xlabel
+        if sComp=='Relative':
+            ylabelAll='Relative error [%]';
+        elif sComp=='|Relative|':
+            ylabelAll='Abs. relative error [%]';
+        elif sComp=='Absolute':
+            ylabelAll='Absolute error';
+        elif sComp=='Y-Y':
+            if len(I)<=3:
+                ylabelAll=' and '.join(S[1:]);
+            xlabelAll=S[0];
+
+        if self.cbScatter.IsChecked():
+            sty='o'
+        else:
+            sty='-'
+
+        yunits=[]
+        if isinstance(ix,list):
+            # --- Compare different tables - different columns
+            #print('Several Tabs, 2 different columns')
+            if len(ix)!=2 or len(I)!=2:
+                raise NotImplementedError('Comparison of more than 2 table not implemented')
+            if len(I[0])!=1:
+                raise NotImplementedError('Comparison of 2 table with different columns not implemented')
+            IY1=I[0]
+            IY2=I[1]
+            iy1 =IY1[0]
+            iy2 =IY2[0]
+            ix1= ix[0]
+            ix2= ix[1]
+            if S[0].find(' and ')>0:
+                SS=' wrt. '.join(S[0].split(' and ')[::-1])
+                yunits=[unit(lb) for lb in S[0].split(' and ')]
+                if sComp=='Y-Y':
+                    xlabelAll=S[0].split(' and ')[0]
+                    ylabelAll=S[0].split(' and ')[1]
+                    yunit=unit(S[0].split(' and ')[1])
+            else:
+                SS=S[0] + ', '+ ' wrt. '.join(STab[::-1])
+                if sComp=='Y-Y':
+                    xlabelAll=STab[0]+', '+S[0]
+                    ylabelAll=STab[1]+', '+S[0]
+                yunits=[unit(S[0])]
+
+            xRef,_,_,_=getColumn(tabs[ITab[0]].data,ix1)
+            yRef,_,_,_=getColumn(tabs[ITab[0]].data,iy1)
+            for iTab,sTab in zip(ITab[1:],STab[1:]):
+                tab=tabs[iTab]
+                df=tabs[iTab].data;
+                x,_,_,_=getColumn(df,ix2)
+                ax = self.fig.axes[0]
+                # Selecting y values
+                ylabel = SS
+                y,yIsString,yIsDate,c=getColumn(df,iy2)
+                if sComp=='Y-Y':
+                    ax.plot(yRef,y, sty, label=ylabel, markersize=1)
+                else:
+                    Error = getError(y,yRef,sComp)
+                    ax.plot(xRef,Error, sty, label=ylabel, markersize=1)
+
+        elif len(ITab)==1:
+            # --- Compare one table - different columns
+            #print('One Tab, different columns')
+            xRef,_,_,_=getColumn(tabs[ITab[0]].data,ix)
+            yRef,_,_,_=getColumn(tabs[ITab[0]].data,I[0])
+            iTab=ITab[0]
+            tab=tabs[iTab]
+            df=tabs[iTab].data;
+            x,_,_,_=getColumn(df,ix)
+            yunits.append(unit(S[0]))
+            for i in range(len(I)-1):
+                ax = self.fig.axes[0]
+                # Selecting y values
+                iy     = I[i+1]
+                if sComp=='Y-Y':
+                    ylabel = no_unit(S[i+1])+' wrt. '+no_unit(S[0])
+                else:
+                    ylabel = no_unit(S[i+1])+' wrt. '+no_unit(S[0])
+                yunits.append(unit(S[i+1]))
+                y,yIsString,yIsDate,c=getColumn(df,iy)
+                if sComp=='Y-Y':
+                    ax.plot(yRef,y, sty, label=ylabel, markersize=1)
+                else:
+                    Error = getError(y,yRef,sComp)
+                    ax.plot(xRef,Error, sty, label=ylabel, markersize=1)
+                #cursor = Cursor(ax, useblit=True, color='red', linewidth=2)
+        else:
+            # --- Compare different tables, same column
+            #print('Several Tabs, same columns')
+            xRef,_,_,_=getColumn(tabs[ITab[0]].data,ix)
+            yunits=[]
+            for i in range(len(I)):
+                iy= I[i]
+                yRef,_,_,_=getColumn(tabs[ITab[0]].data,iy)
+
+                for iTab,sTab in zip(ITab[1:],STab[1:]):
+                    tab=tabs[iTab]
+                    df=tabs[iTab].data;
+                    x,_,_,_=getColumn(df,ix)
+                    ax = self.fig.axes[0]
+                    # Selecting y values
+                    ylabel = sTab+'|'+S[i]
+                    yunits.append(unit(S[i]))
+                    y,yIsString,yIsDate,c=getColumn(df,iy)
+                    if sComp=='Y-Y':
+                        ax.plot(yRef,y, sty, label=ylabel, markersize=1.5)
+                    else:
+                        Error = getError(y,yRef,sComp)
+                        ax.plot(xRef,Error, sty, label=ylabel, markersize=1.5)
+                    #cursor = Cursor(ax, useblit=True, color='red', linewidth=2)
+        yunits=set(yunits)
+        if len(yunits)==1:
+            yunit=next(iter(yunits))
+        else:
+            yunit=''
+        if ax is not None:
+            if sComp=='Y-Y':
+                xmin,xmax=ax.get_xlim()
+                ax.plot([xmin,xmax],[xmin,xmax],'k--',linewidth=0.5)
+            ax.set_xlabel(xlabelAll)
+            if sComp=='Absolute':
+                ax.set_ylabel(ylabelAll+' '+yunit)
+            else:
+                ax.set_ylabel(ylabelAll)
+            self.cursors.append(Cursor(ax,horizOn=True, vertOn=True, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
+
+
+
     def onMouseMove(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
@@ -586,12 +767,17 @@ class PlotPanel(wx.Panel):
         #print(ID,iX2,ITab,IY1)
         tabs=self.selPanel.tabs
         if iX2 is None or iX2==-1: #iX2==-1 when two table have same columns in mode twocolumns..
+            # --- Same X 
             nPlots = len(IY1)
             nTabs = len(ITab)
             self.set_subplots(nPlots)
-            for i,sTab in zip(ITab,STab):
-                self.draw_tab(tabs[i].data,iX1,sX1,IY1,SY1,sTab,nTabs,bFirst=(i==ITab[0]))
+            if self.pltTypePanel.cbCompare.IsChecked():
+                self.draw_tab_comp(tabs,ITab,iX1,sX1,IY1,SY1,STab)
+            else:
+                for i,sTab in zip(ITab,STab):
+                    self.draw_tab(tabs[i].data,iX1,sX1,IY1,SY1,sTab,nTabs,bFirst=(i==ITab[0]))
         else:
+            # --- Different X 
             nPlots = 1
             self.set_subplots(nPlots)
             if len(IY1)==0:
@@ -611,9 +797,11 @@ class PlotPanel(wx.Panel):
                         Ylabels.append(s1+' and '+s2)
                     else:
                         Ylabels.append(s1)
-            self.draw_tab(tabs[ITab[0]].data,iX1,xlabel,IY1,Ylabels,STab[0],2,bFirst=True)
-            self.draw_tab(tabs[ITab[1]].data,iX2,xlabel,IY2,Ylabels,STab[1],2,bFirst=False)
-
+            if self.pltTypePanel.cbCompare.IsChecked():
+                self.draw_tab_comp(tabs,ITab,[iX1,iX2],sX1,[IY1,IY2],Ylabels,STab)
+            else:
+                self.draw_tab(tabs[ITab[0]].data,iX1,xlabel,IY1,Ylabels,STab[0],2,bFirst=True)
+                self.draw_tab(tabs[ITab[1]].data,iX2,xlabel,IY2,Ylabels,STab[1],2,bFirst=False)
 
         bSubPlots=self.cbSub.IsChecked()
         if bSubPlots:

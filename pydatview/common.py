@@ -31,3 +31,9 @@ def no_unit(s):
     else:
         return s
 
+def unit(s):
+    iu=s.rfind('[')
+    if iu>1:
+        return s[iu:]
+    else:
+        return ''
