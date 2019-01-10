@@ -26,9 +26,6 @@ font = {'size'   : 8}
 matplotlib_rc('font', **font)
 pyplot_rc['agg.path.chunksize'] = 20000
 
-def getMonoFont():
-    return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
-
 # --------------------------------------------------------------------------------}
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
@@ -37,17 +34,38 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         # Taken from matplotlib/backend_wx.py but added style:
         wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
         NavigationToolbar2.__init__(self, canvas)
+
         self.canvas = canvas
         self._idle = True
         self.statbar = None
         self.prevZoomRect = None
+        self.zoom()
         self.retinaFix = 'wxMac' in wx.PlatformInfo
         # --- Modif
         #NavigationToolbar2Wx.__init__(self, plotCanvas)
         self.DeleteToolByPos(1)
         self.DeleteToolByPos(1)
+        self.DeleteToolByPos(3)
         #self.SetBackgroundColour('white')
+    def press_zoom(self, event):
+        #print('>> Press_zoom HACKED')
+        NavigationToolbar2Wx.press_zoom(self,event)
         #self.SetToolBitmapSize((22,22))
+    def press_pan(self, event):
+        #print('>> Press_pan HACKED')
+        NavigationToolbar2Wx.press_pan(self,event)
+
+    def zoom(self, *args):
+        #print('>> Zoom HACKED')
+        NavigationToolbar2Wx.zoom(self,*args)
+        
+    def pan(self, *args):
+        if self._active=='PAN':
+            NavigationToolbar2Wx.pan(self,*args)
+            self.zoom()
+        else:
+            NavigationToolbar2Wx.pan(self,*args)
+
 
 class PDFCtrlPanel(wx.Panel):
     def __init__(self, parent):
@@ -160,11 +178,11 @@ class PlotTypePanel(wx.Panel):
         # data
         self.parent   = parent
         # --- Ctrl Panel
-        self.cbRegular = wx.RadioButton(self, -1, 'Regular',(10,10),style=wx.RB_GROUP)
-        self.cbPDF     = wx.RadioButton(self, -1, 'PDF'    ,(10,10)                  )
-        self.cbFFT     = wx.RadioButton(self, -1, 'FFT'    ,(10,10)                  )
-        self.cbMinMax  = wx.RadioButton(self, -1, 'MinMax' ,(10,10)                  )
-        self.cbCompare = wx.RadioButton(self, -1, 'Compare',(10,10)                  )
+        self.cbRegular = wx.RadioButton(self, -1, 'Regular',style=wx.RB_GROUP)
+        self.cbPDF     = wx.RadioButton(self, -1, 'PDF'    ,                 )
+        self.cbFFT     = wx.RadioButton(self, -1, 'FFT'    ,                 )
+        self.cbMinMax  = wx.RadioButton(self, -1, 'MinMax' ,                 )
+        self.cbCompare = wx.RadioButton(self, -1, 'Compare',                 )
         self.cbRegular.SetValue(True)
         self.Bind(wx.EVT_RADIOBUTTON, self.pdf_select    , self.cbPDF    )
         self.Bind(wx.EVT_RADIOBUTTON, self.fft_select    , self.cbFFT    )
@@ -299,7 +317,7 @@ class PlotPanel(wx.Panel):
         sl4 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         row_sizer.Add(self.pltTypePanel , 0 , flag=wx.ALL|wx.CENTER           , border=2)
         row_sizer.Add(sl2               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(self.navTB        , 0 , flag=wx.ALL|wx.CENTER           , border=0)
+        row_sizer.Add(self.navTB        , 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER , border=20)
         row_sizer.Add(sl3               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
         row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.ALL|wx.EXPAND|wx.CENTER , border=2)
         row_sizer.Add(sl4               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)

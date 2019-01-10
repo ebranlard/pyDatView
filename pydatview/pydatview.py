@@ -147,7 +147,12 @@ class MainFrame(wx.Frame):
         sys.excepthook = MyExceptionHook
         # --- GUI
         #font = self.GetFont()
+        #print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
+        #font.SetFamily(wx.FONTFAMILY_DEFAULT)
+        #font.SetFamily(wx.FONTFAMILY_MODERN)
+        #font.SetFamily(wx.FONTFAMILY_SWISS)
         #font.SetPointSize(8)
+        #print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
         #self.SetFont(font) 
         # --- Menu
         menuBar = wx.MenuBar()

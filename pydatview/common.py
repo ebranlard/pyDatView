@@ -1,9 +1,14 @@
 import wx
 import numpy as np
+import os
 
 
 def getMonoFont():
-    return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
+    #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
+    if os.name=='nt':
+        return wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+    else:
+        return wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
 
 
 def getColumn(df,i):
