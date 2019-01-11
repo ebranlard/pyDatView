@@ -39,6 +39,21 @@ def no_unit(s):
 def unit(s):
     iu=s.rfind('[')
     if iu>1:
-        return s[iu:]
+        return s[iu+1:].replace(']','')
     else:
         return ''
+
+def inverse_unit(s):
+    u=unit(s).strip()
+    if u=='':
+        return ''
+    elif u=='-':
+        return '-'
+    elif len(u)==1:
+        return '1/'+u;
+    elif u=='m/s':
+        return 's/m';
+    elif u=='deg':
+        return '1/deg';
+    else:
+        return '1/('+u+')'
