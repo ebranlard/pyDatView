@@ -537,7 +537,7 @@ class MainFrame(wx.Frame):
             self.plotPanel.redraw()
             #print(self.tabs)
             # --- Stats trigger
-            ID,ITab,iX1,IY1,iX2,IY2,STab,sX1,SY1,sX2,SY2,_=self.selPanel.getFullSelection()
+            ID,ITab,iX1,IY1,iX2,IY2,STab,_,SY1,sX2,SY2,_=self.selPanel.getFullSelection()
             if sX2 is None:
                 self.infoPanel.showStats(self.filenames,self.tabs, ITab,IY1,SY1, iX1 ,erase=True)
             else:                                        
