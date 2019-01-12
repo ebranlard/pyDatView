@@ -532,6 +532,10 @@ class PlotPanel(wx.Panel):
             d.x=frq
             d.y=Y
             d.sy= 'FFT ('+no_unit(d.sy)+')'
+            if unit(d.sx)=='s':
+                d.sx= 'Frequency [Hz]'
+            else:
+                d.sx= ''
 
 
     def getPlotData(self):
@@ -689,7 +693,10 @@ class PlotPanel(wx.Panel):
             # Plot data
             for pd in ax.PD:
                 ax.plot(pd.x,pd.y,sty,label=pd.syl,markersize=1)
-                bAllNeg=bAllNeg and  all(pd.y<=0)
+                try:
+                    bAllNeg=bAllNeg and  all(pd.y<=0)
+                except:
+                    pass # Dates
 
             # Log Axes
             if self.cbLogX.IsChecked():

@@ -85,17 +85,20 @@ class InfoPanel(wx.Panel):
             for i,s in zip(ColIndexes,ColNames):
                 y,yIsString,yIsDate,_=getColumn(tab.data,i)
                 self.tbStats.InsertItem(index,  s)
-                for j,c in enumerate(Cols[1:]):
-                    self.tbStats.SetItem(index, j+1,('{:'+c['fmt']+'}').format(c['f']((y))))
-                index +=1
-                # TODO
-                #if yIsString:
+                if yIsString:
+                    pass
                 #    self.tInfo.AppendText('{:15s} (string) first:{}  last:{}  min:{}  max:{}\n'.format(s,y[0],y[-1],min(y,key=len),max(y,key=len)))
-                #elif yIsDate:
+                elif yIsDate:
+                    pass
                 #    dt0=y[1]-y[0]
                 #    dt    = pretty_time(np.timedelta64((y[1]-y[0]),'s').item().total_seconds())
                 #    dtAll = pretty_time(np.timedelta64((y[-1]-y[0]),'s').item().total_seconds())
                 #    self.tInfo.AppendText('{:15s} (date) first:{} last:{} dt:{} range:{}\n'.format(s,y[0],y[-1],dt,dtAll))
+
+                else:
+                    for j,c in enumerate(Cols[1:]):
+                        self.tbStats.SetItem(index, j+1,('{:'+c['fmt']+'}').format(c['f']((y))))
+                index +=1
         for i in range(self.tbStats.GetColumnCount()):
             self.tbStats.SetColumnWidth(i, wx.LIST_AUTOSIZE_USEHEADER) 
 
@@ -118,7 +121,7 @@ if __name__ == '__main__':
     d ={'ColA': np.random.normal(0,1,100)+1,'ColB':np.random.normal(0,1,100)+2}
     df = pd.DataFrame(data=d)
     tab=Table(df=df)
-    #p1.showStats(None,[tab],[0],[0,1],tab.columns,0,erase=True)
+    p1.showStats(None,[tab],[0],[0,1],tab.columns,0,erase=True)
 
     app.MainLoop()
 

@@ -9,7 +9,6 @@ import os.path
 import pandas as pd
 import sys
 import traceback 
-from dateutil import parser
 import gc
 
 #  GUI
@@ -48,6 +47,7 @@ FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FO
 FILE_READER             = weio.read
 
 SIDE_COL = [150,150,280,400]
+BOT_PANL =75
 
 #matplotlib.rcParams['text.usetex'] = False
 # matplotlib.rcParams['font.sans-serif'] = 'DejaVu Sans'
@@ -404,7 +404,7 @@ class MainFrame(wx.Frame):
             self.infoPanel = InfoPanel(self.tSplitter)
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
-            self.tSplitter.SetMinimumPaneSize(55)
+            self.tSplitter.SetMinimumPaneSize(BOT_PANL)
             self.tSplitter.SetSashGravity(1)
             self.tSplitter.SetSashPosition(400)
 
@@ -708,11 +708,11 @@ def test():
         frame.plotPanel.redraw()
     time.sleep(dt) 
     with PerfMon('FFT 1'):
-        frame.plotPanel.cbFFT.SetValue(True)
+        frame.plotPanel.pltTypePanel.cbFFT.SetValue(True)
         #frame.plotPanel.cbLogX.SetValue(True)
         #frame.plotPanel.cbLogY.SetValue(True)
         frame.plotPanel.redraw()
-        frame.plotPanel.cbFFT.SetValue(False)
+        frame.plotPanel.pltTypePanel.cbFFT.SetValue(False)
     time.sleep(dt) 
     with PerfMon('Plot 3'):
         frame.selPanel.colPanel1.lbColumns.SetSelection(4)
@@ -723,9 +723,9 @@ def test():
         frame.plotPanel.redraw()
     time.sleep(dt) 
     with PerfMon('FFT 3'):
-        frame.plotPanel.cbFFT.SetValue(True)
+        frame.plotPanel.pltTypePanel.cbFFT.SetValue(True)
         frame.plotPanel.redraw()
-        frame.plotPanel.cbFFT.SetValue(False)
+        frame.plotPanel.pltTypePanel.cbFFT.SetValue(False)
     #app.MainLoop()
 
  
