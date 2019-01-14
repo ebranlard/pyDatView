@@ -465,10 +465,10 @@ def pwelch(x, window='hamming', noverlap=None, nfft=None, fs=1.0, nperseg=None,
             #nperseg = 256  # then change to default
             nperseg=fnextpow2(math.sqrt(x.shape[-1]/(1-overlap_frac)));
 
-    freqs, Pxx = csd(x, x, fs, window, nperseg, noverlap, nfft, detrend,
+    freqs, Pxx, Info = csd(x, x, fs, window, nperseg, noverlap, nfft, detrend,
                      return_onesided, scaling, axis)
 
-    return freqs, Pxx.real
+    return freqs, Pxx.real, Info
 
 
 def csd(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None, nfft=None,
@@ -478,7 +478,7 @@ def csd(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None, nfft=None,
     method.
     """
 
-    freqs, _, Pxy = _spectral_helper(x, y, fs, window, nperseg, noverlap, nfft,
+    freqs, _, Pxy, Info = _spectral_helper(x, y, fs, window, nperseg, noverlap, nfft,
                                      detrend, return_onesided, scaling, axis,
                                      mode='psd')
 
@@ -489,7 +489,7 @@ def csd(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None, nfft=None,
         else:
             Pxy = np.reshape(Pxy, Pxy.shape[:-1])
 
-    return freqs, Pxy
+    return freqs, Pxy, Info
 
 
 
@@ -504,14 +504,13 @@ def coherence(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None,
     spectral density estimate of X and Y.
     """
 
-    freqs, Pxx = welch(x, fs, window, nperseg, noverlap, nfft, detrend,
-                       axis=axis)
-    _, Pyy = welch(y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
-    _, Pxy = csd(x, y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
+    freqs, Pxx, Infoxx = welch(x, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
+    _, Pyy, Infoyy     = welch(y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
+    _, Pxy, Infoxy     = csd(x, y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
 
     Cxy = np.abs(Pxy)**2 / Pxx / Pyy
 
-    return freqs, Cxy
+    return freqs, Cxy, Infoxx
 
 
 def _spectral_helper(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None,
@@ -724,8 +723,19 @@ def _spectral_helper(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None,
     result = np.rollaxis(result, -1, axis)
 
     # TODO
+    class InfoClass():
+        pass
+    Info = InfoClass();
+    Info.df=freqs[1]-freqs[0]
+    Info.fMax=freqs[-1]
+    Info.LFreq=len(freqs)
+    Info.LSeg=nperseg
+    Info.LWin=len(win)
+    Info.LOvlp=noverlap
+    Info.nFFT=nfft
+    Info.nseg=-1
     #print('df:{:.3f} - fm:{:.2f} - nseg:{} - Lf:{:5d} - Lseg:{:5d} - Lwin:{:5d} - Lovlp:{:5d} - Nfft:{:5d} - Lsig:{}'.format(freqs[1]-freqs[0],freqs[-1],-1,len(freqs),nperseg,len(win),noverlap,nfft,x.shape[-1]))
-    return freqs, time, result
+    return freqs, time, result, Info
 
 
 def _fft_helper(x, win, detrend_func, nperseg, noverlap, nfft, sides):

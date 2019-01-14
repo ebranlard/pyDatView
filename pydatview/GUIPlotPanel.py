@@ -17,10 +17,10 @@ import gc
 try:
     from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
     # TODO get rid of that:
-    from .common import getMonoFont, getColumn, no_unit, unit, inverse_unit
+    from .common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit
 except:
-    from spectral import pwelch, hamming , boxcar, hann, fnextpow2
-    from common import getMonoFont, getColumn, no_unit, unit, inverse_unit
+    from spectral import * #pwelch, hamming , boxcar, hann, fnextpow2
+    from common import *
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -202,6 +202,20 @@ class PlotTypePanel(wx.Panel):
         cb_sizer.Add(self.cbCompare , 0, flag=wx.ALL, border=1)
         self.SetSizer(cb_sizer)
 
+    def plotType(self):
+        plotType='Regular'
+        if self.cbMinMax.GetValue():
+            plotType='MinMax'
+        elif self.cbPDF.GetValue():
+            plotType='PDF'
+        elif self.cbFFT.GetValue():
+            plotType='FFT'
+        elif self.cbCompare.GetValue():
+            plotType='Compare'
+        return plotType
+
+
+
     def regular_select(self, event=None):
         self.parent.cbLogY.SetValue(False)
         # 
@@ -255,15 +269,17 @@ class PlotTypePanel(wx.Panel):
         self.parent.redraw() # Data changes, TODO can introduce a direct hack instead
 
 class PlotPanel(wx.Panel):
-    def __init__(self, parent, selPanel):
+    def __init__(self, parent, selPanel,infoPanel=None):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
         # data
         self.selPanel = selPanel
+        self.infoPanel=infoPanel
         self.parent   = parent
-        if selPanel is not None:
-            bg=selPanel.BackgroundColour
+        self.plotData = []
+        if self.selPanel is not None:
+            bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
@@ -417,34 +433,45 @@ class PlotPanel(wx.Panel):
                 self.lbCrossHairY.SetLabel("y={:10.3e}".format(y))
 
 
-    def setPD_PDF(self,d,yIsString,yIsDate,c):
+    def setPD_PDF(self,d,c):
         # ---PDF
-        if yIsString:
+        n=len(d.y)
+        if d.yIsString:
             if n>100:
-                WarnNow('Dataset has string format and is too large to display')
+                Warn(self,'Dataset has string format and is too large to display')
+                self.pltTypePanel.cbRegular.SetValue(True)
+                return
             else:
-                value_counts = c.value_counts().sort_index()
-                value_counts.plot(kind='bar', ax=ax)
-        elif yIsDate:
+                vc = c.value_counts().sort_index()
+                d.x = vc.keys().tolist()
+                d.y = vc/n # TODO counts/PDF option
+                d.yIsString=False
+                d.xIsString=True
+        elif d.yIsDate:
             Warn(self,'Cannot plot PDF of dates')
+            self.pltTypePanel.cbRegular.SetValue(True)
+            return
         else:
             nBins=self.pdfPanel.scBins.GetValue()
             #min(int(n/10),50)
-            n=len(d.y)
             if nBins>=n:
                 nBins=n
                 self.pdfPanel.scBins.SetValue(nBins)
             d.y, d.x = np.histogram(d.y[~np.isnan(d.y)], bins=nBins)
             dx   = d.x[1] - d.x[0]
             d.x  = d.x[:-1] + dx/2
-            d.y  = d.y / (n*dx)
-            d.sx = d.sy;
-            d.sy = 'PDF('+no_unit(d.sy)+')'
-            iu = inverse_unit(d.sy)
-            if len(iu)>0:
-                d.sy += ' ['+ iu +']'
+            d.y  = d.y / (n*dx) # TODO counts /PDF option
+        d.sx = d.sy;
+        d.sy = 'PDF('+no_unit(d.sy)+')'
+        iu = inverse_unit(d.sy)
+        if len(iu)>0:
+            d.sy += ' ['+ iu +']'
 
     def setPD_MinMax(self,d):
+        if d.yIsString:
+            Warn(self,'Cannot compute min-max for strings')
+            self.pltTypePanel.cbRegular.SetValue(True)
+            return
         mi= np.nanmin(d.y)
         mx= np.nanmax(d.y)
         if mi == mx:
@@ -452,18 +479,20 @@ class PlotPanel(wx.Panel):
         else:
             d.y = (d.y-mi)/(mx-mi)
 
-    def setPD_FFT(self,d,yIsString,yIsDate,xIsString,xIsDate):
-        if yIsString or yIsDate:
+    def setPD_FFT(self,d):
+        if d.yIsString or d.yIsDate:
             Warn(self,'Cannot plot FFT of dates or strings')
-        elif xIsString:
+            self.pltTypePanel.cbRegular.SetValue(True)
+        elif d.xIsString:
             Warn(self,'Cannot plot FFT if x axis is string')
+            self.pltTypePanel.cbRegular.SetValue(True)
         else:
             #y = np.sin(2*np.pi*2*t)
             x = d.x
             y = np.array(d.y)
             y = y[~np.isnan(y)]
             n = len(y) 
-            if xIsDate:
+            if d.xIsDate:
                 dt = np.timedelta64((x[1]-x[0]),'s').item().total_seconds()
             else:
                 dt = x[1]-x[0]
@@ -490,6 +519,17 @@ class PlotPanel(wx.Panel):
                 Y   = np.fft.rfft(y-m) #Y = np.fft.fft(y) 
                 PSD = abs(Y[range(nhalf)])**2 /(n*Fs) # PSD
                 PSD[1:-1] = PSD[1:-1]*2;
+                class InfoClass():
+                    pass
+                Info = InfoClass();
+                Info.df    = frq[1]-frq[0]
+                Info.fMax  = frq[-1]
+                Info.LFreq = len(frq)
+                Info.LSeg  = len(Y)
+                Info.LWin  = len(Y)
+                Info.LOvlp = 0
+                Info.nFFT  = len(Y)
+                Info.nseg  = 1
             elif sAvg=='Welch':
                 # --- Welch - PSD
                 #overlap_frac=0.5
@@ -513,9 +553,12 @@ class PlotPanel(wx.Panel):
                 else:
                     raise NotImplementedError('Contact developer')
                 if bDetrend:
-                    frq, PSD = pwelch(y, fs=Fs, window=window, detrend='constant')
+                    detrend='constant'
                 else:
-                    frq, PSD = pwelch(y, fs=Fs, window=window)
+                    detrend=False
+                frq, PSD, Info = pwelch(y, fs=Fs, window=window, detrend='constant')
+            else:
+                raise Exception('Averaging method unknown {}'.format(sAvg))
             if sType=='Amplitude':
                 deltaf = frq[1]-frq[0]
                 Y = np.sqrt(PSD*2*deltaf)
@@ -529,16 +572,17 @@ class PlotPanel(wx.Panel):
             if bDetrend:
                 frq=frq[1:]
                 Y  =Y[1:]
+            d.Info=Info
             d.x=frq
             d.y=Y
-            d.sy= 'FFT ('+no_unit(d.sy)+')'
+            d.sy= 'FFT('+no_unit(d.sy)+')'
             if unit(d.sx)=='s':
                 d.sx= 'Frequency [Hz]'
             else:
                 d.sx= ''
 
 
-    def getPlotData(self):
+    def getPlotData(self,plotType):
         class PlotData():
             def __repr__(s):
                 s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
@@ -558,15 +602,22 @@ class PlotPanel(wx.Panel):
             d.syl = ''
             d.st = idx[5]
             d.SameCol = SameCol
-            d.x,xIsString,xIsDate,_=getColumn(tabs[d.it].data,d.ix)
-            d.y,yIsString,yIsDate,c=getColumn(tabs[d.it].data,d.iy)
+            d.x,d.xIsString,d.xIsDate,_=getColumn(tabs[d.it].data,d.ix)
+            d.y,d.yIsString,d.yIsDate,c=getColumn(tabs[d.it].data,d.iy)
             n=len(d.y)
-            if self.pltTypePanel.cbMinMax.GetValue():   # Scaling
+            # Stats of the raw data
+            d.y0Min  = yMin(d)
+            d.y0Max  = yMax(d)
+            d.y0Std  = yStd(d)
+            d.y0Mean = yMean(d)
+            d.n0     = (n,'{:d}'.format(n))
+            # Possible change of data
+            if plotType=='MinMax':
                 self.setPD_MinMax(d) 
-            elif self.pltTypePanel.cbPDF.GetValue():    # PDF
-                self.setPD_PDF(d,yIsString,yIsDate,c)  
-            elif self.pltTypePanel.cbFFT.GetValue():    # FFT
-                self.setPD_FFT(d,yIsString,yIsDate,xIsString,xIsDate) 
+            elif plotType=='PDF':
+                self.setPD_PDF(d,c)  
+            elif plotType=='FFT':
+                self.setPD_FFT(d) 
             plotData.append(d)
             
         return plotData
@@ -574,7 +625,8 @@ class PlotPanel(wx.Panel):
     def PD_Compare(self,mode):
         # --- Comparison
         PD=self.plotData
-        newPD=[]
+        sComp = self.cmpPanel.rbType.GetStringSelection()
+
         def getError(y,yref,method):
             if len(y)!=len(yref):
                 raise NotImplementedError('Comparison of signals with different length not yet implenented')
@@ -588,23 +640,40 @@ class PlotPanel(wx.Panel):
                 raise Exception('Something wrong '+sComp)
             return Error
 
-        sComp = self.cmpPanel.rbType.GetStringSelection()
-        xlabelAll=PD[0].sx
-        if sComp=='Relative':
-            ylabelAll='Relative error [%]';
-        elif sComp=='|Relative|':
-            ylabelAll='Abs. relative error [%]';
-        elif sComp=='Absolute':
-            ylabelAll='Absolute error';
-        elif sComp=='Y-Y':
-            ylabelAll=PD[0].sy
+        def getErrorLabel(ylab=''):
+            if len(ylab)>0:
+                ylab=no_unit(ylab)
+                ylab='in '+ylab+' '
+            if sComp=='Relative':
+                return 'Relative error '+ylab+'[%]';
+            elif sComp=='|Relative|':
+                return 'Abs. relative error '+ylab+'[%]';
+            elif sComp=='Absolute':
+                usy   = unique([pd.sy for pd in PD])
+                yunits= unique([unit(sy) for sy in usy])
+                if len(yunits)==1 and len(yunits[0])>0:
+                    return 'Absolute error '+ylab+'['+yunits[0]+']'
+                else:
+                    return 'Absolute error '+ylab;
+            elif sComp=='Y-Y':
+                return PD[0].sy
 
-        usy   = unique([pd.sy for pd in PD])
-        yunits= unique([unit(sy) for sy in usy])
-        if sComp=='Absolute' and len(yunits)==1:
-            ylabelAll=ylabelAll+' ['+yunits[0]+']'
+        xlabelAll=PD[0].sx
+
+        
+        if any([pd.yIsString for pd in PD]):
+            Warn(self,'Cannot compare strings')
+            self.pltTypePanel.cbRegular.SetValue(True)
+            return
+        if any([pd.yIsDate for pd in PD]):
+            Warn(self,'Cannot compare dates with other values')
+            self.pltTypePanel.cbRegular.SetValue(True)
+            return
+
 
         if mode=='nTabs_1Col':
+            ylabelAll=getErrorLabel(PD[1].sy)
+            usy   = unique([pd.sy for pd in PD])
             #print('Compare - different tabs - 1 col')
             st  = [pd.st for pd in PD]
             if len(usy)==1:
@@ -637,15 +706,15 @@ class PlotPanel(wx.Panel):
         elif mode=='1Tab_nCols':
             # --- Compare one table - different columns
             #print('One Tab, different columns')
+            ylabelAll=getErrorLabel()
             xRef = PD[0].x
             yRef = PD[0].y
             pdRef=PD[0]
-            if sComp=='Absolute' and len(yunits)==1:
-                ylabelAll=ylabelAll+' ['+yunits[0]+']'
             for pd in PD[1:]:
                 if sComp=='Y-Y':
                     pd.syl = no_unit(pd.sy)+' wrt. '+no_unit(pdRef.sy)
-                    pd.x  = yRef
+                    pd.x   = yRef
+                    pd.sx  = PD[0].sx
                 else:
                     pd.syl = no_unit(pd.sy)+' wrt. '+no_unit(pdRef.sy)
                     pd.sx  = xlabelAll
@@ -663,10 +732,16 @@ class PlotPanel(wx.Panel):
                 PD_SameCol=[pd for pd in PD if pd.iy==iy]
                 xRef = PD_SameCol[0].x
                 yRef = PD_SameCol[0].y
+                ylabelAll=getErrorLabel(PD_SameCol[0].sy)
                 for pd in PD_SameCol[1:]:
                     x = pd.x # TODO interp
                     if sComp=='Y-Y':
                         pd.x=yRef
+                        pd.sx=PD_SameCol[0].st+', '+PD_SameCol[0].sy
+                        if len(PD_SameCol[0]==1:
+                            pd.sy =pd.st+', '+pd.sy
+                        else:
+                            pd.syl= pd.st
                     else:
                         pd.syl = pd.st+'|'+pd.sy
                         pd.sx  = xlabelAll
@@ -691,6 +766,11 @@ class PlotPanel(wx.Panel):
         bAllNeg=True
         for ax in axes:
             # Plot data
+            vDate=[pd.yIsDate for pd in ax.PD]
+            if any(vDate) and len(vDate)>1:
+                Error(self,'Cannot plot date and other value on the same axis')
+                return
+
             for pd in ax.PD:
                 ax.plot(pd.x,pd.y,sty,label=pd.syl,markersize=1)
                 try:
@@ -832,6 +912,8 @@ class PlotPanel(wx.Panel):
 
     def redraw(self):
         self._redraw()
+        if self.infoPanel is not None:
+            self.infoPanel.showStats(self.plotData,self.pltTypePanel.plotType())
 
     def redraw_same_data(self):
         self._redraw_same_data()
@@ -840,14 +922,7 @@ class PlotPanel(wx.Panel):
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
-
         mode=self.findPlotMode(self.plotData)
-        if self.pltTypePanel.cbCompare.GetValue():
-            self.PD_Compare(mode)
-            if len(self.plotData)==0: 
-                self.cleanPlot();
-                return
-
         nPlots,spreadBy=self.findSubPlots(self.plotData,mode)
 
         self.set_subplots(nPlots)
@@ -860,8 +935,15 @@ class PlotPanel(wx.Panel):
         self.canvas.draw()
 
     def _redraw(self):
-        #print('>>>>>>> Redraw event')
-        self.plotData=self.getPlotData()
+        self.plotData=self.getPlotData(self.pltTypePanel.plotType())
+
+        mode=self.findPlotMode(self.plotData)
+        if self.pltTypePanel.cbCompare.GetValue():
+            self.PD_Compare(mode)
+            if len(self.plotData)==0: 
+                self.cleanPlot();
+                return
+
         self._redraw_same_data()
 
 if __name__ == '__main__':

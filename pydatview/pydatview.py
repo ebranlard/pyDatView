@@ -19,7 +19,7 @@ from .GUISelectionPanel import ColumnPopup,TablePopup
 from .GUIInfoPanel import InfoPanel
 from .Tables import Table, haveSameColumns
 # Helper
-from .common import getMonoFont, getColumn, no_unit
+from .common import *
 # Librairies
 import weio # File Formats and File Readers
 
@@ -47,7 +47,7 @@ FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FO
 FILE_READER             = weio.read
 
 SIDE_COL = [150,150,280,400]
-BOT_PANL =75
+BOT_PANL =85
 
 #matplotlib.rcParams['text.usetex'] = False
 # matplotlib.rcParams['font.sans-serif'] = 'DejaVu Sans'
@@ -56,61 +56,6 @@ BOT_PANL =75
 # matplotlib.rcParams['font.family'] = 'sans-serif'
 
 
-# --------------------------------------------------------------------------------}
-# --- Helper functions
-# --------------------------------------------------------------------------------{
-def YesNo(parent, question, caption = 'Yes or no?'):
-    dlg = wx.MessageDialog(parent, question, caption, wx.YES_NO | wx.ICON_QUESTION)
-    result = dlg.ShowModal() == wx.ID_YES
-    dlg.Destroy()
-    return result
-def Info(parent, message, caption = 'Info'):
-    dlg = wx.MessageDialog(parent, message, caption, wx.OK | wx.ICON_INFORMATION)
-    dlg.ShowModal()
-    dlg.Destroy()
-def Warn(parent, message, caption = 'Warning!'):
-    dlg = wx.MessageDialog(parent, message, caption, wx.OK | wx.ICON_WARNING)
-    dlg.ShowModal()
-    dlg.Destroy()
-def Error(parent, message, caption = 'Error!'):
-    dlg = wx.MessageDialog(parent, message, caption, wx.OK | wx.ICON_ERROR)
-    dlg.ShowModal()
-    dlg.Destroy()
-
-
-def pretty_time(t):
-    # fPrettyTime: returns a 6-characters string corresponding to the input time in seconds.
-    #   fPrettyTime(612)=='10m12s'
-    # AUTHOR: E. Branlard
-    if(t<0):
-        s='------';
-    elif (t<1) :
-        c=np.floor(t*100);
-        s='{:2d}.{:02d}s'.format(0,int(c))
-    elif(t<60) :
-        s=np.floor(t);
-        c=np.floor((t-s)*100);
-        s='{:2d}.{:02d}s'.format(int(s),int(c))
-    elif(t<3600) :
-        m=np.floor(t/60);
-        s=np.mod( np.floor(t), 60);
-        s='{:2d}m{:02d}s'.format(int(m),int(s))
-    elif(t<86400) :
-        h=np.floor(t/3600);
-        m=np.floor(( np.mod( np.floor(t) , 3600))/60);
-        s='{:2d}h{:02d}m'.format(int(h),int(m))
-    elif(t<8553600) : #below 3month
-        d=np.floor(t/86400);
-        h=np.floor( np.mod(np.floor(t), 86400)/3600);
-        s='{:2d}d{:02d}h'.format(int(d),int(h))
-    elif(t<31536000):
-        m=t/(3600*24*30.5);
-        s='{:4.1f}mo'.format(m)
-        #s='+3mon.';
-    else:
-        y=t/(3600*24*365.25);
-        s='{:.1f}y'.format(y)
-    return s
 
 
 
@@ -158,8 +103,8 @@ class MainFrame(wx.Frame):
         menuBar = wx.MenuBar()
         fileMenu = wx.Menu()
         helpMenu = wx.Menu()
-        loadMenuItem  = fileMenu.Append(wx.NewId(),"Open" ,"Open file"           )
-        saveMenuItem  = fileMenu.Append(wx.NewId(),"Save figure" ,"Save figure"           )
+        loadMenuItem  = fileMenu.Append(wx.ID_NEW,"Open" ,"Open file"           )
+        saveMenuItem  = fileMenu.Append(wx.ID_SAVE,"Save figure" ,"Save figure"           )
         exitMenuItem  = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
         menuBar.Append(fileMenu, "&File")
@@ -400,8 +345,8 @@ class MainFrame(wx.Frame):
             self.selPanel = SelectionPanel(self.vSplitter, self.tabs, mode=mode)
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel)
             self.infoPanel = InfoPanel(self.tSplitter)
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel)
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -537,12 +482,10 @@ class MainFrame(wx.Frame):
             self.plotPanel.redraw()
             #print(self.tabs)
             # --- Stats trigger
-            ID,ITab,iX1,IY1,iX2,IY2,STab,_,SY1,sX2,SY2,_=self.selPanel.getFullSelection()
-            if sX2 is None:
-                self.infoPanel.showStats(self.filenames,self.tabs, ITab,IY1,SY1, iX1 ,erase=True)
-            else:                                        
-                self.infoPanel.showStats(self.filenames,self.tabs, [ITab[0]],IY1,SY1,iX1,erase=True)
-                self.infoPanel.showStats(None          ,self.tabs, [ITab[1]],IY2,SY2,iX2)
+            #self.showStats()
+
+#     def showStats(self):
+#         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
 
     def onExit(self, event):
         self.Close()
