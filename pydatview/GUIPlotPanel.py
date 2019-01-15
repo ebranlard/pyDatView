@@ -738,7 +738,7 @@ class PlotPanel(wx.Panel):
                     if sComp=='Y-Y':
                         pd.x=yRef
                         pd.sx=PD_SameCol[0].st+', '+PD_SameCol[0].sy
-                        if len(PD_SameCol[0]==1:
+                        if len(PD_SameCol[0])==1:
                             pd.sy =pd.st+', '+pd.sy
                         else:
                             pd.syl= pd.st
