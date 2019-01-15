@@ -36,7 +36,7 @@ class Table(object):
             else:
                 self.name=name
             self.data    = df
-            self.columns = [s.replace('_',' ') for s in df.columns.values]
+            self.columns = [s.replace('_',' ') for s in df.columns.values.astype(str)]
         else: 
             # ndarray??
             raise Exception('Implementation of tables with ndarray dropped for now')

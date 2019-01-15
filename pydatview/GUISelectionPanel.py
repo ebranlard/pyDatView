@@ -242,9 +242,9 @@ class ColumnPanel(wx.Panel):
                 self.lbColumns.SetSelection(i)
                 self.lbColumns.EnsureVisible(i)
         if len(self.lbColumns.GetSelections())<=0:
-            self.lbColumns.SetSelection(self.getDefaultColumnY(self.tab,len(columns)))
+            self.lbColumns.SetSelection(self.getDefaultColumnY(self.tab,len(columns)-1))
         if (xSel<0) or xSel>len(columns):
-            self.comboX.SetSelection(self.getDefaultColumnX(self.tab,len(columns)))
+            self.comboX.SetSelection(self.getDefaultColumnX(self.tab,len(columns)-1))
         else:
             self.comboX.SetSelection(xSel)
 
