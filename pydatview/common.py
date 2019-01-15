@@ -21,6 +21,8 @@ def getColumn(df,i):
         c = df.iloc[:, i-1]
         x = df.iloc[:, i-1].values
         isString = c.dtype == np.object and isinstance(c.values[0], str)
+        if isString:
+            x=x.astype(str)
         isDate   = np.issubdtype(c.dtype, np.datetime64)
         if isDate:
             x=x.astype('datetime64[s]')
