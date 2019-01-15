@@ -18,8 +18,15 @@ git clone --recurse-submodules https://github.com/ebranlard/pyDatView
 cd pyDatView
 pip install -r requirements.txt
 python pyDatView.py
+```
+Then you can simply add an alias to your bashrc or install the pydatview module
+```bash
+echo "alias pydat='python `pwd`/pyDatview.py'" >> ~/.bashrc
 #python setup.py install
 ```
+
+
+
 More information about the download, installation and requirements is provided further down this page.
 
 

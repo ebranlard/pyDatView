@@ -358,10 +358,16 @@ class InfoPanel(wx.Panel):
         for pd in self.PD:
             for j,c in enumerate(selCols):
                 v,sv=c['f'](pd)
-                if j==0:
-                    self.tbStats.InsertItem(index,  sv)
-                else:
-                    self.tbStats.SetItem(index, j,sv)
+                try:
+                    if j==0:
+                        self.tbStats.InsertItem(index,  sv)
+                    else:
+                        self.tbStats.SetItem(index, j,sv)
+                except:
+                    if j==0:
+                        self.tbStats.InsertStringItem(index,  sv)
+                    else:
+                        self.tbStats.SetStringItem(index, j,sv)
             index +=1
         for i in range(self.tbStats.GetColumnCount()):
             self.tbStats.SetColumnWidth(i, wx.LIST_AUTOSIZE_USEHEADER) 
