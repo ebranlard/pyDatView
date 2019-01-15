@@ -82,7 +82,7 @@ For windows users, an installer executable is available here (look for pyDatView
  - https://github.com/ebranlard/pyDatView/releases
 
 
-For command line users, the script is compatible python 2.7 and python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`.
+For command line users, the script is compatible python 2.7 and python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `xarray`, `wxpython`.
 The script can be donwloaded as follows:
 ```bash
 git clone --recurse-submodules https://github.com/ebranlard/pyDatView

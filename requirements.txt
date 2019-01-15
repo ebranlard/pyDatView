@@ -1,5 +1,6 @@
 numpy  
 matplotlib 
 pandas
+xarray
 future
 wxpython
