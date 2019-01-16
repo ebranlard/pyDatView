@@ -99,7 +99,7 @@ class CompCtrlPanel(wx.Panel):
         self.parent   = parent
         # GUI
         #lb = wx.StaticText( self, -1, ' NOTE: this feature is beta.')
-        lblList = ['Relative', '|Relative|','Absolute','Y-Y'] 
+        lblList = ['Relative', '|Relative|','Ratio','Absolute','Y-Y'] 
         self.rbType = wx.RadioBox(self, label = 'Type', choices = lblList,
                 majorDimension = 1, style = wx.RA_SPECIFY_ROWS) 
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -629,11 +629,13 @@ class PlotPanel(wx.Panel):
 
         def getError(y,yref,method):
             if len(y)!=len(yref):
-                raise NotImplementedError('Comparison of signals with different length not yet implenented')
+                raise NotImplementedError('Cannot compare signals of different lengths')
             if sComp=='Relative':
                 Error=(y-yRef)/yRef*100
             elif sComp=='|Relative|':
                 Error=abs((y-yRef)/yRef)*100
+            elif sComp=='Ratio':
+                Error=y/yRef
             elif sComp=='Absolute':
                 Error=y-yRef
             else:
@@ -648,6 +650,8 @@ class PlotPanel(wx.Panel):
                 return 'Relative error '+ylab+'[%]';
             elif sComp=='|Relative|':
                 return 'Abs. relative error '+ylab+'[%]';
+            if sComp=='Ratio':
+                return 'Ratio '+ylab.replace('in','of')+'[-]';
             elif sComp=='Absolute':
                 usy   = unique([pd.sy for pd in PD])
                 yunits= unique([unit(sy) for sy in usy])
@@ -734,11 +738,11 @@ class PlotPanel(wx.Panel):
                 yRef = PD_SameCol[0].y
                 ylabelAll=getErrorLabel(PD_SameCol[0].sy)
                 for pd in PD_SameCol[1:]:
-                    x = pd.x # TODO interp
+                    pd.y=np.interp(xRef,pd.x,pd.y)
                     if sComp=='Y-Y':
                         pd.x=yRef
                         pd.sx=PD_SameCol[0].st+', '+PD_SameCol[0].sy
-                        if len(PD_SameCol[0])==1:
+                        if len(PD_SameCol)==1:
                             pd.sy =pd.st+', '+pd.sy
                         else:
                             pd.syl= pd.st
