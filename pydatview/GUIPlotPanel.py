@@ -601,6 +601,8 @@ class PlotPanel(wx.Panel):
             d.sy = idx[4]
             d.syl = ''
             d.st = idx[5]
+            d.filename = tabs[d.it].filename
+            d.tabname = tabs[d.it].active_name
             d.SameCol = SameCol
             d.x,d.xIsString,d.xIsDate,_=getColumn(tabs[d.it].data,d.ix)
             d.y,d.yIsString,d.yIsDate,c=getColumn(tabs[d.it].data,d.iy)

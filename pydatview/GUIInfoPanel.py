@@ -24,6 +24,15 @@ class TestListCtrl(wx.ListCtrl,listmix.ListRowHighlighter):
 def yName(pd):
     return pd.sy, pd.sy
 
+def fileName(pd):
+    return os.path.basename(pd.filename), os.path.basename(pd.filename)
+
+def baseDir(pd):
+    return os.path.dirname(pd.filename),os.path.join(os.path.dirname(pd.filename),'')
+
+def tabName(pd):
+    return pd.tabname, pd.tabname
+
 def ylen(pd):
     v=len(pd.y)
     s='{:d}'.format(v)
@@ -209,6 +218,9 @@ class InfoPanel(wx.Panel):
         wx.Panel.__init__(self, parent, -1)
 
         self.ColsReg=[]
+        self.ColsReg.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
+        self.ColsReg.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
+        self.ColsReg.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
         self.ColsReg.append({'name':'Column'       , 'al':'L' , 'f':yName  , 's':True})
         #self.ColsReg.append({'name':'Mean'        , 'al':'R' , 'f':y0Mean , 's' :True})
         self.ColsReg.append({'name':'Mean'         , 'al':'R' , 'f':yMean  , 's' :True})
@@ -230,6 +242,9 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':u'\u222By.x^2' , 'al':'R' , 'f':intyx2 , 's' :False})
         self.ColsReg.append({'name':'n'            , 'al':'R' , 'f':ylen   , 's' :True})
         self.ColsFFT=[]
+        self.ColsFFT.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
+        self.ColsFFT.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
+        self.ColsFFT.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
         self.ColsFFT.append({'name':'Column'        , 'al':'L' , 'f':yName  , 's':True})
         self.ColsFFT.append({'name':'Mean'          , 'al':'R' , 'f':y0Mean , 's' :True})
         self.ColsFFT.append({'name':'Std'           , 'al':'R' , 'f':y0Std  , 's' :True})
@@ -250,6 +265,9 @@ class InfoPanel(wx.Panel):
         self.ColsFFT.append({'name':'n(FFT)'        , 'al':'R' , 'f':ylen   , 's' :True})
         self.ColsFFT.append({'name':'n     '        , 'al':'R' , 'f':n0     , 's' :True})
         self.ColsMinMax=[]
+        self.ColsMinMax.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
+        self.ColsMinMax.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
+        self.ColsMinMax.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
         self.ColsMinMax.append({'name':'Column'       , 'al':'L' , 'f':yName  , 's':True})
         self.ColsMinMax.append({'name':'Mean'         , 'al':'R' , 'f':y0Mean , 's' :True})
         self.ColsMinMax.append({'name':'Std'          , 'al':'R' , 'f':y0Std  , 's' :True})
@@ -259,6 +277,9 @@ class InfoPanel(wx.Panel):
         self.ColsMinMax.append({'name':'Std(MinMax)'  , 'al':'R' , 'f':yStd   , 's' :True})
         self.ColsMinMax.append({'name':'n'            , 'al':'R' , 'f':ylen   , 's' :True})
         self.ColsPDF=[]
+        self.ColsPDF.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
+        self.ColsPDF.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
+        self.ColsPDF.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
         self.ColsPDF.append({'name':'Column'        , 'al':'L' , 'f':yName  , 's':True})
         self.ColsPDF.append({'name':'Mean'          , 'al':'R' , 'f':y0Mean , 's' :True})
         self.ColsPDF.append({'name':'Std'           , 'al':'R' , 'f':y0Std  , 's' :True})
@@ -271,6 +292,9 @@ class InfoPanel(wx.Panel):
         self.ColsPDF.append({'name':u'\u222By(PDF)' , 'al':'R' , 'f':inty   , 's' :True})
         self.ColsPDF.append({'name':'n(PDF)'        , 'al':'R' , 'f':ylen   , 's' :True})
         self.ColsCmp=[]
+        self.ColsCmp.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
+        self.ColsCmp.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
+        self.ColsCmp.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
         self.ColsCmp.append({'name':'Column','al':'L','f':yName ,'s':True})
         self.ColsCmp.append({'name':'Mean(Cmp)' , 'al':'R' , 'f':yMean  , 's' :True})
         self.ColsCmp.append({'name':'Std(Cmp)'  , 'al':'R' , 'f':yStd   , 's' :True})

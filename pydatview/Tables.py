@@ -43,10 +43,11 @@ class Table(object):
         self.filename = filename
         #self.name=os.path.dirname(filename)+'|'+os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
         if len(self.filename)>0:
-            basedir=os.path.splitext(self.filename)[0]
+            base=os.path.splitext(self.filename)[0]
         else:
-            basedir=''
-        self.name=basedir.replace('/','|').replace('\\','|')+'|'+ self.name
+            base=''
+        self.name=base.replace('/','|').replace('\\','|')+'|'+ self.name
+        self.active_name=self.name
         
         self.convertTimeColumns()
 

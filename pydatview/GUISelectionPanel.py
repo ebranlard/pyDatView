@@ -176,8 +176,10 @@ class TablePanel(wx.Panel):
         sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
         self.SetSizer(sizer)
 
-    def setTabNames(self,tabnames):    
+    def setTabNames(self,tabnames,tabs):    
         self.lbTab.Set(tabnames)
+        for t,tn in zip(tabs,tabnames):
+            t.active_name=tn
 
     def empty(self):    
         self.lbTab.Clear()
@@ -377,7 +379,7 @@ class SelectionPanel(wx.Panel):
         tabnames =[t.name for t in tabs]
         raw_names=[t.raw_name for t in tabs]
         etabnames=ellude_common(raw_names)
-        self.tabPanel.setTabNames(etabnames);
+        self.tabPanel.setTabNames(etabnames,self.tabs);
         for tn in tabnames:
             if tn not in self.tabSelections.keys():
                 self.tabSelections[tn]={'xSel':-1,'ySel':[]}
@@ -433,7 +435,7 @@ class SelectionPanel(wx.Panel):
         self.tabSelections[newName] = self.tabSelections.pop(oldName)
         raw_names=[t.raw_name for t in self.tabs]
         etabnames=ellude_common(raw_names)
-        self.tabPanel.setTabNames(etabnames);
+        self.tabPanel.setTabNames(etabnames,self.tabs);
         #self.printSelection()
 
     def saveSelection(self):
