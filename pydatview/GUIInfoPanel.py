@@ -291,6 +291,7 @@ class InfoPanel(wx.Panel):
 
         self.Cols=self.ColsReg
         self.menu=self.menuReg
+        self.PD=[]
 
         #self.bt = wx.Button(self, -1, u'\u22EE',style=wx.BU_EXACTFIT)
         self.bt = wx.Button(self, -1, u'\u2630',style=wx.BU_EXACTFIT)
@@ -376,6 +377,10 @@ class InfoPanel(wx.Panel):
     def clean(self):
         self.tbStats.DeleteAllItems()
         self.tbStats.DeleteAllColumns()
+
+    def empty(self):
+        self.clean()
+        self.PD=[]
 
 if __name__ == '__main__':
     import pandas as pd;

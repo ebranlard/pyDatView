@@ -93,17 +93,26 @@ class TablePopup(wx.Menu):
 
         if len(self.ISel)>0:
             item = wx.MenuItem(self, -1, "Delete")
-            self.Append(item)
+            try:
+                self.Append(item)
+            except:
+                self.AppendItem(item)
             self.Bind(wx.EVT_MENU, self.OnDelete, item)
 
         if len(self.ISel)==1:
             item = wx.MenuItem(self, -1, "Rename")
-            self.Append(item)
+            try:
+                self.Append(item)
+            except:
+                self.AppendItem(item)
             self.Bind(wx.EVT_MENU, self.OnRename, item)
 
         if len(self.ISel)==1:
             item = wx.MenuItem(self, -1, "Export")
-            self.Append(item)
+            try:
+                self.Append(item)
+            except:
+                self.AppendItem(item)
             self.Bind(wx.EVT_MENU, self.OnExport, item)
 
     def OnDelete(self, event):
@@ -128,7 +137,10 @@ class ColumnPopup(wx.Menu):
 
         if len(self.ISel)>=1 and self.ISel[0]>0: 
             item = wx.MenuItem(self, -1, "Rename")
-            self.Append(item)
+            try:
+                self.Append(item)
+            except:
+                self.AppendItem(item)
             self.Bind(wx.EVT_MENU, self.OnRename, item)
 
     def OnRename(self, event):

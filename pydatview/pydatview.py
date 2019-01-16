@@ -267,7 +267,7 @@ class MainFrame(wx.Frame):
         try:
             F = FILE_READER(filename,fileformat = fileformat)
             dfs = F.toDataFrame()
-        except FileNotFoundError as e:
+        except weio.FileNotFoundError as e:
             Error(self, 'A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}'.format(filename, e.filename))
             return []
         except IOError:
@@ -275,6 +275,9 @@ class MainFrame(wx.Frame):
             return []
         except MemoryError:
             Error(self,'Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).')
+            return []
+        except weio.EmptyFileError:
+            Error(self,'File empty!\n\nFile is empty: '+filename+'\n\nOpen a different file.')
             return []
         except weio.FormatNotDetectedError:
             Error(self,'File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list')
@@ -395,6 +398,8 @@ class MainFrame(wx.Frame):
         self.selPanel.tabPanel.lbTab.SetSelection(-1)
         # Until we have something better, we empty plot
         self.plotPanel.empty()
+        self.infoPanel.empty()
+        self.selPanel.clean_memory()
         # Updating tables
         self.selPanel.update_tabs(self.tabs)
         # Trigger a replot
@@ -402,13 +407,17 @@ class MainFrame(wx.Frame):
 
     def exportTab(self, iTab):
         default_filename=os.path.splitext(os.path.basename(self.tabs[iTab].filename))[0]+'.csv'
-        with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename, wildcard="CSV files (*.csv)|*.csv",
+        with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename,
                 style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+                #, wildcard="CSV files (*.csv)|*.csv",
             dlg.CentreOnParent()
             if dlg.ShowModal() == wx.ID_CANCEL:
                 return     # the user changed their mind
             if isinstance(self.tabs[iTab].data, pd.DataFrame):
-                self.tabs[iTab].data.to_csv(dlg.GetPath(),sep=',',index=False)
+                try:
+                    self.tabs[iTab].data.to_csv(dlg.GetPath(),sep=',',index=False) #python3
+                except:
+                    self.tabs[iTab].data.to_csv(dlg.GetPath(),sep=str(u',').encode('utf-8'),index=False) #python 2.
             else:
                 raise NotImplementedError('Export of data that is not a dataframe')
 
