@@ -764,10 +764,7 @@ class PlotPanel(wx.Panel):
         self.cursors=[];
         axes=self.fig.axes
 
-        if self.cbScatter.IsChecked():
-            sty='o'
-        else:
-            sty='-'
+        bScatter=self.cbScatter.IsChecked()
 
         bAllNeg=True
         for ax in axes:
@@ -778,6 +775,10 @@ class PlotPanel(wx.Panel):
                 return
 
             for pd in ax.PD:
+                if bScatter or len(pd.x)==1:
+                    sty='o'
+                else:
+                    sty='-'
                 ax.plot(pd.x,pd.y,sty,label=pd.syl,markersize=1)
                 try:
                     bAllNeg=bAllNeg and  all(pd.y<=0)
@@ -942,6 +943,9 @@ class PlotPanel(wx.Panel):
 
     def _redraw(self):
         self.plotData=self.getPlotData(self.pltTypePanel.plotType())
+        if len(self.plotData)==0: 
+            self.cleanPlot();
+            return
 
         mode=self.findPlotMode(self.plotData)
         if self.pltTypePanel.cbCompare.GetValue():

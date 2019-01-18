@@ -85,35 +85,37 @@ def ellude_common(strings):
 # --- Popup menus
 # --------------------------------------------------------------------------------{
 class TablePopup(wx.Menu):
-    def __init__(self, mainframe, parent):
+    def __init__(self, mainframe, parent, fullmenu=False):
         wx.Menu.__init__(self)
         self.parent = parent
         self.mainframe = mainframe
         self.ISel = self.parent.GetSelections()
 
+        if fullmenu:
+            item = wx.MenuItem(self, -1, "Add")
+            self.MyAppend(item)
+            self.Bind(wx.EVT_MENU, self.mainframe.onAdd, item)
+
         if len(self.ISel)>0:
             item = wx.MenuItem(self, -1, "Delete")
-            try:
-                self.Append(item)
-            except:
-                self.AppendItem(item)
+            self.MyAppend(item)
             self.Bind(wx.EVT_MENU, self.OnDelete, item)
 
         if len(self.ISel)==1:
             item = wx.MenuItem(self, -1, "Rename")
-            try:
-                self.Append(item)
-            except:
-                self.AppendItem(item)
+            self.MyAppend(item)
             self.Bind(wx.EVT_MENU, self.OnRename, item)
 
         if len(self.ISel)==1:
             item = wx.MenuItem(self, -1, "Export")
-            try:
-                self.Append(item)
-            except:
-                self.AppendItem(item)
+            self.MyAppend(item)
             self.Bind(wx.EVT_MENU, self.OnExport, item)
+
+    def MyAppend(self, item):
+        try:
+            self.Append(item) # python3
+        except:
+            self.AppendItem(item) # python2
 
     def OnDelete(self, event):
         self.mainframe.deleteTabs(self.ISel)
@@ -130,18 +132,21 @@ class TablePopup(wx.Menu):
         self.mainframe.exportTab(self.ISel[0]);
 
 class ColumnPopup(wx.Menu):
-    def __init__(self, parent):
+    def __init__(self, parent, fullmenu=False):
         wx.Menu.__init__(self)
         self.parent = parent
         self.ISel = self.parent.lbColumns.GetSelections()
 
         if len(self.ISel)>=1 and self.ISel[0]>0: 
             item = wx.MenuItem(self, -1, "Rename")
-            try:
-                self.Append(item)
-            except:
-                self.AppendItem(item)
+            self.MyAppend(item)
             self.Bind(wx.EVT_MENU, self.OnRename, item)
+
+    def MyAppend(self, item):
+        try:
+            self.Append(item) # python3
+        except:
+            self.AppendItem(item) # python2
 
     def OnRename(self, event):
         oldName = self.parent.lbColumns.GetString(self.ISel[0])
@@ -164,17 +169,34 @@ class ColumnPopup(wx.Menu):
 # --------------------------------------------------------------------------------{
 class TablePanel(wx.Panel):
     """ Display list of tables """
-    def __init__(self, parent):
+    def __init__(self, parent, mainframe):
         # Superclass constructor
         super(TablePanel,self).__init__(parent)
+        self.parent=parent
+        self.mainframe=mainframe
         # DATA
-        label = wx.StaticText( self, -1, 'Tables: ')
+        tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
+        self.bt=wx.Button(tb,wx.ID_ANY,u'\u2630', style=wx.BU_EXACTFIT)
+        self.lb=wx.StaticText(tb, -1, ' Tables ' )
+        tb.AddControl(self.bt)
+        tb.AddControl(self.lb)
+        tb.Bind(wx.EVT_BUTTON, self.showTableMenu, self.bt)
+        tb.Realize() 
+        #label = wx.StaticText( self, -1, 'Tables: ')
         self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
         self.lbTab.SetFont(getMonoFont())
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(label, 0, border=5)
+        sizer.Add(tb, 0, border=5)
+        #sizer.Add(label, 0, border=5)
         sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
         self.SetSizer(sizer)
+
+    def showTableMenu(self,event=None):
+        pos = (self.bt.GetPosition()[0], self.bt.GetPosition()[1] + self.bt.GetSize()[1])
+        menu = TablePopup(self.mainframe,self.lbTab,fullmenu=True)
+        self.PopupMenu(menu, pos)
+        menu.Destroy()
+
 
     def setTabNames(self,tabnames,tabs):    
         self.lbTab.Set(tabnames)
@@ -196,6 +218,15 @@ class ColumnPanel(wx.Panel):
         # Data
         self.tab=[]
         # GUI
+
+        tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
+        self.bt=wx.Button(tb,wx.ID_ANY,u'\u2630', style=wx.BU_EXACTFIT)
+        self.lb=wx.StaticText(tb, -1, '                                 ' )
+        tb.AddControl(self.bt)
+        tb.AddControl(self.lb)
+        tb.Bind(wx.EVT_BUTTON, self.showColumnMenu, self.bt)
+        tb.Realize() 
+
         self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
         self.comboX.SetFont(getMonoFont())
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
@@ -203,15 +234,28 @@ class ColumnPanel(wx.Panel):
         # Events
         self.lbColumns.Bind(wx.EVT_RIGHT_DOWN, self.OnColPopup)
         # Layout
+        sizerX1= wx.BoxSizer(wx.HORIZONTAL)
+        sizerX1.Add(tb       , 1, flag=wx.EXPAND, border=0)
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
         sizerX.Add(self.comboX   , 0, flag=wx.TOP | wx.BOTTOM | wx.EXPAND, border=5)
         sizerCol = wx.BoxSizer(wx.VERTICAL)
+        #sizerCol.Add(tb            , 0, border=5)
+        sizerCol.Add(sizerX1            , 0, border=5)
+        #sizerCol.Add(self.comboX   , 0, border=5)
         sizerCol.Add(sizerX        , 0, border=5)
         sizerCol.Add(self.lbColumns, 2, flag=wx.EXPAND, border=0)
         self.SetSizer(sizerCol)
+
+    def showColumnMenu(self,event):
+        pos = (self.bt.GetPosition()[0], self.bt.GetPosition()[1] + self.bt.GetSize()[1])
+        menu = ColumnPopup(self,fullmenu=True)
+        self.PopupMenu(menu, pos)
+        menu.Destroy()
         
     def OnColPopup(self,event):
-        self.PopupMenu(ColumnPopup(self), event.GetPosition())
+        menu = ColumnPopup(self)
+        self.PopupMenu(menu, event.GetPosition())
+        menu.Destroy()
 
     def getDefaultColumnX(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
@@ -232,6 +276,8 @@ class ColumnPanel(wx.Panel):
     def setTab(self,tab,xSel=-1,ySel=[]):
         """ Set the table used for the columns, update the GUI """
         self.tab=tab;
+        if tab.active_name!='default':
+            self.lb.SetLabel(' '+tab.active_name)
         self.setColumnNames(xSel,ySel)
 
     def updateColumnNames(self):
@@ -271,6 +317,7 @@ class ColumnPanel(wx.Panel):
     def empty(self):
         self.lbColumns.Clear()
         self.comboX.Clear()
+        self.lb.SetLabel('')
 
     def getColumnSelection(self):
         iX = self.comboX.GetSelection()
@@ -287,7 +334,7 @@ class ColumnPanel(wx.Panel):
 
 class SelectionPanel(wx.Panel):
     """ Display options for the user to select data """
-    def __init__(self, parent, tabs, mode='auto'):
+    def __init__(self, parent, tabs, mode='auto',mainframe=None):
         # Superclass constructor
         super(SelectionPanel,self).__init__(parent)
         # DATA
@@ -301,7 +348,7 @@ class SelectionPanel(wx.Panel):
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
         self.splitter.SetMinimumPaneSize(70)
-        self.tabPanel  = TablePanel (self.splitter);
+        self.tabPanel  = TablePanel (self.splitter,mainframe);
         self.colPanel1 = ColumnPanel(self.splitter, self);
         self.colPanel2 = ColumnPanel(self.splitter, self);
         self.tabPanel.Hide()

@@ -138,6 +138,8 @@ def intyx2(pd):
     return v,s
 
 def dx(pd):
+    if len(pd.x)<=1:
+        return 'NA','NA'
     if pd.xIsString:
         return None,'NA'
     elif  pd.xIsDate:

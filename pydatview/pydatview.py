@@ -14,7 +14,7 @@ import gc
 #  GUI
 import wx
 from .GUIPlotPanel import PlotPanel
-from .GUISelectionPanel import ColumnPanel,TablePanel,SelectionPanel,SEL_MODES,SEL_MODES_ID
+from .GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
 from .GUISelectionPanel import ColumnPopup,TablePopup
 from .GUIInfoPanel import InfoPanel
 from .Tables import Table, haveSameColumns
@@ -345,7 +345,7 @@ class MainFrame(wx.Frame):
             #
             mode = SEL_MODES_ID[self.comboMode.GetSelection()]
             self.vSplitter = wx.SplitterWindow(self.nb)
-            self.selPanel = SelectionPanel(self.vSplitter, self.tabs, mode=mode)
+            self.selPanel = SelectionPanel(self.vSplitter, self.tabs, mode=mode, mainframe=self)
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter)
