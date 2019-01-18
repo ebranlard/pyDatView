@@ -1,0 +1,62 @@
+#!/bin/bash
+
+if ! [ -x "$(command -v brew)" ]; then
+  echo 'Error: this script is intended for Mac, not linux.' >&2
+  exit 1
+fi
+
+
+# --- Finding Framework python
+FRAMEWORK_PYTHON_ROOT="/Library/Frameworks/Python.framework/Versions"
+if [ ! -f $FRAMEWORK_PYTHON_ROOT ]; then
+    echo "Framework not found in /Library/. Trying in /FRAMEWORK"
+    FRAMEWORK__PYTHON_ROOT="/System/Library/Frameworks/Python.framework/Versions"
+    if [ ! -f $FRAMEWORK_PYTHON_ROOT ]; then
+        echo "Framework not found in /System. Trying in $(brew --prefix)" 
+        PYSUBVER="$(python --version 2>&1 | cut -d ' ' -f2)"  # e.g., 2.7.10
+        FRAMEWORK_PYTHON_ROOT="$(brew --prefix)/Cellar/python/$PYSUBVER/Frameworks/Python.framework/Versions"
+    fi
+fi
+echo "Framework python path: $FRAMEWORK_PYTHON_ROOT"
+
+
+
+# --- Python exe
+PYVER=2.7
+FRAMEWORK_PYTHON="$FRAMEWORK_PYTHON_ROOT/bin/python$PYVER"
+if [ ! -f FRAMEWORK_FRAMEWORK_PYTHON_ROOT ]; then
+    echo "Not found in /Library/. Trying in /FRAMEWORK"
+
+echo "Framework python:      $FRAMEWORK_PYTHON"
+
+
+
+
+# --- Setting up PYTHONHOME
+if [ -z "$VIRTUAL_ENV" ] ; then
+    echo "You are not in a virtualenv." 
+
+    # find the root of the virtualenv, it should be the parent of the dir this script is in
+    ENV_FROM_DIR=`dirname "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+
+    ENV_FROM_PY=`$FRAMEWORK_PYTHON -c "import os; print os.path.abspath(os.path.join(os.path.dirname(\"$0\"), '..'))"`
+    echo "ENV from python:       $ENV_FROM_PY"
+    echo "ENV from dir:          $ENV_FROM_DIR"
+    export PYTHONHOME=$ENV_FROM_PY
+else
+    echo "You are in a virtualenv." 
+    echo "VIRTUAL ENV:           $VIRTUAL_ENV"
+
+    VENV_SITE_PACKAGES="$VIRTUAL_ENV/lib/python$PYVER/site-packages"
+
+    # Ensure wx.pth is set up in the virtualenv
+    cp "/Library/Python/$PYVER/site-packages/wxredirect.pth" "$VENV_SITE_PACKAGES/wx.pth"
+
+    # Use the Framework Python to run the app
+    export PYTHONHOME=$VIRTUAL_ENV
+    #exec "$FRAMEWORK_PYTHON" "$VENV_SITE_PACKAGES/$WXPYTHON_APP" $*
+fi
+
+# --- Launching python
+exec $FRAMEWORK_PYTHON "$@"
+
