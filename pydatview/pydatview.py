@@ -101,19 +101,26 @@ class MainFrame(wx.Frame):
         #self.SetFont(font) 
         # --- Menu
         menuBar = wx.MenuBar()
+
         fileMenu = wx.Menu()
-        helpMenu = wx.Menu()
-        loadMenuItem  = fileMenu.Append(wx.ID_NEW,"Open" ,"Open file"           )
+        loadMenuItem  = fileMenu.Append(wx.ID_NEW,"Open file" ,"Open file"           )
         saveMenuItem  = fileMenu.Append(wx.ID_SAVE,"Save figure" ,"Save figure"           )
         exitMenuItem  = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
-        aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
         menuBar.Append(fileMenu, "&File")
-        menuBar.Append(helpMenu, "&Help")
         self.Bind(wx.EVT_MENU,self.onExit ,exitMenuItem )
         self.Bind(wx.EVT_MENU,self.onLoad ,loadMenuItem )
         self.Bind(wx.EVT_MENU,self.onSave ,saveMenuItem )
-        self.Bind(wx.EVT_MENU,self.onAbout,aboutMenuItem)
+
+        toolMenu = wx.Menu()
+        dmpDecayMenuItem  = toolMenu.Append(wx.ID_ANY, 'Damping from decay')
+        menuBar.Append(toolMenu, "&Tools")
+        self.Bind(wx.EVT_MENU,self.onDamping,dmpDecayMenuItem)
+
+        helpMenu = wx.Menu()
+        aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
+        menuBar.Append(helpMenu, "&Help")
         self.SetMenuBar(menuBar)
+        self.Bind(wx.EVT_MENU,self.onAbout,aboutMenuItem)
 
         # --- ToolBar
         tb = self.CreateToolBar(wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT)
@@ -420,6 +427,12 @@ class MainFrame(wx.Frame):
                     self.tabs[iTab].data.to_csv(dlg.GetPath(),sep=str(u',').encode('utf-8'),index=False) #python 2.
             else:
                 raise NotImplementedError('Export of data that is not a dataframe')
+
+    def onDamping(self, event=None):
+        if not hasattr(self,'plotPanel'):
+            Error(self,'Plot some data first')
+            return
+        self.plotPanel.showTool('LogDec')
 
     def onSashChangeMain(self,event=None):
         pass

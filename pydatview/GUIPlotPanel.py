@@ -16,11 +16,12 @@ import gc
 
 try:
     from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
-    # TODO get rid of that:
-    from .common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit
+    from .damping import logDecFromDecay
+    from .common import * 
 except:
-    from spectral import * #pwelch, hamming , boxcar, hann, fnextpow2
-    from common import *
+    from spectral import pwelch, hamming , boxcar, hann, fnextpow2
+    from damping import logDecFromDecay
+    from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -52,7 +53,7 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         self.DeleteToolByPos(3)
         #self.SetBackgroundColour('white')
     def press_zoom(self, event):
-        #print('>> Press_zoom HACKED')
+        
         NavigationToolbar2Wx.press_zoom(self,event)
         #self.SetToolBitmapSize((22,22))
     def press_pan(self, event):
@@ -70,6 +71,43 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         else:
             NavigationToolbar2Wx.pan(self,*args)
 
+class LogDecToolPanel(wx.Panel):
+    def __init__(self, parent):
+        super(LogDecToolPanel,self).__init__(parent)
+        # data
+        self.parent   = parent
+        # GUI
+        #bt=wx.Button(tb,wx.ID_ANY,u'\u2630', style=wx.BU_EXACTFIT)
+        btClose=wx.Button(self,wx.ID_ANY,'Close', style=wx.BU_EXACTFIT)
+        self.Bind(wx.EVT_BUTTON, self.parent.removeTools, btClose)
+        btComp=wx.Button(self,wx.ID_ANY,'Compute', style=wx.BU_EXACTFIT)
+        self.Bind(wx.EVT_BUTTON, self.onCompute, btComp)
+        self.lb = wx.StaticText( self, -1, '                     ')
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer.Add(btClose   ,0, flag = wx.LEFT|wx.CENTER,border = 1)
+        self.sizer.Add(btComp    ,0, flag = wx.LEFT|wx.CENTER,border = 5)
+        self.sizer.Add(self.lb   ,0, flag = wx.LEFT|wx.CENTER,border = 5)
+        self.SetSizer(self.sizer)
+
+    def onCompute(self,event=None):
+        if len(self.parent.plotData)!=1:
+            Error(self,'Log Dec tool only works with a single plot.')
+            return
+        pd =self.parent.plotData[0]
+        try:
+            logdec,DampingRatio,T,fn,fd,IPos,INeg,epos,eneg=logDecFromDecay(pd.y,pd.x)
+            lab='LogDec.: {:.4f} - Damping ratio: {:.4f} - F_n: {:.4f} - F_d: {:.4f} - T:{:.3f}'.format(logdec,DampingRatio,fn,fd,T)
+            self.lb.SetLabel(lab)
+            self.sizer.Layout()
+            ax=self.parent.fig.axes[0]
+            ax.plot(pd.x[IPos],pd.y[IPos],'o')
+            ax.plot(pd.x[INeg],pd.y[INeg],'o')
+            ax.plot(pd.x ,epos,'k--')
+            ax.plot(pd.x ,eneg,'k--')
+            self.parent.canvas.draw()
+        except:
+            self.lb.SetLabel('Failed. The signal needs to look like the decay of a first order system.')
+        #self.parent.redraw(); # DATA HAS CHANGED
 
 class PDFCtrlPanel(wx.Panel):
     def __init__(self, parent):
@@ -289,6 +327,8 @@ class PlotPanel(wx.Panel):
 
         self.navTB = MyNavigationToolbar2Wx(self.canvas)
 
+        # --- Tool Panel
+        self.toolSizer= wx.BoxSizer(wx.VERTICAL)
         # --- PlotType Panel
         self.pltTypePanel= PlotTypePanel(self);
         # --- Plot type specific options
@@ -338,7 +378,7 @@ class PlotPanel(wx.Panel):
         sl4 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         row_sizer.Add(self.pltTypePanel , 0 , flag=wx.ALL|wx.CENTER           , border=2)
         row_sizer.Add(sl2               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(self.navTB        , 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER , border=20)
+        row_sizer.Add(self.navTB        , 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER , border=2)
         row_sizer.Add(sl3               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
         row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.ALL|wx.EXPAND|wx.CENTER , border=2)
         row_sizer.Add(sl4               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
@@ -348,13 +388,14 @@ class PlotPanel(wx.Panel):
         self.slCtrl = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         self.slCtrl.Hide()
         sl1 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
-        plotsizer.Add(self.canvas       ,1,flag = wx.EXPAND,border = 5 )
-        plotsizer.Add(sl1               ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(self.spcPanel,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.pdfPanel     ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.cmpPanel    ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.slCtrl       ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(row_sizer         ,0,flag = wx.NORTH ,border = 5)
+        plotsizer.Add(self.toolSizer,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.canvas   ,1,flag = wx.EXPAND,border = 5 )
+        plotsizer.Add(sl1           ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(self.spcPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.pdfPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.cmpPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.slCtrl   ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(row_sizer     ,0,flag = wx.NORTH ,border = 5)
 
         self.show_hide(self.spcPanel, self.pltTypePanel.cbFFT.GetValue())
         self.show_hide(self.cmpPanel, self.pltTypePanel.cbCompare.GetValue())
@@ -432,6 +473,20 @@ class PlotPanel(wx.Panel):
             else:
                 self.lbCrossHairY.SetLabel("y={:10.3e}".format(y))
 
+    def removeTools(self,event):
+        print('>>>>>>>>>>>>>>')
+        self.toolSizer.Clear(delete_windows=True) # Delete Windows
+        self.plotsizer.Layout()
+
+    def showTool(self,toolName=''):
+        self.toolSizer.Clear(delete_windows=True) # Delete Windows
+        if toolName=='LogDec':
+            panel = LogDecToolPanel(self)
+            self.toolSizer.Add(panel, 0, wx.EXPAND|wx.ALL, 5)
+
+        else:
+            raise Exception('Unknown tool {}'.format(toolName))
+        self.plotsizer.Layout()
 
     def setPD_PDF(self,d,c):
         # ---PDF
