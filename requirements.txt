@@ -1,7 +1,5 @@
 numpy  
 matplotlib 
 pandas
-xarray
-netCDF4
 future
 wxpython

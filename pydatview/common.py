@@ -10,7 +10,6 @@ def getMonoFont():
     elif os.name=='posix':
         return wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
     else:
-	print(os.name)
         return wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
 
 
