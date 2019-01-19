@@ -1,6 +1,7 @@
 import wx
 import numpy as np
 import os
+import platform
 
 
 def getMonoFontAbs():
@@ -20,18 +21,14 @@ def getMonoFont(widget):
     font = widget.GetFont()
     print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
     font.SetFamily(wx.TELETYPE)
-    if os.name=='nt':
+    print(platform.system())
+    if platform.system()=='Windows':
         pass
-        #return wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-    elif os.name=='posix':
-        #font.SetPointSize(font.GetPointSize()-1)
+    elif platform.system()=='Linux':
         pass
-        #return wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
     else:
-        print('>>>>>',os.name)
+        font.SetPointSize(font.GetPointSize()-1)
         pass
-        #font.SetPointSize(font.GetPointSize()-1)
-        #return wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
     return font
 
 

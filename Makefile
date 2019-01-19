@@ -1,6 +1,19 @@
+ifeq '$(findstring ;,$(PATH))' ';'
+    detected_OS := Windows
+else
+    detected_OS := $(shell uname 2>/dev/null || echo Unknown)
+    detected_OS := $(patsubst CYGWIN%,Cygwin,$(detected_OS))
+    detected_OS := $(patsubst MSYS%,MSYS,$(detected_OS))
+    detected_OS := $(patsubst MINGW%,MSYS,$(detected_OS))
+endif
 
 all:
+	echo $(detected_OS)
+ifeq ($(detected_OS),Darwin)        # Mac OS X
+	./pythonmac pyDatView.py weio/_tests/FASTIn_arf_coords.txt
+else
 	python pyDatView.py weio/_tests/FASTIn_arf_coords.txt
+endif
 # 	python pyDatView.py weio/_tests/FASTIn_HD.dat
 # 	python pyDatView.py weio/_tests/FASTIn_AD14_arf.dat weio/_tests/FASTIn_arf_coords.txt
 
