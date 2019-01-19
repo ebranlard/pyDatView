@@ -5,7 +5,6 @@ import platform
 
 
 def getMonoFontAbs():
-    print('MonoFontAbs')
     #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
     if os.name=='nt':
         font=wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
@@ -13,15 +12,11 @@ def getMonoFontAbs():
         font=wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
     else:
         font=wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-    print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
     return font
 
 def getMonoFont(widget):
-    print('MonoFont')
     font = widget.GetFont()
-    print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
     font.SetFamily(wx.TELETYPE)
-    print(platform.system())
     if platform.system()=='Windows':
         pass
     elif platform.system()=='Linux':

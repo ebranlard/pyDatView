@@ -1,4 +1,3 @@
-
 import numpy as np
 import wx
 import dateutil # required by matplotlib
@@ -311,16 +310,8 @@ class PlotPanel(wx.Panel):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
-        print('PlotPanel')
         font = parent.GetFont()
-        print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
-        if os.name=='nt':
-            font.SetPointSize(font.GetPointSize()-1)
-        elif os.name=='posix':
-            font.SetPointSize(font.GetPointSize()-1)
-        else:
-            font.SetPointSize(font.GetPointSize()-1)
-        print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
+        font.SetPointSize(font.GetPointSize()-1)
         self.SetFont(font) 
         # data
         self.selPanel = selPanel
@@ -486,7 +477,6 @@ class PlotPanel(wx.Panel):
                 self.lbCrossHairY.SetLabel("y={:10.3e}".format(y))
 
     def removeTools(self,event):
-        print('>>>>>>>>>>>>>>')
         self.toolSizer.Clear(delete_windows=True) # Delete Windows
         self.plotsizer.Layout()
 

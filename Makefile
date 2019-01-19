@@ -1,3 +1,4 @@
+# --- Detecting OS
 ifeq '$(findstring ;,$(PATH))' ';'
     detected_OS := Windows
 else
@@ -7,15 +8,13 @@ else
     detected_OS := $(patsubst MINGW%,MSYS,$(detected_OS))
 endif
 
+testfile=weio/_tests/FASTIn_arf_coords.txt
 all:
-	echo $(detected_OS)
 ifeq ($(detected_OS),Darwin)        # Mac OS X
-	./pythonmac pyDatView.py weio/_tests/FASTIn_arf_coords.txt
+	./pythonmac pyDatView.py $(testfile)
 else
-	python pyDatView.py weio/_tests/FASTIn_arf_coords.txt
+	python pyDatView.py $(testfile)
 endif
-# 	python pyDatView.py weio/_tests/FASTIn_HD.dat
-# 	python pyDatView.py weio/_tests/FASTIn_AD14_arf.dat weio/_tests/FASTIn_arf_coords.txt
 
 
 
