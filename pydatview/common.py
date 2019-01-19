@@ -3,14 +3,37 @@ import numpy as np
 import os
 
 
-def getMonoFont():
+def getMonoFontAbs():
+    print('MonoFontAbs')
     #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
     if os.name=='nt':
-        return wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+        font=wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
     elif os.name=='posix':
-        return wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+        font=wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
     else:
-        return wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+        font=wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+    print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
+    return font
+
+def getMonoFont(widget):
+    print('MonoFont')
+    font = widget.GetFont()
+    print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
+    font.SetFamily(wx.TELETYPE)
+    if os.name=='nt':
+        pass
+        #return wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+    elif os.name=='posix':
+        #font.SetPointSize(font.GetPointSize()-1)
+        pass
+        #return wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+    else:
+        print('>>>>>',os.name)
+        pass
+        #font.SetPointSize(font.GetPointSize()-1)
+        #return wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+    return font
+
 
 
 def getColumn(df,i):

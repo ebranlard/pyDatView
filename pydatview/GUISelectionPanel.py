@@ -1,5 +1,4 @@
 import wx
-# TODO get rid of me
 try:
     from .common import getMonoFont, getColumn
     from .GUIMultiSplit import MultiSplit
@@ -184,9 +183,9 @@ class TablePanel(wx.Panel):
         tb.Realize() 
         #label = wx.StaticText( self, -1, 'Tables: ')
         self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
-        self.lbTab.SetFont(getMonoFont())
+        self.lbTab.SetFont(getMonoFont(self))
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(tb, 0, border=5)
+        sizer.Add(tb, 0, flag=wx.EXPAND,border=5)
         #sizer.Add(label, 0, border=5)
         sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
         self.SetSizer(sizer)
@@ -228,21 +227,18 @@ class ColumnPanel(wx.Panel):
         tb.Realize() 
 
         self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
-        self.comboX.SetFont(getMonoFont())
+        self.comboX.SetFont(getMonoFont(self))
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
-        self.lbColumns.SetFont(getMonoFont())
+        self.lbColumns.SetFont(getMonoFont(self))
         # Events
         self.lbColumns.Bind(wx.EVT_RIGHT_DOWN, self.OnColPopup)
         # Layout
-        sizerX1= wx.BoxSizer(wx.HORIZONTAL)
-        sizerX1.Add(tb       , 1, flag=wx.EXPAND, border=0)
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
-        sizerX.Add(self.comboX   , 0, flag=wx.TOP | wx.BOTTOM | wx.EXPAND, border=5)
+        sizerX.Add(self.comboX   , 1, flag=wx.TOP | wx.BOTTOM | wx.EXPAND, border=2)
         sizerCol = wx.BoxSizer(wx.VERTICAL)
-        #sizerCol.Add(tb            , 0, border=5)
-        sizerCol.Add(sizerX1            , 0, border=5)
-        #sizerCol.Add(self.comboX   , 0, border=5)
-        sizerCol.Add(sizerX        , 0, border=5)
+        sizerCol.Add(tb            , 0, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,border=1)
+        #sizerCol.Add(self.comboX   , 0, flag=wx.TOP|wx.RIGHT|wx.BOTTOM|wx.TOP,border=2)
+        sizerCol.Add(sizerX        , 0, flag=wx.EXPAND, border=0)
         sizerCol.Add(self.lbColumns, 2, flag=wx.EXPAND, border=0)
         self.SetSizer(sizerCol)
 

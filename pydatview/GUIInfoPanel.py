@@ -328,7 +328,7 @@ class InfoPanel(wx.Panel):
                          |wx.BORDER_SUNKEN
                          )
                          #|wx.LC_SORT_ASCENDING
-        self.tbStats.SetFont(getMonoFont())
+        self.tbStats.SetFont(getMonoFont(self))
         # For sorting see wx/lib/mixins/listctrl.py listmix.ColumnSorterMixin
         #self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.tbStats)
         sizer = wx.BoxSizer(wx.HORIZONTAL)

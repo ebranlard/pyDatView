@@ -157,12 +157,12 @@ class MainFrame(wx.Frame):
         #self.MainPanel = wx.Panel(self, style=wx.RAISED_BORDER)
         #self.MainPanel.SetBackgroundColour((200,0,0))
 
-        self.nb = wx.Notebook(self.MainPanel)
-        self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
+        #self.nb = wx.Notebook(self.MainPanel)
+        #self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
 
 
         sizer = wx.BoxSizer()
-        sizer.Add(self.nb, 1, flag=wx.EXPAND)
+        #sizer.Add(self.nb, 1, flag=wx.EXPAND)
         self.MainPanel.SetSizer(sizer)
 
         # --- Drag and drop
@@ -170,9 +170,11 @@ class MainFrame(wx.Frame):
         self.SetDropTarget(dd)
 
         # --- Main Frame (self)
-        FrameSizer = wx.BoxSizer(wx.VERTICAL)
-        FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND)
-        self.SetSizer(FrameSizer)
+        self.FrameSizer = wx.BoxSizer(wx.VERTICAL)
+        slSep = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
+        self.FrameSizer.Add(slSep         ,0, flag=wx.EXPAND|wx.BOTTOM,border=0)
+        self.FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND,border=0)
+        self.SetSizer(self.FrameSizer)
 
         self.SetSize((800, 600))
         self.Center()
@@ -351,7 +353,8 @@ class MainFrame(wx.Frame):
         else:
             #
             mode = SEL_MODES_ID[self.comboMode.GetSelection()]
-            self.vSplitter = wx.SplitterWindow(self.nb)
+            #self.vSplitter = wx.SplitterWindow(self.nb)
+            self.vSplitter = wx.SplitterWindow(self.MainPanel)
             self.selPanel = SelectionPanel(self.vSplitter, self.tabs, mode=mode, mainframe=self)
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
@@ -367,8 +370,13 @@ class MainFrame(wx.Frame):
             self.vSplitter.SetMinimumPaneSize(SIDE_COL[0])
             self.tSplitter.SetSashPosition(SIDE_COL[0])
 
-            self.nb.AddPage(self.vSplitter, "Plot")
-            self.nb.SendSizeEvent()
+            #self.nb.AddPage(self.vSplitter, "Plot")
+            #self.nb.SendSizeEvent()
+
+            sizer = self.MainPanel.GetSizer()
+            sizer.Add(self.vSplitter, 1, flag=wx.EXPAND,border=0)
+            self.MainPanel.SetSizer(sizer)
+            self.FrameSizer.Layout()
 
             self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel1.comboX   )
             self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel1.lbColumns)
@@ -519,7 +527,12 @@ class MainFrame(wx.Frame):
             del self.selPanel
         if hasattr(self,'infoPanel'):
             del self.infoPanel
-        self.deletePages()
+        #self.deletePages()
+        try:
+            self.MainPanel.GetSizer().Clear(delete_windows=True) # Delete Windows
+        except:
+            self.MainPanel.GetSizer().Clear()
+        self.FrameSizer.Layout()
         gc.collect()
 
     def onSave(self, event=None):
@@ -599,18 +612,18 @@ class MainFrame(wx.Frame):
         #self.selPanel.splitter.setEquiSash()
 
     # --- NOTEBOOK 
-    def deletePages(self):
-        for index in reversed(range(self.nb.GetPageCount())):
-            self.nb.DeletePage(index)
-        self.nb.SendSizeEvent()
-        gc.collect()
-    def on_tab_change(self, event=None):
-        page_to_select = event.GetSelection()
-        wx.CallAfter(self.fix_focus, page_to_select)
-        event.Skip(True)
-    def fix_focus(self, page_to_select):
-        page = self.nb.GetPage(page_to_select)
-        page.SetFocus()
+    #def deletePages(self):
+    #    for index in reversed(range(self.nb.GetPageCount())):
+    #        self.nb.DeletePage(index)
+    #    self.nb.SendSizeEvent()
+    #    gc.collect()
+    #def on_tab_change(self, event=None):
+    #    page_to_select = event.GetSelection()
+    #    wx.CallAfter(self.fix_focus, page_to_select)
+    #    event.Skip(True)
+    #def fix_focus(self, page_to_select):
+    #    page = self.nb.GetPage(page_to_select)
+    #    page.SetFocus()
 
 #----------------------------------------------------------------------
 def MyExceptionHook(etype, value, trace):

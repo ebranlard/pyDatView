@@ -311,6 +311,17 @@ class PlotPanel(wx.Panel):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
+        print('PlotPanel')
+        font = parent.GetFont()
+        print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
+        if os.name=='nt':
+            font.SetPointSize(font.GetPointSize()-1)
+        elif os.name=='posix':
+            font.SetPointSize(font.GetPointSize()-1)
+        else:
+            font.SetPointSize(font.GetPointSize()-1)
+        print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
+        self.SetFont(font) 
         # data
         self.selPanel = selPanel
         self.infoPanel=infoPanel
@@ -326,6 +337,7 @@ class PlotPanel(wx.Panel):
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 
         self.navTB = MyNavigationToolbar2Wx(self.canvas)
+
 
         # --- Tool Panel
         self.toolSizer= wx.BoxSizer(wx.VERTICAL)
@@ -363,8 +375,8 @@ class PlotPanel(wx.Panel):
         crossHairPanel= wx.Panel(self)
         self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x= ...      ')
         self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y= ...      ')
-        self.lbCrossHairX.SetFont(getMonoFont())
-        self.lbCrossHairY.SetFont(getMonoFont())
+        self.lbCrossHairX.SetFont(getMonoFont(self))
+        self.lbCrossHairY.SetFont(getMonoFont(self))
         cbCH  = wx.FlexGridSizer(rows=2, cols=1, hgap=2, vgap=0)
         cbCH.Add(self.lbCrossHairX   , 0, flag=wx.ALL, border=1)
         cbCH.Add(self.lbCrossHairY   , 0, flag=wx.ALL, border=1)
