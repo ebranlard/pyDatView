@@ -38,6 +38,10 @@ help:
 test:
 	python pyDatView.py --test
 
+prof:
+	python -m cProfile -o _tests/prof_all.prof  _tests/prof_all.py
+
+
 exe:
 	python -m nuitka --follow-imports --include-plugin-directory --include-plugin-files --show-progress --show-modules --output-dir=build-nuitka pyDatView.py
 
@@ -63,7 +67,7 @@ else
 endif
 
 installer: version
-	python -m nsist installer.cfg
+	python -m nsist _tools\installer.cfg
 
 
 

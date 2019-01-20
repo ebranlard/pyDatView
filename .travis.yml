@@ -27,7 +27,7 @@ before_deploy:
   - git clone https://github.com/takluyver/pynsist
   - mv pynsist/nsist nsist 
   - make installer
-  - mv build/nsis/pyDatView.exe pyDatView_setup_$VERSION_NAME.exe
+  - mv _tools/build/nsis/pyDatView.exe pyDatView_setup_$VERSION_NAME.exe
 
 deploy:
   provider: releases
