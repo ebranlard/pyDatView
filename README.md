@@ -9,9 +9,9 @@ Additional file formats can easily be added.
 ![Scatter](/../screenshots/screenshots/PlotScatter.png)
 
 ## QuickStart
-For *Windows* users, an installer executable is available [here](https://github.com/ebranlard/pyDatView/releases) (look for the latest pyDatView\*.exe)
+For **Windows** users, an installer executable is available [here](https://github.com/ebranlard/pyDatView/releases) (look for the latest pyDatView\*.exe)
 
-*Linux* and *MacOS* users can use the command lines below. *Linux* users may need to install the package python-wxgtk\* (e.g. `python-gtk3.0`) from their distribution. *MacOS* users can use a `brew`, `anaconda` or `virtualenv` version of python and pip, but the final version of python that calls the script needs to have access to the screen (see details [here](#macos-installation)). The main commands for *Linux* and *MacOS*users are:
+**Linux** and **MacOS** users can use the command lines below. **Linux** users may need to install the package python-wxgtk\* (e.g. `python-gtk3.0`) from their distribution. **MacOS** users can use a `brew`, `anaconda` or `virtualenv` version of python and pip, but the final version of python that calls the script needs to have access to the screen (see [details for MacOS](#macos-installation)). The main commands for **Linux** and **MacOS** users are:
 ```bash
 git clone --recurse-submodules https://github.com/ebranlard/pyDatView
 cd pyDatView
@@ -90,7 +90,7 @@ python -m pip install --user -r requirements.txt
 ```
 If the installation of `wxpython` fails, you may need to install the package python-wxgtk\* (e.g. `python-gtk3.0`) from your distribution. For Debian/Ubuntu systems, try:
 `sudo apt-get install python-wxgtk3.0`.
-For further troubleshooting you can check the [https://wiki.wxpython.org/](wxPython wiki page).
+For further troubleshooting you can check the [wxPython wiki page](https://wiki.wxpython.org/).
 
 If the requirements are successfully installed you can run pyDatView by typing:
 ```bash
@@ -112,9 +112,9 @@ git clone --recurse-submodules https://github.com/ebranlard/pyDatView
 cd pyDatView
 ```
 Before installing the requirements, you need to be aware of the two following issues with MacOS:
-- If you are using the native version of python, there is an incompatibility between the native version of `matplotlib` on MacOS and the version of `wxpython`. The solution is to use `virtualenv`, `brew` or ``anaconda`.
-- To use a GUI app, you need a python program that have access to the screen. These special python programs are on different locations. For the system-python, it's usually in `/System`, the `brew` versions are usually in `/usr/local/Cellar`, and the `anaconda` versions are usually called `python.app`.
-The script `pythonmac` provided in this repository attemps to find the correct python program depending if you are in a virtual environment, in a conda environment, a system-python or a python from `brew` or `conda`. 
+- If you are using the native version of python, there is an incompatibility between the native version of `matplotlib` on MacOS and the version of `wxpython`. The solution is to use `virtualenv`, `brew` or `anaconda`.
+- To use a GUI app, you need a python program that has access to the screen. These special python programs are in different locations. For the system-python, it's usually in `/System`, the `brew` versions are usually in `/usr/local/Cellar`, and the `anaconda` versions are usually called `python.app`.
+The script `pythonmac` provided in this repository attempt to find the correct python program depending if you are in a virtual environment, in a conda environment, a system-python or a python from brew or conda. 
 
 Different solutions are provided below depending on your preferred way of working.
 
@@ -126,12 +126,12 @@ python3 pyDatView.py
 ```
 
 ### Brew-python version (inside a virtualenv)
-If you are inside a virtualenv, with python2 or 2, use:
+If you are inside a virtualenv, with python 2 or 3, use:
 ```
 pip install -r requirements.txt
 ./pythonmac pyDatView.py
 ```
-If the `pythonmac` commands fails, contact the developer, and in the meantime try to replace it with 
+If the `pythonmac` commands fails, contact the developer, and in the meantime try to replace it with something like:
 ```
 $(brew --prefix)/Cellar/python/XXXXX/Frameworks/python.framework/Versions/XXXX/bin/pythonXXX
 ```
