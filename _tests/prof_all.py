@@ -13,7 +13,7 @@ def test_heavy():
     from pydatview.pydatview import MainFrame
     from pydatview.GUISelectionPanel import ellude_common
     import gc
-    dt = 3
+    dt = 0
     with Timer('Test'):
         # --- Test df
         with PerfMon('Data creation'):

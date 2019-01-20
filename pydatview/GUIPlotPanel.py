@@ -886,7 +886,7 @@ class PlotPanel(wx.Panel):
         # Legend
         usy = unique([PD[i].syl for i in axes[0].iPD])
         if len(usy)>1 or self.pltTypePanel.cbCompare.GetValue():
-            axes[0].legend()
+            axes[0].legend(fancybox=False, framealpha=1, loc=1, shadow=None)
             
         for ax in self.fig.axes:
             # Somehow doesn't work due to zoom #22 #12
