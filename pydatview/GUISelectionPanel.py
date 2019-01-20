@@ -226,7 +226,7 @@ class ColumnPanel(wx.Panel):
         tb.Bind(wx.EVT_BUTTON, self.showColumnMenu, self.bt)
         tb.Realize() 
 
-        self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
+        self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)#, size=wx.Size(-1,35))
         self.comboX.SetFont(getMonoFont(self))
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont(self))
@@ -234,7 +234,7 @@ class ColumnPanel(wx.Panel):
         self.lbColumns.Bind(wx.EVT_RIGHT_DOWN, self.OnColPopup)
         # Layout
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
-        sizerX.Add(self.comboX   , 1, flag=wx.TOP | wx.BOTTOM | wx.EXPAND, border=2)
+        sizerX.Add(self.comboX   , 1, flag=wx.TOP | wx.BOTTOM, border=2)
         sizerCol = wx.BoxSizer(wx.VERTICAL)
         sizerCol.Add(tb            , 0, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,border=1)
         #sizerCol.Add(self.comboX   , 0, flag=wx.TOP|wx.RIGHT|wx.BOTTOM|wx.TOP,border=2)

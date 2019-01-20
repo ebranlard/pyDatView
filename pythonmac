@@ -11,8 +11,21 @@ if [ -x "$(command -v python3)" ]; then
 else
   HAS_PY3=0
 fi
+if [ -z "$VIRTUAL_ENV" ] ; then
+  IS_VIRTUAL_ENV=0
+else
+  IS_VIRTUAL_ENV=1
+fi
+CURR_PYVER="$(python --version 2>&1 | cut -d ' ' -f2)"  # e.g., 2.7.10
+CURR_PYXpY="$(python --version 2>&1 | cut -d ' ' -f2|cut -c 1-3)"  # e.g., 2.7 or 3.7
+CURR_PYN="$(python --version 2>&1   | cut -d ' ' -f2|cut -c 1)"  # e.g., 2 or 3
 
-
+echo "[INFO] HAS BREW       : $HAS_BREW"
+echo "[INFO] HAS PY3        : $HAS_PY3"
+echo "[INFO] PYTHON_VER N   : $CURR_PYN"
+echo "[INFO] PYTHON_VER N.X : $CURR_PYXpY"
+echo "[INFO] PYTHON_VER     : $CURR_PYVER"
+echo "[INFO] IS_VIRTUAL_ENV : $IS_VIRTUAL_ENV"
 #
 
 # --- Finding Framework python
@@ -24,39 +37,33 @@ if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
     FRAMEWORK_PYTHON_ROOT="/System/Library/Frameworks/Python.framework/Versions"
     #echo $FRAMEWORK_PYTHON_ROOT
     if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
-        #echo "Framework not found in /System. Trying in brew"
-        PYSUBVER="$(python --version 2>&1 | cut -d ' ' -f2)"  # e.g., 2.7.10
-        FRAMEWORK_PYTHON_ROOT="$(brew --prefix)/Cellar/python/$PYSUBVER/Frameworks/Python.framework/Versions"
-        if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
-                FRAMEWORK_FOUND=0
-        fi
+        FRAMEWORK_FOUND=0
+        echo "[WARN] Framework python directory not found, things may not work"
     fi
 fi
+echo "[INFO] FRAMEWORK_ROOT : $FRAMEWORK_PYTHON_ROOT"
 
 
 # --- Python exe - TODO, try python3 first
-if [ "$FRAMEWORK_FOUND" == "1" ]; then
-    PYVER=2.7
-    FRAMEWORK_PYTHON="$FRAMEWORK_PYTHON_ROOT/$PYVER/bin/python$PYVER"
-else
-    # Try /usr/bin/python
-    echo "[FAIL] Cannot find a system python installation"
-    echo "       Find the path to your system python."
-    echo "       Use the system python to launch pyDatView.py"
-fi
-
-if [ ! -f $FRAMEWORK_PYTHON ]; then
-    echo "[FAIL] Framework python exe not found: $FRAMEWORK_PYTHON"
-fi
-
-PYTHON_EXE=$FRAMEWORK_PYTHON
-
-# --- Setting up PYTHONHOME
-if [ -z "$VIRTUAL_ENV" ] ; then
+#if [ "$FRAMEWORK_FOUND" == "1" ]; then
+#    PYVER=2.7
+#    FRAMEWORK_PYTHON="$FRAMEWORK_PYTHON_ROOT/$PYVER/bin/python$PYVER"
+#else
+#    # Try /usr/bin/python
+#    echo "[FAIL] Cannot find a system python installation"
+#    echo "       Find the path to your system python."
+#    echo "       Use the system python to launch pyDatView.py"
+#fi
+#if [ ! -f $FRAMEWORK_PYTHON ]; then
+#fi
+#PYTHON_EXE=$FRAMEWORK_PYTHON
+# --- Setting up PYTHONHOME and PYTHON_EXE
+if [ "$IS_VIRTUAL_ENV" == "0" ] ; then
     echo "[WARN] You are not in a virtualenv. Things might not work." 
     if [ "$HAS_PY3" == "1" ] && [ "$HAS_BREW" == "1" ]  ; then
         echo "[INFO] Continuing assuming that you used pip3 to install the requirements and a brew python3"
         PYTHON_EXE=python3
+        HELP="[HELP] If you have a module import error, use 'pip3 install --user -r requirements.txt'"
     else
         echo "[WARN] don't know which python to use, using default"
         PYTHON_EXE=python
@@ -77,14 +84,47 @@ if [ -z "$VIRTUAL_ENV" ] ; then
 
 
 else
+    # --------------------------------------------------------------------------------}
+    # --- VIRTUAL ENV 
+    # --------------------------------------------------------------------------------{
+    echo "[INFO] VIRTUAL_ENV:     $VIRTUAL_ENV"
+    if [ "$CURR_PYN" == "2" ]  ; then
+        echo "[INFO] You are using a version 2 of python. Using framework python"
+        PYTHON_EXE="$FRAMEWORK_PYTHON_ROOT/$CURR_PYXpY/bin/python$CURR_PYXpY"
+        if [ ! -f $PYTHON_EXE ]; then
+            echo "[FAIL] Framework python exe not found : $PYTHON_EXE"
+            exit 1
+        fi
+
+    elif [ "$HAS_BREW" == "1" ]  ; then
+        echo "[INFO] Continuing assuming that the virtual env has a brew python"
+        BREW_VER=`ls -1 $(brew --prefix)/Cellar/python/ |grep $CURR_PYVER | head -1 `
+        FRAMEWORK_PYTHON_ROOT="$(brew --prefix)/Cellar/python/$BREW_VER/Frameworks/Python.framework/Versions"
+        echo $FRAMEWORK_PYTHON_ROOT
+        if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
+            echo "[FAIL] Brew framework python not found: $FRAMEWORK_PYTHON_ROOT"
+            exit 1
+        fi
+        PYTHON_EXE="$FRAMEWORK_PYTHON_ROOT/$CURR_PYXpY/bin/python$CURR_PYXpY"
+
+    else
+        echo "[FAIL] This script does not support your configuration. "
+        echo "       Try running 'python pyDatView.py' and figure how to make it work"
+        echo "       Contact the developer to account for your configuration."
+        exit 1
+    fi
     #VENV_SITE_PACKAGES="$VIRTUAL_ENV/lib/python$PYVER/site-packages"
     # Ensure wx.pth is set up in the virtualenv
     #cp "/Library/Python/$PYVER/site-packages/wxredirect.pth" "$VENV_SITE_PACKAGES/wx.pth"
     # Use the Framework Python to run the app
     export PYTHONHOME=$VIRTUAL_ENV
+    echo "[INFO] PYTHONHOME: $PYTHONHOME"
 fi
 
 # --- Launching python
 echo "[INFO] Using: $PYTHON_EXE" "$@"
+echo ""
+echo $HELP
+echo ""
 exec $PYTHON_EXE "$@"
 
