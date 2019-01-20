@@ -452,19 +452,6 @@ class PlotPanel(wx.Panel):
             self.slCtrl.Hide()
 
 
-    def empty(self):
-        self.cleanPlot()
-
-    def cleanPlot(self):
-        for ax in self.fig.axes:
-            self.fig.delaxes(ax)
-        self.fig.add_subplot(111)
-        ax = self.fig.axes[0]
-        ax.set_axis_off()
-        #ax.plot(1,1)
-        self.canvas.draw()
-        gc.collect()
-
     def set_subplots(self,nPlots):
         # Creating subplots
         for ax in self.fig.axes:
@@ -667,7 +654,8 @@ class PlotPanel(wx.Panel):
                 return s1
 
         ID,SameCol=self.selPanel.getPlotDataSelection()
-        plotData=[]
+        del self.plotData
+        self.plotData=[]
         tabs=self.selPanel.tabs
         for i,idx in enumerate(ID):
             d=PlotData();
@@ -698,9 +686,7 @@ class PlotPanel(wx.Panel):
                 self.setPD_PDF(d,c)  
             elif plotType=='FFT':
                 self.setPD_FFT(d) 
-            plotData.append(d)
-            
-        return plotData
+            self.plotData.append(d)
 
     def PD_Compare(self,mode):
         # --- Comparison
@@ -838,21 +824,24 @@ class PlotPanel(wx.Panel):
 
 
 
-    def plot_all(self,PD):
+    def plot_all(self):
         self.cursors=[];
         axes=self.fig.axes
 
         bScatter=self.cbScatter.IsChecked()
 
+        PD=self.plotData
+
         bAllNeg=True
         for ax in axes:
             # Plot data
-            vDate=[pd.yIsDate for pd in ax.PD]
+            vDate=[PD[i].yIsDate for i in ax.iPD]
             if any(vDate) and len(vDate)>1:
                 Error(self,'Cannot plot date and other value on the same axis')
                 return
 
-            for pd in ax.PD:
+            for ipd in ax.iPD:
+                pd=PD[ipd]
                 if bScatter or len(pd.x)==1:
                     sty='o'
                 else:
@@ -887,15 +876,15 @@ class PlotPanel(wx.Panel):
                     ax.plot([xmin,xmax],[xmin,xmax],'k--',linewidth=0.5)
 
         # Labels
-        axes[-1].set_xlabel(axes[-1].PD[0].sx)
+        axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx)
         for ax in axes:
-            usy = unique([pd.sy for pd in ax.PD])
+            usy = unique([PD[i].sy for i in ax.iPD])
             if len(usy)<=3:
                 ax.set_ylabel(' and '.join(usy)) # consider legend
             else:
                 ax.set_ylabel('')
         # Legend
-        usy = unique([pd.syl for pd in axes[0].PD])
+        usy = unique([PD[i].syl for i in axes[0].iPD])
         if len(usy)>1 or self.pltTypePanel.cbCompare.GetValue():
             axes[0].legend()
             
@@ -946,25 +935,21 @@ class PlotPanel(wx.Panel):
 
         # Link plot data to axes
         if nSubPlots==1 or spreadBy=='none':
-            for pd in self.plotData:
-                pd.ax=axes[0]
-            axes[0].PD=self.plotData
+            axes[0].iPD=[i for i in range(len(self.plotData))]
         else:
             for ax in axes:
-                ax.PD=[]
+                ax.iPD=[]
             PD=self.plotData
             uTabs=unique([pd.it for pd in PD])
             uiy=unique([pd.iy for pd in PD])
             if spreadBy=='iy':
-                for pd in PD:
+                for ipd,pd in enumerate(PD):
                     i=uiy.index(pd.iy)
-                    pd.ax=axes[i]
-                    axes[i].PD.append(pd)
+                    axes[i].iPD.append(ipd)
             elif spreadBy=='it':
-                for pd in PD:
+                for ipd,pd in enumerate(PD):
                     i=uTabs.index(pd.it)
-                    pd.ax=axes[i]
-                    axes[i].PD.append(pd)
+                    axes[i].iPD.append(ipd)
             else:
                 raise Exception('Wrong spreadby value')
 
@@ -995,6 +980,40 @@ class PlotPanel(wx.Panel):
 
 
 
+    def empty(self):
+        self.cleanPlot()
+
+    def clean_memory(self):
+        if hasattr(self,'plotData'):
+            del self.plotData
+            self.plotData=[]
+            for ax in self.fig.axes:
+                ax.iPD=[]
+                self.fig.delaxes(ax)
+            gc.collect()
+
+    def clean_memory_plot(self):
+        pass
+
+    def cleanPlot(self):
+        for ax in self.fig.axes:
+            if hasattr(ax,'iPD'):
+                del ax.iPD
+            self.fig.delaxes(ax)
+        del self.fig
+        gc.collect()
+        self.fig = Figure(facecolor="white", figsize=(1, 1))
+        self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
+        self.canvas = FigureCanvas(self, -1, self.fig)
+
+
+        self.fig.add_subplot(111)
+        ax = self.fig.axes[0]
+        ax.set_axis_off()
+        #ax.plot(1,1)
+        self.canvas.draw()
+        gc.collect()
+
     def redraw(self):
         self._redraw()
         if self.infoPanel is not None:
@@ -1007,20 +1026,23 @@ class PlotPanel(wx.Panel):
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
+
         mode=self.findPlotMode(self.plotData)
         nPlots,spreadBy=self.findSubPlots(self.plotData,mode)
 
+        self.clean_memory_plot()
         self.set_subplots(nPlots)
         self.distributePlots(mode,nPlots,spreadBy)
 
         if not self.pltTypePanel.cbCompare.GetValue():
             self.setLegendLabels(mode)
 
-        self.plot_all(self.plotData)
+        self.plot_all()
         self.canvas.draw()
 
     def _redraw(self):
-        self.plotData=self.getPlotData(self.pltTypePanel.plotType())
+        self.clean_memory()
+        self.getPlotData(self.pltTypePanel.plotType())
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
@@ -1031,7 +1053,6 @@ class PlotPanel(wx.Panel):
             if len(self.plotData)==0: 
                 self.cleanPlot();
                 return
-
         self._redraw_same_data()
 
 if __name__ == '__main__':

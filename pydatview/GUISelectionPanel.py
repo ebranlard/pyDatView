@@ -475,6 +475,7 @@ class SelectionPanel(wx.Panel):
 
 
     def update_tabs(self, tabs):
+        print('>>> Uupdate tabs')
         self.updateTables(tabs)
 
     def renameTable(self,iTab, oldName, newName):

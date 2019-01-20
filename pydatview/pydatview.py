@@ -661,57 +661,6 @@ def test(filenames=None):
     S=ellude_common(['A.txt','A_.txt'])
     if any([len(s)<=1 for s in S]):
         raise Exception('[FAIL] ellude common with underscore difference, Bug #25')
-
-    dt = 3
-    # --- Test df
-    with PerfMon('Data creation'):
-        nRow =10**7;
-        nCols=10;
-        d={}
-        d['col0'] = np.linspace(0,1,nRow);
-        for iC in range(1,nCols):
-            name='col{}'.format(iC)
-            d[name] = np.random.normal(0,1,nRow)+2*iC
-        tend = time.time()
-        df = pd.DataFrame(data=d)
-        del d
-    time.sleep(dt) 
-    with PerfMon('Plot 1'):
-        app = wx.App(False)
-        frame = MainFrame()
-        frame.load_df(df)
-    time.sleep(dt) 
-    with PerfMon('Redraw 1'):
-        frame.selPanel.colPanel1.lbColumns.SetSelection(-1)
-        frame.selPanel.colPanel1.lbColumns.SetSelection(2)
-        frame.plotPanel.redraw()
-    time.sleep(dt) 
-    with PerfMon('Redraw 1 (igen)'):
-        frame.selPanel.colPanel1.lbColumns.SetSelection(-1)
-        frame.selPanel.colPanel1.lbColumns.SetSelection(2)
-        frame.plotPanel.redraw()
-    time.sleep(dt) 
-    with PerfMon('FFT 1'):
-        frame.plotPanel.pltTypePanel.cbFFT.SetValue(True)
-        #frame.plotPanel.cbLogX.SetValue(True)
-        #frame.plotPanel.cbLogY.SetValue(True)
-        frame.plotPanel.redraw()
-        frame.plotPanel.pltTypePanel.cbFFT.SetValue(False)
-    time.sleep(dt) 
-    with PerfMon('Plot 3'):
-        frame.selPanel.colPanel1.lbColumns.SetSelection(4)
-        frame.selPanel.colPanel1.lbColumns.SetSelection(6)
-        frame.onColSelectionChange()
-    time.sleep(dt) 
-    with PerfMon('Redraw 3'):
-        frame.plotPanel.redraw()
-    time.sleep(dt) 
-    with PerfMon('FFT 3'):
-        frame.plotPanel.pltTypePanel.cbFFT.SetValue(True)
-        frame.plotPanel.redraw()
-        frame.plotPanel.pltTypePanel.cbFFT.SetValue(False)
-    #app.MainLoop()
-
  
 # --------------------------------------------------------------------------------}
 # --- Mains 
