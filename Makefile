@@ -40,6 +40,8 @@ test:
 
 prof:
 	python -m cProfile -o _tests/prof_all.prof  _tests/prof_all.py
+	python -m pyprof2calltree -i _tests/prof_all.prof -o _tests/prof_all.callgrind
+	#snakeviz _tests/prof_all.prof
 
 
 exe:
@@ -67,7 +69,7 @@ else
 endif
 
 installer: version
-	python -m nsist _tools\installer.cfg
+	python -m nsist _tools/installer.cfg
 
 
 

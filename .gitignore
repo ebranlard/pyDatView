@@ -5,6 +5,8 @@
 build
 dist
 *.spec
+*.callgrind
+*.prof
 DEBUG.py
 _TODO
 _FFT

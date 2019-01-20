@@ -646,7 +646,13 @@ def MyExceptionHook(etype, value, trace):
 # --------------------------------------------------------------------------------}
 # --- Tests 
 # --------------------------------------------------------------------------------{
-def test():
+def test(filenames=None):
+    if filenames is not None:
+        app = wx.App(False)
+        frame = MainFrame()
+        frame.load_files(filenames,fileformat=None)
+        return
+
     import time
     import sys
     from .perfmon import PerfMon
@@ -753,7 +759,6 @@ def pydatview(dataframe=None,filenames=[]):
         #print('PydatView time: ',tend-tstart)
     elif len(filenames)>0:
         frame.load_files(filenames,fileformat=None)
-
     app.MainLoop()
 
 def cmdline():
