@@ -21,3 +21,14 @@ v0.1-128-g4963cfd
 [PERF] Redraw 3                       Perf: 35.11s -    1.2Gb
 [PERF] FFT 3                          Perf:  4.13s - ------
 [TIME] Test                           Elapsed:  1m46s
+
+v0.1-131-g94ee268  - Legend optimized (great speedup), and dt=0 (removes 21s of total test time)
+[PERF] Data creation                  Perf:  4.23s -  783.4Mb
+[PERF] Plot 1                         Perf:  2.50s -  479.7Mb
+[PERF] Redraw 1                       Perf:  2.10s -  432.5Mb
+[PERF] Redraw 1 (igen)                Perf:  2.19s - ------
+[PERF] FFT 1                          Perf:  1.64s - ------
+[PERF] Plot 3                         Perf:  5.96s -  945.7Mb
+[PERF] Redraw 3                       Perf:  6.03s -    1.3Gb
+[PERF] FFT 3                          Perf:  4.51s - ------
+[TIME] Test                           Elapsed: 29.19s 
