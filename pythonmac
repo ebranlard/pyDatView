@@ -1,25 +1,34 @@
 #!/bin/bash
 
-#if ! [ -x "$(command -v brew)" ]; then
-#  echo 'Error: this script is intended for Mac, not linux.' >&2
-#  exit 1
-#fi
+# --- Detecting some user settings
+if [ -x "$(command -v brew)" ]; then
+  HAS_BREW=1
+else
+  HAS_BREW=0
+fi
+if [ -x "$(command -v python3)" ]; then
+  HAS_PY3=1
+else
+  HAS_PY3=0
+fi
+
+
 #
 
 # --- Finding Framework python
 FRAMEWORK_PYTHON_ROOT="/Library/Frameworks/Python.framework/Versions"
-echo $FRAMEWORK_PYTHON_ROOT
+#echo $FRAMEWORK_PYTHON_ROOT
 FRAMEWORK_FOUND=1
 if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
     #echo "Framework not found in /Library/. Trying in /System"
     FRAMEWORK_PYTHON_ROOT="/System/Library/Frameworks/Python.framework/Versions"
-    echo $FRAMEWORK_PYTHON_ROOT
+    #echo $FRAMEWORK_PYTHON_ROOT
     if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
         #echo "Framework not found in /System. Trying in brew"
         PYSUBVER="$(python --version 2>&1 | cut -d ' ' -f2)"  # e.g., 2.7.10
         FRAMEWORK_PYTHON_ROOT="$(brew --prefix)/Cellar/python/$PYSUBVER/Frameworks/Python.framework/Versions"
-	if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
-            FRAMEWORK_FOUND=0
+        if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
+                FRAMEWORK_FOUND=0
         fi
     fi
 fi
@@ -39,20 +48,36 @@ fi
 if [ ! -f $FRAMEWORK_PYTHON ]; then
     echo "[FAIL] Framework python exe not found: $FRAMEWORK_PYTHON"
 fi
-echo "[INFO] Using: $FRAMEWORK_PYTHON"
 
+PYTHON_EXE=$FRAMEWORK_PYTHON
 
 # --- Setting up PYTHONHOME
 if [ -z "$VIRTUAL_ENV" ] ; then
-    echo "[WARN] You are not in a virtualenv. Thingsmight not work" 
-    # find the root of the virtualenv, it should be the parent of the dir this script is in
-    ENV_FROM_DIR=`dirname "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
-    ENV_FROM_PY=`$FRAMEWORK_PYTHON -c "import os; print os.path.abspath(os.path.join(os.path.dirname(\"$0\"), '..'))"`
-    echo "ENV from python:       $ENV_FROM_PY"
-    echo "ENV from dir:          $ENV_FROM_DIR"
-    export PYTHONHOME=$ENV_FROM_PY
+    echo "[WARN] You are not in a virtualenv. Things might not work." 
+    if [ "$HAS_PY3" == "1" ] && [ "$HAS_BREW" == "1" ]  ; then
+        echo "[INFO] Continuing assuming that you used pip3 to install the requirements and a brew python3"
+        PYTHON_EXE=python3
+    else
+        echo "[WARN] don't know which python to use, using default"
+        PYTHON_EXE=python
+        # find the root of the virtualenv, it should be the parent of the dir this script is in
+        #ENV_FROM_DIR=`dirname "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+        #ENV_FROM_PY=`$FRAMEWORK_PYTHON -c "import os; print os.path.abspath(os.path.join(os.path.dirname(\"$0\"), '..'))"`
+        #ENV_HOME=$HOME/Library/Python/2.7/lib/python/site-packages/
+        #ENV_HOME=$HOME/Library/Python/2.7/
+        #echo "ENV from python:       $ENV_FROM_PY"
+        #echo "ENV from dir:          $ENV_FROM_DIR"
+        #echo "ENV from home:         $ENV_HOME"
+        #echo "PYTHONHOME             $PYTHONHOME"
+        #echo "PYTHONPATH             $PYTHOPATH"
+        #export PYTHONHOME=$ENV_HOME
+        #echo "PYTHONHOME             $PYTHONHOME"
+        #echo "PYTHONPATH             $PYTHOPATH"
+    fi
+
+
 else
-    VENV_SITE_PACKAGES="$VIRTUAL_ENV/lib/python$PYVER/site-packages"
+    #VENV_SITE_PACKAGES="$VIRTUAL_ENV/lib/python$PYVER/site-packages"
     # Ensure wx.pth is set up in the virtualenv
     #cp "/Library/Python/$PYVER/site-packages/wxredirect.pth" "$VENV_SITE_PACKAGES/wx.pth"
     # Use the Framework Python to run the app
@@ -60,5 +85,6 @@ else
 fi
 
 # --- Launching python
-exec $FRAMEWORK_PYTHON "$@"
+echo "[INFO] Using: $PYTHON_EXE" "$@"
+exec $PYTHON_EXE "$@"
 
