@@ -5,8 +5,29 @@ import dateutil # required by matplotlib
 import matplotlib
 matplotlib.use('Agg') # Important for Windows version of installer
 from matplotlib import rc as matplotlib_rc
-from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-from matplotlib.backends.backend_wx import NavigationToolbar2Wx
+try:
+    from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+    from matplotlib.backends.backend_wx import NavigationToolbar2Wx
+except Exception as e:
+    print('')
+    print('Error: problem importing `matplotlib.backends.backend_wx`.')
+    import platform
+    if platform.system()=='Darwin':
+        print('')
+        print('pyDatView help:')
+        print('  This is a typical issue on MacOS, most likely you are')
+        print('  using the native MacOS python with the native matplolib')
+        print('  library, which is incompatible with `wxPython`.')
+        print('')
+        print('  You can solve this by either:')
+        print('    - using python3, and pip3 e.g. installing it with brew')
+        print('    - using a virtual environment with python 2 or 3')
+        print('    - using anaconda with python 2 or 3');
+        print('')
+        import sys
+        sys.exit(1)
+    else:
+        raise e
 from matplotlib.backend_bases import NavigationToolbar2
 from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
