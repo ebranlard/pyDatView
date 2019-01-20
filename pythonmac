@@ -1,4 +1,39 @@
 #!/bin/bash
+# pythonmac: detects a python executable which has access to the screen on MacOS
+# 
+# usage:
+#    ./pythonmac File.py [Arguments]
+#
+# background:
+#    On MacOS, wxPython cannot access the screen with a python version which is not a
+#    "framework" version. 
+# 
+#    The following script: `import wx. wx.App();`  will fail with the error:
+#        " This program needs access to the screen. Please run with a
+#          Framework build of python, and only when you are logged in
+#          on the main display of your Mac."
+#    
+#    The "Framework build of python" are in different locations:
+#        - for the system python: 
+#              /Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX
+#            or
+#              /System/Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX
+# 
+#        - for python installed with `brew` (likely in `/usr/local`): 
+#              $(brew --suffix)/Cellar/python/XXXXX/Frameworks/python.framework/Versions/XXXX/bin/pythonXXX");
+#        - for python installed with anaconda, typically:
+#              /anaconda3/bin/python.app   (NOTE: the '.app'!")
+#        
+#    The following attempts to detect which version of python is used, whether the user
+#    is currently in a virtual environment or a conda environment, and tries to find the
+#    proper "python" to use that has access to the screen.
+#    
+# created: January 2019
+# author : E.Branlard
+# website: https://github.com/ebranlard/pyDatView
+# 
+
+DEBUG=1
 
 # --- Detecting some user settings
 if [ -x "$(command -v brew)" ]; then
@@ -27,15 +62,17 @@ CURR_PYVER="$(python --version 2>&1 | cut -d ' ' -f2)"  # e.g., 2.7.10
 CURR_PYXpY="$(python --version 2>&1 | cut -d ' ' -f2|cut -c 1-3)"  # e.g., 2.7 or 3.7
 CURR_PYN="$(python --version 2>&1   | cut -d ' ' -f2|cut -c 1)"  # e.g., 2 or 3
 
-echo "[INFO] HAS BREW       : $HAS_BREW"
-echo "[INFO] HAS PY3        : $HAS_PY3"
-echo "[INFO] PYTHON_VER N   : $CURR_PYN"
-echo "[INFO] PYTHON_VER N.X : $CURR_PYXpY"
-echo "[INFO] PYTHON_VER     : $CURR_PYVER"
-echo "[INFO] IS_VIRTUAL_ENV : $IS_VIRTUAL_ENV"
-echo "[INFO] CONDA_IN_PYT   : $CONDA_IN_PYTHON"
-echo "[INFO] CONDA_ACTIVE   : $CONDA_ACTIVE"
-#
+if [ "$DEBUG" == "1" ] ; then
+    echo "[INFO] HAS BREW       : $HAS_BREW"
+    echo "[INFO] HAS PY3        : $HAS_PY3"
+    echo "[INFO] PYTHON_VER N   : $CURR_PYN"
+    echo "[INFO] PYTHON_VER N.X : $CURR_PYXpY"
+    echo "[INFO] PYTHON_VER     : $CURR_PYVER"
+    echo "[INFO] IS_VIRTUAL_ENV : $IS_VIRTUAL_ENV"
+    echo "[INFO] CONDA_IN_PYT   : $CONDA_IN_PYTHON"
+    echo "[INFO] CONDA_ACTIVE   : $CONDA_ACTIVE"
+fi
+
 
 # --- Finding Framework python
 FRAMEWORK_PYTHON_ROOT="/Library/Frameworks/Python.framework/Versions"
@@ -50,7 +87,9 @@ if [ ! -d $FRAMEWORK_PYTHON_ROOT ]; then
         echo "[WARN] Framework python directory not found, things may not work"
     fi
 fi
-echo "[INFO] FRAMEWORK_ROOT : $FRAMEWORK_PYTHON_ROOT"
+if [ "$DEBUG" == "1" ] ; then
+    echo "[INFO] FRAMEWORK_ROOT : $FRAMEWORK_PYTHON_ROOT"
+fi
 
 
 # --- Python exe - TODO, try python3 first
@@ -91,11 +130,7 @@ if [ "$IS_VIRTUAL_ENV" == "0" ] ; then
             #echo "ENV from python:       $ENV_FROM_PY"
             #echo "ENV from dir:          $ENV_FROM_DIR"
             #echo "ENV from home:         $ENV_HOME"
-            #echo "PYTHONHOME             $PYTHONHOME"
-            #echo "PYTHONPATH             $PYTHOPATH"
             #export PYTHONHOME=$ENV_HOME
-            #echo "PYTHONHOME             $PYTHONHOME"
-            #echo "PYTHONPATH             $PYTHOPATH"
         fi
     fi
 

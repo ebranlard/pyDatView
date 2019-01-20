@@ -21,8 +21,9 @@ def getMonoFont(widget):
         pass
     elif platform.system()=='Linux':
         pass
-    else:
+    elif platform.system()=='Darwin':
         font.SetPointSize(font.GetPointSize()-1)
+    else:
         pass
     return font
 

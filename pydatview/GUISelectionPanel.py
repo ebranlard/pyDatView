@@ -1,4 +1,5 @@
 import wx
+import platform
 try:
     from .common import getMonoFont, getColumn
     from .GUIMultiSplit import MultiSplit
@@ -226,7 +227,10 @@ class ColumnPanel(wx.Panel):
         tb.Bind(wx.EVT_BUTTON, self.showColumnMenu, self.bt)
         tb.Realize() 
 
-        self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)#, size=wx.Size(-1,35))
+        if platform.system()=='Darwin':
+            self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY, size=wx.Size(-1,35))
+        else:
+            self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
         self.comboX.SetFont(getMonoFont(self))
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont(self))
