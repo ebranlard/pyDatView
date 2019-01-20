@@ -72,15 +72,6 @@ def y0Max(pd):
     s=pd.y0Max[1]
     return v,s
 
-def yStd(pd):
-    if pd.yIsString or  pd.yIsDate:
-        return 'NA','NA'
-    else:
-        v=np.nanstd(pd.y)
-        s=pretty_num(v)
-    return (v,s)
-
-
 def yRange(pd):
     if pd.yIsString:
         return 'NA','NA'
@@ -225,20 +216,20 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
         self.ColsReg.append({'name':'Column'       , 'al':'L' , 'f':yName  , 's':True})
         #self.ColsReg.append({'name':'Mean'        , 'al':'R' , 'f':y0Mean , 's' :True})
-        self.ColsReg.append({'name':'Mean'         , 'al':'R' , 'f':yMean  , 's' :True})
+        self.ColsReg.append({'name':'Mean'         , 'al':'R' , 'f':y0Mean  , 's' :True})
         #self.ColsReg.append({'name':'Std'         , 'al':'R' , 'f':y0Std  , 's' :True})
-        self.ColsReg.append({'name':'Std'          , 'al':'R' , 'f':yStd   , 's' :True})
+        self.ColsReg.append({'name':'Std'          , 'al':'R' , 'f':y0Std   , 's' :True})
         self.ColsReg.append({'name':'Var'          , 'al':'R' , 'f':y0Var  , 's' :False})
         #self.ColsReg.append({'name':'Min'         , 'al':'R' , 'f':y0Min  , 's' :True})
-        self.ColsReg.append({'name':'Min'          , 'al':'R' , 'f':yMin   , 's' :True})
+        self.ColsReg.append({'name':'Min'          , 'al':'R' , 'f':y0Min   , 's' :True})
         #self.ColsReg.append({'name':'Max'         , 'al':'R' , 'f':y0Max  , 's' :True})
-        self.ColsReg.append({'name':'Max'          , 'al':'R' , 'f':yMax   , 's' :True})
+        self.ColsReg.append({'name':'Max'          , 'al':'R' , 'f':y0Max   , 's' :True})
         self.ColsReg.append({'name':'Range'        , 'al':'R' , 'f':yRange , 's' :True})
         self.ColsReg.append({'name':'dx'           , 'al':'R' , 'f':dx     , 's' :True})
         self.ColsReg.append({'name':'xMin'         , 'al':'R' , 'f':xMin   , 's' :False})
         self.ColsReg.append({'name':'xMax'         , 'al':'R' , 'f':xMax   , 's' :False})
         self.ColsReg.append({'name':'xRange'       , 'al':'R' , 'f':xRange , 's' :False})
-        self.ColsReg.append({'name':u'\u222By'     , 'al':'R' , 'f':inty   , 's' :True})
+        self.ColsReg.append({'name':u'\u222By'     , 'al':'R' , 'f':inty   , 's' :False})
         self.ColsReg.append({'name':u'\u222By.x  ' , 'al':'R' , 'f':intyx1 , 's' :False})
         self.ColsReg.append({'name':u'\u222By.x/\u222By  ' , 'al':'R' , 'f':intyx1_scaled , 's' :False})
         self.ColsReg.append({'name':u'\u222By.x^2' , 'al':'R' , 'f':intyx2 , 's' :False})

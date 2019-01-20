@@ -40,9 +40,8 @@ test:
 
 prof:
 	python -m cProfile -o _tests/prof_all.prof  _tests/prof_all.py
-	python -m pyprof2calltree -i _tests/prof_all.prof -o _tests/prof_all.callgrind
-
-# 	snakeviz _tests/prof_all.prof
+	python -m pyprof2calltree -i _tests/prof_all.prof -o _tests/callgrind.prof_all.prof
+	snakeviz _tests/prof_all.prof
 
 
 exe:
