@@ -16,6 +16,13 @@ if [ -z "$VIRTUAL_ENV" ] ; then
 else
   IS_VIRTUAL_ENV=1
 fi
+CONDA_IN_PYTHON=`which python | grep conda |wc -l|xargs`
+if [ -z "$CONDA_PROMPT_MODIFIER" ] ; then
+    CONDA_ACTIVE=0
+else
+    CONDA_ACTIVE=1
+fi
+
 CURR_PYVER="$(python --version 2>&1 | cut -d ' ' -f2)"  # e.g., 2.7.10
 CURR_PYXpY="$(python --version 2>&1 | cut -d ' ' -f2|cut -c 1-3)"  # e.g., 2.7 or 3.7
 CURR_PYN="$(python --version 2>&1   | cut -d ' ' -f2|cut -c 1)"  # e.g., 2 or 3
@@ -26,6 +33,8 @@ echo "[INFO] PYTHON_VER N   : $CURR_PYN"
 echo "[INFO] PYTHON_VER N.X : $CURR_PYXpY"
 echo "[INFO] PYTHON_VER     : $CURR_PYVER"
 echo "[INFO] IS_VIRTUAL_ENV : $IS_VIRTUAL_ENV"
+echo "[INFO] CONDA_IN_PYT   : $CONDA_IN_PYTHON"
+echo "[INFO] CONDA_ACTIVE   : $CONDA_ACTIVE"
 #
 
 # --- Finding Framework python
@@ -59,27 +68,35 @@ echo "[INFO] FRAMEWORK_ROOT : $FRAMEWORK_PYTHON_ROOT"
 #PYTHON_EXE=$FRAMEWORK_PYTHON
 # --- Setting up PYTHONHOME and PYTHON_EXE
 if [ "$IS_VIRTUAL_ENV" == "0" ] ; then
-    echo "[WARN] You are not in a virtualenv. Things might not work." 
-    if [ "$HAS_PY3" == "1" ] && [ "$HAS_BREW" == "1" ]  ; then
-        echo "[INFO] Continuing assuming that you used pip3 to install the requirements and a brew python3"
-        PYTHON_EXE=python3
-        HELP="[HELP] If you have a module import error, use 'pip3 install --user -r requirements.txt'"
+    if [ "$CONDA_ACTIVE" == "1" ] ; then
+        echo "[INFO] It seems you are in a conda environment, trying with conda python.app"
+        #
+        PYTHON_EXE=`which conda|rev|cut -c 6-|rev`"python.app"
+    elif [ "$CONDA_IN_PYTHON" == "1" ] ; then
+        PYTHON_EXE=`which python`".app"
     else
-        echo "[WARN] don't know which python to use, using default"
-        PYTHON_EXE=python
-        # find the root of the virtualenv, it should be the parent of the dir this script is in
-        #ENV_FROM_DIR=`dirname "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
-        #ENV_FROM_PY=`$FRAMEWORK_PYTHON -c "import os; print os.path.abspath(os.path.join(os.path.dirname(\"$0\"), '..'))"`
-        #ENV_HOME=$HOME/Library/Python/2.7/lib/python/site-packages/
-        #ENV_HOME=$HOME/Library/Python/2.7/
-        #echo "ENV from python:       $ENV_FROM_PY"
-        #echo "ENV from dir:          $ENV_FROM_DIR"
-        #echo "ENV from home:         $ENV_HOME"
-        #echo "PYTHONHOME             $PYTHONHOME"
-        #echo "PYTHONPATH             $PYTHOPATH"
-        #export PYTHONHOME=$ENV_HOME
-        #echo "PYTHONHOME             $PYTHONHOME"
-        #echo "PYTHONPATH             $PYTHOPATH"
+        echo "[WARN] You are not in a virtualenv. Things might not work." 
+        if [ "$HAS_PY3" == "1" ] && [ "$HAS_BREW" == "1" ]  ; then
+            echo "[INFO] Continuing assuming that you used pip3 to install the requirements and a brew python3"
+            PYTHON_EXE=python3
+            HELP="[HELP] If you have a module import error, use 'pip3 install --user -r requirements.txt'"
+        else
+            echo "[WARN] don't know which python to use, using default"
+            PYTHON_EXE=python
+            # find the root of the virtualenv, it should be the parent of the dir this script is in
+            #ENV_FROM_DIR=`dirname "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"`
+            #ENV_FROM_PY=`$FRAMEWORK_PYTHON -c "import os; print os.path.abspath(os.path.join(os.path.dirname(\"$0\"), '..'))"`
+            #ENV_HOME=$HOME/Library/Python/2.7/lib/python/site-packages/
+            #ENV_HOME=$HOME/Library/Python/2.7/
+            #echo "ENV from python:       $ENV_FROM_PY"
+            #echo "ENV from dir:          $ENV_FROM_DIR"
+            #echo "ENV from home:         $ENV_HOME"
+            #echo "PYTHONHOME             $PYTHONHOME"
+            #echo "PYTHONPATH             $PYTHOPATH"
+            #export PYTHONHOME=$ENV_HOME
+            #echo "PYTHONHOME             $PYTHONHOME"
+            #echo "PYTHONPATH             $PYTHOPATH"
+        fi
     fi
 
 
