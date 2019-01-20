@@ -2,32 +2,23 @@
 
 # pyDatView
 
-A crossplatform GUI to display tabulated data from files or python pandas dataframes. Some of its features are: multiples plots, FFT plots, probability plots, export of figures...
+A crossplatform GUI to display tabulated data from files or python pandas dataframes. It's compatible Windows, Linux and MacOS, python 2 and python 3. Some of its features are: multiples plots, FFT plots, probability plots, export of figures...
 The file formats supported, are: CSV files and other formats present in the [weio](http://github.com/ebranlard/weio/) library.
 Additional file formats can easily be added.
 
 ![Scatter](/../screenshots/screenshots/PlotScatter.png)
 
 ## QuickStart
-For windows users, an installer executable is available here:
- - https://github.com/ebranlard/pyDatView/releases
+For *Windows* users, an installer executable is available [here](https://github.com/ebranlard/pyDatView/releases) (look for the latest pyDatView\*.exe)
 
-For command line users:
+*Linux* and *MacOS* users can use the command lines below. *Linux* users may need to install the package python-wxgtk\* (e.g. `python-gtk3.0`) from their distribution. *MacOS* users can use a `brew`, `anaconda` or `virtualenv` version of python and pip, but the final version of python that calls the script needs to have access to the screen (see details [here](#macos-installation)). The main commands for *Linux* and *MacOS*users are:
 ```bash
 git clone --recurse-submodules https://github.com/ebranlard/pyDatView
 cd pyDatView
-pip install -r requirements.txt
-python pyDatView.py
+python -m pip install --user -r requirements.txt
+make     # executes: 'python pyDatView.py' (on linux) or './pythonmac pyDatView.py' (on Mac)
 ```
-Then you can simply add an alias to your bashrc or install the pydatview module
-```bash
-echo "alias pydat='python `pwd`/pyDatview.py'" >> ~/.bashrc
-#python setup.py install
-```
-
-
-
-More information about the download, installation and requirements is provided further down this page.
+More information about the download, requirements and installation is provided [further down this page](#installation)
 
 
 ## Usage
@@ -80,41 +71,95 @@ Probability density function:
 ![PlotPDF](/../screenshots/screenshots/PlotPDF.png)
 
 Scaling all plots between 0 and 1 (by selecting `MinMax`)
-
 ![PlotMinMax](/../screenshots/screenshots/PlotMinMax.png)
 
 
-## Download, installation and requirements
-For windows users, an installer executable is available here (look for pyDatView\*.exe):
- - https://github.com/ebranlard/pyDatView/releases
 
+## Installation
 
-For command line users, the script is compatible python 2.7 and python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `xarray`, `wxpython`.
-The script can be donwloaded as follows:
+### Windows installation
+For Windows users, installer executables are available [here](https://github.com/ebranlard/pyDatView/releases) (look for the latest pyDatView\*.exe)
+
+### Linux installation
+The script is compatible python 2.7 and python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`.
+To download the code and install the dependencies (with pip) run the following:
 ```bash
 git clone --recurse-submodules https://github.com/ebranlard/pyDatView
+cd pyDatView
+python -m pip install --user -r requirements.txt
 ```
-If you have pip installed on your system, you can install the dependencies 
-```bash
-pip install -r requirements.txt
-```
-If you have trouble installing wxPython, check their [https://wiki.wxpython.org/](wiki page)
+If the installation of `wxpython` fails, you may need to install the package python-wxgtk\* (e.g. `python-gtk3.0`) from your distribution. For Debian/Ubuntu systems, try:
+`sudo apt-get install python-wxgtk3.0`.
+For further troubleshooting you can check the [https://wiki.wxpython.org/](wxPython wiki page).
 
-To run the script standalone, no further installation steps are required, simply run:
+If the requirements are successfully installed you can run pyDatView by typing:
 ```bash
 python pyDatView.py
 ```
-If you want to install the package to use it within python, run the following:
+To easily access it later, you can add an alias to your `.bashrc` or install the pydatview module:
 ```bash
+echo "alias pydat='python `pwd`/pyDatview.py'" >> ~/.bashrc
+# or
 python setup.py install
 ```
 
 
-## System-wide installation
-For windows users the installer should register the program and it should be accessible in the startmenu.
+## MacOS installation
+The installation works with python2 and python3, with `brew` (with or without a `virtualenv`) or `anaconda`.
+First, download the source code:
+```bash
+git clone --recurse-submodules https://github.com/ebranlard/pyDatView
+cd pyDatView
+```
+Before installing the requirements, you need to be aware of the two following issues with MacOS:
+- If you are using the native version of python, there is an incompatibility between the native version of `matplotlib` on MacOS and the version of `wxpython`. The solution is to use `virtualenv`, `brew` or ``anaconda`.
+- To use a GUI app, you need a python program that have access to the screen. These special python programs are on different locations. For the system-python, it's usually in `/System`, the `brew` versions are usually in `/usr/local/Cellar`, and the `anaconda` versions are usually called `python.app`.
+The script `pythonmac` provided in this repository attemps to find the correct python program depending if you are in a virtual environment, in a conda environment, a system-python or a python from `brew` or `conda`. 
 
-Linux/Mac:
-Make the file `pyDatView.py` executable and add it to your system path
+Different solutions are provided below depending on your preferred way of working.
+
+### Brew-python version (outside of a virtualenv)
+If you have `brew` installed, and you installed python with `brew install python`, then the easiest is to use your `python3` version:
+```
+python3 -m pip install --user -r requirements.txt
+python3 pyDatView.py
+```
+
+### Brew-python version (inside a virtualenv)
+If you are inside a virtualenv, with python2 or 2, use:
+```
+pip install -r requirements.txt
+./pythonmac pyDatView.py
+```
+If the `pythonmac` commands fails, contact the developer, and in the meantime try to replace it with 
+```
+$(brew --prefix)/Cellar/python/XXXXX/Frameworks/python.framework/Versions/XXXX/bin/pythonXXX
+```
+where the result from `brew --prefix` is usually `/usr/loca/` and the `XXX` above corresponds to the version of python you are using in your virtual environment.
+
+
+### Anaconda-python version (outside a virtualenv)
+The installation of anaconda sometimes replaces the system python with the anaconda version of python. You can see that by typing `which python`. Use the following:
+```
+python -m pip install --user -r requirements.txt
+./pythonmac pyDatView.py
+```
+If the `pythonmac` commands fails, contact the developer, and in the meantime try to replace it with a path similar to
+```bash
+/anaconda3/bin/python.app
+```
+where `/anaconda3/bin/` is the path that would be returned by the command `which conda`. Note the `.app` at the end. If you don't have `python.app`, try installing it with `conda install -c anaconda python.app`
+
+
+### Easy access
+To easily access the program later, you can add an alias to your `.bashrc` or install the pydatview module:
+```bash
+echo "alias pydat='python `pwd`/pyDatview.py'" >> ~/.bashrc
+# or
+python setup.py install
+```
+
+
 
 
 
