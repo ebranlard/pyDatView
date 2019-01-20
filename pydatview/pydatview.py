@@ -714,7 +714,35 @@ def pydatview(dataframe=None,filenames=[]):
     """
     The main function to start the data frame GUI.
     """
-    app = wx.App(False)
+    try:
+        app = wx.App(False)
+    except:
+        print("MacOS Error:")
+        print("   This program needs access to the screen. Please run with a")
+        print("   Framework build of python, and only when you are logged in")
+        print("   on the main display of your Mac.")
+        print("")
+        print("pyDatView help:")
+        print("   You see the error above because you are using a Mac and ")
+        print("   the python executable you are using does not have access to")
+        print("   your screen. This is a Mac issue, not a pyDatView issue.")
+        print("   Instead of calling 'python pyDatView.py', you need to find")
+        print("   another python and do '/path/python pyDatView.py'")
+        print("   You can try './pythonmac pyDatView.py', a script provided")
+        print("   in this repository to detect the path (in some cases)")
+        print("   ")
+        print("   You can find additional help in the file 'README.md'.")
+        print("   ")
+        print("   For quick reference, here are some typical cases:")
+        print("   - Your python was installed with 'brew', then likely use   ")
+        print("        /usr/lib/Cellar/python/XXXXX/Frameworks/python.framework/Versions/XXXX/bin/pythonXXX");
+        print("   - Your python is an anaconda python, use something like:");
+        print("        /anaconda3/bin/python.app   (NOTE: the '.app'!")
+        print("   - You are using a python 2 version, you can use the system one:")
+        print("        /Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX")
+        print("        /System/Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX")
+        return
+
     frame = MainFrame()
 
     if (dataframe is not None) and (len(dataframe)>0):
