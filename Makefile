@@ -69,7 +69,7 @@ else
 endif
 
 installer: version
-	python -m nsist _tools/installer.cfg
+	python -m nsist installer.cfg
 
 
 
