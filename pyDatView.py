@@ -24,7 +24,7 @@ def tests():
         # for now only weio tests
         import weio 
         import glob
-        Files = glob.glob('_tests/*')+ glob.glob('weio/_tests/*')
+        Files = glob.glob('_tests/*.csv')+ glob.glob('weio/_tests/*')
         for f in Files:
             try:
                 F = weio.read(f)
