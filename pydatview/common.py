@@ -1,4 +1,3 @@
-import wx
 import numpy as np
 import os
 import platform
@@ -73,6 +72,7 @@ def ellude_common(strings):
 # ---  
 # --------------------------------------------------------------------------------{
 def getMonoFontAbs():
+    import wx
     #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
     if os.name=='nt':
         font=wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
@@ -83,6 +83,7 @@ def getMonoFontAbs():
     return font
 
 def getMonoFont(widget):
+    import wx
     font = widget.GetFont()
     font.SetFamily(wx.TELETYPE)
     if platform.system()=='Windows':
@@ -98,6 +99,7 @@ def getMonoFont(widget):
 
 
 def getColumn(df,i):
+    import wx
     if i == wx.NOT_FOUND or i == 0:
         x = np.array(range(df.shape[0]))
         c = None
@@ -196,19 +198,23 @@ def pretty_num(x):
 # --- Helper functions
 # --------------------------------------------------------------------------------{
 def YesNo(parent, question, caption = 'Yes or no?'):
+    import wx
     dlg = wx.MessageDialog(parent, question, caption, wx.YES_NO | wx.ICON_QUESTION)
     result = dlg.ShowModal() == wx.ID_YES
     dlg.Destroy()
     return result
 def Info(parent, message, caption = 'Info'):
+    import wx
     dlg = wx.MessageDialog(parent, message, caption, wx.OK | wx.ICON_INFORMATION)
     dlg.ShowModal()
     dlg.Destroy()
 def Warn(parent, message, caption = 'Warning!'):
+    import wx
     dlg = wx.MessageDialog(parent, message, caption, wx.OK | wx.ICON_WARNING)
     dlg.ShowModal()
     dlg.Destroy()
 def Error(parent, message, caption = 'Error!'):
+    import wx
     dlg = wx.MessageDialog(parent, message, caption, wx.OK | wx.ICON_ERROR)
     dlg.ShowModal()
     dlg.Destroy()

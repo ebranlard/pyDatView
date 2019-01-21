@@ -29,9 +29,9 @@ pyDatView file.csv
 The python package can also be used directly from python/jupyter to display a dataframe or show the data in a file
 ```python
 import pydatview 
-pydatview.pydatview(dataframe=df)
+pydatview.show(dataframe=df)
 # OR
-pydatview.pydatview(filename='file.csv')
+pydatview.show(filename='file.csv')
 ```
 
 

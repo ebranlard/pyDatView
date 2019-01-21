@@ -1,11 +1,13 @@
 import wx
 import platform
 try:
-    from .common import getMonoFont, getColumn, ellude_common
+    from .common import *
+    from .GUICommon import *
     from .GUIMultiSplit import MultiSplit
     from .Tables import haveSameColumns
 except:
-    from common import getMonoFont, getColumn, ellude_common
+    from common import *
+    from GUICommon import *
     from GUIMultiSplit import MultiSplit
     from Tables import haveSameColumns
 

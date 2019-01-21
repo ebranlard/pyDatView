@@ -8,7 +8,7 @@ import sys
 #@click.argument('inputfile', default='')
 def main(inputfiles=[]):
     import pydatview
-    pydatview.pydatview(filenames=inputfiles)
+    pydatview.show(filenames=inputfiles)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

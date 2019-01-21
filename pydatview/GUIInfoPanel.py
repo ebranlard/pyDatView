@@ -3,8 +3,9 @@ import wx.lib.mixins.listctrl as listmix
 import numpy as np
 try:
     from .common import *
+    from .GUICommon import *
 except:
-    from common import *
+    from GUICommon import *
 
 # --------------------------------------------------------------------------------}
 # --- InfoPanel 

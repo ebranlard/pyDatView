@@ -20,6 +20,7 @@ from .GUIInfoPanel import InfoPanel
 from .Tables import Table, haveSameColumns
 # Helper
 from .common import *
+from .GUICommon import *
 # Librairies
 import weio # File Formats and File Readers
 
@@ -656,7 +657,7 @@ def test(filenames=None):
 # --------------------------------------------------------------------------------}
 # --- Mains 
 # --------------------------------------------------------------------------------{
-def pydatview(dataframe=None,filenames=[]):
+def showApp(dataframe=None,filenames=[]):
     """
     The main function to start the data frame GUI.
     """

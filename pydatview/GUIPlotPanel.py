@@ -38,10 +38,12 @@ try:
     from .spectral import pwelch, psd, hamming , boxcar, hann, fnextpow2
     from .damping import logDecFromDecay
     from .common import * 
+    from .GUICommon import * 
 except:
     from spectral import pwelch, psd, hamming , boxcar, hann, fnextpow2
     from damping import logDecFromDecay
     from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit
+    from GUICommon import * 
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)

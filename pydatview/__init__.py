@@ -1,8 +1,10 @@
 from __future__ import absolute_import
-from pydatview.pydatview import pydatview, cmdline, test
 
-__all__ = [
-   "pydatview"
-   "cmdline"
-   "test"
-]
+__all__ = ['show']
+
+# defining main function here, to avoid import of pydatview and wx of some unittests
+def show(*args,**kwargs):
+    from pydatview.pydatview import showApp
+    showApp(*args,**kwargs)
+
+
