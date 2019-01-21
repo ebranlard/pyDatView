@@ -32,6 +32,7 @@ from matplotlib.backend_bases import NavigationToolbar2
 from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
 from matplotlib.widgets import Cursor
+from matplotlib.widgets import AxesWidget
 import gc
 
 try:
@@ -56,6 +57,35 @@ def unique(l):
 # --------------------------------------------------------------------------------}
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
+class MyCursor(Cursor):
+    def onmove(self, event):
+        """on mouse motion draw the cursor if visible"""
+        if self.ignore(event):
+            return
+        # Disabling lock so that we can have cross hairwith zoom
+        #if not self.canvas.widgetlock.available(self):
+        #    return
+        if event.inaxes != self.ax:
+            self.linev.set_visible(False)
+            self.lineh.set_visible(False)
+
+            if self.needclear:
+                self.canvas.draw()
+                self.needclear = False
+            return
+        self.needclear = True
+        if not self.visible:
+            return
+        self.linev.set_xdata((event.xdata, event.xdata))
+
+        self.lineh.set_ydata((event.ydata, event.ydata))
+        self.linev.set_visible(self.visible and self.vertOn)
+        self.lineh.set_visible(self.visible and self.horizOn)
+
+        self._update()
+
+
+
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
     def __init__(self, canvas):
         # Taken from matplotlib/backend_wx.py but added style:
@@ -901,7 +931,7 @@ class PlotPanel(wx.Panel):
             
         for ax in self.fig.axes:
             # Somehow doesn't work due to zoom #22 #12
-            self.cursors.append(Cursor(ax,horizOn=True, vertOn=True, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
+            self.cursors.append(MyCursor(ax,horizOn=True, vertOn=True, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
 
 
     def findPlotMode(self,PD):
