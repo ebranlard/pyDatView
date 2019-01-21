@@ -259,3 +259,23 @@ def yMax(pd):
         v=np.nanmax(pd.y)
         s=pretty_num(v)
     return (v,s)
+
+def xMin(pd):
+    if pd.xIsString:
+        return pd.x[0],pd.x[0].strip()
+    elif pd.xIsDate:
+        return pd.x[0],'{}'.format(pd.x[0])
+    else:
+        v=np.nanmin(pd.x)
+        s=pretty_num(v)
+    return (v,s)
+
+def xMax(pd):
+    if pd.xIsString:
+        return pd.x[-1],pd.x[-1].strip()
+    elif pd.xIsDate:
+        return pd.x[-1],'{}'.format(pd.x[-1])
+    else:
+        v=np.nanmax(pd.x)
+        s=pretty_num(v)
+    return (v,s)

@@ -667,6 +667,8 @@ class PlotPanel(wx.Panel):
             d.y,d.yIsString,d.yIsDate,c=getColumn(tabs[d.it].data,d.iy)
             n=len(d.y)
             # Stats of the raw data
+            #d.x0Min  = xMin(d)
+            #d.x0Max  = xMax(d)
             d.y0Min  = yMin(d)
             d.y0Max  = yMax(d)
             d.y0Std  = yStd(d)
@@ -831,6 +833,23 @@ class PlotPanel(wx.Panel):
             if any(vDate) and len(vDate)>1:
                 Error(self,'Cannot plot date and other value on the same axis')
                 return
+
+            #Keep me - tight axis, attempt to optimize
+            #try:
+            #    xMin=np.min([PD[i].x0Min[0] for i in ax.iPD])
+            #    xMax=np.max([PD[i].x0Max[0] for i in ax.iPD])
+            #    ax.set_xlim(xMin,xMax)
+            #    ax.autoscale(False)
+            #except:
+            #    pass
+            #try:
+            #    yMin=np.min([PD[i].y0Min[0] for i in ax.iPD])
+            #    yMax=np.max([PD[i].y0Max[0] for i in ax.iPD])
+            #    ax.set_ylim(yMin,yMax)
+            #    ax.autoscale(False)
+            #except:
+            #    pass
+
 
             for ipd in ax.iPD:
                 pd=PD[ipd]
