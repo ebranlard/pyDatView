@@ -96,10 +96,7 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
 class LogDecToolPanel(wx.Panel):
     def __init__(self, parent):
         super(LogDecToolPanel,self).__init__(parent)
-        # data
         self.parent   = parent
-        # GUI
-        #bt=wx.Button(tb,wx.ID_ANY,u'\u2630', style=wx.BU_EXACTFIT)
         btClose=wx.Button(self,wx.ID_ANY,'Close', style=wx.BU_EXACTFIT)
         self.Bind(wx.EVT_BUTTON, self.parent.removeTools, btClose)
         btComp=wx.Button(self,wx.ID_ANY,'Compute', style=wx.BU_EXACTFIT)
@@ -133,11 +130,8 @@ class LogDecToolPanel(wx.Panel):
 
 class PDFCtrlPanel(wx.Panel):
     def __init__(self, parent):
-        # Superclass constructor
         super(PDFCtrlPanel,self).__init__(parent)
-        # data
         self.parent   = parent
-        # GUI
         lb = wx.StaticText( self, -1, 'Number of bins:')
         self.scBins = wx.SpinCtrl(self, value='50',size=wx.Size(70,-1))
         self.scBins.SetRange(3, 10000)
@@ -151,20 +145,33 @@ class PDFCtrlPanel(wx.Panel):
     def onBinsChange(self,event=None):
         self.parent.redraw(); # DATA HAS CHANGED
 
+class MinMaxPanel(wx.Panel):
+    def __init__(self, parent):
+        super(MinMaxPanel,self).__init__(parent)
+        self.parent   = parent
+        self.cbxMinMax = wx.CheckBox(self, -1, 'xMinMax',(10,10))
+        self.cbyMinMax = wx.CheckBox(self, -1, 'yMinMax',(10,10))
+        self.cbxMinMax.SetValue(False)
+        self.cbyMinMax.SetValue(True)
+        dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        dummy_sizer.Add(self.cbxMinMax ,0, flag=wx.CENTER|wx.LEFT, border = 1)
+        dummy_sizer.Add(self.cbyMinMax ,0, flag=wx.CENTER|wx.LEFT, border = 1)
+        self.SetSizer(dummy_sizer)
+        self.Bind(wx.EVT_CHECKBOX, self.onMinMaxChange)
+        self.Hide() 
+
+    def onMinMaxChange(self,event=None):
+        self.parent.redraw(); # DATA HAS CHANGED
+
 class CompCtrlPanel(wx.Panel):
     def __init__(self, parent):
-        # Superclass constructor
         super(CompCtrlPanel,self).__init__(parent)
-        # data
         self.parent   = parent
-        # GUI
-        #lb = wx.StaticText( self, -1, ' NOTE: this feature is beta.')
         lblList = ['Relative', '|Relative|','Ratio','Absolute','Y-Y'] 
         self.rbType = wx.RadioBox(self, label = 'Type', choices = lblList,
                 majorDimension = 1, style = wx.RA_SPECIFY_ROWS) 
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
         dummy_sizer.Add(self.rbType           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
-        #dummy_sizer.Add(lb                    ,0, flag = wx.CENTER|wx.LEFT,border = 2)
         self.SetSizer(dummy_sizer)
         self.rbType.Bind(wx.EVT_RADIOBOX,self.onTypeChange)
         self.Hide() 
@@ -175,12 +182,8 @@ class CompCtrlPanel(wx.Panel):
 
 class SpectralCtrlPanel(wx.Panel):
     def __init__(self, parent):
-        # Superclass constructor
         super(SpectralCtrlPanel,self).__init__(parent)
-        #self.SetBackgroundColour('gray')
-        # data
         self.parent   = parent
-        # GUI
         lb = wx.StaticText( self, -1, 'Type:')
         self.cbType            = wx.ComboBox(self, choices=['PSD','f x PSD','Amplitude'] , style=wx.CB_READONLY)
         self.cbType.SetSelection(0)
@@ -282,6 +285,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
         self.parent.cmpPanel.Hide();
+        self.parent.mmxPanel.Hide();
         self.parent.slCtrl.Hide();
         self.parent.plotsizer.Layout()
         #
@@ -292,19 +296,16 @@ class PlotTypePanel(wx.Panel):
         self.parent.show_hide(self.parent.cmpPanel, self.cbCompare.GetValue())
         self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
+        self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
-        #
         self.parent.redraw() # Data changes
 
 
     def fft_select(self, event=None):
         self.parent.show_hide(self.parent.spcPanel, self.cbFFT.GetValue())
-        if self.cbFFT.GetValue():
-            self.parent.cbLogY.SetValue(True)
-        else:
-            self.parent.cbLogY.SetValue(False)
-
+        self.parent.cbLogY.SetValue(self.cbFFT.GetValue())
         self.parent.pdfPanel.Hide();
+        self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
         self.parent.redraw() # Data changes
 
@@ -314,19 +315,18 @@ class PlotTypePanel(wx.Panel):
         self.parent.show_hide(self.parent.pdfPanel, self.cbPDF.GetValue())
         self.parent.spcPanel.Hide();
         self.parent.cmpPanel.Hide();
+        self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
         self.parent.redraw() # Data changes
 
     def minmax_select(self, event):
         self.parent.cbLogY.SetValue(False)
-        # 
+        self.parent.show_hide(self.parent.mmxPanel, self.cbMinMax.GetValue())
         self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
         self.parent.cmpPanel.Hide();
-        self.parent.slCtrl.Hide();
         self.parent.plotsizer.Layout()
-        #
-        self.parent.redraw() # Data changes, TODO can introduce a direct hack instead
+        self.parent.redraw() # Data changes
 
 class PlotPanel(wx.Panel):
     def __init__(self, parent, selPanel,infoPanel=None):
@@ -359,8 +359,9 @@ class PlotPanel(wx.Panel):
         self.pltTypePanel= PlotTypePanel(self);
         # --- Plot type specific options
         self.spcPanel = SpectralCtrlPanel(self)
-        self.pdfPanel      = PDFCtrlPanel(self)
-        self.cmpPanel     = CompCtrlPanel(self)
+        self.pdfPanel = PDFCtrlPanel(self)
+        self.cmpPanel = CompCtrlPanel(self)
+        self.mmxPanel = MinMaxPanel(self)
 
         # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
@@ -420,12 +421,14 @@ class PlotPanel(wx.Panel):
         plotsizer.Add(self.spcPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.pdfPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.cmpPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.mmxPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.slCtrl   ,0,flag = wx.EXPAND,border = 0)
         plotsizer.Add(row_sizer     ,0,flag = wx.NORTH ,border = 5)
 
         self.show_hide(self.spcPanel, self.pltTypePanel.cbFFT.GetValue())
         self.show_hide(self.cmpPanel, self.pltTypePanel.cbCompare.GetValue())
         self.show_hide(self.pdfPanel, self.pltTypePanel.cbPDF.GetValue())
+        self.show_hide(self.mmxPanel, self.pltTypePanel.cbMinMax.GetValue())
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
@@ -535,16 +538,30 @@ class PlotPanel(wx.Panel):
             d.sy += ' ['+ iu +']'
 
     def setPD_MinMax(self,d):
-        if d.yIsString:
-            Warn(self,'Cannot compute min-max for strings')
-            self.pltTypePanel.cbRegular.SetValue(True)
-            return
-        mi= np.nanmin(d.y)
-        mx= np.nanmax(d.y)
-        if mi == mx:
-            d.y=d.y*0
-        else:
-            d.y = (d.y-mi)/(mx-mi)
+        if self.mmxPanel.cbyMinMax.IsChecked():
+            if d.yIsString:
+                Warn(self,'Cannot compute min-max for strings')
+                self.mmxPanel.cbyMinMax.SetValue(False)
+                #self.pltTypePanel.cbRegular.SetValue(True)
+                return
+            mi= np.nanmin(d.y)
+            mx= np.nanmax(d.y)
+            if mi == mx:
+                d.y=d.y*0
+            else:
+                d.y = (d.y-mi)/(mx-mi)
+        if self.mmxPanel.cbxMinMax.IsChecked():
+            if d.xIsString:
+                Warn(self,'Cannot compute min-max for strings')
+                self.mmxPanel.cbxMinMax.SetValue(False)
+                #self.pltTypePanel.cbRegular.SetValue(True)
+                return
+            mi= np.nanmin(d.x)
+            mx= np.nanmax(d.x)
+            if mi == mx:
+                d.x=d.x*0
+            else:
+                d.x = (d.x-mi)/(mx-mi)
 
     def setPD_FFT(self,d):
         if d.yIsString or d.yIsDate:
@@ -735,9 +752,8 @@ class PlotPanel(wx.Panel):
 
             xRef = PD[0].x
             yRef = PD[0].y
-            x    = PD[1].x
-            y    = PD[1].y
             PD[1].syl=SS
+            y=np.interp(xRef,PD[1].x,PD[1].y)
             if sComp=='Y-Y':
                 PD[1].x=yRef
                 PD[1].y=y
@@ -976,13 +992,7 @@ class PlotPanel(wx.Panel):
             if hasattr(ax,'iPD'):
                 del ax.iPD
             self.fig.delaxes(ax)
-        del self.fig
         gc.collect()
-        self.fig = Figure(facecolor="white", figsize=(1, 1))
-        self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
-        self.canvas = FigureCanvas(self, -1, self.fig)
-
-
         self.fig.add_subplot(111)
         ax = self.fig.axes[0]
         ax.set_axis_off()
