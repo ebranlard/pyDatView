@@ -2,7 +2,7 @@
 language: python
 
 python:
-#  - "2.7"
+  - "2.7"
   - "3.6"
 os: 
  - linux
@@ -26,8 +26,8 @@ before_deploy:
   - pip install distlib
   - git clone https://github.com/takluyver/pynsist
   - mv pynsist/nsist nsist 
-  - make installer
-  - mv build/nsis/pyDatView.exe pyDatView_setup_$VERSION_NAME.exe
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "3.6" ]]; then make installer ; fi
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "3.6" ]]; then mv build/nsis/pyDatView.exe pyDatView_setup_$VERSION_NAME.exe ; fi
 
 deploy:
   provider: releases
