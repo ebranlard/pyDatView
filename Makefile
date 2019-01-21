@@ -36,7 +36,7 @@ help:
 	echo "   dep        download the dependencies " 
 
 test:
-	python pyDatView.py --test
+	python -m unittest discover -v
 
 prof:
 	python -m cProfile -o _tests/prof_all.prof  _tests/prof_all.py

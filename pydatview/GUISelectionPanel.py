@@ -1,11 +1,11 @@
 import wx
 import platform
 try:
-    from .common import getMonoFont, getColumn
+    from .common import getMonoFont, getColumn, ellude_common
     from .GUIMultiSplit import MultiSplit
     from .Tables import haveSameColumns
 except:
-    from common import getMonoFont, getColumn
+    from common import getMonoFont, getColumn, ellude_common
     from GUIMultiSplit import MultiSplit
     from Tables import haveSameColumns
 
@@ -15,71 +15,6 @@ __all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES
 SEL_MODES    = ['auto','Same tables'    ,'Different tables'  ]
 SEL_MODES_ID = ['auto','sameColumnsMode','twoColumnsMode']
 
-
-# --------------------------------------------------------------------------------}
-# --- Helper functions 
-# --------------------------------------------------------------------------------{
-def common_start(*strings):
-    """ Returns the longest common substring
-        from the beginning of the `strings`
-    """
-    if len(strings)==1:
-        strings=tuple(strings[0])
-    def _iter():
-        for z in zip(*strings):
-            if z.count(z[0]) == len(z):  # check all elements in `z` are the same
-                yield z[0]
-            else:
-                return
-    return ''.join(_iter())
-
-def common_end(*strings):
-    if len(strings)==1:
-        strings=strings[0]
-    else:
-        strings=list(strings)
-    strings = [s[-1::-1] for s in strings]
-    return common_start(strings)[-1::-1]
-
-
-def ellude_common(strings):
-    # Selecting only the strings that do not start with the safe '>' char
-    S = [s for i,s in enumerate(strings) if ((len(s)>0) and (s[0]!= '>'))]
-    if len(S)==1:
-        ns=S[0].rfind('|')+1
-        ne=0;
-    else:
-        ss = common_start(S)
-        se = common_end(S)
-        iu = ss[:-1].rfind('_')
-        ip = ss[:-1].rfind('_')
-        if iu > 0:
-            if ip>0:
-                if iu>ip:
-                    ss=ss[:iu+1]
-            else:
-                ss=ss[:iu+1]
-
-        iu = se[:-1].find('_')
-        if iu > 0:
-            se=se[iu:]
-        iu = se[:-1].find('.')
-        if iu > 0:
-            se=se[iu:]
-        ns=len(ss)     
-        ne=len(se)     
-
-    for i,s in enumerate(strings):
-        if len(s)>0 and s[0]=='>':
-            strings[i]=s[1:]
-        else:
-            s=s[ns:]
-            if ne>0:
-                s = s[:-ne]
-            strings[i]=s.lstrip('_')
-            if len(strings[i])==0:
-                strings[i]='tab{}'.format(i)
-    return strings
 
 # --------------------------------------------------------------------------------}
 # --- Popup menus

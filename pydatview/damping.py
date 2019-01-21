@@ -1,5 +1,8 @@
+from __future__ import division, print_function
 import numpy as np
 
+__all__  = ['logDecFromDecay']
+__all__ += ['TestDamping']
 
 def indexes(y, thres=0.3, min_dist=1, thres_abs=False):
     """Peak detection routine.
@@ -160,22 +163,43 @@ def logDecFromDecay(x,t,threshold=None):
 
 
 
+
+
+
+# --------------------------------------------------------------------------------}
+# --- Unittests
+# --------------------------------------------------------------------------------{
+import unittest
+
+class TestDamping(unittest.TestCase):
+
+    def test_logdec_from_decay(self):
+        T=10;
+        logdec=0.1; # log decrements (<1)   logdec  = 1./sqrt(1+ (2*pi./delta).^2 )  ;
+        delta=2*np.pi*logdec/np.sqrt(1-logdec**2); # damping ratio;
+        alpha=delta/T
+        t=np.linspace(0,30*T,1000)
+        x=np.cos(2*np.pi/T*t)*np.exp(-alpha*t)+10;
+        logdec_out,delta_out,T,fn,fd,IPos,INeg,epos,eneg=logDecFromDecay(x,t)
+        alpha_out=delta_out/T
+        self.assertAlmostEqual(logdec,logdec_out,3)
+        self.assertAlmostEqual(delta,delta_out,3)
+        if __name__ == '__main__':
+            import matplotlib.pyplot as plt
+            print('logdec in:  ',logdec)
+            print('logdec out: ',logdec_out)
+            print('alpha in :  ',alpha)
+            print('alpha out : ',delta_out/T)
+            plt.plot(t,x)
+            plt.plot(t[IPos],x[IPos],'o')
+            plt.plot(t[INeg],x[INeg],'o')
+            plt.plot(t,epos,'k--')
+            plt.plot(t,eneg,'k--')
+            plt.show()
+
+
+    
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    T=10;
-    logdec=0.1; # log decrements (<1)
-    delta=2*np.pi*logdec/np.sqrt(1-logdec**2); # damping ratio; logdec  = 1./sqrt(1+ (2*pi./delta).^2 )  ;
-    alpha=delta/T
-    print('logdec in:  ',logdec)
-    print('alpha in :  ',alpha)
-    t=np.linspace(0,30*T,1000)
-    x=np.cos(2*np.pi/T*t)*np.exp(-alpha*t)+10;
-    logdec,DampingRatio,T,fn,fd,IPos,INeg,epos,eneg=logDecFromDecay(x,t)
-    print('logdec out: ',logdec)
-    print('alpha out : ',DampingRatio/T)
-    plt.plot(t,x)
-    plt.plot(t[IPos],x[IPos],'o')
-    plt.plot(t[INeg],x[INeg],'o')
-    plt.plot(t,epos,'k--')
-    plt.plot(t,eneg,'k--')
-    plt.show()
+    unittest.main()
+
+

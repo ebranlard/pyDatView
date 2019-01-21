@@ -22,9 +22,57 @@ from __future__ import division, print_function, absolute_import
 import numpy as np
 from six import string_types
 
-__all__  = ['pwelch', 'csd', 'coherence']
-__all__  = ['fnextpow2']
+__all__  = ['welch', 'psd', 'fft_amplitude']
+__all__ += ['pwelch', 'csd', 'coherence']
+__all__ += ['fnextpow2']
 __all__ += ['hann','hamming','boxcar','general_hamming','get_window']
+__all__ += ['TestSpectral']
+
+# --------------------------------------------------------------------------------}
+# --- Spectral simple (averaging below) 
+# --------------------------------------------------------------------------------{
+def fft_amplitude(y, fs=1.0, detrend ='constant', return_onesided=True):
+    """ Returns FFT amplitude of signal """
+    frq, PSD, Info = psd(y, fs=fs, detrend=detrend, return_onesided=return_onesided)
+    deltaf = frq[1]-frq[0]
+    Y = np.sqrt(PSD*2*deltaf)
+    return frq, Y, Info
+
+def psd(y, fs=1.0, detrend ='constant', return_onesided=True):
+    """ Perform PSD without averaging """
+    if not return_onesided:
+        raise NotImplementedError('Double sided todo')
+
+    if detrend is None:
+        detrend=False
+
+    if detrend=='constant' or detrend==True:
+        m=np.mean(y);
+    else:
+        m=0;
+
+    n = len(y) 
+    if n%2==0:
+        nhalf = int(n/2+1)
+    else:
+        nhalf = int((n+1)/2)
+
+    frq = np.arange(nhalf)*fs/n;
+    Y   = np.fft.rfft(y-m) #Y = np.fft.fft(y) 
+    PSD = abs(Y[range(nhalf)])**2 /(n*fs) # PSD
+    PSD[1:-1] = PSD[1:-1]*2;
+    class InfoClass():
+        pass
+    Info = InfoClass();
+    Info.df    = frq[1]-frq[0]
+    Info.fMax  = frq[-1]
+    Info.LFreq = len(frq)
+    Info.LSeg  = len(Y)
+    Info.LWin  = len(Y)
+    Info.LOvlp = 0
+    Info.nFFT  = len(Y)
+    Info.nseg  = 1
+    return frq, PSD, Info
 
 
 # --------------------------------------------------------------------------------}
@@ -338,7 +386,7 @@ def signaltools_detrend(data, axis=-1, type='linear', bp=0):
 
 
 # --------------------------------------------------------------------------------}
-# --- Spectral 
+# --- Spectral Averaging
 # --------------------------------------------------------------------------------{
 """Tools for spectral analysis.  """
 
@@ -346,6 +394,10 @@ def welch(x, fs=1.0, window='hann', nperseg=None, noverlap=None, nfft=None,
           detrend='constant', return_onesided=True, scaling='density',
           axis=-1):
     """Interface identical to scipy.signal """
+
+    if detrend==True:
+        detrend='constant'
+
     freqs, Pxx = csd(x, x, fs, window, nperseg, noverlap, nfft, detrend, return_onesided, scaling, axis)
     return freqs, Pxx.real
 
@@ -464,6 +516,10 @@ def pwelch(x, window='hamming', noverlap=None, nfft=None, fs=1.0, nperseg=None,
                 raise NotImplementedError('TODO noverlap set but not nperseg')
             #nperseg = 256  # then change to default
             nperseg=fnextpow2(math.sqrt(x.shape[-1]/(1-overlap_frac)));
+
+    # MANU accepting true as detrend
+    if detrend==True:
+        detrend='constant'
 
     freqs, Pxx, Info = csd(x, x, fs, window, nperseg, noverlap, nfft, detrend,
                      return_onesided, scaling, axis)
@@ -799,4 +855,30 @@ def _triage_segments(window, nperseg,input_length):
                                  " length of window")
 
     return win, nperseg
+
+
+
+
+
+
+# --------------------------------------------------------------------------------}
+# --- Unittests
+# --------------------------------------------------------------------------------{
+import unittest
+
+class TestSpectral(unittest.TestCase):
+
+    def test_fft_amplitude(self):
+        dt=0.1
+        t=np.arange(0,10,dt);
+        f0=1;
+        A=5;
+        y=A*np.sin(2*np.pi*f0*t)
+        f,Y,_=fft_amplitude(y,fs=1/dt,detrend=False)
+        i=np.argmax(Y)
+        self.assertAlmostEqual(Y[i],A)
+        self.assertAlmostEqual(f[i],f0)
+    
+if __name__ == '__main__':
+    unittest.main()
 

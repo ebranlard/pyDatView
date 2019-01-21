@@ -35,11 +35,11 @@ from matplotlib.widgets import Cursor
 import gc
 
 try:
-    from .spectral import pwelch, hamming , boxcar, hann, fnextpow2
+    from .spectral import pwelch, psd, hamming , boxcar, hann, fnextpow2
     from .damping import logDecFromDecay
     from .common import * 
 except:
-    from spectral import pwelch, hamming , boxcar, hann, fnextpow2
+    from spectral import pwelch, psd, hamming , boxcar, hann, fnextpow2
     from damping import logDecFromDecay
     from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit
 
@@ -568,33 +568,11 @@ class PlotPanel(wx.Panel):
             Fs = 1/dt
             #print('dt=',dt,'Fs=',Fs)
             #print(x[0:5])
-            if n%2==0:
-                nhalf = int(n/2+1)
-            else:
-                nhalf = int((n+1)/2)
             sType    = self.spcPanel.cbType.GetStringSelection()
             sAvg     = self.spcPanel.cbAveraging.GetStringSelection()
             bDetrend = self.spcPanel.cbDetrend.IsChecked()
             if sAvg=='None':
-                if bDetrend:
-                    m=np.mean(y);
-                else:
-                    m=0;
-                frq = np.arange(nhalf)*Fs/n;
-                Y   = np.fft.rfft(y-m) #Y = np.fft.fft(y) 
-                PSD = abs(Y[range(nhalf)])**2 /(n*Fs) # PSD
-                PSD[1:-1] = PSD[1:-1]*2;
-                class InfoClass():
-                    pass
-                Info = InfoClass();
-                Info.df    = frq[1]-frq[0]
-                Info.fMax  = frq[-1]
-                Info.LFreq = len(frq)
-                Info.LSeg  = len(Y)
-                Info.LWin  = len(Y)
-                Info.LOvlp = 0
-                Info.nFFT  = len(Y)
-                Info.nseg  = 1
+                frq, PSD, Info = psd(y, fs=Fs, detrend=bDetrend, return_onesided=True)
             elif sAvg=='Welch':
                 # --- Welch - PSD
                 #overlap_frac=0.5
@@ -617,11 +595,7 @@ class PlotPanel(wx.Panel):
                    window = boxcar(nPerSeg)
                 else:
                     raise NotImplementedError('Contact developer')
-                if bDetrend:
-                    detrend='constant'
-                else:
-                    detrend=False
-                frq, PSD, Info = pwelch(y, fs=Fs, window=window, detrend='constant')
+                frq, PSD, Info = pwelch(y, fs=Fs, window=window, detrend=bDetrend)
             else:
                 raise Exception('Averaging method unknown {}'.format(sAvg))
             if sType=='Amplitude':

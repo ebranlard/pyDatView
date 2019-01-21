@@ -652,15 +652,6 @@ def test(filenames=None):
         frame = MainFrame()
         frame.load_files(filenames,fileformat=None)
         return
-
-    import time
-    import sys
-    from .perfmon import PerfMon
-    from .GUISelectionPanel import ellude_common
-    # TODO unit test for #25
-    S=ellude_common(['A.txt','A_.txt'])
-    if any([len(s)<=1 for s in S]):
-        raise Exception('[FAIL] ellude common with underscore difference, Bug #25')
  
 # --------------------------------------------------------------------------------}
 # --- Mains 
