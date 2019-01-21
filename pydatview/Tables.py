@@ -74,6 +74,12 @@ class Table(object):
     def renameColumn(self,iCol,newName):
         self.columns[iCol]=newName
 
+    def deleteColumns(self,ICol):
+        df=self.data
+        df.drop(df.columns[ICol],axis=1,inplace=True)
+        for i in sorted(ICol, reverse=True):
+            del(self.columns[i])
+
     def rename(self,new_name):
         self.name='>'+new_name
 

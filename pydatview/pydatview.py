@@ -515,6 +515,9 @@ class MainFrame(wx.Frame):
             # --- Stats trigger
             #self.showStats()
 
+    def redraw(self):
+        if hasattr(self,'plotPanel'):
+            self.plotPanel.redraw()
 #     def showStats(self):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
 

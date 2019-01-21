@@ -36,17 +36,17 @@ class TablePopup(wx.Menu):
         if len(self.ISel)>0:
             item = wx.MenuItem(self, -1, "Delete")
             self.MyAppend(item)
-            self.Bind(wx.EVT_MENU, self.OnDelete, item)
+            self.Bind(wx.EVT_MENU, self.OnDeleteTabs, item)
 
         if len(self.ISel)==1:
             item = wx.MenuItem(self, -1, "Rename")
             self.MyAppend(item)
-            self.Bind(wx.EVT_MENU, self.OnRename, item)
+            self.Bind(wx.EVT_MENU, self.OnRenameTab, item)
 
         if len(self.ISel)==1:
             item = wx.MenuItem(self, -1, "Export")
             self.MyAppend(item)
-            self.Bind(wx.EVT_MENU, self.OnExport, item)
+            self.Bind(wx.EVT_MENU, self.OnExportTab, item)
 
     def MyAppend(self, item):
         try:
@@ -54,10 +54,10 @@ class TablePopup(wx.Menu):
         except:
             self.AppendItem(item) # python2
 
-    def OnDelete(self, event):
+    def OnDeleteTabs(self, event):
         self.mainframe.deleteTabs(self.ISel)
 
-    def OnRename(self, event):
+    def OnRenameTab(self, event):
         oldName = self.parent.GetString(self.ISel[0])
         dlg = wx.TextEntryDialog(self.parent, 'New table name:', 'Rename table',oldName,wx.OK|wx.CANCEL)
         dlg.CentreOnParent()
@@ -65,7 +65,7 @@ class TablePopup(wx.Menu):
             newName=dlg.GetValue()
             self.mainframe.renameTable(self.ISel[0],newName)
 
-    def OnExport(self, event):
+    def OnExportTab(self, event):
         self.mainframe.exportTab(self.ISel[0]);
 
 class ColumnPopup(wx.Menu):
@@ -74,10 +74,18 @@ class ColumnPopup(wx.Menu):
         self.parent = parent
         self.ISel = self.parent.lbColumns.GetSelections()
 
-        if len(self.ISel)>=1 and self.ISel[0]>0: 
+        #item = wx.MenuItem(self, -1, "Add")
+        #self.MyAppend(item)
+        #self.Bind(wx.EVT_MENU, self.OnAddColumn, item)
+
+        if len(self.ISel)==1 and self.ISel[0]>0: 
             item = wx.MenuItem(self, -1, "Rename")
             self.MyAppend(item)
-            self.Bind(wx.EVT_MENU, self.OnRename, item)
+            self.Bind(wx.EVT_MENU, self.OnRenameColumn, item)
+        if len(self.ISel)>=1 and self.ISel[0]>0: 
+            item = wx.MenuItem(self, -1, "Delete")
+            self.MyAppend(item)
+            self.Bind(wx.EVT_MENU, self.OnDeleteColumn, item)
 
     def MyAppend(self, item):
         try:
@@ -85,7 +93,7 @@ class ColumnPopup(wx.Menu):
         except:
             self.AppendItem(item) # python2
 
-    def OnRename(self, event):
+    def OnRenameColumn(self, event):
         oldName = self.parent.lbColumns.GetString(self.ISel[0])
         dlg = wx.TextEntryDialog(self.parent, 'New column name:', 'Rename column',oldName,wx.OK|wx.CANCEL)
         dlg.CentreOnParent()
@@ -96,9 +104,15 @@ class ColumnPopup(wx.Menu):
             self.parent.selPanel.updateLayout()
             # a trigger for the plot is required but skipped for now
 
-#     def OnDelete(self, event):
-#         ISel=self.parent.GetSelections()
-#         print("Column delete event",ISel)
+    def OnDeleteColumn(self, event):
+        iX = self.parent.comboX.GetSelection()
+        self.parent.tab.deleteColumns([i-1 for i in self.ISel if i>0])
+        self.parent.setColumnNames(xSel=iX)
+        self.parent.mainframe.redraw()
+
+    #def OnAddColumn(self, event):
+    #    iCol=self.ISel[0]
+    #    print("Add column event",self.ISel)
 
 
 # --------------------------------------------------------------------------------}
@@ -148,12 +162,13 @@ class TablePanel(wx.Panel):
 # --------------------------------------------------------------------------------{
 class ColumnPanel(wx.Panel):
     """ A list of columns for x and y axis """
-    def __init__(self, parent, selPanel):
+    def __init__(self, parent, selPanel, mainframe):
         # Superclass constructor
         super(ColumnPanel,self).__init__(parent)
         self.selPanel = selPanel;
         # Data
         self.tab=[]
+        self.mainframe=mainframe
         # GUI
 
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
@@ -286,8 +301,8 @@ class SelectionPanel(wx.Panel):
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
         self.splitter.SetMinimumPaneSize(70)
         self.tabPanel  = TablePanel (self.splitter,mainframe);
-        self.colPanel1 = ColumnPanel(self.splitter, self);
-        self.colPanel2 = ColumnPanel(self.splitter, self);
+        self.colPanel1 = ColumnPanel(self.splitter, self, mainframe);
+        self.colPanel2 = ColumnPanel(self.splitter, self, mainframe);
         self.tabPanel.Hide()
         self.colPanel1.Hide()
         self.colPanel2.Hide()
