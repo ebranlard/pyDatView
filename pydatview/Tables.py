@@ -36,7 +36,7 @@ class Table(object):
             else:
                 self.name=name
             self.data    = df
-            self.columns = [s.replace('_',' ') for s in df.columns.values.astype(str)]
+            self.columns = self.columnsFromDF(df)
         else: 
             # ndarray??
             raise Exception('Implementation of tables with ndarray dropped for now')
@@ -53,6 +53,10 @@ class Table(object):
 
     def __repr__(self):
         return 'Tab {} ({}x{})'.format(self.name,self.nCols,self.nRows)
+
+
+    def columnsFromDF(self,df):
+        return [s.replace('_',' ') for s in df.columns.values.astype(str)]
 
     def convertTimeColumns(self):
         if len(self.data)>0:
@@ -82,6 +86,34 @@ class Table(object):
 
     def rename(self,new_name):
         self.name='>'+new_name
+
+    def addColumn(self,sNewName,NewCol,i=-1):
+        if i<0:
+            i=self.data.shape[1]
+        self.data.insert(i,sNewName,NewCol)
+        self.columns=self.columnsFromDF(self.data)
+
+    def evalFormula(self,sFormula):
+        df = self.data
+        Index = np.array(range(df.shape[0]))
+        for i,c in enumerate(self.columns):
+            c_no_unit = no_unit(c).strip()
+            c_in_df   = df.columns[i]
+            sFormula=sFormula.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
+        #print(sFormula)
+        try:
+            NewCol=eval(sFormula)
+            return NewCol
+        except:
+            return None
+
+    def addColumnByFormula(self,sNewName,sFormula,i=-1):
+        NewCol=self.evalFormula(sFormula)
+        if NewCol is None:
+            return False
+        else:
+            self.addColumn(sNewName,NewCol,i)
+            return True
 
     @property
     def columns_clean(self):

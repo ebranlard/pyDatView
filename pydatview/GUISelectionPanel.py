@@ -19,6 +19,203 @@ SEL_MODES_ID = ['auto','sameColumnsMode','twoColumnsMode']
 
 
 # --------------------------------------------------------------------------------}
+# ---  Formula diagog
+# --------------------------------------------------------------------------------{
+class MyDialog(wx.Dialog):
+    def __init__(self, title='', name='', formula='',columns=[],unit=''):
+        wx.Dialog.__init__(self, None, title=title)
+        # --- Data
+        self.OK = False
+        self.unit=unit.strip().replace(' ','')
+        self.columns=['{'+c+'}' for c in columns]
+        if len(formula)==0:
+            formula=' + '.join(self.columns)
+        if len(name)==0:
+            name=self.getDefaultName()
+        self.formula_in=formula
+
+
+        quick_lbl = wx.StaticText(self, label="Predefined: " )
+        self.cbQuick = wx.ComboBox(self, choices=['None','x 1000','/ 1000','deg2rad','rad2deg','norm','squared'], style=wx.CB_READONLY)
+        self.cbQuick.SetSelection(0)
+        self.cbQuick.Bind(wx.EVT_COMBOBOX  ,self.onQuickFormula)
+ 
+        # Formula info
+        formula_lbl   = wx.StaticText(self, label="Formula:      ")
+        self.formula = wx.TextCtrl(self)
+        #self.formula.SetFont(getMonoFont(self))
+
+        self.formula.SetValue(formula)
+        formula_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        formula_sizer.Add(formula_lbl ,0,wx.ALL|wx.RIGHT|wx.CENTER,5)
+        formula_sizer.Add(self.formula,1,wx.ALL|wx.EXPAND|wx.CENTER,5)
+        formula_sizer.Add(quick_lbl   ,0,wx.ALL|wx.CENTER,5)
+        formula_sizer.Add(self.cbQuick,0,wx.ALL|wx.CENTER,5)
+
+
+        # name info
+        name_lbl = wx.StaticText(self, label="New name: " )
+        self.name = wx.TextCtrl(self, size=wx.Size(200,-1))
+        self.name.SetValue(name)
+        #self.name.SetFont(getMonoFont(self))
+        name_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        name_sizer.Add(name_lbl ,0,wx.ALL|wx.RIGHT|wx.CENTER,5)
+        name_sizer.Add(self.name,0,wx.ALL|wx.CENTER,5)
+ 
+        info ='The formula needs to have a valid python syntax for an array manipulation. The available arrays are \n'
+        info+='the columns of the current table. The column names (without units) are surrounded by curly brackets.\n'
+        info+='You have access to numpy using `np`.\n\n'
+        info+='For instance, if you have two columns called `ColA [m]` and `ColB [m]` you can use:\n'
+        info+='  - ` {ColA} + {ColB} `\n'
+        info+='  - ` np.sqrt( {ColA}**2/1000 + 1/{ColB}**2 ) `\n'
+        info+='  - ` np.sin ( {ColA}*2*np.pi + {ColB} ) `\n'
+        help_lbl = wx.StaticText(self, label='Help: ')
+        info_lbl = wx.StaticText(self, label=info)
+        help_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        help_sizer.Add(help_lbl ,0,wx.ALL|wx.RIGHT|wx.TOP,5)
+        help_sizer.Add(info_lbl ,0,wx.ALL|wx.TOP,5)
+
+
+ 
+        btOK = wx.Button(self,label = "OK"    )
+        btCL = wx.Button(self,label = "Cancel")
+        bt_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        bt_sizer.Add(btOK, 0 ,wx.ALL,5)
+        bt_sizer.Add(btCL, 0 ,wx.ALL,5)
+        btOK.Bind(wx.EVT_BUTTON,self.onOK    )
+        btCL.Bind(wx.EVT_BUTTON,self.onCancel)
+
+
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        #main_sizer.Add(quick_sizer  ,0,wx.ALL|wx.EXPAND,5)
+        main_sizer.Add(formula_sizer,0,wx.ALL|wx.EXPAND,5)
+        main_sizer.Add(name_sizer   ,0,wx.ALL|wx.EXPAND,5)
+        main_sizer.Add(help_sizer   ,0 ,wx.ALL|wx.CENTER, 5)
+        main_sizer.Add(bt_sizer     ,0, wx.ALL|wx.CENTER, 5)
+        self.SetSizer(main_sizer)
+        self.Fit()
+
+    def stripBrackets(self,s):
+        return s.replace('{','').replace('}','')
+
+    def getOneColName(self):
+        if len(self.columns)>0:
+            return self.columns[-1]
+        else:
+            return ''
+
+    def get_unit(self):
+        if len(self.unit)>0:
+            return ' ['+self.unit+']'
+        else:
+            return ''
+    def get_squared_unit(self):
+        if len(self.unit)>0:
+            if self.unit[0].lower()=='-':
+                return ' [-]'
+            else:
+                return ' [('+self.unit+')^2]'
+        else:
+            return ''
+    def get_kilo_unit(self):
+        if len(self.unit)>0:
+            if len(self.unit)>=1:
+                if self.unit[0].lower()=='-':
+                    return ' [-]'
+                elif self.unit[0].lower()=='G':
+                    r='T'
+                elif self.unit[0].lower()=='M':
+                    r='G'
+                elif self.unit[0]=='k':
+                    r='M'
+                elif self.unit[0]=='m':
+                    if len(self.unit)==1:
+                        r='km'
+                    elif self.unit[1]=='/':
+                        r='km'
+                    else:
+                        r=''
+                else:
+                    r='k'+self.unit[0]
+                return ' ['+r+self.unit[1:]+']'
+            else:
+                return ' [k'+self.unit+']'
+        else:
+            return ''
+    def get_milli_unit(self):
+        if len(self.unit)>=1:
+            if self.unit[0].lower()=='-':
+                return ' [-]'
+            elif self.unit[0].lower()=='T':
+                r='G'
+            elif self.unit[0]=='G':
+                r='M'
+            elif self.unit[0]=='M':
+                r='k'
+            elif self.unit[0].lower()=='k':
+                r=''
+            elif self.unit[0]=='m':
+                if len(self.unit)==1:
+                    r='mm'
+                elif self.unit[1]=='/':
+                    r='mm'
+                else:
+                    r='mu'
+            else:
+                r='m'+self.unit[0]
+
+            return ' ['+r+self.unit[1:]+']'
+        else:
+            return ''
+
+    def getDefaultName(self):
+        if len(self.columns)>0:
+            return self.stripBrackets(self.getOneColName())+' New '+self.get_unit()
+        else:
+            return ''
+
+    def onQuickFormula(self, event):
+        i = self.cbQuick.GetSelection()
+        s = self.cbQuick.GetStringSelection()
+        if s=='None':
+            self.formula.SetValue(self.formula_in)
+            return
+
+        #self.formula_in=self.formula.GetValue()
+        c1 = self.getOneColName()
+        n1 = self.stripBrackets(c1)
+
+        if s=='x 1000':
+            self.formula.SetValue(c1+' * 1000')
+            self.name.SetValue(n1+'_x1000'+ self.get_milli_unit())
+        elif s=='/ 1000':
+            self.formula.SetValue(c1+' / 1000')
+            self.name.SetValue(n1+'_/1000'+self.get_kilo_unit())
+        elif s=='deg2rad':
+            self.formula.SetValue(c1+' *np.pi/180')
+            self.name.SetValue(n1+'_rad [rad]')
+        elif s=='rad2deg':
+            self.formula.SetValue(c1+' *180/np.pi')
+            self.name.SetValue(n1+'_deg [deg]')
+        elif s=='norm':
+            self.formula.SetValue('np.sqrt( '+'**2 + '.join(self.columns)+'**2 )')
+            self.name.SetValue(n1+'_norm'+self.get_unit())
+        elif s=='squared':
+            self.formula.SetValue('**2 + '.join(self.columns)+'**2 ')
+            self.name.SetValue(n1+'^2'+self.get_squared_unit())
+        else:
+            raise Exception('Unknown quick formula {}'.s)
+
+
+
+    def onOK(self, event):
+        self.OK = True
+        self.Destroy()
+
+    def onCancel(self, event):
+        self.OK = False
+        self.Destroy()
+# --------------------------------------------------------------------------------}
 # --- Popup menus
 # --------------------------------------------------------------------------------{
 class TablePopup(wx.Menu):
@@ -74,9 +271,9 @@ class ColumnPopup(wx.Menu):
         self.parent = parent
         self.ISel = self.parent.lbColumns.GetSelections()
 
-        #item = wx.MenuItem(self, -1, "Add")
-        #self.MyAppend(item)
-        #self.Bind(wx.EVT_MENU, self.OnAddColumn, item)
+        item = wx.MenuItem(self, -1, "Add")
+        self.MyAppend(item)
+        self.Bind(wx.EVT_MENU, self.OnAddColumn, item)
 
         if len(self.ISel)==1 and self.ISel[0]>0: 
             item = wx.MenuItem(self, -1, "Rename")
@@ -110,9 +307,38 @@ class ColumnPopup(wx.Menu):
         self.parent.setColumnNames(xSel=iX)
         self.parent.mainframe.redraw()
 
-    #def OnAddColumn(self, event):
-    #    iCol=self.ISel[0]
-    #    print("Add column event",self.ISel)
+    def OnAddColumn(self, event):
+        bValid=False
+        bCancelled=False
+        columns=[no_unit(self.parent.lbColumns.GetString(i)) for i in self.ISel]
+        if len(self.ISel)>0:
+            main_unit=unit(self.parent.lbColumns.GetString(self.ISel[-1]))
+        else:
+            main_unit=''
+
+        sFormula=''
+        while (not bValid) and (not bCancelled):
+            dlg = MyDialog(title='Add a new column',columns=columns,unit=main_unit,formula=sFormula)
+            dlg.CentreOnParent()
+            dlg.ShowModal()
+            bCancelled = not dlg.OK
+            if not bCancelled:
+                sName    = dlg.name.GetValue()
+                sFormula = dlg.formula.GetValue()
+                if len(self.ISel)>0:
+                    i=self.ISel[-1]
+                else:
+                    i=-1
+                bValid=self.parent.tab.addColumnByFormula(sName,sFormula,i)
+                if not bValid:
+                    Error(self.parent,'The formula didn''t eval.')
+        if bCancelled:
+            return
+        if bValid:
+            iX = self.parent.comboX.GetSelection()
+            self.parent.setColumnNames(xSel=iX,ySel=[i+1])
+            self.parent.mainframe.redraw()
+
 
 
 # --------------------------------------------------------------------------------}
@@ -250,7 +476,7 @@ class ColumnPanel(wx.Panel):
         self.comboX.Set(columns)
         # Restoring previous selection
         for i in ySel:
-            if i<len(columns):
+            if i<len(columns) and i>=0:
                 self.lbColumns.SetSelection(i)
                 self.lbColumns.EnsureVisible(i)
         if len(self.lbColumns.GetSelections())<=0:
