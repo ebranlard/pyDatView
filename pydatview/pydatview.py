@@ -6,7 +6,20 @@ standard_library.install_aliases()
 
 import numpy as np
 import os.path 
-import pandas as pd
+try:
+    import pandas as pd
+except:
+    print('')
+    print('')
+    print('Error: problem loading pandas package:')
+    print('  - Check if this package is installed ( e.g. type: `pip install pandas`)')
+    print('  - If you are using anaconda, try `conda update python.app`')
+    print('  - If none of the above work, contact the developer.')
+    print('')
+    print('')
+    sys.exit(-1)
+    #raise
+
 import sys
 import traceback 
 import gc
@@ -21,8 +34,6 @@ from .Tables import Table, haveSameColumns
 # Helper
 from .common import *
 from .GUICommon import *
-# Librairies
-import weio # File Formats and File Readers
 
 
 
@@ -32,7 +43,8 @@ import weio # File Formats and File Readers
 PROG_NAME='pyDatView'
 PROG_VERSION='v0.1-local'
 try:
-    FILE_FORMATS            = weio.fileFormats()
+    import weio # File Formats and File Readers
+    FILE_FORMATS= weio.fileFormats()
 except:
     print('')
     print('Error: the python package `weio` was not imported successfully.\n')
