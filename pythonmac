@@ -111,10 +111,10 @@ if [ "$IS_VIRTUAL_ENV" == "0" ] ; then
         echo "[INFO] It seems you are in a conda environment, trying with conda python.app"
         #
         PYTHON_EXE=`which conda|rev|cut -c 6-|rev`"python.app"
-        HELP="[HELP] If a weird error appears(e.g. loading pandas), try `conda update python.app`'"
+        HELP="[HELP] If a weird error appears(e.g. loading pandas), try 'conda update python.app'"
     elif [ "$CONDA_IN_PYTHON" == "1" ] ; then
         PYTHON_EXE=`which python`".app"
-        HELP="[HELP] If a weird error appears (e.g. loading pandas), try `conda update python.app`'"
+        HELP="[HELP] If a weird error appears (e.g. loading pandas), try 'conda update python.app'"
     else
         echo "[WARN] You are not in a virtualenv. Things might not work." 
         if [ "$HAS_PY3" == "1" ] && [ "$HAS_BREW" == "1" ]  ; then
