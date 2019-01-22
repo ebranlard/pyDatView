@@ -28,15 +28,25 @@ install:
 dep:
 	python -m pip install -r requirements.txt
 
+pull:
+	git pull --recurse-submodules
+update:pull
+
 
 help:
-	echo "Available rules:"
-	echo "   all        run the standalone program"
-	echo "   install    install the python package in the system" 
-	echo "   dep        download the dependencies " 
+	@echo "Available rules:"
+	@echo "   all        run the standalone program"
+	@echo "   install    install the python package in the system" 
+	@echo "   dep        download the dependencies " 
+	@echo "   pull       download the latest version " 
+	@echo "   test       run the unit tests " 
 
 test:
+ifeq ($(detected_OS),Darwin)        # Mac OS X
+	./pythonmac -m unittest discover -v
+else
 	python -m unittest discover -v
+endif
 
 prof:
 	python -m cProfile -o _tests/prof_all.prof  _tests/prof_all.py
