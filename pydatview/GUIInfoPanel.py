@@ -5,8 +5,11 @@ try:
     from .common import *
     from .GUICommon import *
 except:
+    from common import *
     from GUICommon import *
+    from fatigue import eq_load
 
+from .fatigue import eq_load
 # --------------------------------------------------------------------------------}
 # --- InfoPanel 
 # --------------------------------------------------------------------------------{
@@ -162,6 +165,13 @@ def xMin(pd):
         s=pretty_num(v)
         return v,s
 
+def leq(pd,m):
+    if pd.yIsString or  pd.yIsDate:
+        return 'NA','NA'
+    else:
+        T,_=xRange(pd)
+        v=eq_load(pd.y, m=m, neq=T)[0][0]
+        return v,pretty_num(v)
 
 def Info(pd,var):
     if var=='LSeg':
@@ -234,6 +244,14 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':u'\u222By.x  ' , 'al':'R' , 'f':intyx1 , 's' :False})
         self.ColsReg.append({'name':u'\u222By.x/\u222By' , 'al':'R' , 'f':intyx1_scaled , 's' :False})
         self.ColsReg.append({'name':u'\u222By.x^2' , 'al':'R' , 'f':intyx2 , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=3)'    , 'al':'R' , 'f':lambda x:leq(x,m=3) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=4)'    , 'al':'R' , 'f':lambda x:leq(x,m=4) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=5)'    , 'al':'R' , 'f':lambda x:leq(x,m=5) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=7)'    , 'al':'R' , 'f':lambda x:leq(x,m=7) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=8)'    , 'al':'R' , 'f':lambda x:leq(x,m=8) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=9)'    , 'al':'R' , 'f':lambda x:leq(x,m=9) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=10)'   , 'al':'R' , 'f':lambda x:leq(x,m=10), 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=12)'   , 'al':'R' , 'f':lambda x:leq(x,m=12), 's' :False})
         self.ColsReg.append({'name':'n'            , 'al':'R' , 'f':ylen   , 's' :True})
         self.ColsFFT=[]
         self.ColsFFT.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
