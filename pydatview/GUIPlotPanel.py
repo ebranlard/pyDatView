@@ -43,7 +43,7 @@ try:
 except:
     from spectral import pwelch, psd, hamming , boxcar, hann, fnextpow2
     from damping import logDecFromDecay
-    from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit
+    from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit getDt
     from GUICommon import * 
 
 font = {'size'   : 8}
@@ -607,7 +607,7 @@ class PlotPanel(wx.Panel):
             y = y[~np.isnan(y)]
             n = len(y) 
             if d.xIsDate:
-                dt = np.timedelta64((x[1]-x[0]),'s').item().total_seconds()
+                dt = getDt(x)
             else:
                 dt = x[1]-x[0]
                 # Hack to use a constant dt
@@ -662,6 +662,7 @@ class PlotPanel(wx.Panel):
                 Y  =Y[1:]
             d.Info=Info
             d.x=frq
+            d.xIsDate=False
             d.y=Y
             d.sy= 'FFT('+no_unit(d.sy)+')'
             if unit(d.sx)=='s':

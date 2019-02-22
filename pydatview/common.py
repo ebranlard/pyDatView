@@ -71,30 +71,48 @@ def ellude_common(strings):
 # --------------------------------------------------------------------------------}
 # ---  
 # --------------------------------------------------------------------------------{
-def getMonoFontAbs():
-    import wx
-    #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
-    if os.name=='nt':
-        font=wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-    elif os.name=='posix':
-        font=wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-    else:
-        font=wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-    return font
+# def getMonoFontAbs():
+#     import wx
+#     #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
+#     if os.name=='nt':
+#         font=wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+#     elif os.name=='posix':
+#         font=wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+#     else:
+#         font=wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+#     return font
+# 
+# def getMonoFont(widget):
+#     import wx
+#     font = widget.GetFont()
+#     font.SetFamily(wx.TELETYPE)
+#     if platform.system()=='Windows':
+#         pass
+#     elif platform.system()=='Linux':
+#         pass
+#     elif platform.system()=='Darwin':
+#         font.SetPointSize(font.GetPointSize()-1)
+#     else:
+#         pass
+#     return font
 
-def getMonoFont(widget):
-    import wx
-    font = widget.GetFont()
-    font.SetFamily(wx.TELETYPE)
-    if platform.system()=='Windows':
-        pass
-    elif platform.system()=='Linux':
-        pass
-    elif platform.system()=='Darwin':
-        font.SetPointSize(font.GetPointSize()-1)
-    else:
-        pass
-    return font
+def getDt(x):
+    """ returns dt in s """
+    if len(x)<=0:
+        return np.NaN
+    if isinstance(x[0],float):
+        return x[1]-x[0]
+    if isinstance(x[0],int):
+        return x[1]-x[0]
+    # first try with seconds
+    #print('getDT: dx:',x[1]-x[0])
+    dt=np.timedelta64(x[1]-x[0],'s').item().total_seconds()
+    if dt<1:
+        # try higher resolution
+        dt=np.timedelta64(x[1]-x[0],'ns').item()/10**9
+    # TODO if dt> int res... do something
+    return dt
+
 
 
 
@@ -113,7 +131,11 @@ def getColumn(df,i):
             x=x.astype(str)
         isDate   = np.issubdtype(c.dtype, np.datetime64)
         if isDate:
-            x=x.astype('datetime64[s]')
+            dt=getDt(x)
+            if dt>1:
+                x=x.astype('datetime64[s]')
+            else:
+                x=x.astype('datetime64')
 
     return x,isString,isDate,c
 

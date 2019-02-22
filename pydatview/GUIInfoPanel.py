@@ -138,9 +138,8 @@ def dx(pd):
     if pd.xIsString:
         return None,'NA'
     elif  pd.xIsDate:
-        dt    = pretty_time(np.timedelta64((pd.x[1]-pd.x[0]),'s').item().total_seconds())
-        #    dtAll = pretty_time(np.timedelta64((y[-1]-y[0]),'s').item().total_seconds())
-        return '',dt
+        dt=getDt(pd.x)
+        return dt,pretty_time(dt)
     else:
         v=pd.x[1]-pd.x[0]
         s=pretty_num(v)
