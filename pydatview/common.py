@@ -112,7 +112,8 @@ def getDt(x):
             isnat=np.isnat(dt)
         except:
             print(type(dt),type(dx))
-            isnant=False
+            isnat=False
+            raise
         return isnat
 
 
@@ -121,7 +122,7 @@ def getDt(x):
         return np.NaN
     if isinstance(x[0],float):
         return x[1]-x[0]
-    if isinstance(x[0],int) or isinstance(x[0],np.int32):
+    if isinstance(x[0],int) or isinstance(x[0],np.int32) or isinstance(x[0],np.int64):
         return x[1]-x[0]
     # first try with seconds
     #print('')
