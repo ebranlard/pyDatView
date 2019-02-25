@@ -1,6 +1,8 @@
 import numpy as np
+import pandas as pd
 import os
 import platform
+import datetime
 
 # --------------------------------------------------------------------------------}
 # --- ellude
@@ -98,18 +100,38 @@ def ellude_common(strings):
 
 def getDt(x):
     """ returns dt in s """
-    if len(x)<=0:
+    def myisnat(dt):
+        if isinstance(dt,pd._libs.tslibs.timedeltas.Timedelta):
+            dt=pd.to_timedelta(dt,box=False)
+        elif isinstance(dt,datetime.timedelta):
+            dt=np.array([dt],dtype='timedelta64')[0]
+        elif isinstance(dt,pd._libs.tslibs.nattype.NaTType):
+            dt=pd.to_timedelta(dt,box=False)
+        #print(type(dt))
+        return np.isnat(dt)
+
+
+
+    if len(x)<=1:
         return np.NaN
     if isinstance(x[0],float):
         return x[1]-x[0]
-    if isinstance(x[0],int):
+    if isinstance(x[0],int) or isinstance(x[0],np.int32):
         return x[1]-x[0]
     # first try with seconds
+    #print('')
     #print('getDT: dx:',x[1]-x[0])
-    dt=np.timedelta64(x[1]-x[0],'s').item().total_seconds()
+    dx = x[1]-x[0]
+    #print(type(dx))
+    if myisnat(dx):
+        # we try the last values (or while loop, but may take a while)
+        dx = x[-1]-x[-2]
+        if myisnat(dx):
+            return np.nan
+    dt=np.timedelta64(dx,'s').item().total_seconds()
     if dt<1:
         # try higher resolution
-        dt=np.timedelta64(x[1]-x[0],'ns').item()/10**9
+        dt=np.timedelta64(dx,'ns').item()/10**9
     # TODO if dt> int res... do something
     return dt
 
@@ -178,8 +200,10 @@ def pretty_time(t):
     # fPrettyTime: returns a 6-characters string corresponding to the input time in seconds.
     #   fPrettyTime(612)=='10m12s'
     # AUTHOR: E. Branlard
+    if np.isnan(t):
+        return 'NaT';
     if(t<0):
-        s='------';
+        return '------';
     elif (t<1) :
         c=np.floor(t*100);
         s='{:2d}.{:02d}s'.format(0,int(c))
