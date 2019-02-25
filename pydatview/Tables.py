@@ -96,6 +96,7 @@ class Table(object):
     def evalFormula(self,sFormula):
         df = self.data
         Index = np.array(range(df.shape[0]))
+        sFormula=sFormula.replace('{Index}','Index')
         for i,c in enumerate(self.columns):
             c_no_unit = no_unit(c).strip()
             c_in_df   = df.columns[i]
