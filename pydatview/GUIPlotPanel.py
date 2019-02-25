@@ -809,7 +809,7 @@ class PlotPanel(wx.Panel):
                 if sComp=='Y-Y':
                     pd.syl = no_unit(pd.sy)+' wrt. '+no_unit(pdRef.sy)
                     pd.x   = yRef
-                    pd.sx  = PD[0].sx
+                    pd.sx  = PD[0].sy
                 else:
                     pd.syl = no_unit(pd.sy)+' wrt. '+no_unit(pdRef.sy)
                     pd.sx  = xlabelAll
