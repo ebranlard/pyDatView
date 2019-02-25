@@ -108,7 +108,12 @@ def getDt(x):
         elif isinstance(dt,pd._libs.tslibs.nattype.NaTType):
             dt=pd.to_timedelta(dt,box=False)
         #print(type(dt))
-        return np.isnat(dt)
+        try:
+            isnat=np.isnat(dt)
+        except:
+            print(type(dt),type(dx))
+            isnant=False
+        return isnat
 
 
 
@@ -131,7 +136,7 @@ def getDt(x):
     dt=np.timedelta64(dx,'s').item().total_seconds()
     if dt<1:
         # try higher resolution
-        dt=np.timedelta64(dx,'ns').item()/10**9
+        dt=np.timedelta64(dx,'ns').item()/10.**9
     # TODO if dt> int res... do something
     return dt
 
