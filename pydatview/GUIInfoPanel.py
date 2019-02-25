@@ -80,8 +80,8 @@ def yRange(pd):
     if pd.yIsString:
         return 'NA','NA'
     elif pd.yIsDate:
-        dtAll = pretty_time(np.timedelta64((pd.y[-1]-pd.y[0]),'s').item().total_seconds())
-        return '',dtAll
+        dtAll=getDt([pd.x[-1]-pd.x[0]])
+        return '',pretty_time(dtAll)
     else:
         v=np.nanmax(pd.y)-np.nanmin(pd.y)
         s=pretty_num(v)
@@ -91,8 +91,8 @@ def xRange(pd):
     if pd.xIsString:
         return 'NA','NA'
     elif pd.xIsDate:
-        dtAll = pretty_time(np.timedelta64((pd.x[-1]-pd.x[0]),'s').item().total_seconds())
-        return '',dtAll
+        dtAll=getDt([pd.x[-1]-pd.x[0]])
+        return '',pretty_time(dtAll)
     else:
         v=np.nanmax(pd.x)-np.nanmin(pd.x)
         s=pretty_num(v)

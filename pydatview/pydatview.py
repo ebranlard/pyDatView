@@ -59,7 +59,7 @@ FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_
 FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
 FILE_READER             = weio.read
 
-SIDE_COL = [150,150,280,400]
+SIDE_COL = [160,160,300,420]
 BOT_PANL =85
 
 #matplotlib.rcParams['text.usetex'] = False

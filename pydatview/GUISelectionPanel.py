@@ -36,7 +36,7 @@ class MyDialog(wx.Dialog):
 
 
         quick_lbl = wx.StaticText(self, label="Predefined: " )
-        self.cbQuick = wx.ComboBox(self, choices=['None','x 1000','/ 1000','deg2rad','rad2deg','norm','squared'], style=wx.CB_READONLY)
+        self.cbQuick = wx.ComboBox(self, choices=['None','x 1000','/ 1000','deg2rad','rad2deg','rpm2radps','radps2rpm','norm','squared'], style=wx.CB_READONLY)
         self.cbQuick.SetSelection(0)
         self.cbQuick.Bind(wx.EVT_COMBOBOX  ,self.onQuickFormula)
  
@@ -197,6 +197,12 @@ class MyDialog(wx.Dialog):
         elif s=='rad2deg':
             self.formula.SetValue(c1+' *180/np.pi')
             self.name.SetValue(n1+'_deg [deg]')
+        elif s=='rpm2radps':
+            self.formula.SetValue(c1+' *2*np.pi/60')
+            self.name.SetValue(n1+'_radps [rad/s]')
+        elif s=='radps2rpm':
+            self.formula.SetValue(c1+' *60/(2*np.pi)')
+            self.name.SetValue(n1+'_rpm [rpm]')
         elif s=='norm':
             self.formula.SetValue('np.sqrt( '+'**2 + '.join(self.columns)+'**2 )')
             self.name.SetValue(n1+'_norm'+self.get_unit())
@@ -221,11 +227,16 @@ class MyDialog(wx.Dialog):
 class TablePopup(wx.Menu):
     def __init__(self, mainframe, parent, fullmenu=False):
         wx.Menu.__init__(self)
-        self.parent = parent
+        self.parent = parent # parent is listbox
         self.mainframe = mainframe
         self.ISel = self.parent.GetSelections()
 
         if fullmenu:
+            self.itNameFile = wx.MenuItem(self, -1, "Naming: by file names", kind=wx.ITEM_CHECK)
+            self.MyAppend(self.itNameFile)
+            self.Bind(wx.EVT_MENU, self.OnNaming, self.itNameFile)
+            self.Check(self.itNameFile.GetId(), self.parent.GetParent().Naming=='FileNames')
+
             item = wx.MenuItem(self, -1, "Add")
             self.MyAppend(item)
             self.Bind(wx.EVT_MENU, self.mainframe.onAdd, item)
@@ -236,9 +247,11 @@ class TablePopup(wx.Menu):
             self.Bind(wx.EVT_MENU, self.OnDeleteTabs, item)
 
         if len(self.ISel)==1:
-            item = wx.MenuItem(self, -1, "Rename")
-            self.MyAppend(item)
-            self.Bind(wx.EVT_MENU, self.OnRenameTab, item)
+            tabPanel=self.parent.GetParent()
+            if tabPanel.Naming!='FileNames':
+                item = wx.MenuItem(self, -1, "Rename")
+                self.MyAppend(item)
+                self.Bind(wx.EVT_MENU, self.OnRenameTab, item)
 
         if len(self.ISel)==1:
             item = wx.MenuItem(self, -1, "Export")
@@ -250,6 +263,14 @@ class TablePopup(wx.Menu):
             self.Append(item) # python3
         except:
             self.AppendItem(item) # python2
+
+    def OnNaming(self, event=None):
+        tabPanel=self.parent.GetParent()
+        if self.itNameFile.IsChecked():
+            tabPanel.Naming='FileNames'
+        else:
+            tabPanel.Naming='Ellude'
+        tabPanel.updateTabNames()
 
     def OnDeleteTabs(self, event):
         self.mainframe.deleteTabs(self.ISel)
@@ -361,12 +382,15 @@ class ColumnPopup(wx.Menu):
 # --------------------------------------------------------------------------------{
 class TablePanel(wx.Panel):
     """ Display list of tables """
-    def __init__(self, parent, mainframe):
+    def __init__(self, parent, mainframe,tabs):
         # Superclass constructor
         super(TablePanel,self).__init__(parent)
+        # DATA
         self.parent=parent
         self.mainframe=mainframe
-        # DATA
+        self.Naming='Ellude'
+        self.tabs=tabs
+        # GUI
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
         self.bt=wx.Button(tb,wx.ID_ANY,u'\u2630', style=wx.BU_EXACTFIT)
         self.lb=wx.StaticText(tb, -1, ' Tables ' )
@@ -389,11 +413,24 @@ class TablePanel(wx.Panel):
         self.PopupMenu(menu, pos)
         menu.Destroy()
 
-
-    def setTabNames(self,tabnames,tabs):    
-        self.lbTab.Set(tabnames)
-        for t,tn in zip(tabs,tabnames):
+    def updateTabNames(self):
+        if self.Naming=='Ellude':
+            tabnames_display=ellude_common([t.raw_name for t in self.tabs])
+        elif self.Naming=='FileNames':
+            tabnames_display=[os.path.splitext(os.path.basename(t.filename))[0] for t in self.tabs]
+        else:
+            raise Exception('Table naming unknown: {}'.format(self.Naming))
+        # Storing selection
+        ISel=self.lbTab.GetSelections()
+        # Setting List Box
+        self.lbTab.Set(tabnames_display)
+        # Setting table active display name
+        for t,tn in zip(self.tabs,tabnames_display):
             t.active_name=tn
+        # Restoring selection
+        for i in ISel:
+            if i<len(self.tabs):
+                self.lbTab.SetSelection(i)
 
     def empty(self):    
         self.lbTab.Clear()
@@ -552,7 +589,7 @@ class SelectionPanel(wx.Panel):
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
         self.splitter.SetMinimumPaneSize(70)
-        self.tabPanel  = TablePanel (self.splitter,mainframe);
+        self.tabPanel  = TablePanel (self.splitter,mainframe,self.tabs);
         self.colPanel1 = ColumnPanel(self.splitter, self, mainframe);
         self.colPanel2 = ColumnPanel(self.splitter, self, mainframe);
         self.tabPanel.Hide()
@@ -627,10 +664,9 @@ class SelectionPanel(wx.Panel):
         self.colPanel2.empty()
         # Adding
         self.tabs = tabs
+        self.tabPanel.tabs = tabs
         tabnames =[t.name for t in tabs]
-        raw_names=[t.raw_name for t in tabs]
-        etabnames=ellude_common(raw_names)
-        self.tabPanel.setTabNames(etabnames,self.tabs);
+        self.tabPanel.updateTabNames()
         for tn in tabnames:
             if tn not in self.tabSelections.keys():
                 self.tabSelections[tn]={'xSel':-1,'ySel':[]}
@@ -684,9 +720,7 @@ class SelectionPanel(wx.Panel):
     def renameTable(self,iTab, oldName, newName):
         #self.printSelection()
         self.tabSelections[newName] = self.tabSelections.pop(oldName)
-        raw_names=[t.raw_name for t in self.tabs]
-        etabnames=ellude_common(raw_names)
-        self.tabPanel.setTabNames(etabnames,self.tabs);
+        self.tabPanel.updateTabNames()
         #self.printSelection()
 
     def saveSelection(self):
