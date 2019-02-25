@@ -185,6 +185,9 @@ def Info(pd,var):
 
 
 
+# --------------------------------------------------------------------------------}
+# --- Popup menu 
+# --------------------------------------------------------------------------------{
 class ColCheckMenu(wx.Menu):
     def __init__(self,parent):
         wx.Menu.__init__(self)
@@ -194,7 +197,8 @@ class ColCheckMenu(wx.Menu):
         self.Bind(wx.EVT_UPDATE_UI, self.onUpdate)
 
     def onUpdate(self,event):
-        print('update')
+        pass
+        #print('update')
 
     def setColumns(self,columns):
         for c in columns:
@@ -204,7 +208,6 @@ class ColCheckMenu(wx.Menu):
 
     def getSelections(self):
         return [it.IsChecked() for it in self.GetMenuItems()]
-
 
     def onSelChange(self,event):
          self.isClosed=True

@@ -271,6 +271,11 @@ class ColumnPopup(wx.Menu):
         self.parent = parent
         self.ISel = self.parent.lbColumns.GetSelections()
 
+        self.itShowID = wx.MenuItem(self, -1, "Show ID", kind=wx.ITEM_CHECK)
+        self.MyAppend(self.itShowID)
+        self.Bind(wx.EVT_MENU, self.OnShowID, self.itShowID)
+        self.Check(self.itShowID.GetId(), self.parent.bShowID)
+
         item = wx.MenuItem(self, -1, "Add")
         self.MyAppend(item)
         self.Bind(wx.EVT_MENU, self.OnAddColumn, item)
@@ -290,8 +295,15 @@ class ColumnPopup(wx.Menu):
         except:
             self.AppendItem(item) # python2
 
-    def OnRenameColumn(self, event):
-        oldName = self.parent.lbColumns.GetString(self.ISel[0])
+    def OnShowID(self, event=None):
+        self.parent.bShowID=self.itShowID.IsChecked()
+        self.parent.updateColumnNames()
+
+    def OnRenameColumn(self, event=None):
+        if self.parent.bShowID:
+            oldName = self.parent.lbColumns.GetString(self.ISel[0])[4:]
+        else:
+            oldName = self.parent.lbColumns.GetString(self.ISel[0])
         dlg = wx.TextEntryDialog(self.parent, 'New column name:', 'Rename column',oldName,wx.OK|wx.CANCEL)
         dlg.CentreOnParent()
         if dlg.ShowModal() == wx.ID_OK:
@@ -310,7 +322,10 @@ class ColumnPopup(wx.Menu):
     def OnAddColumn(self, event):
         bValid=False
         bCancelled=False
-        columns=[no_unit(self.parent.lbColumns.GetString(i)) for i in self.ISel]
+        if self.parent.bShowID:
+            columns=[no_unit(self.parent.lbColumns.GetString(i)[4:]) for i in self.ISel]
+        else:
+            columns=[no_unit(self.parent.lbColumns.GetString(i)) for i in self.ISel]
         if len(self.ISel)>0:
             main_unit=unit(self.parent.lbColumns.GetString(self.ISel[-1]))
         else:
@@ -395,6 +410,7 @@ class ColumnPanel(wx.Panel):
         # Data
         self.tab=[]
         self.mainframe=mainframe
+        self.bShowID=False
         # GUI
 
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
@@ -465,6 +481,8 @@ class ColumnPanel(wx.Panel):
 
     def updateColumn(self,i,newName):
         """ Update of one column name"""
+        if self.bShowID:
+            newName='{:03d} '.format(i)+newName
         self.lbColumns.SetString(i,newName)
         self.comboX.SetString(i,newName)
 
@@ -472,6 +490,8 @@ class ColumnPanel(wx.Panel):
         """ Set columns from table """
         # Populating..
         columns=['Index']+self.tab.columns
+        if self.bShowID:
+            columns= ['{:03d} '.format(i)+c for i,c in enumerate(columns)]
         self.lbColumns.Set(columns)
         self.comboX.Set(columns)
         # Restoring previous selection
@@ -499,9 +519,15 @@ class ColumnPanel(wx.Panel):
 
     def getColumnSelection(self):
         iX = self.comboX.GetSelection()
-        sX = self.comboX.GetStringSelection()
+        if self.bShowID:
+            sX = self.comboX.GetStringSelection()[4:]
+        else:
+            sX = self.comboX.GetStringSelection()
         IY = self.lbColumns.GetSelections()
-        SY = [self.lbColumns.GetString(i) for i in IY]
+        if self.bShowID:
+            SY = [self.lbColumns.GetString(i)[4:] for i in IY]
+        else:
+            SY = [self.lbColumns.GetString(i) for i in IY]
         return iX,IY,sX,SY
 
 
