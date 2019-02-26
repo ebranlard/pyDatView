@@ -85,7 +85,12 @@ class FileDropTarget(wx.FileDropTarget):
       if len(filenames)>0:
           # If Ctrl is pressed we add
           bAdd= wx.GetKeyState(wx.WXK_CONTROL);
-          self.parent.load_files(filenames,fileformat=None,bAdd=bAdd)
+          iFormat=self.parent.comboFormats.GetSelection()
+          if iFormat==0: # auto-format
+              Format = None
+          else:
+              Format = FILE_FORMATS[iFormat-1]
+          self.parent.load_files(filenames,fileformat=Format,bAdd=bAdd)
       return True
 
 
@@ -117,11 +122,13 @@ class MainFrame(wx.Frame):
 
         fileMenu = wx.Menu()
         loadMenuItem  = fileMenu.Append(wx.ID_NEW,"Open file" ,"Open file"           )
+        exptMenuItem  = fileMenu.Append(-1        ,"Export table" ,"Export table"           )
         saveMenuItem  = fileMenu.Append(wx.ID_SAVE,"Save figure" ,"Save figure"           )
         exitMenuItem  = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
         menuBar.Append(fileMenu, "&File")
         self.Bind(wx.EVT_MENU,self.onExit ,exitMenuItem )
         self.Bind(wx.EVT_MENU,self.onLoad ,loadMenuItem )
+        self.Bind(wx.EVT_MENU,self.onExport ,exptMenuItem )
         self.Bind(wx.EVT_MENU,self.onSave ,saveMenuItem )
 
         toolMenu = wx.Menu()
@@ -282,6 +289,7 @@ class MainFrame(wx.Frame):
         self.statusbar.SetStatusText('');
         self.statusbar.SetStatusText('',1);
         self.statusbar.SetStatusText('',2);
+        print(fileformat)
 
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)
@@ -575,6 +583,16 @@ class MainFrame(wx.Frame):
         self.plotPanel.ctrlPanel.Refresh()
         self.plotPanel.cb_sizer.ForceRefresh()
 
+    def onExport(self, event=None):
+        ISel=[]
+        try:
+            ISel = self.selPanel.tabPanel.lbTab.GetSelections()
+        except:
+            pass
+        if len(ISel)>0:
+            self.exportTab(ISel[0])
+        else:
+           Error(self,'Open a file and select a table first.')
 
     def onLoad(self, event=None):
         self.selectFile(bAdd=False)

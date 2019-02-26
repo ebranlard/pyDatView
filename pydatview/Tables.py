@@ -77,6 +77,7 @@ class Table(object):
 
     def renameColumn(self,iCol,newName):
         self.columns[iCol]=newName
+        self.data.columns.values[iCol]=newName
 
     def deleteColumns(self,ICol):
         df=self.data
