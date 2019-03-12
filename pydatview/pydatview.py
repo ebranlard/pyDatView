@@ -688,43 +688,67 @@ def test(filenames=None):
         return
  
 # --------------------------------------------------------------------------------}
+# --- Wrapped WxApp
+# --------------------------------------------------------------------------------{
+class MyWxApp(wx.App):
+    def __init__(self, redirect=False, filename=None):
+        try:
+            wx.App.__init__(self, redirect, filename)
+        except:
+            if wx.Platform == '__WXMAC__':
+                #msg = """This program needs access to the screen.
+                #          Please run with 'pythonw', not 'python', and only when you are logged
+                #          in on the main display of your Mac."""
+               msg= """
+MacOS Error:
+  This program needs access to the screen. Please run with a
+  Framework build of python, and only when you are logged in
+  on the main display of your Mac.
+
+pyDatView help:
+  You see the error above because you are using a Mac and 
+  the python executable you are using does not have access to
+  your screen. This is a Mac issue, not a pyDatView issue.
+  Instead of calling 'python pyDatView.py', you need to find
+  another python and do '/path/python pyDatView.py'
+  You can try './pythonmac pyDatView.py', a script provided
+  in this repository to detect the path (in some cases)
+  
+  You can find additional help in the file 'README.md'.
+  
+  For quick reference, here are some typical cases:
+  - Your python was installed with 'brew', then likely use   
+       /usr/lib/Cellar/python/XXXXX/Frameworks/python.framework/Versions/XXXX/bin/pythonXXX;
+  - Your python is an anaconda python, use something like:;
+       /anaconda3/bin/python.app   (NOTE: the '.app'!
+  - You are using a python 2 version, you can use the system one:
+       /Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX
+       /System/Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX
+"""
+
+            elif wx.Platform == '__WXGTK__':
+                msg ="""
+Error:
+  Unable to access the X Display, is $DISPLAY set properly?
+
+pyDatView help:
+  You are probably running this application on a server accessed via ssh.
+  Use `ssh -X` or `ssh -Y` to access the server. 
+  Else, try setting up $DISPLAY before doing the ssh connection.
+"""
+            else:
+                msg = 'Unable to create GUI' # TODO: more description is needed for wxMSW...
+            raise SystemExit(msg)
+
+# --------------------------------------------------------------------------------}
 # --- Mains 
 # --------------------------------------------------------------------------------{
 def showApp(dataframe=None,filenames=[]):
     """
     The main function to start the data frame GUI.
     """
-    try:
-        app = wx.App(False)
-    except:
-        print("MacOS Error:")
-        print("   This program needs access to the screen. Please run with a")
-        print("   Framework build of python, and only when you are logged in")
-        print("   on the main display of your Mac.")
-        print("")
-        print("pyDatView help:")
-        print("   You see the error above because you are using a Mac and ")
-        print("   the python executable you are using does not have access to")
-        print("   your screen. This is a Mac issue, not a pyDatView issue.")
-        print("   Instead of calling 'python pyDatView.py', you need to find")
-        print("   another python and do '/path/python pyDatView.py'")
-        print("   You can try './pythonmac pyDatView.py', a script provided")
-        print("   in this repository to detect the path (in some cases)")
-        print("   ")
-        print("   You can find additional help in the file 'README.md'.")
-        print("   ")
-        print("   For quick reference, here are some typical cases:")
-        print("   - Your python was installed with 'brew', then likely use   ")
-        print("        /usr/lib/Cellar/python/XXXXX/Frameworks/python.framework/Versions/XXXX/bin/pythonXXX");
-        print("   - Your python is an anaconda python, use something like:");
-        print("        /anaconda3/bin/python.app   (NOTE: the '.app'!")
-        print("   - You are using a python 2 version, you can use the system one:")
-        print("        /Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX")
-        print("        /System/Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX")
-        return
-
+    app = MyWxApp(False)
     frame = MainFrame()
-
     if (dataframe is not None) and (len(dataframe)>0):
         #import time
         #tstart = time.time()
