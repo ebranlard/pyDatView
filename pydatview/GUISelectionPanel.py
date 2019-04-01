@@ -230,19 +230,19 @@ class MyDialog(wx.Dialog):
             bDoNewName=True
             if self.xunit=='s':
                 if n1.lower().find('speed')>=0:
-                    ireplace(n1,'speed','Acceleration')
+                    n1=ireplace(n1,'speed','Acceleration')
                     bDoNewName=False
                 elif n1.lower().find('velocity')>=0:
-                    ireplace(n1,'velocity','Acceleration')
+                    n1=ireplace(n1,'velocity','Acceleration')
                     bDoNewName=False
                 elif n1.lower().find('vel')>=0:
-                    ireplace(n1,'vel','Acc')
+                    n1=ireplace(n1,'vel','Acc')
                     bDoNewName=False
                 elif n1.lower().find('position')>=0:
-                    ireplace(n1,'position','speed')
+                    n1=ireplace(n1,'position','speed')
                     bDoNewName=False
                 elif n1.lower().find('pos')>=0:
-                    ireplace(n1,'pos','Vel')
+                    n1=ireplace(n1,'pos','Vel')
                     bDoNewName=False
                 else:
                     n1='d('+n1+')/dt'
