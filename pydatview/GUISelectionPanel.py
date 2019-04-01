@@ -17,17 +17,27 @@ __all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES
 SEL_MODES    = ['auto','Same tables'    ,'Different tables'  ]
 SEL_MODES_ID = ['auto','sameColumnsMode','twoColumnsMode']
 
+def ireplace(text, old, new):
+    """ Replace case insensitive """
+    try:
+        index_l = text.lower().index(old.lower())
+        return text[:index_l] + new + text[index_l + len(old):] 
+    except:
+        return text
+
 
 # --------------------------------------------------------------------------------}
 # ---  Formula diagog
 # --------------------------------------------------------------------------------{
 class MyDialog(wx.Dialog):
-    def __init__(self, title='', name='', formula='',columns=[],unit=''):
+    def __init__(self, title='', name='', formula='',columns=[],unit='',xcol='',xunit=''):
         wx.Dialog.__init__(self, None, title=title)
         # --- Data
         self.OK = False
         self.unit=unit.strip().replace(' ','')
         self.columns=['{'+c+'}' for c in columns]
+        self.xcol='{'+xcol+'}'
+        self.xunit=xunit.strip().replace(' ','')
         if len(formula)==0:
             formula=' + '.join(self.columns)
         if len(name)==0:
@@ -36,7 +46,7 @@ class MyDialog(wx.Dialog):
 
 
         quick_lbl = wx.StaticText(self, label="Predefined: " )
-        self.cbQuick = wx.ComboBox(self, choices=['None','x 1000','/ 1000','deg2rad','rad2deg','rpm2radps','radps2rpm','norm','squared'], style=wx.CB_READONLY)
+        self.cbQuick = wx.ComboBox(self, choices=['None','x 1000','/ 1000','deg2rad','rad2deg','rpm2radps','radps2rpm','norm','squared','d/dx'], style=wx.CB_READONLY)
         self.cbQuick.SetSelection(0)
         self.cbQuick.Bind(wx.EVT_COMBOBOX  ,self.onQuickFormula)
  
@@ -167,6 +177,11 @@ class MyDialog(wx.Dialog):
             return ' ['+r+self.unit[1:]+']'
         else:
             return ''
+    def get_deriv_unit(self):
+        if self.unit==self.xunit:
+            return ' [-]'
+        else:
+            return ' ['+self.unit+'/'+self.xunit+']'
 
     def getDefaultName(self):
         if len(self.columns)>0:
@@ -209,6 +224,31 @@ class MyDialog(wx.Dialog):
         elif s=='squared':
             self.formula.SetValue('**2 + '.join(self.columns)+'**2 ')
             self.name.SetValue(n1+'^2'+self.get_squared_unit())
+        elif s=='d/dx':
+            self.formula.SetValue('np.gradient( '+'+'.join(self.columns)+ ', '+self.xcol+' )')
+            nx = self.stripBrackets(self.xcol)
+            bDoNewName=True
+            if self.xunit=='s':
+                if n1.lower().find('speed')>=0:
+                    ireplace(n1,'speed','Acceleration')
+                    bDoNewName=False
+                elif n1.lower().find('velocity')>=0:
+                    ireplace(n1,'velocity','Acceleration')
+                    bDoNewName=False
+                elif n1.lower().find('vel')>=0:
+                    ireplace(n1,'vel','Acc')
+                    bDoNewName=False
+                elif n1.lower().find('position')>=0:
+                    ireplace(n1,'position','speed')
+                    bDoNewName=False
+                elif n1.lower().find('pos')>=0:
+                    ireplace(n1,'pos','Vel')
+                    bDoNewName=False
+                else:
+                    n1='d('+n1+')/dt'
+            else:
+                n1='d('+n1+')/d('+nx+')'
+            self.name.SetValue(n1+self.get_deriv_unit())
         else:
             raise Exception('Unknown quick formula {}'.s)
 
@@ -353,8 +393,13 @@ class ColumnPopup(wx.Menu):
             main_unit=''
 
         sFormula=''
+
+        xcol  = self.parent.comboX.GetStringSelection()
+        xunit = unit(xcol)
+        xcol  = no_unit(xcol)
+
         while (not bValid) and (not bCancelled):
-            dlg = MyDialog(title='Add a new column',columns=columns,unit=main_unit,formula=sFormula)
+            dlg = MyDialog(title='Add a new column',columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,formula=sFormula)
             dlg.CentreOnParent()
             dlg.ShowModal()
             bCancelled = not dlg.OK
