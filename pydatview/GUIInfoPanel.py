@@ -107,6 +107,14 @@ def inty(pd):
         s=pretty_num(v)
     return v,s
 
+def intyintdx(pd):
+    if pd.yIsString or pd.yIsDate or pd.xIsString or pd.xIsDate:
+        return None,'NA'
+    else:
+        v=np.trapz(y=pd.y,x=pd.x)/np.trapz(y=pd.x*0+1,x=pd.x)
+        s=pretty_num(v)
+    return v,s
+
 def intyx1(pd):
     if pd.yIsString or pd.yIsDate or pd.xIsString or pd.xIsDate:
         return None,'NA'
@@ -243,6 +251,7 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'xMax'         , 'al':'R' , 'f':xMax   , 's' :False})
         self.ColsReg.append({'name':'xRange'       , 'al':'R' , 'f':xRange , 's' :False})
         self.ColsReg.append({'name':u'\u222By'     , 'al':'R' , 'f':inty   , 's' :False})
+        self.ColsReg.append({'name':u'\u222By/\u222Bdx', 'al':'R' , 'f':intyintdx   , 's' :False})
         self.ColsReg.append({'name':u'\u222By.x  ' , 'al':'R' , 'f':intyx1 , 's' :False})
         self.ColsReg.append({'name':u'\u222By.x/\u222By' , 'al':'R' , 'f':intyx1_scaled , 's' :False})
         self.ColsReg.append({'name':u'\u222By.x^2' , 'al':'R' , 'f':intyx2 , 's' :False})
