@@ -289,7 +289,6 @@ class MainFrame(wx.Frame):
         self.statusbar.SetStatusText('');
         self.statusbar.SetStatusText('',1);
         self.statusbar.SetStatusText('',2);
-        print(fileformat)
 
         if not os.path.isfile(filename):
             Error(self,'File not found: '+filename)

@@ -369,20 +369,34 @@ class ColumnPopup(wx.Menu):
         dlg.CentreOnParent()
         if dlg.ShowModal() == wx.ID_OK:
             newName=dlg.GetValue()
-            self.parent.tab.renameColumn(self.ISel[0]-1,newName)
+            main=self.parent.mainframe
+            ITab,STab=main.selPanel.getSelectedTables()
+            if haveSameColumns(main.tabs,ITab):
+                for iTab,sTab in zip(ITab,STab):
+                    main.tabs[iTab].renameColumn(self.ISel[0]-1,newName)
+            else:
+                self.parent.tab.renameColumn(self.ISel[0]-1,newName)
             self.parent.updateColumn(self.ISel[0],newName) #faster
             self.parent.selPanel.updateLayout()
             # a trigger for the plot is required but skipped for now
 
     def OnDeleteColumn(self, event):
+        main=self.parent.mainframe
         iX = self.parent.comboX.GetSelection()
-        self.parent.tab.deleteColumns([i-1 for i in self.ISel if i>0])
+        ITab,STab=main.selPanel.getSelectedTables()
+        if haveSameColumns(main.tabs,ITab):
+            for iTab,sTab in zip(ITab,STab):
+                main.tabs[iTab].deleteColumns([i-1 for i in self.ISel if i>0])
+        else:
+            self.parent.tab.deleteColumns([i-1 for i in self.ISel if i>0])
         self.parent.setColumnNames(xSel=iX)
-        self.parent.mainframe.redraw()
+        main.redraw()
 
     def OnAddColumn(self, event):
         bValid=False
         bCancelled=False
+        main=self.parent.mainframe
+
         if self.parent.bShowID:
             columns=[no_unit(self.parent.lbColumns.GetString(i)[4:]) for i in self.ISel]
         else:
@@ -398,6 +412,7 @@ class ColumnPopup(wx.Menu):
         xunit = unit(xcol)
         xcol  = no_unit(xcol)
 
+
         while (not bValid) and (not bCancelled):
             dlg = MyDialog(title='Add a new column',columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,formula=sFormula)
             dlg.CentreOnParent()
@@ -410,15 +425,23 @@ class ColumnPopup(wx.Menu):
                     i=self.ISel[-1]
                 else:
                     i=-1
-                bValid=self.parent.tab.addColumnByFormula(sName,sFormula,i)
-                if not bValid:
-                    Error(self.parent,'The formula didn''t eval.')
+                # 
+                ITab,STab=main.selPanel.getSelectedTables()
+                if haveSameColumns(main.tabs,ITab):
+                    for iTab,sTab in zip(ITab,STab):
+                        bValid=main.tabs[iTab].addColumnByFormula(sName,sFormula,i)
+                        if not bValid:
+                            Error(self.parent,'The formula didn''t eval for table {}.'.format(sTab))
+                            break
+                else:
+                    bValid=self.parent.tab.addColumnByFormula(sName,sFormula,i)
+                    Error(self.parent,'The formula didn''t eval')
         if bCancelled:
             return
         if bValid:
             iX = self.parent.comboX.GetSelection()
             self.parent.setColumnNames(xSel=iX,ySel=[i+1])
-            self.parent.mainframe.redraw()
+            main.redraw()
 
 
 
