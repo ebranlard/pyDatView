@@ -32,6 +32,9 @@ before_deploy:
   - mv _tools/pyDatView.exe build/nsis/
   - mv build/nsis build/pyDatView_portable_$VERSION_NAME
   - cd build && zip -r ../pyDatView_portable_$VERSION_NAME.zip pyDatView_portable_$VERSION_NAME
+  - ls
+  - cd ..
+  - ls
 
 deploy:
   provider: releases
