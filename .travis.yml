@@ -27,12 +27,11 @@ before_deploy:
   - git clone https://github.com/takluyver/pynsist
   - mv pynsist/nsist nsist 
   - make installer
-  - mv build/nsis/pyDatView.exe pyDatView_setup_$VERSION_NAME.exe
+  - mv build/nsis/pyDatView.exe pyDatView_$VERSION_NAME_setup.exe
   - mv _tools/pyDatView.cmd build/nsis/
   - mv _tools/pyDatView.exe build/nsis/
-  - mv build/nsis build/pyDatView_portable_$VERSION_NAME
-  - cd build && zip -r ../pyDatView_portable_$VERSION_NAME.zip pyDatView_portable_$VERSION_NAME
-  - ls
+  - mv build/nsis build/pyDatView_$VERSION_NAME
+  - cd build && zip -r ../pyDatView_$VERSION_NAME_portable.zip pyDatView_$VERSION_NAME
   - cd ..
   - ls
 
