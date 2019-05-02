@@ -43,7 +43,7 @@ int main (int argc, char** argv) {
     // --- Hidding window
     HWND hWnd = GetConsoleWindow();
     ShowWindow( hWnd, SW_MINIMIZE );  //won't hide the window without SW_MINIMIZE
-    ShowWindow( hWnd, SW_HIDE );
+    //ShowWindow( hWnd, SW_HIDE );
 
     // --- List of argumenst to python list of string
     int i;
@@ -80,6 +80,6 @@ int main (int argc, char** argv) {
     //pfullCommand=concat(wd,mainCommand);
     //printf("Full command: %s\n", pfullCommand);
     //system(pfullCommand);
-    free(pfullCommand);
+    //free(pfullCommand);
     return 0;
 }
