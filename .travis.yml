@@ -28,6 +28,10 @@ before_deploy:
   - mv pynsist/nsist nsist 
   - make installer
   - mv build/nsis/pyDatView.exe pyDatView_setup_$VERSION_NAME.exe
+  - mv _tools/pyDatView.cmd build/nsis/
+  - mv _tools/pyDatView.exe build/nsis/
+  - mv build/nsis build/pyDatView_portable_$VERSION_NAME
+  - cd build && zip -r ../pyDatView_portable_$VERSION_NAME.zip pyDatView_portable_$VERSION_NAME
 
 deploy:
   provider: releases
@@ -37,6 +41,7 @@ deploy:
   skip_cleanup: true
   file:
       - pyDatView*.exe
+      - pyDatView*.zip
   name: $VERSION_NAME
   target_commitish: $TRAVIS_COMMIT 
   tag_name: $TRAVIS_TAG 

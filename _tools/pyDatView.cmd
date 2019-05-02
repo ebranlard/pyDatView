@@ -1,1 +1,2 @@
-start pythonw %~dp0\..\pyDatView.py %1
+start .\Python\pythonw.exe -c "import pydatview; pydatview.show()"
+
