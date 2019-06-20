@@ -926,10 +926,16 @@ class PlotPanel(wx.Panel):
             else:
                 ax.set_ylabel('')
         # Legend
-        usy = unique([PD[i].syl for i in axes[0].iPD])
-        if len(usy)>1 or self.pltTypePanel.cbCompare.GetValue():
+        usyP0 = unique([PD[i].syl for i in axes[0].iPD])
+        if len(usyP0)>1 or self.pltTypePanel.cbCompare.GetValue():
             #axes[0].legend(fancybox=False, framealpha=1, loc=1, shadow=None)
             axes[0].legend(fancybox=False, loc=1)
+        elif len(axes)>1 and len(axes)==len(PD):
+            # Special case when we have subplots and all plots have the same label
+            usy = unique([pd.sy for pd in PD])
+            if len(usy)==1:
+                for ax in axes:
+                    ax.legend(fancybox=False, loc=1)
             
         for ax in self.fig.axes:
             # Somehow doesn't work due to zoom #22 #12
@@ -963,8 +969,13 @@ class PlotPanel(wx.Panel):
                 spreadBy='iy'
         elif mode=='nTabs_SameCols':
             if bSubPlots:
-                nSubPlots=len(usy)
-                spreadBy='iy'
+                if len(usy)==1:
+                    # Temporary hack until we have an option for spread by tabs or col
+                    nSubPlots=len(uTabs)
+                    spreadBy='it'
+                else:
+                    nSubPlots=len(usy)
+                    spreadBy='iy'
         else:
             mode='nTabs_1Col'
             if bSubPlots:
