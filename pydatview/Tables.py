@@ -60,20 +60,35 @@ class Table(object):
 
     def convertTimeColumns(self):
         if len(self.data)>0:
+            #print(self.data.dtypes)
             for i,c in enumerate(self.columns):
                 y = self.data.iloc[:,i]
-                if y.dtype == np.object and isinstance(y.values[0], str):
-                    try:
-                        parser.parse(y.values[0])
-                        isDate=True
-                    except:
-                        if y.values[0]=='NaT':
+                if y.dtype == np.object:
+                    if isinstance(y.values[0], str):
+                        # tring to convert to date
+                        try:
+                            parser.parse(y.values[0])
                             isDate=True
+                        except:
+                            if y.values[0]=='NaT':
+                                isDate=True
+                            else:
+                                isDate=False
+                        if isDate:
+                            self.data[c]=pd.to_datetime(self.data[c].values).to_pydatetime()
+                            print('Column {} converted to datetime'.format(c))
                         else:
-                            isDate=False
-                    if isDate:
-                        print('Converting column {} to datetime'.format(c))
-                        self.data.iloc[:,i]=pd.to_datetime(self.data.iloc[:,i].values).to_pydatetime()
+                            print('Column {} inferred to string'.format(c))
+                    elif isinstance(y.values[0], (float, int)):
+                        try:
+                            self.data[c]=self.data[c].astype(float)
+                            print('Column {} converted to float (likely nan)'.format(c))
+                        except:
+                            self.data[c]=self.data[c].astype(str)
+                            print('Column {} inferred to string'.format(c))
+                    else :
+                        print('>> Unknown type:',type(y.values[0]))
+            #print(self.data.dtypes)
 
     def renameColumn(self,iCol,newName):
         self.columns[iCol]=newName
