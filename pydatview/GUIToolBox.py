@@ -113,7 +113,7 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
             self.zoom()
         else:
             NavigationToolbar2Wx.pan(self,*args)
-# 
-#     def home(self, *args):
-#         """Restore the original view."""
-#         self.canvas.GetParent().redraw_same_data()
+
+    def home(self, *args):
+        """Restore the original view."""
+        self.canvas.GetParent().redraw_same_data()
