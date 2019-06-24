@@ -859,27 +859,22 @@ class SelectionPanel(wx.Panel):
         if hasattr(self,'tabs') and len(self.tabs)>0:
             ITab,STab = self.getSelectedTables()
             iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
-            if self._mode =='sameColumnsMode':
-                SameCol=True
+            SameCol=haveSameColumns(self.tabs,ITab)
+            if self._mode =='sameColumnsMode' or SameCol:
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     for j,(iy,sy) in enumerate(zip(IY1,SY1)):
                         ID.append([itab,iX1,iy,sX1,sy,stab])
             elif self._mode =='twoColumnsMode':
-                SameCol=haveSameColumns(self.tabs,ITab)
                 if len(ITab)>=1:
                     for j,(iy,sy) in enumerate(zip(IY1,SY1)):
                         ID.append([ITab[0],iX1,iy,sX1,sy,STab[0]])
                 if len(ITab)>=2:
-                    if SameCol:
-                        iX2=iX1;IY2=IY1;sX2=sX1;SY2=SY1;
-                    else:
-                        iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
+                    iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
                     for j,(iy,sy) in enumerate(zip(IY2,SY2)):
                         ID.append([ITab[1],iX2,iy,sX2,sy,STab[1]])
             else:
                 raise Exception('Unknown mode {}'.format(self._mode))
         return ID,SameCol
-
 
     def getSelectedTables(self):
         I=self.tabPanel.lbTab.GetSelections()
