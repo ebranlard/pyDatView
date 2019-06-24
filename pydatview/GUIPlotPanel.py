@@ -7,7 +7,6 @@ matplotlib.use('Agg') # Important for Windows version of installer
 from matplotlib import rc as matplotlib_rc
 try:
     from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-    from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 except Exception as e:
     print('')
     print('Error: problem importing `matplotlib.backends.backend_wx`.')
@@ -28,11 +27,8 @@ except Exception as e:
         sys.exit(1)
     else:
         raise e
-from matplotlib.backend_bases import NavigationToolbar2
 from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
-from matplotlib.widgets import Cursor
-from matplotlib.widgets import AxesWidget
 import gc
 
 try:
@@ -40,11 +36,13 @@ try:
     from .damping import logDecFromDecay
     from .common import * 
     from .GUICommon import * 
+    from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
 except:
     from spectral import pwelch, psd, hamming , boxcar, hann, fnextpow2
     from damping import logDecFromDecay
     from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit getDt
     from GUICommon import * 
+    from GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -53,76 +51,6 @@ pyplot_rc['agg.path.chunksize'] = 20000
 def unique(l):
     used=set()
     return [x for x in l if x not in used and (used.add(x) or True)]
-
-# --------------------------------------------------------------------------------}
-# --- Plot Panel 
-# --------------------------------------------------------------------------------{
-class MyCursor(Cursor):
-    def onmove(self, event):
-        """on mouse motion draw the cursor if visible"""
-        if self.ignore(event):
-            return
-        # Disabling lock so that we can have cross hairwith zoom
-        #if not self.canvas.widgetlock.available(self):
-        #    return
-        if event.inaxes != self.ax:
-            self.linev.set_visible(False)
-            self.lineh.set_visible(False)
-
-            if self.needclear:
-                self.canvas.draw()
-                self.needclear = False
-            return
-        self.needclear = True
-        if not self.visible:
-            return
-        self.linev.set_xdata((event.xdata, event.xdata))
-
-        self.lineh.set_ydata((event.ydata, event.ydata))
-        self.linev.set_visible(self.visible and self.vertOn)
-        self.lineh.set_visible(self.visible and self.horizOn)
-
-        self._update()
-
-
-
-class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
-    def __init__(self, canvas):
-        # Taken from matplotlib/backend_wx.py but added style:
-        wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
-        NavigationToolbar2.__init__(self, canvas)
-
-        self.canvas = canvas
-        self._idle = True
-        self.statbar = None
-        self.prevZoomRect = None
-        self.zoom() # NOTE: #22 BREAK cursors #12!
-        self.retinaFix = 'wxMac' in wx.PlatformInfo
-        # --- Modif
-        #NavigationToolbar2Wx.__init__(self, plotCanvas)
-        self.DeleteToolByPos(1)
-        self.DeleteToolByPos(1)
-        self.DeleteToolByPos(3)
-        #self.SetBackgroundColour('white')
-    def press_zoom(self, event):
-        
-        NavigationToolbar2Wx.press_zoom(self,event)
-        #self.SetToolBitmapSize((22,22))
-    def press_pan(self, event):
-        #print('>> Press_pan HACKED')
-        NavigationToolbar2Wx.press_pan(self,event)
-
-    def zoom(self, *args):
-        #print('>> Zoom HACKED')
-        NavigationToolbar2Wx.zoom(self,*args)
-
-    def pan(self, *args):
-        if self._active=='PAN':
-            NavigationToolbar2Wx.pan(self,*args)
-            self.zoom()
-        else:
-            NavigationToolbar2Wx.pan(self,*args)
-
 class LogDecToolPanel(wx.Panel):
     def __init__(self, parent):
         super(LogDecToolPanel,self).__init__(parent)
@@ -850,7 +778,7 @@ class PlotPanel(wx.Panel):
 
 
     def plot_all(self):
-        self.cursors=[];
+        self.multiCursors=[]
         axes=self.fig.axes
 
         bScatter=self.cbScatter.IsChecked()
@@ -937,10 +865,12 @@ class PlotPanel(wx.Panel):
                 for ax in axes:
                     ax.legend(fancybox=False, loc=1)
             
-        for ax in self.fig.axes:
-            # Somehow doesn't work due to zoom #22 #12
-            self.cursors.append(MyCursor(ax,horizOn=True, vertOn=True, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
-
+        # --- Cursors for each individual plot
+        # NOTE: cursors needs to be stored in the object!
+        #for ax in self.fig.axes:
+        #    self.cursors.append(MyCursor(ax,horizOn=True, vertOn=False, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
+        # Vertical cusor for all, commonly
+        self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn = True, vertOn=True, color='gray', linewidth=0.5, linestyle=':')
 
     def findPlotMode(self,PD):
         uTabs=unique([pd.it for pd in PD])
