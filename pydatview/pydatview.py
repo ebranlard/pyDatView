@@ -59,7 +59,7 @@ FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_
 FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
 FILE_READER             = weio.read
 
-SIDE_COL = [160,160,300,420]
+SIDE_COL = [160,160,300,420,530]
 BOT_PANL =85
 
 #matplotlib.rcParams['text.usetex'] = False
@@ -402,6 +402,8 @@ class MainFrame(wx.Frame):
             self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel1.lbColumns)
             self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel2.comboX   )
             self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel2.lbColumns)
+            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel3.comboX   )
+            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel3.lbColumns)
             self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.tabPanel.lbTab)
             self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
 
@@ -476,6 +478,7 @@ class MainFrame(wx.Frame):
 
     def onTabSelectionChange(self,event=None):
         # TODO all this can go in TabPanel
+        # TODO This can be cleaned-up
         #print('Tab selection change')
         # Storing the previous selection 
         #self.selPanel.printSelection()
@@ -487,25 +490,33 @@ class MainFrame(wx.Frame):
                 # Setting tab
                 self.selPanel.setTabForCol(ISel[0],1) 
                 self.selPanel.colPanel2.empty()
+                self.selPanel.colPanel3.empty()
             else:
                 if self.selPanel._mode=='twoColumnsMode':
                     if len(ISel)>2:
-                        Error(self,'In this mode, only two tables can be selected. To compare more than two tables, the tables need to have the same columns.')
-                        ISel=[ISel[0]]
+                        Error(self,'In this mode, only two tables can be selected. To compare three tables, uses the "3 different tables" mode. Otherwise the tables need to have the same columns.')
+                        ISel=ISel[0:2]
                         self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
-                        self.selPanel.tabPanel.lbTab.SetSelection(ISel[0])
-                        self.selPanel.setTabForCol(ISel[0],1) 
-                        self.selPanel.colPanel2.empty()
-                    else: # two panels selected
-                        self.selPanel.setTabForCol(ISel[0],1) 
-                        self.selPanel.setTabForCol(ISel[1],2) 
+                        for isel in ISel:
+                            self.selPanel.tabPanel.lbTab.SetSelection(isel)
+                    self.selPanel.colPanel3.empty()
+                elif self.selPanel._mode=='threeColumnsMode':
+                    if len(ISel)>3:
+                        Error(self,'In this mode, only three tables can be selected. To compare more than three tables, the tables need to have the same columns.')
+                        ISel=ISel[0:3]
+                        self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
+                        for isel in ISel:
+                            self.selPanel.tabPanel.lbTab.SetSelection(isel)
                 else:
-                    Error(self,'The two tables have different columns. Chose the "two table mode" to compare them.')
+                    Error(self,'The tables have different columns. Chose the "2/3 table mode" to compare them.')
+                    self.selPanel.colPanel2.empty()
+                    self.selPanel.colPanel3.empty()
                     # unselect all and select only the first one
                     ISel=[ISel[0]]
                     self.selPanel.tabPanel.lbTab.SetSelection(wx.NOT_FOUND)
                     self.selPanel.tabPanel.lbTab.SetSelection(ISel[0])
-                    self.selPanel.setTabForCol(ISel[0],1) 
+                for iPanel,iTab in enumerate(ISel):
+                    self.selPanel.setTabForCol(iTab,iPanel+1) 
             #print('>>>Updating tabSelected, from',self.selPanel.tabSelected,'to',self.selPanel.tabPanel.lbTab.GetSelections())
             self.selPanel.tabSelected=self.selPanel.tabPanel.lbTab.GetSelections()
 
@@ -522,13 +533,17 @@ class MainFrame(wx.Frame):
 
     def onColSelectionChange(self,event=None):
         if hasattr(self,'plotPanel'):
-            if self.selPanel._mode=='twoColumnsMode':
+            if self.selPanel._mode=='twoColumnsMode' or self.selPanel._mode=='threeColumnsMode':
                 ISel=self.selPanel.tabPanel.lbTab.GetSelections()
                 if haveSameColumns(self.tabs,ISel):
                     pass # NOTE: this test is identical to onTabSelectionChange. Unification.
                 elif len(ISel)==2:
                     self.selPanel.colPanel1.forceOneSelection()
                     self.selPanel.colPanel2.forceOneSelection()
+                elif len(ISel)==3:
+                    self.selPanel.colPanel1.forceOneSelection()
+                    self.selPanel.colPanel2.forceOneSelection()
+                    self.selPanel.colPanel3.forceOneSelection()
             self.plotPanel.redraw()
             #print(self.tabs)
             # --- Stats trigger

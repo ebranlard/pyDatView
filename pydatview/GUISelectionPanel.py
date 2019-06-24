@@ -14,8 +14,8 @@ except:
 
 __all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES_ID','TablePopup','ColumnPopup']
 
-SEL_MODES    = ['auto','Same tables'    ,'Different tables'  ]
-SEL_MODES_ID = ['auto','sameColumnsMode','twoColumnsMode']
+SEL_MODES    = ['auto','Same tables'    ,'2 tables','3 tables (exp.)'  ]
+SEL_MODES_ID = ['auto','sameColumnsMode','twoColumnsMode'  ,'threeColumnsMode' ]
 
 def ireplace(text, old, new):
     """ Replace case insensitive """
@@ -660,9 +660,11 @@ class SelectionPanel(wx.Panel):
         self.tabPanel  = TablePanel (self.splitter,mainframe,self.tabs);
         self.colPanel1 = ColumnPanel(self.splitter, self, mainframe);
         self.colPanel2 = ColumnPanel(self.splitter, self, mainframe);
+        self.colPanel3 = ColumnPanel(self.splitter, self, mainframe);
         self.tabPanel.Hide()
         self.colPanel1.Hide()
         self.colPanel2.Hide()
+        self.colPanel3.Hide()
 
         # Layout
         self.updateLayout()
@@ -689,6 +691,8 @@ class SelectionPanel(wx.Panel):
             self.sameColumnsMode()
         elif mode=='twoColumnsMode':
             self.twoColumnsMode()
+        elif mode=='threeColumnsMode':
+            self.threeColumnsMode()
         else:
             raise Exception('Wrong mode for selection layout: {}'.format(self.mode))
 
@@ -698,13 +702,12 @@ class SelectionPanel(wx.Panel):
             if len(self.tabs)<=0:
                 self._mode='auto'
                 self.splitter.removeAll()
-            elif len(self.tabs)==1:
+            elif haveSameColumns(self.tabs):
                 self.sameColumnsMode()
+            elif len(self.tabs)==2:
+                self.twoColumnsMode()
             else:
-                if haveSameColumns(self.tabs):
-                    self.sameColumnsMode()
-                else:
-                    self.twoColumnsMode()
+                self.threeColumnsMode()
 
     def sameColumnsMode(self):
         self._mode='sameColumnsMode'
@@ -721,6 +724,14 @@ class SelectionPanel(wx.Panel):
         self.splitter.AppendWindow(self.colPanel2) 
         self.splitter.AppendWindow(self.colPanel1) 
         self.splitter.setEquiSash()
+    def threeColumnsMode(self):
+        self._mode='threeColumnsMode'
+        self.splitter.removeAll()
+        self.splitter.AppendWindow(self.tabPanel) 
+        self.splitter.AppendWindow(self.colPanel3) 
+        self.splitter.AppendWindow(self.colPanel2) 
+        self.splitter.AppendWindow(self.colPanel1) 
+        self.splitter.setEquiSash()
         #self.parent.GetParent().GetParent().GetParent().resizeSideColumn(SIDE_COL_LARGE)
 
     def updateTables(self,tabs):
@@ -730,6 +741,7 @@ class SelectionPanel(wx.Panel):
         # Emptying GUI - TODO only if needed
         self.colPanel1.empty()
         self.colPanel2.empty()
+        self.colPanel3.empty()
         # Adding
         self.tabs = tabs
         self.tabPanel.tabs = tabs
@@ -756,11 +768,17 @@ class SelectionPanel(wx.Panel):
             # Trigger - updating columns and layout
             ISel=self.tabPanel.lbTab.GetSelections()
             self.tabSelected=ISel
-            if len(ISel)>=2:
+            if len(ISel)==1:
+                self.setTabForCol(ISel[0],1)
+            elif len(ISel)==2:
                 self.setTabForCol(ISel[0],1)
                 self.setTabForCol(ISel[1],2)
-            else:
+            elif len(ISel)==3:
                 self.setTabForCol(ISel[0],1)
+                self.setTabForCol(ISel[1],2)
+                self.setTabForCol(ISel[2],3)
+            else:
+                raise Exception('Too many table selected.')
         self.updateLayout(self.modeRequested)
 
     def setTabForCol(self,iTabSel,iPanel):
@@ -770,6 +788,8 @@ class SelectionPanel(wx.Panel):
             self.colPanel1.setTab(t,ts['xSel'],ts['ySel'])
         elif iPanel==2:
             self.colPanel2.setTab(t,ts['xSel'],ts['ySel'])
+        elif iPanel==3:
+            self.colPanel3.setTab(t,ts['xSel'],ts['ySel'])
         else:
             raise Exception('Wrong ipanel')
 
@@ -809,6 +829,10 @@ class SelectionPanel(wx.Panel):
                 t=self.tabs[ISel[1]]
                 self.tabSelections[t.name]['xSel'] = self.colPanel2.comboX.GetSelection()
                 self.tabSelections[t.name]['ySel'] = self.colPanel2.lbColumns.GetSelections()
+            if len(ISel)>=3:
+                t=self.tabs[ISel[1]]
+                self.tabSelections[t.name]['xSel'] = self.colPanel3.comboX.GetSelection()
+                self.tabSelections[t.name]['ySel'] = self.colPanel3.lbColumns.GetSelections()
         self.tabSelected = self.tabPanel.lbTab.GetSelections();
 
     def printSelection(self):
@@ -832,7 +856,7 @@ class SelectionPanel(wx.Panel):
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     for j,(iy,sy) in enumerate(zip(IY1,SY1)):
                         ID.append([itab,iX1,iy,sX1,sy,stab])
-            elif self._mode =='twoColumnsMode':
+            elif self._mode =='twoColumnsMode' or self._mode=='threeColumnsMode':
                 if len(ITab)>=1:
                     for j,(iy,sy) in enumerate(zip(IY1,SY1)):
                         ID.append([ITab[0],iX1,iy,sX1,sy,STab[0]])
@@ -840,6 +864,10 @@ class SelectionPanel(wx.Panel):
                     iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
                     for j,(iy,sy) in enumerate(zip(IY2,SY2)):
                         ID.append([ITab[1],iX2,iy,sX2,sy,STab[1]])
+                if len(ITab)>=3:
+                    iX2,IY2,sX2,SY2 = self.colPanel3.getColumnSelection()
+                    for j,(iy,sy) in enumerate(zip(IY2,SY2)):
+                        ID.append([ITab[2],iX2,iy,sX2,sy,STab[1]])
             else:
                 raise Exception('Unknown mode {}'.format(self._mode))
         return ID,SameCol
@@ -852,6 +880,7 @@ class SelectionPanel(wx.Panel):
     def clean_memory(self):
         self.colPanel1.empty()
         self.colPanel2.empty()
+        self.colPanel3.empty()
         self.tabPanel.empty()
         if hasattr(self,'tabs'):
             del self.tabs
