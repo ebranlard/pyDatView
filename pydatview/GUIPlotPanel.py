@@ -710,7 +710,13 @@ class PlotPanel(wx.Panel):
                 yRef = PD_SameCol[0].y
                 ylabelAll=getErrorLabel(PD_SameCol[0].sy)
                 for pd in PD_SameCol[1:]:
-                    pd.y=np.interp(xRef,pd.x,pd.y)
+                    if pd.xIsString:
+                        if len(xRef)==len(pd.x):
+                            pass # fine able to interpolate
+                        else:
+                            Error(self,'X values have different length and are strings, cannot interpolate string. Use `Index` for x instead.')
+                    else:
+                        pd.y=np.interp(xRef,pd.x,pd.y)
                     if sComp=='Y-Y':
                         pd.x=yRef
                         pd.sx=PD_SameCol[0].st+', '+PD_SameCol[0].sy
