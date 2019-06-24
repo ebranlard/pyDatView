@@ -420,7 +420,7 @@ class PlotPanel(wx.Panel):
         for ax in self.fig.axes:
             self.fig.delaxes(ax)
         sharex=None
-        bSubPlots = self.cbSub.IsChecked() and (not self.pltTypePanel.cbCompare.GetValue())
+        bSubPlots = self.cbSub.IsChecked()
         if bSubPlots:
             for i in range(nPlots):
                 # Vertical stack
@@ -703,6 +703,7 @@ class PlotPanel(wx.Panel):
             # --- Compare different tables, same column
             #print('Several Tabs, same columns')
             uiy=unique([pd.iy for pd in PD])
+            uit=unique([pd.it for pd in PD])
             self.plotData=[]
             for iy in uiy:
                 PD_SameCol=[pd for pd in PD if pd.iy==iy]
@@ -725,7 +726,10 @@ class PlotPanel(wx.Panel):
                         else:
                             pd.syl= pd.st
                     else:
-                        pd.syl = pd.st+'|'+pd.sy
+                        if len(uit)<=2:
+                            pd.syl = pd.st+' wrt. '+PD_SameCol[0].st+', '+pd.sy
+                        else:
+                            pd.syl = pd.st+'|'+pd.sy
                         pd.sx  = xlabelAll
                         pd.sy  = ylabelAll
                         Error = getError(pd.y,yRef,sComp)
@@ -817,8 +821,13 @@ class PlotPanel(wx.Panel):
             else:
                 ax.set_ylabel('')
         # Legend
+        #print('sy :',[pd.sy for pd in PD])
+        #print('syl:',[pd.syl for pd in PD])
         usyP0 = unique([PD[i].syl for i in axes[0].iPD])
-        if len(usyP0)>1 or self.pltTypePanel.cbCompare.GetValue():
+        if  self.pltTypePanel.cbCompare.GetValue():
+            for ax in axes:
+                ax.legend(fancybox=False, loc=1)
+        elif len(usyP0)>1:
             #axes[0].legend(fancybox=False, framealpha=1, loc=1, shadow=None)
             axes[0].legend(fancybox=False, loc=1)
         elif len(axes)>1 and len(axes)==len(PD):
@@ -853,27 +862,38 @@ class PlotPanel(wx.Panel):
     def findSubPlots(self,PD,mode):
         uTabs=unique([pd.it for pd in PD])
         usy=unique([pd.sy for pd in PD])
-        bSubPlots = self.cbSub.IsChecked() and (not self.pltTypePanel.cbCompare.GetValue())
+        bSubPlots = self.cbSub.IsChecked()
+        bCompare  = self.pltTypePanel.cbCompare.GetValue() # NOTE bCompare somehow always 1Tab_nCols
         nSubPlots=1
         spreadBy='none'
         if mode=='1Tab_nCols':
             if bSubPlots:
-                nSubPlots=len(usy)
-                spreadBy='iy'
-        elif mode=='nTabs_SameCols':
-            if bSubPlots:
-                if len(usy)==1:
-                    # Temporary hack until we have an option for spread by tabs or col
-                    nSubPlots=len(uTabs)
-                    spreadBy='it'
+                if bCompare:
+                    nSubPlots=len(PD)
+                    spreadBy='iy'
                 else:
                     nSubPlots=len(usy)
                     spreadBy='iy'
+        elif mode=='nTabs_SameCols':
+            if bSubPlots:
+                if bCompare:
+                    print('>>>TODO ',mode,len(usy),len(uTabs))
+                else:
+                    if len(usy)==1:
+                        # Temporary hack until we have an option for spread by tabs or col
+                        nSubPlots=len(uTabs)
+                        spreadBy='it'
+                    else:
+                        nSubPlots=len(usy)
+                        spreadBy='iy'
         else:
             mode='nTabs_1Col'
             if bSubPlots:
-                nSubPlots=len(uTabs)
-                spreadBy='it'
+                if bCompare:
+                    print('>>> TODO',mode,len(uTabs))
+                else:
+                    nSubPlots=len(uTabs)
+                    spreadBy='it'
         return nSubPlots,spreadBy
 
     def distributePlots(self,mode,nSubPlots,spreadBy):
