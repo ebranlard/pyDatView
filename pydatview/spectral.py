@@ -22,11 +22,88 @@ from __future__ import division, print_function, absolute_import
 import numpy as np
 from six import string_types
 
-__all__  = ['welch', 'psd', 'fft_amplitude']
+__all__  = ['fft_wrap','welch', 'psd', 'fft_amplitude']
 __all__ += ['pwelch', 'csd', 'coherence']
 __all__ += ['fnextpow2']
 __all__ += ['hann','hamming','boxcar','general_hamming','get_window']
 __all__ += ['TestSpectral']
+
+
+# --------------------------------------------------------------------------------}
+# --- FFT wrap
+# --------------------------------------------------------------------------------{
+def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_window='hamming',detrend=False,nExp=None):
+    """ 
+    Wrapper to compute FFT amplitude or power spectra, with averaging.
+    INPUTS:
+       output_type      : amplitude, PSD, f x PSD
+       averaging_method : None, Welch
+       averaging_window : Hamming, Hann, Rectangular
+    OUTPUTS:
+       frq: vector of frequencies
+       Y  : Amplitude spectrum, PSD, or f * PSD
+       Info: a dictionary of info values
+    """
+
+    # Formatting inputs
+    output_type      = output_type.lower()
+    averaging        = averaging.lower()
+    averaging_window = averaging_window.lower()
+    y = np.asarray(y)
+    y = y[~np.isnan(y)]
+    n = len(y) 
+
+    if dt is None:
+        dtDelta0 = t[1]-t[0]
+        # Hack to use a constant dt
+        dt = (np.max(t)-np.min(t))/(n-1)
+        if dtDelta0 !=dt:
+            print('[WARN] dt from tmax-tmin different from dt from t2-t1' )
+    Fs = 1/dt
+    if averaging=='none':
+        frq, PSD, Info = psd(y, fs=Fs, detrend=detrend, return_onesided=True)
+    elif averaging=='welch':
+        # --- Welch - PSD
+        #overlap_frac=0.5
+        #return fnextpow2(np.sqrt(len(x)/(1-overlap_frac)))
+        nFFTAll=fnextpow2(n)
+        if nExp is None:
+            nExp=int(np.log(nFFTAll)/np.log(2))-1
+        nPerSeg=2**nExp
+        if nPerSeg>n:
+            print('[WARN] Power of 2 value was too high and was reduced. Disable averaging to use the full spectrum.');
+            nExp=int(np.log(nFFTAll)/np.log(2))-1
+            nPerSeg=2**nExp
+        if averaging_window=='hamming':
+           window = hamming(nPerSeg, True)# True=Symmetric, like matlab
+        elif averaging_window=='hann':
+           window = hann(nPerSeg, True)
+        elif averaging_window=='rectangular':
+           window = boxcar(nPerSeg)
+        else:
+            raise Exception('Averaging window unknown {}'.format(averaging_window))
+        frq, PSD, Info = pwelch(y, fs=Fs, window=window, detrend=detrend)
+        Info.nExp = nExp
+    else:
+        raise Exception('Averaging method unknown {}'.format(averaging))
+
+    # --- Formatting output
+    if output_type=='amplitude':
+        deltaf = frq[1]-frq[0]
+        Y = np.sqrt(PSD*2*deltaf)
+        # NOTE: the above should be the same as:Y=abs(Y[range(nhalf)])/n;Y[1:-1]=Y[1:-1]*2;
+    elif output_type=='psd': # one sided
+        Y = PSD
+    elif output_type=='f x psd':
+        Y = PSD*frq
+    else:
+        raise NotImplementedError('Contact developer')
+    if detrend:
+        frq= frq[1:]
+        Y  = Y[1:]
+    return frq, Y, Info
+
+
 
 # --------------------------------------------------------------------------------}
 # --- Spectral simple (averaging below) 

@@ -32,13 +32,13 @@ from matplotlib.pyplot import rcParams as pyplot_rc
 import gc
 
 try:
-    from .spectral import pwelch, psd, hamming , boxcar, hann, fnextpow2
+    from .spectral import fft_wrap
     from .damping import logDecFromDecay
     from .common import * 
     from .GUICommon import * 
     from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
 except:
-    from spectral import pwelch, psd, hamming , boxcar, hann, fnextpow2
+    from spectral import fft_wrap
     from damping import logDecFromDecay
     from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit getDt
     from GUICommon import * 
@@ -529,74 +529,27 @@ class PlotPanel(wx.Panel):
             Warn(self,'Cannot plot FFT if x axis is string')
             self.pltTypePanel.cbRegular.SetValue(True)
         else:
-            #y = np.sin(2*np.pi*2*t)
-            x = d.x
-            y = np.array(d.y)
-            y = y[~np.isnan(y)]
-            n = len(y) 
+            output_type      = self.spcPanel.cbType.GetStringSelection()
+            averaging        = self.spcPanel.cbAveraging.GetStringSelection()
+            averaging_window = self.spcPanel.cbAveragingMethod.GetStringSelection()
+            bDetrend         = self.spcPanel.cbDetrend.IsChecked()
+            nExp             = self.spcPanel.scP2.GetValue()
+            dt=None
             if d.xIsDate:
-                dt = getDt(x)
-            else:
-                dt = x[1]-x[0]
-                # Hack to use a constant dt
-                dt = (np.max(x)-np.min(x))/(n-1)
-                #uu,cc= np.unique(np.diff(x), return_counts=True)
-                #print(np.asarray((uu,cc)).T)
-            Fs = 1/dt
-            #print('dt=',dt,'Fs=',Fs)
-            #print(x[0:5])
-            sType    = self.spcPanel.cbType.GetStringSelection()
-            sAvg     = self.spcPanel.cbAveraging.GetStringSelection()
-            bDetrend = self.spcPanel.cbDetrend.IsChecked()
-            if sAvg=='None':
-                frq, PSD, Info = psd(y, fs=Fs, detrend=bDetrend, return_onesided=True)
-            elif sAvg=='Welch':
-                # --- Welch - PSD
-                #overlap_frac=0.5
-                nFFTAll=fnextpow2(n)
-                nExp=self.spcPanel.scP2.GetValue()
-                nPerSeg=2**nExp
-                sAvgMethod = self.spcPanel.cbAveragingMethod.GetStringSelection()
-                if nPerSeg>n:
-                    #Warn(self, 'Power of 2 value was too high and was reduced. Disable averaging to use the full spectrum.');
-                    nExp=int(np.log(nFFTAll)/np.log(2))-1
-                    nPerSeg=2**nExp
-                    self.spcPanel.scP2.SetValue(nExp)
-                    self.spcPanel.updateP2(nExp)
-                    #nPerSeg=n # <<< Possibility to use this with a rectangular window
-                if sAvgMethod=='Hamming':
-                   window = hamming(nPerSeg, True)# True=Symmetric, like matlab
-                elif sAvgMethod=='Hann':
-                   window = hann(nPerSeg, True)
-                elif sAvgMethod=='Rectangular':
-                   window = boxcar(nPerSeg)
-                else:
-                    raise NotImplementedError('Contact developer')
-                frq, PSD, Info = pwelch(y, fs=Fs, window=window, detrend=bDetrend)
-            else:
-                raise Exception('Averaging method unknown {}'.format(sAvg))
-            if sType=='Amplitude':
-                deltaf = frq[1]-frq[0]
-                Y = np.sqrt(PSD*2*deltaf)
-                # NOTE: the above should be the same as:Y=abs(Y[range(nhalf)])/n;Y[1:-1]=Y[1:-1]*2;
-            elif sType=='PSD': # One sided
-                Y = PSD
-            elif sType=='f x PSD':
-                Y = PSD*frq
-            else:
-                raise NotImplementedError('Contact developer')
-            if bDetrend:
-                frq=frq[1:]
-                Y  =Y[1:]
+                dt = getDt(d.x)
+            # --- Computing fft - x is freq, y is Amplitude
+            d.x, d.y, Info = fft_wrap(d.x, d.y, dt=dt, output_type=output_type,averaging=averaging,averaging_window=averaging_window,detrend=bDetrend,nExp=nExp)
+            # --- Setting plot options
             d.Info=Info
-            d.x=frq
             d.xIsDate=False
-            d.y=Y
             d.sy= 'FFT('+no_unit(d.sy)+')'
             if unit(d.sx)=='s':
                 d.sx= 'Frequency [Hz]'
             else:
                 d.sx= ''
+            if hasattr(Info,'nExp') and Info.nExp!=nExp:
+                self.spcPanel.scP2.SetValue(Info.nExp)
+                self.spcPanel.updateP2(Info.nExp)
 
 
     def getPlotData(self,plotType):
@@ -837,6 +790,10 @@ class PlotPanel(wx.Panel):
                     xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
                     if xlim>0:
                         ax.set_xlim([0,xlim])
+                        pd=PD[ax.iPD[0]]
+                        I=pd.x<xlim
+                        ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax.iPD])
+                        ax.set_ylim(bottom=ymin/2)
                 except:
                     pass
             # Special Grids
