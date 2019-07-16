@@ -61,7 +61,7 @@ class Table(object):
     def convertTimeColumns(self):
         if len(self.data)>0:
             #print(self.data.dtypes)
-            for i,c in enumerate(self.columns):
+            for i,c in enumerate(self.data.columns.values):
                 y = self.data.iloc[:,i]
                 if y.dtype == np.object:
                     if isinstance(y.values[0], str):
