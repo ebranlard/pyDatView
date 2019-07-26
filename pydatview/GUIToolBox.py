@@ -72,8 +72,9 @@ class MyMultiCursor(MultiCursor):
             if self.horizOn:
                 # MANU: horizontal line only in current axes
                 for ax, line in zip(self.axes, self.hlines):
-                    if (self.horizLocal and currentaxes == ax) or (not self.horizLocal):
-                        ax.draw_artist(line)
+                    pass
+                    #if (self.horizLocal and currentaxes == ax) or (not self.horizLocal):
+                    #    ax.draw_artist(line)
             self.canvas.blit(self.canvas.figure.bbox)
         else:
             self.canvas.draw_idle()
