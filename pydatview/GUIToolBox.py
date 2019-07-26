@@ -39,8 +39,34 @@ class MyMultiCursor(MultiCursor):
     def __init__(self, canvas, axes, useblit=True, horizOn=False, vertOn=True, horizLocal=True,
                  **lineprops):
         # Taken from matplotlib/widget.py but added horizLocal
-        super(MyMultiCursor,self).__init__(canvas, axes, useblit, horizOn, vertOn, **lineprops)
+        #super(MyMultiCursor,self).__init__(canvas, axes, useblit, horizOn, vertOn, **lineprops)
+        self.canvas = canvas
+        self.axes = axes
+        self.horizOn = horizOn
+        self.vertOn = vertOn
+        self.visible = True
+        self.useblit = useblit and self.canvas.supports_blit
+        self.background = None
+        self.needclear = False
+        if self.useblit:
+            lineprops['animated'] = True
+        self.vlines = []
+        self.hlines = []
+        # MANU: xid and ymid are per axis basis
+        for ax in axes:
+            xmin, xmax = ax.get_xlim()
+            ymin, ymax = ax.get_ylim()
+            xmid = 0.5 * (xmin + xmax)
+            ymid = 0.5 * (ymin + ymax)
+            if vertOn:
+                self.vlines.append(ax.axvline(xmid, visible=False, **lineprops))
+            if horizOn:
+                self.hlines.append(ax.axhline(ymid, visible=False, **lineprops))
+
+        self.connect()
+        # ---
         self.horizLocal = horizLocal
+
     def onmove(self, event):
         if self.ignore(event):
             return
@@ -72,9 +98,8 @@ class MyMultiCursor(MultiCursor):
             if self.horizOn:
                 # MANU: horizontal line only in current axes
                 for ax, line in zip(self.axes, self.hlines):
-                    pass
-                    #if (self.horizLocal and currentaxes == ax) or (not self.horizLocal):
-                    #    ax.draw_artist(line)
+                    if (self.horizLocal and currentaxes == ax) or (not self.horizLocal):
+                        ax.draw_artist(line)
             self.canvas.blit(self.canvas.figure.bbox)
         else:
             self.canvas.draw_idle()
