@@ -867,7 +867,7 @@ class SelectionPanel(wx.Panel):
                 if len(ITab)>=3:
                     iX2,IY2,sX2,SY2 = self.colPanel3.getColumnSelection()
                     for j,(iy,sy) in enumerate(zip(IY2,SY2)):
-                        ID.append([ITab[2],iX2,iy,sX2,sy,STab[1]])
+                        ID.append([ITab[2],iX2,iy,sX2,sy,STab[2]])
             else:
                 raise Exception('Unknown mode {}'.format(self._mode))
         return ID,SameCol
