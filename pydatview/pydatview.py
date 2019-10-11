@@ -426,6 +426,18 @@ class MainFrame(wx.Frame):
         # Lowlevel update of GUI
         self.selPanel.renameTable(iTab, oldName, newName)
 
+    def sortTabs(self, method='byName'):
+        if method=='byName':
+            tabnames_display=self.selPanel.tabPanel.getDisplayTabNames()
+            self.tabs = [t for _,t in sorted(zip(tabnames_display,self.tabs))]
+        else:
+            raise Exception('Sorting method unknown: `{}`'.format(method))
+        # Updating tables
+        self.selPanel.update_tabs(self.tabs)
+        # Trigger a replot
+        self.onTabSelectionChange()
+
+
     def deleteTabs(self, I):
         # removing table slections
         # TODO TODO TODO self.selPanel.tabSelections[t.name]

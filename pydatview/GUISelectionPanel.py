@@ -275,7 +275,11 @@ class TablePopup(wx.Menu):
             self.itNameFile = wx.MenuItem(self, -1, "Naming: by file names", kind=wx.ITEM_CHECK)
             self.MyAppend(self.itNameFile)
             self.Bind(wx.EVT_MENU, self.OnNaming, self.itNameFile)
-            self.Check(self.itNameFile.GetId(), self.parent.GetParent().Naming=='FileNames')
+            self.Check(self.itNameFile.GetId(), self.parent.GetParent().Naming=='FileNames') # Checking the menu box
+
+            item = wx.MenuItem(self, -1, "Sort by name")
+            self.MyAppend(item)
+            self.Bind(wx.EVT_MENU, self.OnSort, item)
 
             item = wx.MenuItem(self, -1, "Add")
             self.MyAppend(item)
@@ -325,6 +329,9 @@ class TablePopup(wx.Menu):
 
     def OnExportTab(self, event):
         self.mainframe.exportTab(self.ISel[0]);
+
+    def OnSort(self, event):
+        self.mainframe.sortTabs()
 
 class ColumnPopup(wx.Menu):
     def __init__(self, parent, fullmenu=False):
@@ -481,13 +488,16 @@ class TablePanel(wx.Panel):
         self.PopupMenu(menu, pos)
         menu.Destroy()
 
-    def updateTabNames(self):
+    def getDisplayTabNames(self):
         if self.Naming=='Ellude':
-            tabnames_display=ellude_common([t.raw_name for t in self.tabs])
+            return  ellude_common([t.raw_name for t in self.tabs])
         elif self.Naming=='FileNames':
-            tabnames_display=[os.path.splitext(os.path.basename(t.filename))[0] for t in self.tabs]
+            return [os.path.splitext(os.path.basename(t.filename))[0] for t in self.tabs]
         else:
             raise Exception('Table naming unknown: {}'.format(self.Naming))
+
+    def updateTabNames(self):
+        tabnames_display=self.getDisplayTabNames()
         # Storing selection
         ISel=self.lbTab.GetSelections()
         # Setting List Box
@@ -502,6 +512,8 @@ class TablePanel(wx.Panel):
 
     def empty(self):    
         self.lbTab.Clear()
+
+
 
 # --------------------------------------------------------------------------------}
 # --- ColumnPanel
