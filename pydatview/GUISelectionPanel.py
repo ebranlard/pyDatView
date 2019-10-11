@@ -659,12 +659,14 @@ class SelectionPanel(wx.Panel):
         # Superclass constructor
         super(SelectionPanel,self).__init__(parent)
         # DATA
+        self.mainframe     = mainframe
         self.tabs          = []
         self.itabForCol    = None
         self.parent        = parent
         self.tabSelections = {}
-        self.tabSelected   = []
+        self.tabSelected   = [] # NOTE only used to remember a selection after a reload
         self.modeRequested = mode
+        self.nSplits = -1
 
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
@@ -687,8 +689,7 @@ class SelectionPanel(wx.Panel):
         # TRIGGERS
         if len(tabs)>0:
             #print(tabs)
-            self.updateTables(tabs)
-            self.selectDefaultTable()
+            self.setTables(tabs)
             # TODO
             #self.colPanel1.selectDefaultColumns(self.tabs[self.itabForCol])
 
@@ -710,45 +711,65 @@ class SelectionPanel(wx.Panel):
 
 
     def autoMode(self):
+        ISel=self.tabPanel.lbTab.GetSelections()
         if hasattr(self,'tabs'):
             if len(self.tabs)<=0:
-                self._mode='auto'
+                self.nSplits=-1
                 self.splitter.removeAll()
             elif haveSameColumns(self.tabs):
                 self.sameColumnsMode()
-            elif len(self.tabs)==2:
+            elif haveSameColumns(self.tabs,ISel):
+                # We don't do same column because we know at least one table is different
+                # to avoid "jumping" too much
                 self.twoColumnsMode()
-            else:
+            elif len(ISel)==2:
+                self.twoColumnsMode()
+            elif len(ISel)==3:
                 self.threeColumnsMode()
+            else:
+                raise Exception('Too many panels selected')
 
     def sameColumnsMode(self):
-        self._mode='sameColumnsMode'
+        if self.nSplits==1:
+            return
         self.splitter.removeAll()
         if hasattr(self,'tabs'):
             if len(self.tabs)>1:
                 self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel1) 
+        if  self.mainframe is not None:
+            self.mainframe.mainFrameUpdateLayout()
+        self.nSplits=1
 
     def twoColumnsMode(self):
-        self._mode='twoColumnsMode'
+        if self.nSplits==2:
+            return
         self.splitter.removeAll()
         self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel2) 
         self.splitter.AppendWindow(self.colPanel1) 
         self.splitter.setEquiSash()
+        if self.nSplits<2 and self.mainframe is not None:
+            self.mainframe.mainFrameUpdateLayout()
+        self.nSplits=2
+
     def threeColumnsMode(self):
-        self._mode='threeColumnsMode'
+        if self.nSplits==3:
+            return
         self.splitter.removeAll()
         self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel3) 
         self.splitter.AppendWindow(self.colPanel2) 
         self.splitter.AppendWindow(self.colPanel1) 
         self.splitter.setEquiSash()
-        #self.parent.GetParent().GetParent().GetParent().resizeSideColumn(SIDE_COL_LARGE)
+        if self.mainframe is not None:
+            self.mainframe.mainFrameUpdateLayout()
+        self.nSplits=3
 
-    def updateTables(self,tabs):
-        """ Update the list of tables, while keeping the selection if any """
+    def setTables(self,tabs,update=False):
+        """ Set the list of tables. Keeping the selection if it's an update """
         # TODO PUT ME IN TABLE PANEL
+        # Find a better way to remember selection
         #print('UPDATING TABLES')
         # Emptying GUI - TODO only if needed
         self.colPanel1.empty()
@@ -814,7 +835,7 @@ class SelectionPanel(wx.Panel):
             self.tabSelected=[]
 
     def tabSelectionChanged(self):
-        # TODO This can be cleaned-up
+        # TODO This can be cleaned-up and merged with updateLayout
         #print('Tab selection change')
         # Storing the previous selection 
         #self.printSelection()
@@ -822,13 +843,15 @@ class SelectionPanel(wx.Panel):
         #self.printSelection()
         ISel=self.tabPanel.lbTab.GetSelections()
         if len(ISel)>0:
+            if self.modeRequested=='auto':
+                self.autoMode()
             if haveSameColumns(self.tabs,ISel):
                 # Setting tab
                 self.setTabForCol(ISel[0],1) 
                 self.colPanel2.empty()
                 self.colPanel3.empty()
             else:
-                if self._mode=='twoColumnsMode':
+                if self.nSplits==2:
                     if len(ISel)>2:
                         Error(self,'In this mode, only two tables can be selected. To compare three tables, uses the "3 different tables" mode. Otherwise the tables need to have the same columns.')
                         ISel=ISel[0:2]
@@ -836,7 +859,7 @@ class SelectionPanel(wx.Panel):
                         for isel in ISel:
                             self.tabPanel.lbTab.SetSelection(isel)
                     self.colPanel3.empty()
-                elif self._mode=='threeColumnsMode':
+                elif self.nSplits==3:
                     if len(ISel)>3:
                         Error(self,'In this mode, only three tables can be selected. To compare more than three tables, the tables need to have the same columns.')
                         ISel=ISel[0:3]
@@ -857,7 +880,7 @@ class SelectionPanel(wx.Panel):
             self.tabSelected=self.tabPanel.lbTab.GetSelections()
 
     def colSelectionChanged(self):
-        if self._mode=='twoColumnsMode' or self._mode=='threeColumnsMode':
+        if self.nSplits in [2,3]:
             ISel=self.tabPanel.lbTab.GetSelections()
             if haveSameColumns(self.tabs,ISel):
                 pass # NOTE: this test is identical to onTabSelectionChange. Unification.
@@ -870,7 +893,7 @@ class SelectionPanel(wx.Panel):
                 self.colPanel3.forceOneSelection()
 
     def update_tabs(self, tabs):
-        self.updateTables(tabs)
+        self.setTables(tabs, update=True)
 
     def renameTable(self,iTab, oldName, newName):
         #self.printSelection()
@@ -881,7 +904,6 @@ class SelectionPanel(wx.Panel):
     def saveSelection(self):
         #self.ISel=self.tabPanel.lbTab.GetSelections()
         ISel=self.tabSelected # 
-        #print('Saving selection, tabSelected were:',self.tabSelected)
         if haveSameColumns(self.tabs,ISel):
             for ii in ISel:
                 t=self.tabs[ii]
@@ -919,11 +941,11 @@ class SelectionPanel(wx.Panel):
             ITab,STab = self.getSelectedTables()
             iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
             SameCol=haveSameColumns(self.tabs,ITab)
-            if self._mode =='sameColumnsMode' or SameCol:
+            if self.nSplits==1 or SameCol:
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     for j,(iy,sy) in enumerate(zip(IY1,SY1)):
                         ID.append([itab,iX1,iy,sX1,sy,stab])
-            elif self._mode =='twoColumnsMode' or self._mode=='threeColumnsMode':
+            elif self.nSplits in [2,3]:
                 if len(ITab)>=1:
                     for j,(iy,sy) in enumerate(zip(IY1,SY1)):
                         ID.append([ITab[0],iX1,iy,sX1,sy,STab[0]])
@@ -936,7 +958,7 @@ class SelectionPanel(wx.Panel):
                     for j,(iy,sy) in enumerate(zip(IY2,SY2)):
                         ID.append([ITab[2],iX2,iy,sX2,sy,STab[2]])
             else:
-                raise Exception('Unknown mode {}'.format(self._mode))
+                raise Exception('Wrong number of splits {}'.format(self.nSplits))
         return ID,SameCol
 
     def getSelectedTables(self):

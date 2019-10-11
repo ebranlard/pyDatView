@@ -607,9 +607,8 @@ class MainFrame(wx.Frame):
 
 
     def onModeChange(self, event=None):
-        mode = SEL_MODES_ID[self.comboMode.GetSelection()]
         if hasattr(self,'selPanel'):
-            self.selPanel.updateLayout(mode)
+            self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
         self.mainFrameUpdateLayout()
 
     def mainFrameUpdateLayout(self, event=None):
