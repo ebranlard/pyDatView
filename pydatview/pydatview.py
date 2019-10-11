@@ -82,6 +82,7 @@ class FileDropTarget(wx.FileDropTarget):
       self.parent = parent
    def OnDropFiles(self, x, y, filenames):
       filenames = [f for f in filenames if not os.path.isdir(f)]
+      filenames.sort()
       if len(filenames)>0:
           # If Ctrl is pressed we add
           bAdd= wx.GetKeyState(wx.WXK_CONTROL);
