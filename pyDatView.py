@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 from __future__ import absolute_import
 import sys
+try:
+    from pybra.clean_exceptions import *
+except:
+    pass
 
 #import click
 #@click.option('-i','--inputfile', default='', help='Input file to read')

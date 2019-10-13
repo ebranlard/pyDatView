@@ -34,6 +34,10 @@ from .Tables import Table, haveSameColumns
 # Helper
 from .common import *
 from .GUICommon import *
+try:
+    from pybra.clean_exceptions import *
+except:
+    pass
 
 
 
