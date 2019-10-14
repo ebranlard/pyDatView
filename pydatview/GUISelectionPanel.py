@@ -4,12 +4,11 @@ try:
     from .common import *
     from .GUICommon import *
     from .GUIMultiSplit import MultiSplit
-    from .Tables import haveSameColumns
 except:
-    from common import *
-    from GUICommon import *
-    from GUIMultiSplit import MultiSplit
-    from Tables import haveSameColumns
+    raise
+#     from common import *
+#     from GUICommon import *
+#     from GUIMultiSplit import MultiSplit
 
 
 __all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES_ID','TablePopup','ColumnPopup']
@@ -275,7 +274,7 @@ class TablePopup(wx.Menu):
             self.itNameFile = wx.MenuItem(self, -1, "Naming: by file names", kind=wx.ITEM_CHECK)
             self.MyAppend(self.itNameFile)
             self.Bind(wx.EVT_MENU, self.OnNaming, self.itNameFile)
-            self.Check(self.itNameFile.GetId(), self.parent.GetParent().Naming=='FileNames') # Checking the menu box
+            self.Check(self.itNameFile.GetId(), self.parent.GetParent().tabList.Naming=='FileNames') # Checking the menu box
 
             item = wx.MenuItem(self, -1, "Sort by name")
             self.MyAppend(item)
@@ -292,7 +291,7 @@ class TablePopup(wx.Menu):
 
         if len(self.ISel)==1:
             tabPanel=self.parent.GetParent()
-            if tabPanel.Naming!='FileNames':
+            if tabPanel.tabList.Naming!='FileNames':
                 item = wx.MenuItem(self, -1, "Rename")
                 self.MyAppend(item)
                 self.Bind(wx.EVT_MENU, self.OnRenameTab, item)
@@ -311,9 +310,10 @@ class TablePopup(wx.Menu):
     def OnNaming(self, event=None):
         tabPanel=self.parent.GetParent()
         if self.itNameFile.IsChecked():
-            tabPanel.Naming='FileNames'
+            tabPanel.tabList.setNaming('FileNames')
         else:
-            tabPanel.Naming='Ellude'
+            tabPanel.tabList.setNaming('Ellude')
+
         tabPanel.updateTabNames()
 
     def OnDeleteTabs(self, event):
@@ -378,9 +378,9 @@ class ColumnPopup(wx.Menu):
             newName=dlg.GetValue()
             main=self.parent.mainframe
             ITab,STab=main.selPanel.getSelectedTables()
-            if haveSameColumns(main.tabs,ITab):
+            if main.tabList.haveSameColumns(ITab):
                 for iTab,sTab in zip(ITab,STab):
-                    main.tabs[iTab].renameColumn(self.ISel[0]-1,newName)
+                    main.tabList.get(iTab).renameColumn(self.ISel[0]-1,newName)
             else:
                 self.parent.tab.renameColumn(self.ISel[0]-1,newName)
             self.parent.updateColumn(self.ISel[0],newName) #faster
@@ -391,9 +391,9 @@ class ColumnPopup(wx.Menu):
         main=self.parent.mainframe
         iX = self.parent.comboX.GetSelection()
         ITab,STab=main.selPanel.getSelectedTables()
-        if haveSameColumns(main.tabs,ITab):
+        if main.tabList.haveSameColumns(ITab):
             for iTab,sTab in zip(ITab,STab):
-                main.tabs[iTab].deleteColumns([i-1 for i in self.ISel if i>0])
+                main.tabList.get(iTab).deleteColumns([i-1 for i in self.ISel if i>0])
         else:
             self.parent.tab.deleteColumns([i-1 for i in self.ISel if i>0])
         self.parent.setColumnNames(xSel=iX)
@@ -434,9 +434,9 @@ class ColumnPopup(wx.Menu):
                     i=-1
                 # 
                 ITab,STab=main.selPanel.getSelectedTables()
-                if haveSameColumns(main.tabs,ITab):
+                if main.tabList.haveSameColumns(ITab):
                     for iTab,sTab in zip(ITab,STab):
-                        bValid=main.tabs[iTab].addColumnByFormula(sName,sFormula,i)
+                        bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,i)
                         if not bValid:
                             Error(self.parent,'The formula didn''t eval for table {}.'.format(sTab))
                             break
@@ -457,14 +457,13 @@ class ColumnPopup(wx.Menu):
 # --------------------------------------------------------------------------------{
 class TablePanel(wx.Panel):
     """ Display list of tables """
-    def __init__(self, parent, mainframe,tabs):
+    def __init__(self, parent, mainframe,tabList):
         # Superclass constructor
         super(TablePanel,self).__init__(parent)
         # DATA
         self.parent=parent
         self.mainframe=mainframe
-        self.Naming='Ellude'
-        self.tabs=tabs
+        self.tabList=tabList
         # GUI
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
         self.bt=wx.Button(tb,wx.ID_ANY,u'\u2630', style=wx.BU_EXACTFIT)
@@ -488,26 +487,18 @@ class TablePanel(wx.Panel):
         self.PopupMenu(menu, pos)
         menu.Destroy()
 
-    def getDisplayTabNames(self):
-        if self.Naming=='Ellude':
-            return  ellude_common([t.raw_name for t in self.tabs])
-        elif self.Naming=='FileNames':
-            return [os.path.splitext(os.path.basename(t.filename))[0] for t in self.tabs]
-        else:
-            raise Exception('Table naming unknown: {}'.format(self.Naming))
 
     def updateTabNames(self):
-        tabnames_display=self.getDisplayTabNames()
+        tabnames_display=self.tabList.getDisplayTabNames()
         # Storing selection
         ISel=self.lbTab.GetSelections()
         # Setting List Box
         self.lbTab.Set(tabnames_display)
         # Setting table active display name
-        for t,tn in zip(self.tabs,tabnames_display):
-            t.active_name=tn
+        self.tabList.setActiveNames(tabnames_display)
         # Restoring selection
         for i in ISel:
-            if i<len(self.tabs):
+            if i<self.tabList.len():
                 self.lbTab.SetSelection(i)
 
     def empty(self):    
@@ -655,12 +646,12 @@ class ColumnPanel(wx.Panel):
 
 class SelectionPanel(wx.Panel):
     """ Display options for the user to select data """
-    def __init__(self, parent, tabs, mode='auto',mainframe=None):
+    def __init__(self, parent, tabList, mode='auto',mainframe=None):
         # Superclass constructor
         super(SelectionPanel,self).__init__(parent)
         # DATA
         self.mainframe     = mainframe
-        self.tabs          = []
+        self.tabList       = None
         self.itabForCol    = None
         self.parent        = parent
         self.tabSelections = {}
@@ -671,7 +662,7 @@ class SelectionPanel(wx.Panel):
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
         self.splitter.SetMinimumPaneSize(70)
-        self.tabPanel  = TablePanel (self.splitter,mainframe,self.tabs);
+        self.tabPanel  = TablePanel (self.splitter,mainframe, tabList)
         self.colPanel1 = ColumnPanel(self.splitter, self, mainframe);
         self.colPanel2 = ColumnPanel(self.splitter, self, mainframe);
         self.colPanel3 = ColumnPanel(self.splitter, self, mainframe);
@@ -687,11 +678,7 @@ class SelectionPanel(wx.Panel):
         self.SetSizer(VertSizer)
 
         # TRIGGERS
-        if len(tabs)>0:
-            #print(tabs)
-            self.setTables(tabs)
-            # TODO
-            #self.colPanel1.selectDefaultColumns(self.tabs[self.itabForCol])
+        self.setTables(tabList)
 
     def updateLayout(self,mode=None):
         if mode is None:
@@ -712,13 +699,13 @@ class SelectionPanel(wx.Panel):
 
     def autoMode(self):
         ISel=self.tabPanel.lbTab.GetSelections()
-        if hasattr(self,'tabs'):
-            if len(self.tabs)<=0:
+        if self.tabList is not None:
+            if self.tabList.len()<=0:
                 self.nSplits=-1
                 self.splitter.removeAll()
-            elif haveSameColumns(self.tabs):
+            elif self.tabList.haveSameColumns():
                 self.sameColumnsMode()
-            elif haveSameColumns(self.tabs,ISel):
+            elif self.tabList.haveSameColumns(ISel):
                 # We don't do same column because we know at least one table is different
                 # to avoid "jumping" too much
                 self.twoColumnsMode()
@@ -733,8 +720,8 @@ class SelectionPanel(wx.Panel):
         if self.nSplits==1:
             return
         self.splitter.removeAll()
-        if hasattr(self,'tabs'):
-            if len(self.tabs)>1:
+        if self.tabList is not None:
+            if self.tabList.len()>1:
                 self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel1) 
         if  self.mainframe is not None:
@@ -766,7 +753,7 @@ class SelectionPanel(wx.Panel):
             self.mainframe.mainFrameUpdateLayout()
         self.nSplits=3
 
-    def setTables(self,tabs,update=False):
+    def setTables(self,tabList,update=False):
         """ Set the list of tables. Keeping the selection if it's an update """
         # TODO PUT ME IN TABLE PANEL
         # Find a better way to remember selection
@@ -776,9 +763,9 @@ class SelectionPanel(wx.Panel):
         self.colPanel2.empty()
         self.colPanel3.empty()
         # Adding
-        self.tabs = tabs
-        self.tabPanel.tabs = tabs
-        tabnames =[t.name for t in tabs]
+        self.tabList = tabList
+        self.tabPanel.tabList = self.tabList
+        tabnames = self.tabList.tabNames
         self.tabPanel.updateTabNames()
         for tn in tabnames:
             if tn not in self.tabSelections.keys():
@@ -792,12 +779,12 @@ class SelectionPanel(wx.Panel):
             #if not haveSameColumns(tabs,ISel):
             #    ISel=[ISel[0]]
             for i in self.tabSelected:
-                if i<len(tabs):
+                if i<self.tabList.len():
                     self.tabPanel.lbTab.SetSelection(i)
             #
         if len(self.tabPanel.lbTab.GetSelections())==0:
             self.selectDefaultTable()
-        if len(self.tabs)>0:
+        if self.tabList.len()>0:
             # Trigger - updating columns and layout
             ISel=self.tabPanel.lbTab.GetSelections()
             self.tabSelected=ISel
@@ -815,7 +802,7 @@ class SelectionPanel(wx.Panel):
         self.updateLayout(self.modeRequested)
 
     def setTabForCol(self,iTabSel,iPanel):
-        t  = self.tabs[iTabSel]
+        t  = self.tabList.get(iTabSel)
         ts = self.tabSelections[t.name]
         if iPanel==1:
             self.colPanel1.setTab(t,ts['xSel'],ts['ySel'])
@@ -845,7 +832,7 @@ class SelectionPanel(wx.Panel):
         if len(ISel)>0:
             if self.modeRequested=='auto':
                 self.autoMode()
-            if haveSameColumns(self.tabs,ISel):
+            if self.tabList.haveSameColumns(ISel):
                 # Setting tab
                 self.setTabForCol(ISel[0],1) 
                 self.colPanel2.empty()
@@ -882,7 +869,7 @@ class SelectionPanel(wx.Panel):
     def colSelectionChanged(self):
         if self.nSplits in [2,3]:
             ISel=self.tabPanel.lbTab.GetSelections()
-            if haveSameColumns(self.tabs,ISel):
+            if self.tabList.haveSameColumns(ISel):
                 pass # NOTE: this test is identical to onTabSelectionChange. Unification.
             elif len(ISel)==2:
                 self.colPanel1.forceOneSelection()
@@ -892,8 +879,8 @@ class SelectionPanel(wx.Panel):
                 self.colPanel2.forceOneSelection()
                 self.colPanel3.forceOneSelection()
 
-    def update_tabs(self, tabs):
-        self.setTables(tabs, update=True)
+    def update_tabs(self, tabList):
+        self.setTables(tabList, update=True)
 
     def renameTable(self,iTab, oldName, newName):
         #self.printSelection()
@@ -904,22 +891,22 @@ class SelectionPanel(wx.Panel):
     def saveSelection(self):
         #self.ISel=self.tabPanel.lbTab.GetSelections()
         ISel=self.tabSelected # 
-        if haveSameColumns(self.tabs,ISel):
+        if self.tabList.haveSameColumns(ISel):
             for ii in ISel:
-                t=self.tabs[ii]
+                t=self.tabList.get(ii)
                 self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
                 self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
         else:
             if len(ISel)>=1:
-                t=self.tabs[ISel[0]]
+                t=self.tabList.get(ISel[0])
                 self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
                 self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
             if len(ISel)>=2:
-                t=self.tabs[ISel[1]]
+                t=self.tabList.get(ISel[1])
                 self.tabSelections[t.name]['xSel'] = self.colPanel2.comboX.GetSelection()
                 self.tabSelections[t.name]['ySel'] = self.colPanel2.lbColumns.GetSelections()
             if len(ISel)>=3:
-                t=self.tabs[ISel[1]]
+                t=self.tabList.get(ISel[2])
                 self.tabSelections[t.name]['xSel'] = self.colPanel3.comboX.GetSelection()
                 self.tabSelections[t.name]['ySel'] = self.colPanel3.lbColumns.GetSelections()
         self.tabSelected = self.tabPanel.lbTab.GetSelections();
@@ -927,8 +914,7 @@ class SelectionPanel(wx.Panel):
     def printSelection(self):
         print('Number of tabSelections stored:',len(self.tabSelections))
         TS=self.tabSelections
-        for i,t in enumerate(self.tabs):
-            tn=t.name
+        for i,tn in enumerate(self.tabList.tabNames):
             if tn not in TS.keys():
                 print('Tab',i,'>>> Name {} not found in selection'.format(tn))
             else:
@@ -937,10 +923,10 @@ class SelectionPanel(wx.Panel):
     def getPlotDataSelection(self):
         ID = []
         SameCol=False
-        if hasattr(self,'tabs') and len(self.tabs)>0:
+        if self.tabList is not None  and self.tabList.len()>0:
             ITab,STab = self.getSelectedTables()
             iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
-            SameCol=haveSameColumns(self.tabs,ITab)
+            SameCol=self.tabList.haveSameColumns(ITab)
             if self.nSplits==1 or SameCol:
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     for j,(iy,sy) in enumerate(zip(IY1,SY1)):
@@ -971,8 +957,8 @@ class SelectionPanel(wx.Panel):
         self.colPanel2.empty()
         self.colPanel3.empty()
         self.tabPanel.empty()
-        if hasattr(self,'tabs'):
-            del self.tabs
+        del self.tabList
+        self.tabList=None
 
 
 if __name__ == '__main__':

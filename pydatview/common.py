@@ -145,8 +145,7 @@ def getDt(x):
 
 
 def getColumn(df,i):
-    import wx
-    if i == wx.NOT_FOUND or i == 0:
+    if i <= 0 :
         x = np.array(range(df.shape[0]))
         c = None
         isString = False

@@ -38,11 +38,12 @@ try:
     from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
     from .GUITools import LogDecToolPanel
 except:
-    from spectral import fft_wrap
-    from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit getDt
-    from GUICommon import * 
-    from GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
-    from GUITools import LogDecToolPanel
+    raise
+#     from spectral import fft_wrap
+#     from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit getDt
+#     from GUICommon import * 
+#     from GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
+#     from GUITools import LogDecToolPanel
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -527,7 +528,7 @@ class PlotPanel(wx.Panel):
         ID,SameCol=self.selPanel.getPlotDataSelection()
         del self.plotData
         self.plotData=[]
-        tabs=self.selPanel.tabs
+        tabs=self.selPanel.tabList.getTabs() # TODO
         for i,idx in enumerate(ID):
             d=PlotData();
             d.id = i
@@ -984,7 +985,7 @@ class PlotPanel(wx.Panel):
 
 if __name__ == '__main__':
     import pandas as pd;
-    from Tables import Table
+    from Tables import Table,TableList
 
     app = wx.App(False)
     self=wx.Frame(None,-1,"Title")
@@ -995,7 +996,7 @@ if __name__ == '__main__':
             super(FakeSelPanel,self).__init__(parent)
             d ={'ColA': np.linspace(0,1,100)+1,'ColB': np.random.normal(0,1,100)+0,'ColC':np.random.normal(0,1,100)+1}
             df = pd.DataFrame(data=d)
-            self.tabs=[Table(df=df)]
+            self.tabList=TableList([Table(df=df)])
 
         def getPlotDataSelection(self):
             ID=[]

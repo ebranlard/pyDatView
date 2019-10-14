@@ -30,7 +30,7 @@ from .GUIPlotPanel import PlotPanel
 from .GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
 from .GUISelectionPanel import ColumnPopup,TablePopup
 from .GUIInfoPanel import InfoPanel
-from .Tables import Table, haveSameColumns
+from .Tables import TableList, Table
 # Helper
 from .common import *
 from .GUICommon import *
@@ -61,7 +61,6 @@ except:
 FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in FILE_FORMATS]
 FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
 FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
-FILE_READER             = weio.read
 
 SIDE_COL = [160,160,300,420,530]
 BOT_PANL =85
@@ -109,7 +108,7 @@ class MainFrame(wx.Frame):
         # Parent constructor
         wx.Frame.__init__(self, None, -1, PROG_NAME+' '+PROG_VERSION)
         # Data
-        self.tabs=[]
+        self.tabList=TableList()
             
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
@@ -175,7 +174,7 @@ class MainFrame(wx.Frame):
 
         # --- Status bar
         self.statusbar=self.CreateStatusBar(3, style=0)
-        self.statusbar.SetStatusWidths([230, -1, 70])
+        self.statusbar.SetStatusWidths([200, -1, 70])
 
         # --- Main Panel and Notebook
         self.MainPanel = wx.Panel(self)
@@ -244,23 +243,10 @@ class MainFrame(wx.Frame):
             tb.Bind(wx.EVT_BUTTON, callback, bt)
         return tl
 
-
-    @property
-    def filenames(self):
-        filenames=[]
-        if hasattr(self,'tabs'):
-            for t in self.tabs:
-                if t.filename not in filenames:
-                    filenames.append(t.filename)
-            #filenames=[t.filename for t in self.tabs] 
-        return filenames
-
     def clean_memory(self,bReload=False):
         #print('Clean memory')
         # force Memory cleanup
-        if hasattr(self,'tabs'):
-            del self.tabs
-            self.tabs=[]
+        self.tabList.clean()
         if not bReload:
             if hasattr(self,'selPanel'):
                 self.selPanel.clean_memory()
@@ -274,113 +260,38 @@ class MainFrame(wx.Frame):
         """ load multiple files, only trigger the plot at the end """
         if bReload:
             if hasattr(self,'selPanel'):
-                self.selPanel.saveSelection()
+                self.selPanel.saveSelection() # TODO move to tables
 
         if not bAdd:
             self.clean_memory(bReload=bReload)
 
-        tabs=[]
-        for f in filenames:
-            if f in self.filenames:
-                Error(self,'Cannot add a file already opened')
-            else:
-                tabs += self._load_file_tabs(f,fileformat=fileformat)
-        if len(tabs)>0:
-            # Adding tables
-            self.load_tabs(tabs,bReload=bReload,bAdd=bAdd,bPlot=True)
-
-    def _load_file_tabs(self,filename,fileformat=None):
-        """ load a single file, adds table, and potentially trigger plotting """
-        self.statusbar.SetStatusText('');
-        self.statusbar.SetStatusText('',1);
-        self.statusbar.SetStatusText('',2);
-
-        if not os.path.isfile(filename):
-            Error(self,'File not found: '+filename)
-            return []
-        try:
-            F = FILE_READER(filename,fileformat = fileformat)
-            dfs = F.toDataFrame()
-        except weio.FileNotFoundError as e:
-            Error(self, 'A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}'.format(filename, e.filename))
-            return []
-        except IOError:
-            Error(self, 'IO Error thrown while opening file: '+filename )
-            return []
-        except MemoryError:
-            Error(self,'Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).')
-            return []
-        except weio.EmptyFileError:
-            Error(self,'File empty!\n\nFile is empty: '+filename+'\n\nOpen a different file.')
-            return []
-        except weio.FormatNotDetectedError:
-            Error(self,'File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list')
-            return []
-        except weio.WrongFormatError as e:
-            Error(self,'Wrong file format!\n\nFile: '+filename+'\n\n'   \
-                    'The file parser for the selected format failed to open the file.\n\n'+   \
-                    'The reported error was:\n'+e.args[0]+'\n\n' +   \
-                    'Double-check your file format and report this error if you think it''s a bug.')
-            return []
-        except weio.BrokenFormatError as e:
-            Error(self,'Inconsistency in the file format!\n\nFile: '+filename+'\n\n'   \
-                    'The reported error was:\n'+e.args[0]+'\n\n' +   \
-                    'Double-check your file format and report this error if you think it''s a bug.')
-            return []
-        except:
-            raise
-
-        #  Creating a list of tables
-        tabs=[]
-        if not isinstance(dfs,dict):
-            if len(dfs)>0:
-                tabs=[Table(df=dfs, name='default', filename=filename)]
-        else:
-            for k in list(dfs.keys()):
-                if len(dfs[k])>0:
-                    tabs.append(Table(df=dfs[k], name=k, filename=filename))
-
-        self.statusbar.SetStatusText(F.filename,1)
-        if fileformat is None:
-            self.statusbar.SetStatusText('Detected: '+F.formatName())
-        else:
-            self.statusbar.SetStatusText('Format: '+F.formatName())
-        self.fileformatName = F.formatName()
-        if len(tabs)<=0:
-            Warn(self,'No dataframe found in file: '+filename)
-            return []
-        else:
-            return tabs
-            
+        warn = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bReload=bReload, bAdd=bAdd)
+        if len(warn)>0:
+            Warn(self,warn)
+        if self.tabList.len()>0:
+            self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=True)
 
     def load_df(self, df):
-        tab=[Table(df=df, name='default')]
-        self.load_tabs(tab)
+        self.tabList = TableList( [Table(df=df, name='default')] )
+        self.load_tabs_into_GUI()
 
-    def load_tabs(self, tabs, bReload=False, bAdd=False, bPlot=True):
+    def load_tabs_into_GUI(self, bReload=False, bAdd=False, bPlot=True):
         if bAdd:
             if not hasattr(self,'selPanel'):
                 bAdd=False
 
         if (not bReload) and (not bAdd):
             self.cleanGUI()
-
-        if bAdd:
-            self.tabs=self.tabs+tabs
-        else:
-            self.tabs=tabs
-        ##
-        if len(self.tabs)==1:
-            self.statusbar.SetStatusText('{}x{}'.format(self.tabs[0].nCols,self.tabs[0].nRows),2)
+        # Setting status bar
+        self.setStatusBar()
 
         if bReload or bAdd:
-            self.selPanel.update_tabs(self.tabs)
+            self.selPanel.update_tabs(self.tabList)
         else:
-            #
             mode = SEL_MODES_ID[self.comboMode.GetSelection()]
             #self.vSplitter = wx.SplitterWindow(self.nb)
             self.vSplitter = wx.SplitterWindow(self.MainPanel)
-            self.selPanel = SelectionPanel(self.vSplitter, self.tabs, mode=mode, mainframe=self)
+            self.selPanel = SelectionPanel(self.vSplitter, self.tabList, mode=mode, mainframe=self)
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter)
@@ -413,40 +324,47 @@ class MainFrame(wx.Frame):
             self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
 
             self.selPanel.tabPanel.lbTab.Bind(wx.EVT_RIGHT_DOWN, self.OnTabPopup)
-        
 
         # plot trigger
         if bPlot:
             self.mainFrameUpdateLayout()
             self.onColSelectionChange(event=None)
 
+    def setStatusBar(self, ISel=None):
+        nTabs=self.tabList.len()
+        if ISel is None:
+            ISel = list(np.arange(nTabs))
+        if nTabs<0:
+            self.statusbar.SetStatusText('', 0) # Format
+            self.statusbar.SetStatusText('', 1) # Filenames
+            self.statusbar.SetStatusText('', 2) # Shape
+        elif nTabs==1:
+            self.statusbar.SetStatusText(self.tabList.get(0).fileformat,  0)
+            self.statusbar.SetStatusText(self.tabList.get(0).filename  ,  1)
+            self.statusbar.SetStatusText(self.tabList.get(0).shapestring, 2)
+        elif len(ISel)==1:
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat , 0)
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename   , 1)
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring, 2)
+        else:
+            self.statusbar.SetStatusText(''                                   ,0) 
+            self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),1)
+            self.statusbar.SetStatusText('',2)
+
     def renameTable(self, iTab, newName):
-        oldName = self.tabs[iTab].name
-        if newName in [t.name for t in self.tabs]:
-            Error(self,'This table already exist, choose a different name.')
-            return
-        # Renaming table
-        self.tabs[iTab].rename(newName)
-        # Lowlevel update of GUI
+        oldName = self.tabList.renameTable(iTab, newName)
         self.selPanel.renameTable(iTab, oldName, newName)
 
     def sortTabs(self, method='byName'):
-        if method=='byName':
-            tabnames_display=self.selPanel.tabPanel.getDisplayTabNames()
-            self.tabs = [t for _,t in sorted(zip(tabnames_display,self.tabs))]
-        else:
-            raise Exception('Sorting method unknown: `{}`'.format(method))
+        self.tabList.sort(method=method)
         # Updating tables
-        self.selPanel.update_tabs(self.tabs)
+        self.selPanel.update_tabs(self.tabList)
         # Trigger a replot
         self.onTabSelectionChange()
 
 
     def deleteTabs(self, I):
-        # removing table slections
-        # TODO TODO TODO self.selPanel.tabSelections[t.name]
-        # 
-        self.tabs = [t for i,t in enumerate(self.tabs) if i not in I]
+        self.tabList.deleteTabs(I)
 
         # Invalidating selections
         self.selPanel.tabPanel.lbTab.SetSelection(-1)
@@ -455,25 +373,20 @@ class MainFrame(wx.Frame):
         self.infoPanel.empty()
         self.selPanel.clean_memory()
         # Updating tables
-        self.selPanel.update_tabs(self.tabs)
+        self.selPanel.update_tabs(self.tabList)
         # Trigger a replot
         self.onTabSelectionChange()
 
     def exportTab(self, iTab):
-        default_filename=os.path.splitext(os.path.basename(self.tabs[iTab].filename))[0]+'.csv'
+        tab=self.tabList.get(iTab)
+        default_filename=tab.basename +'.csv'
         with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename,
                 style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
                 #, wildcard="CSV files (*.csv)|*.csv",
             dlg.CentreOnParent()
             if dlg.ShowModal() == wx.ID_CANCEL:
                 return     # the user changed their mind
-            if isinstance(self.tabs[iTab].data, pd.DataFrame):
-                try:
-                    self.tabs[iTab].data.to_csv(dlg.GetPath(),sep=',',index=False) #python3
-                except:
-                    self.tabs[iTab].data.to_csv(dlg.GetPath(),sep=str(u',').encode('utf-8'),index=False) #python 2.
-            else:
-                raise NotImplementedError('Export of data that is not a dataframe')
+            tab.export(dlg.GetPath())
 
     def onDamping(self, event=None):
         if not hasattr(self,'plotPanel'):
@@ -496,19 +409,11 @@ class MainFrame(wx.Frame):
     def onTabSelectionChange(self,event=None):
         # TODO This can be cleaned-up
         ISel=self.selPanel.tabPanel.lbTab.GetSelections()
-
         if len(ISel)>0:
             # Letting seletion panel handle the change
             self.selPanel.tabSelectionChanged()
-
             # Update of status bar
-            self.statusbar.SetStatusText('',0)
-            self.statusbar.SetStatusText(", ".join([t.filename for (i,t) in enumerate(self.tabs) if i in ISel]),1)
-            if len(ISel)==1:
-                self.statusbar.SetStatusText('{}x{}'.format(self.tabs[ISel[0]].nCols,self.tabs[ISel[0]].nRows),2)
-            else:
-                self.statusbar.SetStatusText('',2)
-
+            self.setStatusBar(ISel)
             # Trigger the colSelection Event
             self.onColSelectionChange(event=None)
 
@@ -553,7 +458,7 @@ class MainFrame(wx.Frame):
         Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nWritten by E. Branlard. \n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReload(self, event=None):
-        filenames = self.filenames
+        filenames = self.tabList.unique_filenames
         if len(filenames)>0:
             iFormat=self.comboFormats.GetSelection()
             if iFormat==0: # auto-format
@@ -584,7 +489,7 @@ class MainFrame(wx.Frame):
         self.selectFile(bAdd=False)
 
     def onAdd(self, event=None):
-        self.selectFile(bAdd=len(self.tabs)>0)
+        self.selectFile(bAdd=self.tabList.len()>0)
 
     def selectFile(self,bAdd=False):
         # --- File Format extension
@@ -609,7 +514,6 @@ class MainFrame(wx.Frame):
                return     # the user changed their mind
            self.load_files(dlg.GetPaths(),fileformat=Format,bAdd=bAdd)
 
-
     def onModeChange(self, event=None):
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
@@ -619,7 +523,6 @@ class MainFrame(wx.Frame):
         if hasattr(self,'selPanel'):
             nWind=self.selPanel.splitter.nWindows
             self.resizeSideColumn(SIDE_COL[nWind])
-
 
     # --- Side column
     def resizeSideColumn(self,width):
@@ -659,8 +562,13 @@ def MyExceptionHook(etype, value, trace):
     # Then showing to user the last error
     frame = wx.GetApp().GetTopWindow()
     tmp = traceback.format_exception(etype, value, trace)
-    exception = 'The following exception occured:\n\n'+ tmp[-1]  + '\n'+tmp[-2].strip()
-    Error(frame,exception)
+    if tmp[-1].find('Exception: Error:')==0:
+        Error(frame,tmp[-1][18:])
+    elif tmp[-1].find('Exception: Warn:')==0:
+        Warn(frame,tmp[-1][17:])
+    else:
+        exception = 'The following exception occured:\n\n'+ tmp[-1]  + '\n'+tmp[-2].strip()
+        Error(frame,exception)
 
 # --------------------------------------------------------------------------------}
 # --- Tests 
