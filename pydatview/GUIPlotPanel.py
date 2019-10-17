@@ -31,19 +31,12 @@ from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
 import gc
 
-try:
-    from .spectral import fft_wrap
-    from .common import * 
-    from .GUICommon import * 
-    from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
-    from .GUITools import LogDecToolPanel
-except:
-    raise
+from .spectral import fft_wrap
+from .common import * 
+from .GUICommon import * 
+from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
+from .GUITools import LogDecToolPanel, MaskToolPanel 
 #     from spectral import fft_wrap
-#     from common import * #getMonoFont, getColumn, no_unit, unit, inverse_unit getDt
-#     from GUICommon import * 
-#     from GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
-#     from GUITools import LogDecToolPanel
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -254,7 +247,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.redraw() # Data changes
 
 class PlotPanel(wx.Panel):
-    def __init__(self, parent, selPanel,infoPanel=None):
+    def __init__(self, parent, selPanel,infoPanel=None, mainframe=None):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
@@ -265,6 +258,7 @@ class PlotPanel(wx.Panel):
         self.selPanel = selPanel
         self.infoPanel=infoPanel
         self.parent   = parent
+        self.mainframe= mainframe
         self.plotData = []
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
@@ -421,9 +415,9 @@ class PlotPanel(wx.Panel):
     def showTool(self,toolName=''):
         self.toolSizer.Clear(delete_windows=True) # Delete Windows
         if toolName=='LogDec':
-            panel = LogDecToolPanel(self)
-            self.toolSizer.Add(panel, 0, wx.EXPAND|wx.ALL, 5)
-
+            self.toolSizer.Add(LogDecToolPanel(self), 0, wx.EXPAND|wx.ALL, 5)
+        elif toolName=='Mask':
+            self.toolSizer.Add(MaskToolPanel(self), 0, wx.EXPAND|wx.ALL, 5)
         else:
             raise Exception('Unknown tool {}'.format(toolName))
         self.plotsizer.Layout()
@@ -542,8 +536,8 @@ class PlotPanel(wx.Panel):
             d.filename = tabs[d.it].filename
             d.tabname = tabs[d.it].active_name
             d.SameCol = SameCol
-            d.x,d.xIsString,d.xIsDate,_=getColumn(tabs[d.it].data,d.ix)
-            d.y,d.yIsString,d.yIsDate,c=getColumn(tabs[d.it].data,d.iy)
+            d.x,d.xIsString,d.xIsDate,_ = tabs[d.it].getColumn(d.ix)
+            d.y,d.yIsString,d.yIsDate,c = tabs[d.it].getColumn(d.iy)
             n=len(d.y)
             # Stats of the raw data
             #d.x0Min  = xMin(d)

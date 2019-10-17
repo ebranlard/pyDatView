@@ -142,32 +142,6 @@ def getDt(x):
     return dt
 
 
-
-
-def getColumn(df,i):
-    if i <= 0 :
-        x = np.array(range(df.shape[0]))
-        c = None
-        isString = False
-        isDate   = False
-    else:
-        c = df.iloc[:, i-1]
-        x = df.iloc[:, i-1].values
-        isString = c.dtype == np.object and isinstance(c.values[0], str)
-        if isString:
-            x=x.astype(str)
-        isDate   = np.issubdtype(c.dtype, np.datetime64)
-        if isDate:
-            dt=getDt(x)
-            if dt>1:
-                x=x.astype('datetime64[s]')
-            else:
-                x=x.astype('datetime64')
-
-    return x,isString,isDate,c
-
-
-
 def no_unit(s):
     iu=s.rfind(' [')
     if iu>1:

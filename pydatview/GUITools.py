@@ -51,3 +51,103 @@ class LogDecToolPanel(GUIToolPanel):
         except:
             self.lb.SetLabel('Failed. The signal needs to look like the decay of a first order system.')
         #self.parent.redraw(); # DATA HAS CHANGED
+
+# --------------------------------------------------------------------------------}
+# --- Mask
+# --------------------------------------------------------------------------------{
+class MaskToolPanel(GUIToolPanel):
+    def __init__(self, parent):
+        super(MaskToolPanel,self).__init__(parent)
+
+        tabList = self.parent.selPanel.tabList
+        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+
+        allMask = tabList.commonMaskString
+
+        btClose=wx.Button(self,wx.ID_ANY,'Close', style=wx.BU_EXACTFIT)
+        self.Bind(wx.EVT_BUTTON, self.destroy, btClose)
+
+        btClear=wx.Button(self,wx.ID_ANY,'Clear (masks)', style=wx.BU_EXACTFIT)
+        self.Bind(wx.EVT_BUTTON, self.onClear, btClear)
+
+        btComp=wx.Button(self,wx.ID_ANY,'Apply (new data)', style=wx.BU_EXACTFIT)
+        self.Bind(wx.EVT_BUTTON, self.onApply, btComp)
+
+        btCompMask=wx.Button(self,wx.ID_ANY,'Apply (mask)', style=wx.BU_EXACTFIT)
+        self.Bind(wx.EVT_BUTTON, self.onApplyMask, btCompMask)
+
+
+        self.lb         = wx.StaticText( self, -1, """Mask: (ex: "({Time}>100) && ({Time}<50) && ({WS}==5)"  )""")
+        self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
+        self.cbTabs.SetSelection(0)
+
+        self.textMask = wx.TextCtrl(self, wx.ID_ANY, allMask)
+        #self.textMask.SetValue('({Time}>100) & ({Time}<400)')
+
+        btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
+        btSizer.Add(btClose   ,0,flag    = wx.ALL ,border = 1)
+        btSizer.Add(btClear   ,0,flag    = wx.ALL ,border = 1)
+        btSizer.Add(btComp    ,0,flag     = wx.ALL,border = 1)
+        btSizer.Add(btCompMask,0,flag = wx.ALL    ,border = 1)
+
+        row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        row_sizer.Add(self.cbTabs    , 0, wx.ALL, 5)
+        row_sizer.Add(self.textMask, 1, wx.ALL | wx.EXPAND | wx.ALIGN_RIGHT, 5)
+
+        vert_sizer = wx.BoxSizer(wx.VERTICAL)
+        vert_sizer.Add(self.lb     ,0, flag = wx.EXPAND| wx.LEFT|wx.CENTER,border = 5)
+        vert_sizer.Add(row_sizer   ,1, flag = wx.EXPAND| wx.LEFT|wx.CENTER,border = 5)
+
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer.Add(btSizer      ,0, flag = wx.LEFT|wx.CENTER,border = 1)
+        self.sizer.Add(vert_sizer   ,1, flag = wx.EXPAND,border = 5)
+        self.SetSizer(self.sizer)
+        self.Bind(wx.EVT_COMBOBOX, self.onTabChange, self.cbTabs )
+
+    def onTabChange(self,event=None):
+        tabList = self.parent.selPanel.tabList
+        iSel=self.cbTabs.GetSelection()
+        if iSel==0:
+            maskString = tabList.commonMaskString
+        else:
+            maskString= tabList.get(iSel-1).maskString
+        if len(maskString)>0:
+            self.textMask.SetValue(maskString)
+        else:
+            self.textMask.SetValue('') # no known mask
+
+    def onClear(self,event=None):
+        iSel      = self.cbTabs.GetSelection()
+        tabList   = self.parent.selPanel.tabList
+        mainframe = self.parent.mainframe
+        if iSel==0:
+            tabList.clearCommonMask()
+        else:
+            tabList.get(iSel-1).clearMask()
+
+        mainframe.redraw()
+        self.onTabChange()
+
+    def onApplyMask(self,event=None):
+        self.onApply(event,bAdd=False)
+
+    def onApply(self,event=None,bAdd=True):
+        maskString = self.textMask.GetLineText(0)
+        iSel         = self.cbTabs.GetSelection()
+        tabList      = self.parent.selPanel.tabList
+        mainframe    = self.parent.mainframe
+        if iSel==0:
+            dfs, names, errors = tabList.applyCommonMaskString(maskString, bAdd=bAdd)
+            if bAdd:
+                mainframe.load_dfs(dfs,names,bAdd=bAdd)
+            else:
+                mainframe.redraw()
+            if len(errors)>0:
+                raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
+        else:
+            df, name = tabList.get(iSel-1).applyMaskString(maskString, bAdd=bAdd)
+            if bAdd:
+                mainframe.load_df(df,name,bAdd=bAdd)
+            else:
+                mainframe.redraw()
+

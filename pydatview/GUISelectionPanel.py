@@ -562,7 +562,7 @@ class ColumnPanel(wx.Panel):
     def getDefaultColumnX(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
         iSelect = min(1,nColsMax)
-        _,isString,_,_=getColumn(tab.data,iSelect)
+        _,isString,_,_ = tab.getColumn(iSelect)
         if isString:
             iSelect = 0 # we roll back and select the index
         return iSelect
@@ -570,7 +570,7 @@ class ColumnPanel(wx.Panel):
     def getDefaultColumnY(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
         iSelect = min(2,nColsMax)
-        _,isString,_,_=getColumn(tab.data,iSelect)
+        _,isString,_,_ = tab.getColumn(iSelect)
         if isString:
             iSelect = 0 # we roll back and select the index
         return iSelect
@@ -719,6 +719,8 @@ class SelectionPanel(wx.Panel):
     def sameColumnsMode(self):
         if self.nSplits==1:
             return
+        if self.nSplits==0 and self.tabList.len()<=1:
+            return
         self.splitter.removeAll()
         if self.tabList is not None:
             if self.tabList.len()>1:
@@ -726,7 +728,10 @@ class SelectionPanel(wx.Panel):
         self.splitter.AppendWindow(self.colPanel1) 
         if  self.mainframe is not None:
             self.mainframe.mainFrameUpdateLayout()
-        self.nSplits=1
+        if self.tabList.len()<=1:
+            self.nSplits=0
+        else:
+            self.nSplits=1
 
     def twoColumnsMode(self):
         if self.nSplits==2:
@@ -927,7 +932,7 @@ class SelectionPanel(wx.Panel):
             ITab,STab = self.getSelectedTables()
             iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
             SameCol=self.tabList.haveSameColumns(ITab)
-            if self.nSplits==1 or SameCol:
+            if self.nSplits in [0,1] or SameCol:
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     for j,(iy,sy) in enumerate(zip(IY1,SY1)):
                         ID.append([itab,iX1,iy,sX1,sy,stab])

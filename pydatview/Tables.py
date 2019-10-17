@@ -28,7 +28,21 @@ class TableList(object): # todo inherit list
         self._tabs=tabs
         self.Naming='Ellude'
 
-    def load_tables_from_files(self, filenames=[], fileformat=None, bReload=False, bAdd=False):
+    def append(self,t):
+        if isinstance(t,list):
+            self._tabs += t
+        else:
+            self._tabs += [t]
+        
+
+    def from_dataframes(self, dataframes=[], names=[], bAdd=False):
+        if not bAdd:
+            self.clean() # TODO figure it out
+        for df,name in zip(dataframes, names):
+            # Returning a list of tables 
+            self.append(Table(df=df, name=name))
+
+    def load_tables_from_files(self, filenames=[], fileformat=None, bAdd=False):
         """ load multiple files, only trigger the plot at the end """
         if not bAdd:
             self.clean() # TODO figure it out
@@ -41,13 +55,13 @@ class TableList(object): # todo inherit list
                 tabs = self._load_file_tabs(f,fileformat=fileformat) 
                 if len(tabs)<=0:
                     warn+= 'Warn: No dataframe found in file: '+f+'\n'
-                self._tabs += tabs
+                self.append(tabs)
         return warn
 
     def _load_file_tabs(self,filename,fileformat=None):
         """ load a single file, adds table, and potentially trigger plotting """
         if not os.path.isfile(filename):
-            raise Exception('Error: File not found: '+filename)
+            raise Exception('Error: File not found: `'+filename+'`')
         try:
             F = weio.read(filename,fileformat = fileformat)
             dfs = F.toDataFrame()
@@ -152,6 +166,40 @@ class TableList(object): # todo inherit list
     def __repr__(self):
         return '\n'.join([t.__repr__() for t in self._tabs])
 
+    # --- Mask related
+    @property
+    def maskStrings(self):
+        return [t.maskString for t in self._tabs]
+
+    @property
+    def commonMaskString(self):
+        maskStrings=set(self.maskStrings)
+        if len(maskStrings) == 1:
+            return next(iter(maskStrings))
+        else:
+            return ''
+
+    def clearCommonMask(self):
+        for t in self._tabs:
+            t.clearMask()
+
+    def applyCommonMaskString(self,maskString,bAdd=True):
+        dfs_new   = []
+        names_new = []
+        errors=[]
+        for i,t in enumerate(self._tabs):
+            try:
+                df_new, name_new = t.applyMaskString(maskString, bAdd=bAdd)
+                if df_new is not None: 
+                    # we don't append when string is empty
+                    dfs_new.append(df_new)
+                    names_new.append(name_new)
+            except:
+                errors.append('Mask failed for table'+t.name) # TODO
+
+        return dfs_new, names_new, errors
+
+
     # --- Element--related functions
     def get(self,i):
         return self._tabs[i]
@@ -163,6 +211,10 @@ class TableList(object): # todo inherit list
 # --------------------------------------------------------------------------------{
 class Table(object):
     def __init__(self,data=[],columns=[],name='',filename='',df=None, fileformat=''):
+        # Default init
+        self.maskString=''
+        self.mask=None
+
         if df is not None:
             # pandas
             if len(name)==0:
@@ -184,21 +236,46 @@ class Table(object):
             base=os.path.splitext(self.filename)[0]
         else:
             base=''
-        self.name=base.replace('/','|').replace('\\','|')+'|'+ self.name
+        base2=base.replace('/','|').replace('\\','|')
+        if len(base2)>0:
+            self.name=base2 +'|'+ self.name
         self.active_name=self.name
         
         self.convertTimeColumns()
 
     def __repr__(self):
-        return 'Tab {} ({}x{})'.format(self.name,self.nCols,self.nRows)
-
+        return 'Tab {} ({}x{}) (raw: {}, active: {}, file: {})'.format(self.name,self.nCols,self.nRows,self.raw_name, self.active_name,self.filename)
 
     def columnsFromDF(self,df):
         return [s.replace('_',' ') for s in df.columns.values.astype(str)]
 
+
+    def clearMask(self):
+        self.maskString=''
+        self.mask=None
+
+    def applyMaskString(self,maskString,bAdd=True):
+        df = self.data
+        sMask=maskString.replace('{Index}','Index')
+        for i,c in enumerate(self.columns):
+            c_no_unit = no_unit(c).strip()
+            c_in_df   = df.columns[i]
+            sMask=sMask.replace('{'+c_no_unit+'}','np.asarray(df[\''+c_in_df+'\'])')
+        df_new   = None
+        name_new = None
+        if len(sMask.strip())>0 and sMask.strip().lower()!='no mask':
+            try:
+                self.mask = eval(sMask)
+                if bAdd:
+                    df_new = df[self.mask]
+                    name_new=self.raw_name+'_masked'
+            except:
+                raise Exception('Error: The mask failed for table: '+self.name)
+        return df_new, name_new
+
+
     def convertTimeColumns(self):
         if len(self.data)>0:
-            #print(self.data.dtypes)
             for i,c in enumerate(self.data.columns.values):
                 y = self.data.iloc[:,i]
                 if y.dtype == np.object:
@@ -246,6 +323,40 @@ class Table(object):
             i=self.data.shape[1]
         self.data.insert(i,sNewName,NewCol)
         self.columns=self.columnsFromDF(self.data)
+
+    def getColumn(self,i):
+        """ Return column of data, where i=0 is the index column
+        If a mask exist, the mask is applied
+        """
+        if i <= 0 :
+            x = np.array(range(self.data.shape[0]))
+            if self.mask is not None:
+                x=x[self.mask]
+
+            c = None
+            isString = False
+            isDate   = False
+        else:
+            if self.mask is not None:
+                c = self.data.iloc[self.mask, i-1]
+                x = self.data.iloc[self.mask, i-1].values
+            else:
+                c = self.data.iloc[:, i-1]
+                x = self.data.iloc[:, i-1].values
+
+            isString = c.dtype == np.object and isinstance(c.values[0], str)
+            if isString:
+                x=x.astype(str)
+            isDate   = np.issubdtype(c.dtype, np.datetime64)
+            if isDate:
+                dt=getDt(x)
+                if dt>1:
+                    x=x.astype('datetime64[s]')
+                else:
+                    x=x.astype('datetime64')
+        return x,isString,isDate,c
+
+
 
     def evalFormula(self,sFormula):
         df = self.data

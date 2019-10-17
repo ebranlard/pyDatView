@@ -135,10 +135,13 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU,self.onExport ,exptMenuItem )
         self.Bind(wx.EVT_MENU,self.onSave ,saveMenuItem )
 
+        dataMenu = wx.Menu()
+        menuBar.Append(dataMenu, "&Data")
+        self.Bind(wx.EVT_MENU, self.onMask, dataMenu.Append(wx.ID_ANY, 'Mask'))
+
         toolMenu = wx.Menu()
-        dmpDecayMenuItem  = toolMenu.Append(wx.ID_ANY, 'Damping from decay')
         menuBar.Append(toolMenu, "&Tools")
-        self.Bind(wx.EVT_MENU,self.onDamping,dmpDecayMenuItem)
+        self.Bind(wx.EVT_MENU,self.onDamping, toolMenu.Append(wx.ID_ANY, 'Damping from decay'))
 
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
@@ -265,15 +268,26 @@ class MainFrame(wx.Frame):
         if not bAdd:
             self.clean_memory(bReload=bReload)
 
-        warn = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bReload=bReload, bAdd=bAdd)
+        warn = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bAdd=bAdd)
         if len(warn)>0:
             Warn(self,warn)
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=True)
 
-    def load_df(self, df):
-        self.tabList = TableList( [Table(df=df, name='default')] )
-        self.load_tabs_into_GUI()
+    def load_df(self, df, name='default', bAdd=False, bPlot=True):
+        if bAdd:
+            self.tabList.append(Table(df=df, name=name))
+        else:
+            self.tabList = TableList( [Table(df=df, name=name)] )
+        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
+        if hasattr(self,'selPanel'):
+            self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
+
+    def load_dfs(self, dfs, names, bAdd=False):
+        self.tabList.from_dataframes(dataframes=dfs, names=names, bAdd=bAdd)
+        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=True)
+        if hasattr(self,'selPanel'):
+            self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
 
     def load_tabs_into_GUI(self, bReload=False, bAdd=False, bPlot=True):
         if bAdd:
@@ -295,7 +309,7 @@ class MainFrame(wx.Frame):
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter)
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel)
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, self)
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -393,6 +407,12 @@ class MainFrame(wx.Frame):
             Error(self,'Plot some data first')
             return
         self.plotPanel.showTool('LogDec')
+
+    def onMask(self, event=None):
+        if not hasattr(self,'plotPanel'):
+            Error(self,'Load some data first')
+            return
+        self.plotPanel.showTool('Mask')
 
     def onSashChangeMain(self,event=None):
         pass
