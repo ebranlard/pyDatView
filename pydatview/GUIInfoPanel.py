@@ -66,6 +66,11 @@ def y0Var(pd):
         s='NA'
     return v,s
 
+def y0TI(pd):
+    v=pd.y0Std[0]/pd.y0Mean[0]
+    s=pretty_num(v)
+    return v,s
+
 def y0Min(pd):
     v=pd.y0Min[0]
     s=pd.y0Min[1]
@@ -230,18 +235,21 @@ class InfoPanel(wx.Panel):
     #----------------------------------------------------------------------
     def __init__(self, parent):
         wx.Panel.__init__(self, parent, -1)
-
+        # ---
+        # List of dictionaries for available "statistical" signals. Dictionary keys:
+        #   name: name of statistics
+        #   al  : alignement (L,R,C for left,right or center)
+        #   f   : function used to evaluate value
+        #   s   : selected or not
         self.ColsReg=[]
         self.ColsReg.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
         self.ColsReg.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
         self.ColsReg.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
         self.ColsReg.append({'name':'Column'       , 'al':'L' , 'f':yName  , 's':True})
-        #self.ColsReg.append({'name':'Mean'        , 'al':'R' , 'f':y0Mean , 's' :True})
         self.ColsReg.append({'name':'Mean'         , 'al':'R' , 'f':y0Mean  , 's' :True})
-        #self.ColsReg.append({'name':'Std'         , 'al':'R' , 'f':y0Std  , 's' :True})
         self.ColsReg.append({'name':'Std'          , 'al':'R' , 'f':y0Std   , 's' :True})
         self.ColsReg.append({'name':'Var'          , 'al':'R' , 'f':y0Var  , 's' :False})
-        #self.ColsReg.append({'name':'Min'         , 'al':'R' , 'f':y0Min  , 's' :True})
+        self.ColsReg.append({'name':'Std/Mean (TI)', 'al':'R' , 'f':y0TI   , 's' :False})
         self.ColsReg.append({'name':'Min'          , 'al':'R' , 'f':y0Min   , 's' :True})
         #self.ColsReg.append({'name':'Max'         , 'al':'R' , 'f':y0Max  , 's' :True})
         self.ColsReg.append({'name':'Max'          , 'al':'R' , 'f':y0Max   , 's' :True})
