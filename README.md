@@ -34,7 +34,9 @@ The python package can also be used directly from python/jupyter to display a da
 import pydatview 
 pydatview.show(dataframe=df)
 # OR
-pydatview.show(filename='file.csv')
+pydatview.show(filenames=['file.csv'])
+# OR
+pydatview.show('file.csv')
 ```
 
 
