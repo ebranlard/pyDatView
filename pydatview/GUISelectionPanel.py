@@ -728,10 +728,13 @@ class SelectionPanel(wx.Panel):
         self.splitter.AppendWindow(self.colPanel1) 
         if  self.mainframe is not None:
             self.mainframe.mainFrameUpdateLayout()
-        if self.tabList.len()<=1:
-            self.nSplits=0
+        if self.tabList is not None:
+            if self.tabList.len()<=1:
+                self.nSplits=0
+            else:
+                self.nSplits=1
         else:
-            self.nSplits=1
+            self.nSplits=0
 
     def twoColumnsMode(self):
         if self.nSplits==2:
