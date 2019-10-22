@@ -656,12 +656,21 @@ pyDatView help:
 # --------------------------------------------------------------------------------}
 # --- Mains 
 # --------------------------------------------------------------------------------{
-def showApp(dataframe=None,filenames=[]):
+def showApp(firstArg=None,dataframe=None,filenames=[]):
     """
     The main function to start the data frame GUI.
     """
     app = MyWxApp(False)
     frame = MainFrame()
+    # Optional first argument
+    if firstArg is not None:
+        if isinstance(firstArg,list):
+            filenames=firstArg
+        elif isinstance(firstArg,str):
+            filenames=[firstArg]
+        elif isinstance(firstArg, pd.DataFrame):
+            dataframe=firstArg
+    #
     if (dataframe is not None) and (len(dataframe)>0):
         #import time
         #tstart = time.time()
