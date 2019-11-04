@@ -260,12 +260,17 @@ class Table(object):
         for i,c in enumerate(self.columns):
             c_no_unit = no_unit(c).strip()
             c_in_df   = df.columns[i]
-            sMask=sMask.replace('{'+c_no_unit+'}','np.asarray(df[\''+c_in_df+'\'])')
+            # TODO sort out the mess with asarray (introduced to have and/or
+            # as array won't work with date comparison
+            if isinstance(df[c_in_df][0], pd._libs.tslibs.timestamps.Timestamp):
+                sMask=sMask.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
+            else:
+                sMask=sMask.replace('{'+c_no_unit+'}','np.asarray(df[\''+c_in_df+'\'])')
         df_new   = None
         name_new = None
         if len(sMask.strip())>0 and sMask.strip().lower()!='no mask':
             try:
-                self.mask = eval(sMask)
+                self.mask = np.asarray(eval(sMask))
                 if bAdd:
                     df_new = df[self.mask]
                     name_new=self.raw_name+'_masked'

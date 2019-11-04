@@ -77,12 +77,13 @@ class MaskToolPanel(GUIToolPanel):
         self.Bind(wx.EVT_BUTTON, self.onApplyMask, btCompMask)
 
 
-        self.lb         = wx.StaticText( self, -1, """Mask: (ex: "({Time}>100) && ({Time}<50) && ({WS}==5)"  )""")
+        self.lb         = wx.StaticText( self, -1, """Mask: (ex: "({Time}>100) && ({Time}<50) && ({WS}==5)"   or "{Date} > '2018-10-01'")""")
         self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
         self.cbTabs.SetSelection(0)
 
         self.textMask = wx.TextCtrl(self, wx.ID_ANY, allMask)
         #self.textMask.SetValue('({Time}>100) & ({Time}<400)')
+        #self.textMask.SetValue("{Date} > '2018-10-01'")
 
         btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
         btSizer.Add(btClose   ,0,flag    = wx.ALL ,border = 1)
