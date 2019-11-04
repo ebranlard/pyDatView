@@ -133,7 +133,8 @@ class MainFrame(wx.Frame):
 
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
-        self.Bind(wx.EVT_MENU, self.onMask, dataMenu.Append(wx.ID_ANY, 'Mask'))
+        self.Bind(wx.EVT_MENU, self.onMask   , dataMenu.Append(wx.ID_ANY, 'Mask'))
+        self.Bind(wx.EVT_MENU, self.onRadialAverage, dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
@@ -409,6 +410,12 @@ class MainFrame(wx.Frame):
             Error(self,'Load some data first')
             return
         self.plotPanel.showTool('Mask')
+
+    def onRadialAverage(self, event=None):
+        if not hasattr(self,'plotPanel'):
+            Error(self,'Load some data first')
+            return
+        self.plotPanel.showTool('FASTRadialAverage')
 
     def onSashChangeMain(self,event=None):
         pass

@@ -2,6 +2,7 @@ import numpy as np
 import os.path
 from dateutil import parser
 import pandas as pd
+from . import fastlib
 try:
     from .common import no_unit, ellude_common, getDt
 except:
@@ -38,9 +39,10 @@ class TableList(object): # todo inherit list
     def from_dataframes(self, dataframes=[], names=[], bAdd=False):
         if not bAdd:
             self.clean() # TODO figure it out
+        # Returning a list of tables 
         for df,name in zip(dataframes, names):
-            # Returning a list of tables 
-            self.append(Table(df=df, name=name))
+            if df is not None:
+                self.append(Table(df=df, name=name))
 
     def load_tables_from_files(self, filenames=[], fileformat=None, bAdd=False):
         """ load multiple files, only trigger the plot at the end """
@@ -199,6 +201,19 @@ class TableList(object): # todo inherit list
 
         return dfs_new, names_new, errors
 
+    # --- Radial average related
+    def radialAvg(self,avgMethod,avgParam):
+        dfs_new   = []
+        names_new = []
+        errors=[]
+        for i,t in enumerate(self._tabs):
+            dfs, names = t.radialAvg(avgMethod,avgParam)
+            for df,n in zip(dfs,names):
+                if df is not None:
+                    dfs_new.append(df)
+                    names_new.append(n)
+        return dfs_new, names_new, errors
+
 
     # --- Element--related functions
     def get(self,i):
@@ -278,6 +293,22 @@ class Table(object):
                 raise Exception('Error: The mask failed for table: '+self.name)
         return df_new, name_new
 
+
+    def radialAvg(self,avgMethod, avgParam):
+        df = self.data
+        #print('Radial avg',avgMethod,avgParam,self.filename)
+        sp=os.path.splitext(self.filename)
+        #
+        Files=[sp[0]+ext for ext in ['.fst','.FST','.Fst'] if os.path.exists(sp[0]+ext)]
+        if len(Files)==0:
+            raise Exception('Exception: No .fst file found with name: '+sp[0]+'.fst')
+        else:
+            fst_in=Files[0]
+
+        dfRadED, dfRadAD= fastlib.spanwisePostPro(fst_in,avgMethod=avgMethod,avgParam=avgParam,out_ext=sp[1],outfile=None, df = self.data)
+        dfs_new  = [dfRadED, dfRadAD]
+        names_new=[self.raw_name+'_ED_rad', self.raw_name+'_AD_rad'] 
+        return dfs_new, names_new
 
     def convertTimeColumns(self):
         if len(self.data)>0:

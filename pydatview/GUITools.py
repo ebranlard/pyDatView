@@ -92,7 +92,7 @@ class MaskToolPanel(GUIToolPanel):
         btSizer.Add(btCompMask,0,flag = wx.ALL    ,border = 1)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        row_sizer.Add(self.cbTabs    , 0, wx.ALL, 5)
+        row_sizer.Add(self.cbTabs  , 0, wx.ALL, 5)
         row_sizer.Add(self.textMask, 1, wx.ALL | wx.EXPAND | wx.ALIGN_RIGHT, 5)
 
         vert_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -116,6 +116,7 @@ class MaskToolPanel(GUIToolPanel):
             self.textMask.SetValue(maskString)
         else:
             self.textMask.SetValue('') # no known mask
+
 
     def onClear(self,event=None):
         iSel      = self.cbTabs.GetSelection()
@@ -146,9 +147,101 @@ class MaskToolPanel(GUIToolPanel):
             if len(errors)>0:
                 raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
         else:
-            df, name = tabList.get(iSel-1).applyMaskString(maskString, bAdd=bAdd)
+            dfs, name = tabList.get(iSel-1).applyMaskString(maskString, bAdd=bAdd)
             if bAdd:
                 mainframe.load_df(df,name,bAdd=bAdd)
             else:
                 mainframe.redraw()
+        self.updateTabList()
 
+
+    def updateTabList(self,event=None):
+        tabList = self.parent.selPanel.tabList
+        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+        self.cbTabs.Clear()
+        [self.cbTabs.Append(tn) for tn in tabListNames]
+
+# --------------------------------------------------------------------------------}
+# --- Radial
+# --------------------------------------------------------------------------------{
+sAVG_METHODS = ['Periods','Last n seconds']
+AVG_METHODS  = ['periods','constantwindow']
+
+class RadialToolPanel(GUIToolPanel):
+    def __init__(self, parent):
+        super(RadialToolPanel,self).__init__(parent)
+
+        tabList = self.parent.selPanel.tabList
+        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+
+        btClose=wx.Button(self,wx.ID_ANY,'Close', style=wx.BU_EXACTFIT)
+        self.Bind(wx.EVT_BUTTON, self.destroy, btClose)
+
+        btComp=wx.Button(self,wx.ID_ANY,'Average (new data)', style=wx.BU_EXACTFIT)
+        self.Bind(wx.EVT_BUTTON, self.onApply, btComp)
+
+        self.lb         = wx.StaticText( self, -1, """Select tables, averaging method and average parameter: (number of periods (needs azimuth signal) or number of time steps """)
+        self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
+        self.cbMethod   = wx.ComboBox(self, choices=sAVG_METHODS, style=wx.CB_READONLY)
+        self.cbTabs.SetSelection(0)
+        self.cbMethod.SetSelection(0)
+
+        self.textAverageParam = wx.TextCtrl(self, wx.ID_ANY, '2')
+
+        btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
+        btSizer.Add(btClose   ,0,flag    = wx.ALL ,border = 1)
+        btSizer.Add(btComp  ,0,flag     = wx.ALL,border = 1)
+
+        row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        row_sizer.Add(self.cbTabs  , 0, wx.ALL, 5)
+        row_sizer.Add(self.cbMethod, 0, wx.ALL, 5)
+        row_sizer.Add(self.textAverageParam, 1, wx.ALL | wx.EXPAND | wx.ALIGN_RIGHT, 5)
+
+        vert_sizer = wx.BoxSizer(wx.VERTICAL)
+        vert_sizer.Add(self.lb     ,0, flag = wx.EXPAND| wx.LEFT|wx.CENTER,border = 5)
+        vert_sizer.Add(row_sizer   ,1, flag = wx.EXPAND| wx.LEFT|wx.CENTER,border = 5)
+
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer.Add(btSizer      ,0, flag = wx.LEFT|wx.CENTER,border = 1)
+        self.sizer.Add(vert_sizer   ,1, flag = wx.EXPAND,border = 5)
+        self.SetSizer(self.sizer)
+        self.Bind(wx.EVT_COMBOBOX, self.onTabChange, self.cbTabs )
+
+    def onTabChange(self,event=None):
+        tabList = self.parent.selPanel.tabList
+#     dfRad,dfRadTime = fastfarm.extractFFRadialData(fastfarm_out=ff_out, fastfarm_input=ff_in,D=D)
+#         iSel=self.cbTabs.GetSelection()
+#         if iSel==0:
+#             maskString = tabList.commonMaskString
+#         else:
+#             maskString= tabList.get(iSel-1).maskString
+#         if len(maskString)>0:
+#             self.textMask.SetValue(maskString)
+#         else:
+#             self.textMask.SetValue('') # no known mask
+
+    def onApply(self,event=None):
+        try:
+            avgParam     = float(self.textAverageParam.GetLineText(0))
+        except:
+            raise Exception('Error: the averaging parameter needs to be an integer or a float')
+        iSel         = self.cbTabs.GetSelection()
+        avgMethod   = AVG_METHODS[self.cbMethod.GetSelection()]
+        tabList      = self.parent.selPanel.tabList
+        mainframe    = self.parent.mainframe
+        if iSel==0:
+            dfs, names, errors = tabList.radialAvg(avgMethod,avgParam)
+            mainframe.load_dfs(dfs,names,bAdd=True)
+            if len(errors)>0:
+                raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
+        else:
+            dfs, names = tabList.get(iSel-1).radialAvg(avgMethod,avgParam)
+            mainframe.load_dfs(dfs,names,bAdd=True)
+
+        self.updateTabList()
+
+    def updateTabList(self,event=None):
+        tabList = self.parent.selPanel.tabList
+        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+        self.cbTabs.Clear()
+        [self.cbTabs.Append(tn) for tn in tabListNames]

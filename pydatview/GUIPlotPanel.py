@@ -35,7 +35,7 @@ from .spectral import fft_wrap
 from .common import * 
 from .GUICommon import * 
 from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
-from .GUITools import LogDecToolPanel, MaskToolPanel 
+from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel
 #     from spectral import fft_wrap
 
 font = {'size'   : 8}
@@ -438,6 +438,8 @@ class PlotPanel(wx.Panel):
             self.toolSizer.Add(LogDecToolPanel(self), 0, wx.EXPAND|wx.ALL, 5)
         elif toolName=='Mask':
             self.toolSizer.Add(MaskToolPanel(self), 0, wx.EXPAND|wx.ALL, 5)
+        elif toolName=='FASTRadialAverage':
+            self.toolSizer.Add(RadialToolPanel(self), 0, wx.EXPAND|wx.ALL, 5)
         else:
             raise Exception('Unknown tool {}'.format(toolName))
         self.plotsizer.Layout()
