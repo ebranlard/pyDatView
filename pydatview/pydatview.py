@@ -34,10 +34,6 @@ from .Tables import TableList, Table
 # Helper
 from .common import *
 from .GUICommon import *
-try:
-    from pybra.clean_exceptions import *
-except:
-    pass
 
 
 

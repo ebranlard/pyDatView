@@ -46,6 +46,27 @@ def unique(l):
     used=set()
     return [x for x in l if x not in used and (used.add(x) or True)]
 
+class PlotData():
+    def __init__(s):
+        s.id=-1
+        s.it=-1
+        s.ix=-1 # column index
+        s.iy=-1 # column index
+        s.sx=''
+        s.sy=''
+        s.st=''
+        s.syl=''
+        s.filename = ''
+        s.tabname = ''
+        #d.x,d.xIsString,d.xIsDate,_ = tabs[d.it].getColumn(d.ix)
+        #d.y,d.yIsString,d.yIsDate,c = tabs[d.it].getColumn(d.iy)
+        pass
+
+    def __repr__(s):
+        s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
+        return s1
+
+
 class PDFCtrlPanel(wx.Panel):
     def __init__(self, parent):
         super(PDFCtrlPanel,self).__init__(parent)
@@ -375,26 +396,25 @@ class PlotPanel(wx.Panel):
             panel.Hide()
             self.slCtrl.Hide()
 
+    @property
+    def sharex(self):
+        return self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.GetValue())
 
     def set_subplots(self,nPlots):
         # Creating subplots
         for ax in self.fig.axes:
             self.fig.delaxes(ax)
         sharex=None
-        bSubPlots = self.cbSub.IsChecked()
-        if bSubPlots:
-            for i in range(nPlots):
-                # Vertical stack
-                if i==0:
-                    ax=self.fig.add_subplot(nPlots,1,i+1)
-                    if self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.GetValue()) :
-                        sharex=ax
-                else:
-                    ax=self.fig.add_subplot(nPlots,1,i+1,sharex=sharex)
-                # Horizontal stack
-                #self.fig.add_subplot(1,nPlots,i+1)
-        else:
-            self.fig.add_subplot(111)
+        for i in range(nPlots):
+            # Vertical stack
+            if i==0:
+                ax=self.fig.add_subplot(nPlots,1,i+1)
+                if self.sharex:
+                    sharex=ax
+            else:
+                ax=self.fig.add_subplot(nPlots,1,i+1,sharex=sharex)
+            # Horizontal stack
+            #self.fig.add_subplot(1,nPlots,i+1)
 
     def onMouseMove(self, event):
         if event.inaxes:
@@ -514,11 +534,6 @@ class PlotPanel(wx.Panel):
 
 
     def getPlotData(self,plotType):
-        class PlotData():
-            def __repr__(s):
-                s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
-                return s1
-
         ID,SameCol=self.selPanel.getPlotDataSelection()
         del self.plotData
         self.plotData=[]
