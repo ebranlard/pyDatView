@@ -165,8 +165,8 @@ class MaskToolPanel(GUIToolPanel):
 # --------------------------------------------------------------------------------}
 # --- Radial
 # --------------------------------------------------------------------------------{
-sAVG_METHODS = ['Periods','Last n seconds']
-AVG_METHODS  = ['periods','constantwindow']
+sAVG_METHODS = ['Last `n` seconds','Last `n` periods']
+AVG_METHODS  = ['constantwindow','periods']
 
 class RadialToolPanel(GUIToolPanel):
     def __init__(self, parent):
