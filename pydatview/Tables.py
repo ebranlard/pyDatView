@@ -53,7 +53,9 @@ class TableList(object): # todo inherit list
         for f in filenames:
             if f in self.unique_filenames:
                 warn+= 'Warn: Cannot add a file already opened ' + f +'\n'
+            elif len(f)==0:
                 pass
+                #    warn+= 'Warn: an empty filename was skipped' +'\n'
             else:
                 tabs = self._load_file_tabs(f,fileformat=fileformat) 
                 if len(tabs)<=0:
