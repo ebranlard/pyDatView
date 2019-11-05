@@ -160,6 +160,7 @@ class MaskToolPanel(GUIToolPanel):
         tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
         self.cbTabs.Clear()
         [self.cbTabs.Append(tn) for tn in tabListNames]
+        self.cbTabs.SetSelection(0)
 
 # --------------------------------------------------------------------------------}
 # --- Radial
@@ -245,3 +246,4 @@ class RadialToolPanel(GUIToolPanel):
         tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
         self.cbTabs.Clear()
         [self.cbTabs.Append(tn) for tn in tabListNames]
+        self.cbTabs.SetSelection(0)

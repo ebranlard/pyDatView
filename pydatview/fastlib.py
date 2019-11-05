@@ -225,6 +225,28 @@ def ED_BldGag(ED):
     r_gag = r_nodes[ Inodes[:nOuts] -1]
     return r_gag
 
+def AD14_BldGag(AD):
+    """ Returns the radial position of AeroDyn 14 blade gages (based on "print" in column 6)
+    INPUTS:
+       - AD: either:
+           - a filename of a AeroDyn input file
+           - an instance of FileCl, as returned by reading the file, AD = weio.read(AD_filename)
+    OUTPUTS:
+       - r_gag: The radial positions of the gages, given from the blade root
+    """
+    if not isinstance(AD,weio.FASTInFile):
+        AD = weio.FASTInFile(AD)
+
+    Nodes=AD['BldAeroNodes']  
+    if Nodes.shape[1]==6:
+       doPrint= np.array([ n.lower().find('p')==0  for n in Nodes[:,5]])
+    else:
+       doPrint=np.array([ True  for n in Nodes[:,0]])
+
+    r_gag = Nodes[doPrint,0].astype(float)
+    IR    = np.arange(1,len(Nodes)+1)[doPrint]
+    return r_gag, IR
+
 def AD_BldGag(AD,AD_bld):
     """ Returns the radial position of AeroDyn blade gages 
     INPUTS:
@@ -239,7 +261,6 @@ def AD_BldGag(AD,AD_bld):
     """
     if not isinstance(AD,weio.FASTInFile):
         AD = weio.FASTInFile(AD)
-    if not isinstance(AD,weio.FASTInFile):
         AD_bld = weio.FASTInFile(AD_bld)
     #print(AD_bld.keys())
 
@@ -254,7 +275,7 @@ def AD_BldGag(AD,AD_bld):
 # 
 # 1, 7, 14, 21, 30, 36, 43, 52, 58 BldGagNd List of blade nodes that have strain gages [1 to BldNodes] (-) [unused if NBlGages=0]
 
-def spanwise(tsAvg,vr_bar,R,outfile=None):
+def spanwise(tsAvg,vr_bar,R,postprofile=None):
     nr=len(vr_bar)
     Columns     = [('r/R_[-]', vr_bar)]
     Columns.append(extractSpanTS(tsAvg,nr,'Spn{:d}FLxb1_[kN]'   ,'FLxb1_[kN]'))
@@ -272,11 +293,11 @@ def spanwise(tsAvg,vr_bar,R,outfile=None):
         return None
     else:
         dfRad = pd.DataFrame(data= data, columns = ColNames)
-        if outfile is not None:
-            dfRad.to_csv(outfile,sep='\t',index=False)
+        if postprofile is not None:
+            dfRad.to_csv(postprofile,sep='\t',index=False)
     return dfRad
 
-def spanwiseAD(tsAvg,vr_bar,rho,R,nB,outfile=None):
+def spanwiseAD(tsAvg,vr_bar,rho,R,nB,postprofile=None,IR=None):
     nr=len(vr_bar)
     Columns     = [('r/R_[-]', vr_bar)]
     # --- Extract radial data
@@ -326,6 +347,24 @@ def spanwiseAD(tsAvg,vr_bar,rho,R,nB,outfile=None):
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}DynP_[Pa]' ,'B1DynP_[Pa]' ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}M_[-]' ,'B1M_[-]' ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Mm_[N-m/m]'   ,'B1Mm_[N-m/m]'   ))
+
+    # AD 14
+    Columns.append(extractSpanTS(tsAvg,nr,'Alpha{:02d}_[deg]'    ,'Alpha_[deg]'  ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'DynPres{:02d}_[Pa]'   ,'DynPres_[Pa]' ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'CLift{:02d}_[-]'      ,'CLift_[-]'    ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'CDrag{:02d}_[-]'      ,'CDrag_[-]'    ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'CNorm{:02d}_[-]'      ,'CNorm_[-]'    ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'CTang{:02d}_[-]'      ,'CTang_[-]'    ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'CMomt{:02d}_[-]'      ,'CMomt_[-]'    ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'Pitch{:02d}_[deg]'    ,'Pitch_[deg]'  ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'AxInd{:02d}_[-]'      ,'AxInd_[-]'    ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'TanInd{:02d}_[-]'     ,'TanInd_[-]'   ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'ForcN{:02d}_[N]'      ,'ForcN_[N]'    ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'ForcT{:02d}_[N]'      ,'ForcT_[N]'    ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'Pmomt{:02d}_[N-m]'    ,'Pmomt_[N-N]'  ,  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'ReNum{:02d}_[x10^6]'  ,'ReNum_[x10^6]',  IR=IR))
+    Columns.append(extractSpanTS(tsAvg,nr,'Gamma{:02d}_[m^2/s]'  ,'Gamma_[m^2/s]',  IR=IR))
+
     Columns.append(('r_[m]', vr_bar*R))
 
     data     = np.column_stack([c for _,c in Columns if c is not None])
@@ -337,13 +376,13 @@ def spanwiseAD(tsAvg,vr_bar,rho,R,nB,outfile=None):
         return None
     else:
         dfRad = pd.DataFrame(data= data, columns = ColNames)
-        if outfile is not None:
-            dfRad.to_csv(outfile,sep='\t',index=False)
+        if postprofile is not None:
+            dfRad.to_csv(postprofile,sep='\t',index=False)
     return dfRad
 
 
 
-def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb',outfile=None,df=None):
+def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb',postprofile=None,df=None):
     """
     Postprocess FAST radial data
 
@@ -351,24 +390,50 @@ def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb'
         - FST_IN: Fast .fst input file
         - avgMethod='periods', avgParam=2:  average over 2 last periods, Needs Azimuth sensors!!!
         - avgMethod='constantwindow', avgParam=5:  average over 5s of simulation
-        - outfile: outputfile to write radial data
+        - postprofile: outputfile to write radial data
     """
     # --- Extract info (e.g. radial positions) from Fast input files
     fst = weio.FASTInputDeck(FST_In)
-    if  not hasattr(fst,'ED'):
-        raise Exception('The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
-    if  not hasattr(fst,'Aero'):
-        raise Exception('The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
-    if  not hasattr(fst.Aero,'Bld1'):
-        raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
+    if fst.version == 'F7':
+        # --- FAST7
+        if  not hasattr(fst,'AD'):
+            raise Exception('The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
+        r_FST_aero,IR   = AD14_BldGag(fst.AD)
+        R   = fst.fst['TipRad']
+        try:
+            rho = fst.AD['Rho']
+        except:
+            rho = fst.AD['AirDens']
+        r_FST_struct = None
+    else:
+        # --- OpenFAST 2
+        if  not hasattr(fst,'ED'):
+            raise Exception('The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
+        if  not hasattr(fst,'AD'):
+            raise Exception('The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
 
-    ED  = fst.ED
-    AD  = fst.Aero
-    R =  ED ['TipRad']
-    r_FST_struct = ED_BldGag(ED)
-    r_FST_aero   = AD_BldGag(AD,AD.Bld1) + ED['HubRad']
+        if fst.ADversion == 'AD15':
+            if  not hasattr(fst.AD,'Bld1'):
+                raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
+            rho        = fst.AD['AirDens']
+            r_FST_aero = AD_BldGag(fst.AD,fst.AD.Bld1) + fst.ED['HubRad']
+            IR         = None
+
+        elif fst.ADversion == 'AD14':
+            try:
+                rho = fst.AD['Rho']
+            except:
+                rho = fst.AD['AirDens']
+            r_FST_aero,IR   = AD14_BldGag(fst.AD)
+
+        else:
+            raise Exception('AeroDyn version unknown')
+
+        R   = fst.ED ['TipRad']
+        r_FST_struct = ED_BldGag(fst.ED)
     #print('r struct:',r_FST_struct)
     #print('r aero  :',r_FST_aero)
+    #print('IR      :',IR)
 
     # --- Opens Fast output  and performs averaging
     if df is None:
@@ -377,11 +442,15 @@ def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb'
         pass
     # NOTE: spanwise script doest not support duplicate columns
     df = df.loc[:,~df.columns.duplicated()]
+#     print(df)
     dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam) # NOTE: average 5 last seconds
 
     # --- Extract radial data and export to csv if needed
-    dfAeroRad   = spanwiseAD(dfAvg.iloc[0], r_FST_aero/R, AD['AirDens'], R, nB=3, outfile=outfile)
-    dfStructRad = spanwise(dfAvg.iloc[0]  , r_FST_struct/R, R=R, outfile=outfile)
+    dfAeroRad   = spanwiseAD(dfAvg.iloc[0], r_FST_aero/R, rho , R, nB=3, postprofile=postprofile, IR=IR)
+    if r_FST_struct is None:
+        dfStructRad=None
+    else:
+        dfStructRad = spanwise(dfAvg.iloc[0]  , r_FST_struct/R, R=R, postprofile=postprofile)
 
     return dfStructRad , dfAeroRad
 
@@ -830,7 +899,7 @@ def _zero_crossings(y,x=None,direction=None):
     return xzc, iBef, sign
 
 
-def extractSpanTS(ts, nr, col_pattern, colname):
+def extractSpanTS(ts, nr, col_pattern, colname, IR=None):
     """ Helper function to extract spanwise results, like B1N1Cl B1N2Cl etc. 
 
     Example
@@ -838,7 +907,10 @@ def extractSpanTS(ts, nr, col_pattern, colname):
         colname    : 'B1Cl_[-]'
     """
     Values=np.zeros((nr,1))
-    cols   = [col_pattern.format(ir+1) for ir in range(nr)]
+    if IR is None:
+        cols   = [col_pattern.format(ir+1) for ir in range(nr)]
+    else:
+        cols   = [col_pattern.format(ir) for ir in IR]
     colsExist  = [c for c in cols if c in ts.keys() ]
     if len(colsExist)==0:
         return (None,None)

@@ -297,15 +297,19 @@ class Table(object):
     def radialAvg(self,avgMethod, avgParam):
         df = self.data
         #print('Radial avg',avgMethod,avgParam,self.filename)
-        sp=os.path.splitext(self.filename)
+        base,out_ext = os.path.splitext(self.filename)
+        # --- HACK for AD file to find the right .fst file
+        iDotAD=base.lower().find('.ad')
+        if iDotAD>1:
+            base=base[:iDotAD]
         #
-        Files=[sp[0]+ext for ext in ['.fst','.FST','.Fst'] if os.path.exists(sp[0]+ext)]
+        Files=[base+ext for ext in ['.fst','.FST','.Fst'] if os.path.exists(base+ext)]
         if len(Files)==0:
-            raise Exception('Exception: No .fst file found with name: '+sp[0]+'.fst')
+            raise Exception('Exception: No .fst file found with name: '+base+'.fst')
         else:
             fst_in=Files[0]
 
-        dfRadED, dfRadAD= fastlib.spanwisePostPro(fst_in,avgMethod=avgMethod,avgParam=avgParam,out_ext=sp[1],outfile=None, df = self.data)
+        dfRadED, dfRadAD= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, postprofile=None, df = self.data)
         dfs_new  = [dfRadED, dfRadAD]
         names_new=[self.raw_name+'_ED_rad', self.raw_name+'_AD_rad'] 
         return dfs_new, names_new
