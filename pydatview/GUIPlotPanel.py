@@ -428,20 +428,32 @@ class PlotPanel(wx.Panel):
             else:
                 self.lbCrossHairY.SetLabel("y={:10.3e}".format(y))
 
-    def removeTools(self,event=None):
-        self.toolSizer.Clear(delete_windows=True) # Delete Windows
-        self.plotsizer.Layout()
+    def removeTools(self,event=None,Layout=True):
+        try:
+            # Python3
+            self.toolSizer.Clear(delete_windows=True) # Delete Windows
+        except:
+            # Python2
+            if hasattr(self,'toolPanel'):
+                self.toolSizer.Remove(self.toolPanel)
+                self.toolPanel.Destroy()
+                del self.toolPanel
+            self.toolSizer.Clear() # Delete Windows
+        if Layout:
+            self.plotsizer.Layout()
 
     def showTool(self,toolName=''):
-        self.toolSizer.Clear(delete_windows=True) # Delete Windows
+        self.removeTools(Layout=False)
+        # TODO dictionary
         if toolName=='LogDec':
-            self.toolSizer.Add(LogDecToolPanel(self), 0, wx.EXPAND|wx.ALL, 5)
+            self.toolPanel=LogDecToolPanel(self)
         elif toolName=='Mask':
-            self.toolSizer.Add(MaskToolPanel(self), 0, wx.EXPAND|wx.ALL, 5)
+            self.toolPanel=MaskToolPanel(self)
         elif toolName=='FASTRadialAverage':
-            self.toolSizer.Add(RadialToolPanel(self), 0, wx.EXPAND|wx.ALL, 5)
+            self.toolPanel=RadialToolPanel(self)
         else:
             raise Exception('Unknown tool {}'.format(toolName))
+        self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
 
     def setPD_PDF(self,d,c):
