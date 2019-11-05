@@ -3,6 +3,7 @@ import os.path
 from dateutil import parser
 import pandas as pd
 from . import fastlib
+from . import fastfarm
 try:
     from .common import no_unit, ellude_common, getDt
 except:
@@ -296,22 +297,39 @@ class Table(object):
 
     def radialAvg(self,avgMethod, avgParam):
         df = self.data
-        #print('Radial avg',avgMethod,avgParam,self.filename)
         base,out_ext = os.path.splitext(self.filename)
-        # --- HACK for AD file to find the right .fst file
-        iDotAD=base.lower().find('.ad')
-        if iDotAD>1:
-            base=base[:iDotAD]
-        #
-        Files=[base+ext for ext in ['.fst','.FST','.Fst'] if os.path.exists(base+ext)]
-        if len(Files)==0:
-            raise Exception('Exception: No .fst file found with name: '+base+'.fst')
-        else:
-            fst_in=Files[0]
 
-        dfRadED, dfRadAD= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, postprofile=None, df = self.data)
-        dfs_new  = [dfRadED, dfRadAD]
-        names_new=[self.raw_name+'_ED_rad', self.raw_name+'_AD_rad'] 
+        # --- Detect if it's a FAST Farm file
+        sCols = ''.join(df.columns)
+        if sCols.find('WkDf')>1 or sCols.find('CtT')>0:
+            # --- FAST FARM files
+            Files=[base+ext for ext in ['.fstf','.FSTF','.Fstf','.fmas'] if os.path.exists(base+ext)]
+            if len(Files)==0:
+                raise Exception('Exception: No .fstf file found with name: '+base+'.fstf')
+            else:
+                fst_in=Files[0]
+
+                dfRad,_ =  fastfarm.spanwisePostProFF(fst_in,avgMethod='constantwindow',avgParam=30,D=1,df=df)
+                dfs_new  = [dfRad]
+                names_new=[self.raw_name+'_FF_rad']
+        else:
+            # --- FAST files
+
+            # HACK for AD file to find the right .fst file
+            iDotAD=base.lower().find('.ad')
+            if iDotAD>1:
+                base=base[:iDotAD]
+            #
+            Files=[base+ext for ext in ['.fst','.FST','.Fst'] if os.path.exists(base+ext)]
+            if len(Files)==0:
+                raise Exception('Exception: No .fst file found with name: '+base+'.fst')
+            else:
+                fst_in=Files[0]
+
+
+            dfRadED, dfRadAD= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, postprofile=None, df = self.data)
+            dfs_new  = [dfRadED, dfRadAD]
+            names_new=[self.raw_name+'_ED_rad', self.raw_name+'_AD_rad'] 
         return dfs_new, names_new
 
     def convertTimeColumns(self):

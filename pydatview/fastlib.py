@@ -392,7 +392,16 @@ def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb'
         - avgMethod='constantwindow', avgParam=5:  average over 5s of simulation
         - postprofile: outputfile to write radial data
     """
-    # --- Extract info (e.g. radial positions) from Fast input files
+    # --- Opens Fast output  and performs averaging
+    if df is None:
+        df    = weio.read(FST_In.replace('.fst',out_ext)).toDataFrame()
+    else:
+        pass
+    # NOTE: spanwise script doest not support duplicate columns
+    df = df.loc[:,~df.columns.duplicated()]
+    dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam) # NOTE: average 5 last seconds
+
+    # --- Extract info (e.g. radial positions) from Fast input file
     fst = weio.FASTInputDeck(FST_In)
     if fst.version == 'F7':
         # --- FAST7
@@ -431,26 +440,16 @@ def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb'
 
         R   = fst.ED ['TipRad']
         r_FST_struct = ED_BldGag(fst.ED)
-    #print('r struct:',r_FST_struct)
-    #print('r aero  :',r_FST_aero)
-    #print('IR      :',IR)
+        #print('r struct:',r_FST_struct)
+        #print('r aero  :',r_FST_aero)
+        #print('IR      :',IR)
 
-    # --- Opens Fast output  and performs averaging
-    if df is None:
-        df    = weio.read(FST_In.replace('.fst',out_ext)).toDataFrame()
-    else:
-        pass
-    # NOTE: spanwise script doest not support duplicate columns
-    df = df.loc[:,~df.columns.duplicated()]
-#     print(df)
-    dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam) # NOTE: average 5 last seconds
-
-    # --- Extract radial data and export to csv if needed
-    dfAeroRad   = spanwiseAD(dfAvg.iloc[0], r_FST_aero/R, rho , R, nB=3, postprofile=postprofile, IR=IR)
-    if r_FST_struct is None:
-        dfStructRad=None
-    else:
-        dfStructRad = spanwise(dfAvg.iloc[0]  , r_FST_struct/R, R=R, postprofile=postprofile)
+        # --- Extract radial data and export to csv if needed
+        dfAeroRad   = spanwiseAD(dfAvg.iloc[0], r_FST_aero/R, rho , R, nB=3, postprofile=postprofile, IR=IR)
+        if r_FST_struct is None:
+            dfStructRad=None
+        else:
+            dfStructRad = spanwise(dfAvg.iloc[0]  , r_FST_struct/R, R=R, postprofile=postprofile)
 
     return dfStructRad , dfAeroRad
 
