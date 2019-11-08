@@ -58,7 +58,8 @@ FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in FILE_FORMATS]
 FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
 FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
 
-SIDE_COL = [160,160,300,420,530]
+SIDE_COL       = [160,160,300,420,530]
+SIDE_COL_LARGE = [200,200,360,480,600]
 BOT_PANL =85
 
 #matplotlib.rcParams['text.usetex'] = False
@@ -204,6 +205,7 @@ class MainFrame(wx.Frame):
         self.Center()
 
         self.Show()
+        self.Bind(wx.EVT_SIZE, self.OnResizeWindow)
 
     def AddTBBitmapTool(self,tb,label,bitmap,callback=None,Type=None):
         """ Adding a toolbar tool, safe depending on interface"""
@@ -545,7 +547,15 @@ class MainFrame(wx.Frame):
     def mainFrameUpdateLayout(self, event=None):
         if hasattr(self,'selPanel'):
             nWind=self.selPanel.splitter.nWindows
-            self.resizeSideColumn(SIDE_COL[nWind])
+            if self.Size[0]<=800:
+                sash=SIDE_COL[nWind]
+            else:
+                sash=SIDE_COL_LARGE[nWind]
+            self.resizeSideColumn(sash)
+
+    def OnResizeWindow(self, event):
+        self.mainFrameUpdateLayout()
+        self.Layout()
 
     # --- Side column
     def resizeSideColumn(self,width):

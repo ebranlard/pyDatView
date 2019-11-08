@@ -305,6 +305,7 @@ class Table(object):
 
     def applyMaskString(self,maskString,bAdd=True):
         df = self.data
+        Index = np.array(range(df.shape[0]))
         sMask=maskString.replace('{Index}','Index')
         for i,c in enumerate(self.columns):
             c_no_unit = no_unit(c).strip()
@@ -338,13 +339,13 @@ class Table(object):
             # --- FAST FARM files
             Files=[base+ext for ext in ['.fstf','.FSTF','.Fstf','.fmas'] if os.path.exists(base+ext)]
             if len(Files)==0:
-                raise Exception('Exception: No .fstf file found with name: '+base+'.fstf')
+                raise Exception('Error: No .fstf file found with name: '+base+'.fstf')
             else:
                 fst_in=Files[0]
 
                 dfRad,_ =  fastfarm.spanwisePostProFF(fst_in,avgMethod='constantwindow',avgParam=30,D=1,df=df)
                 dfs_new  = [dfRad]
-                names_new=[self.raw_name+'_FF_rad']
+                names_new=[self.raw_name+'_rad']
         else:
             # --- FAST files
 
@@ -355,14 +356,14 @@ class Table(object):
             #
             Files=[base+ext for ext in ['.fst','.FST','.Fst'] if os.path.exists(base+ext)]
             if len(Files)==0:
-                raise Exception('Exception: No .fst file found with name: '+base+'.fst')
+                raise Exception('Error: No .fst file found with name: '+base+'.fst')
             else:
                 fst_in=Files[0]
 
 
             dfRadED, dfRadAD= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, postprofile=None, df = self.data)
             dfs_new  = [dfRadED, dfRadAD]
-            names_new=[self.raw_name+'_ED_rad', self.raw_name+'_AD_rad'] 
+            names_new=[self.raw_name+'_ED', self.raw_name+'_AD'] 
         return dfs_new, names_new
 
     def convertTimeColumns(self):

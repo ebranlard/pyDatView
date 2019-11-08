@@ -2,6 +2,14 @@ import wx
 
 # For log dec tool
 from .damping import logDecFromDecay
+from .common import CHAR
+# wx.TOP wx.BOTTOM wx.LEFT wx.RIGHT wx.ALL These flags are used to specify which side(s) of the sizer item the border width will apply to.
+# wx.EXPAND The item will be expanded to fill the space assigned to the item.
+# wx.SHAPED The item will be expanded as much as possible while also maintaining its aspect ratio
+# wx.FIXED_MINSIZE Normally wx.Sizers will use wx.Window.GetEffectiveMinSize to determine what the minimal size of window items should be, and will use that size to calculate the layout. This allows layouts to adjust when an item changes and its best size becomes different. If you would rather have a window item stay the size it started with then use wx.FIXED_MINSIZE.
+# wx.RESERVE_SPACE_EVEN_IF_HIDDEN Normally wx.Sizers don’t allocate space for hidden windows or other items. This flag overrides this behavior so that sufficient space is allocated for the window even if it isn’t visible. This makes it possible to dynamically show and hide controls without resizing parent dialog, for example.
+# wx.ALIGN_CENTER or wx.ALIGN_CENTRE wx.ALIGN_LEFT wx.ALIGN_RIGHT wx.ALIGN_RIGHT wx.ALIGN_TOP wx.ALIGN_BOTTOM wx.ALIGN_CENTER_VERTICAL or wx.ALIGN_CENTRE_VERTICAL wx.ALIGN_CENTER_HORIZONTAL or wx.ALIGN_CENTRE_HORIZONTAL # he wx.ALIGN* flags allow you to specify the alignment of the item within the space allotted to it by the sizer, adjusted for the border if any.
+
 
 # --------------------------------------------------------------------------------}
 # --- Default class for tools
@@ -14,6 +22,21 @@ class GUIToolPanel(wx.Panel):
     def destroy(self,event=None):
         self.parent.removeTools()
 
+    def getBtBitmap(self,par,label,Type=None,callback=None,bitmap=False):
+        if Type is not None:
+            label=CHAR[Type]+' '+label
+
+        bt=wx.Button(par,wx.ID_ANY,label, style=wx.BU_EXACTFIT)
+        #try:
+        #    if bitmap is not None:    
+        #            bt.SetBitmapLabel(wx.ArtProvider.GetBitmap(bitmap)) #,size=(12,12)))
+        #        else:
+        #except:
+        #    pass
+        if callback is not None:
+            par.Bind(wx.EVT_BUTTON, callback, bt)
+        return bt
+
 
 # --------------------------------------------------------------------------------}
 # ---   Log Dec
@@ -21,10 +44,8 @@ class GUIToolPanel(wx.Panel):
 class LogDecToolPanel(GUIToolPanel):
     def __init__(self, parent):
         super(LogDecToolPanel,self).__init__(parent)
-        btClose=wx.Button(self,wx.ID_ANY,'Close', style=wx.BU_EXACTFIT)
-        self.Bind(wx.EVT_BUTTON, self.destroy, btClose)
-        btComp=wx.Button(self,wx.ID_ANY,'Compute', style=wx.BU_EXACTFIT)
-        self.Bind(wx.EVT_BUTTON, self.onCompute, btComp)
+        btClose = self.getBtBitmap(self,'Close'  ,'close'  ,self.destroy  )
+        btComp  = self.getBtBitmap(self,'Compute','compute',self.onCompute)
         self.lb = wx.StaticText( self, -1, '                     ')
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(btClose   ,0, flag = wx.LEFT|wx.CENTER,border = 1)
@@ -63,21 +84,15 @@ class MaskToolPanel(GUIToolPanel):
         tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
 
         allMask = tabList.commonMaskString
+        if len(allMask)==0:
+            allMask=self.guessMask(tabList) # no known mask, we guess one to help the user
 
-        btClose=wx.Button(self,wx.ID_ANY,'Close', style=wx.BU_EXACTFIT)
-        self.Bind(wx.EVT_BUTTON, self.destroy, btClose)
+        btClose    = self.getBtBitmap(self, 'Close','close', self.destroy)
+        btClear    = self.getBtBitmap(self, 'Clear','sun', self.onClear) # DELETE
+        btComp     = self.getBtBitmap(self, u'Mask (add)','add'  , self.onApply)
+        btCompMask = self.getBtBitmap(self, 'Mask','cloud', self.onApplyMask)
 
-        btClear=wx.Button(self,wx.ID_ANY,'Clear (masks)', style=wx.BU_EXACTFIT)
-        self.Bind(wx.EVT_BUTTON, self.onClear, btClear)
-
-        btComp=wx.Button(self,wx.ID_ANY,'Apply (new data)', style=wx.BU_EXACTFIT)
-        self.Bind(wx.EVT_BUTTON, self.onApply, btComp)
-
-        btCompMask=wx.Button(self,wx.ID_ANY,'Apply (mask)', style=wx.BU_EXACTFIT)
-        self.Bind(wx.EVT_BUTTON, self.onApplyMask, btCompMask)
-
-
-        self.lb         = wx.StaticText( self, -1, """Mask: (ex: "({Time}>100) && ({Time}<50) && ({WS}==5)"   or "{Date} > '2018-10-01'")""")
+        self.lb         = wx.StaticText( self, -1, """(Example of mask: "({Time}>100) && ({Time}<50) && ({WS}==5)"    or    "{Date} > '2018-10-01'")""")
         self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
         self.cbTabs.SetSelection(0)
 
@@ -86,22 +101,24 @@ class MaskToolPanel(GUIToolPanel):
         #self.textMask.SetValue("{Date} > '2018-10-01'")
 
         btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
-        btSizer.Add(btClose   ,0,flag    = wx.ALL ,border = 1)
-        btSizer.Add(btClear   ,0,flag    = wx.ALL ,border = 1)
-        btSizer.Add(btComp    ,0,flag     = wx.ALL,border = 1)
-        btSizer.Add(btCompMask,0,flag = wx.ALL    ,border = 1)
+        btSizer.Add(btClose   ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(btClear   ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(btComp    ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(btCompMask,0,flag = wx.ALL|wx.EXPAND, border = 1)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        row_sizer.Add(self.cbTabs  , 0, wx.ALL, 5)
-        row_sizer.Add(self.textMask, 1, wx.ALL | wx.EXPAND | wx.ALIGN_RIGHT, 5)
+        row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
+        row_sizer.Add(self.cbTabs                       , 0, wx.CENTER|wx.LEFT, 2)
+        row_sizer.Add(wx.StaticText(self, -1, 'Mask:'), 0, wx.CENTER|wx.LEFT, 5)
+        row_sizer.Add(self.textMask, 1, wx.CENTER|wx.LEFT| wx.EXPAND | wx.ALIGN_RIGHT, 5)
 
         vert_sizer = wx.BoxSizer(wx.VERTICAL)
-        vert_sizer.Add(self.lb     ,0, flag = wx.EXPAND| wx.LEFT|wx.CENTER,border = 5)
-        vert_sizer.Add(row_sizer   ,1, flag = wx.EXPAND| wx.LEFT|wx.CENTER,border = 5)
+        vert_sizer.Add(self.lb     ,0, flag = wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM, border = 5)
+        vert_sizer.Add(row_sizer   ,1, flag = wx.EXPAND|wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM, border = 5)
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer.Add(btSizer      ,0, flag = wx.LEFT|wx.CENTER,border = 1)
-        self.sizer.Add(vert_sizer   ,1, flag = wx.EXPAND,border = 5)
+        self.sizer.Add(btSizer      ,0, flag = wx.LEFT           ,border = 5)
+        self.sizer.Add(vert_sizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = 15)
         self.SetSizer(self.sizer)
         self.Bind(wx.EVT_COMBOBOX, self.onTabChange, self.cbTabs )
 
@@ -117,6 +134,14 @@ class MaskToolPanel(GUIToolPanel):
         else:
             self.textMask.SetValue('') # no known mask
 
+    def guessMask(self,tabList):
+        cols=[c.lower() for c in tabList.get(0).columns_clean]
+        if 'time' in cols:
+            return '{Time} > 100'
+        elif 'date' in cols:
+            return "{Date} > '2017-01-01"
+        else:
+            return '' 
 
     def onClear(self,event=None):
         iSel      = self.cbTabs.GetSelection()
@@ -175,51 +200,42 @@ class RadialToolPanel(GUIToolPanel):
         tabList = self.parent.selPanel.tabList
         tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
 
-        btClose=wx.Button(self,wx.ID_ANY,'Close', style=wx.BU_EXACTFIT)
-        self.Bind(wx.EVT_BUTTON, self.destroy, btClose)
+        btClose = self.getBtBitmap(self,'Close'  ,'close'  , self.destroy)
+        btComp  = self.getBtBitmap(self,'Average','compute', self.onApply) # ART_PLUS
 
-        btComp=wx.Button(self,wx.ID_ANY,'Average (new data)', style=wx.BU_EXACTFIT)
-        self.Bind(wx.EVT_BUTTON, self.onApply, btComp)
-
-        self.lb         = wx.StaticText( self, -1, """Select tables, averaging method and average parameter: (number of periods (needs azimuth signal) or number of time steps """)
+        self.lb         = wx.StaticText( self, -1, """Select tables, averaging method and average parameter (`Period` methods uses the `azimuth` signal) """)
         self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
         self.cbMethod   = wx.ComboBox(self, choices=sAVG_METHODS, style=wx.CB_READONLY)
         self.cbTabs.SetSelection(0)
         self.cbMethod.SetSelection(0)
 
-        self.textAverageParam = wx.TextCtrl(self, wx.ID_ANY, '2')
+        self.textAverageParam = wx.TextCtrl(self, wx.ID_ANY, '2',size = (36,-1), style=wx.TE_PROCESS_ENTER)
 
-        btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
-        btSizer.Add(btClose   ,0,flag    = wx.ALL ,border = 1)
-        btSizer.Add(btComp  ,0,flag     = wx.ALL,border = 1)
+        btSizer  = wx.FlexGridSizer(rows=2, cols=1, hgap=0, vgap=0)
+        #btSizer  = wx.BoxSizer(wx.VERTICAL)
+        btSizer.Add(btClose   ,0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(btComp    ,0, flag = wx.ALL|wx.EXPAND, border = 1)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        row_sizer.Add(self.cbTabs  , 0, wx.ALL, 5)
-        row_sizer.Add(self.cbMethod, 0, wx.ALL, 5)
-        row_sizer.Add(self.textAverageParam, 1, wx.ALL | wx.EXPAND | wx.ALIGN_RIGHT, 5)
+        row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
+        row_sizer.Add(self.cbTabs                       , 0, wx.CENTER|wx.LEFT, 2)
+        row_sizer.Add(wx.StaticText(self, -1, 'Method:'), 0, wx.CENTER|wx.LEFT, 5)
+        row_sizer.Add(self.cbMethod                     , 0, wx.CENTER|wx.LEFT, 2)
+        row_sizer.Add(wx.StaticText(self, -1, 'Param:') , 0, wx.CENTER|wx.LEFT, 5)
+        row_sizer.Add(self.textAverageParam             , 0, wx.CENTER|wx.LEFT|wx.RIGHT| wx.EXPAND | wx.ALIGN_RIGHT, 2)
 
         vert_sizer = wx.BoxSizer(wx.VERTICAL)
-        vert_sizer.Add(self.lb     ,0, flag = wx.EXPAND| wx.LEFT|wx.CENTER,border = 5)
-        vert_sizer.Add(row_sizer   ,1, flag = wx.EXPAND| wx.LEFT|wx.CENTER,border = 5)
+        vert_sizer.Add(self.lb     ,0, flag =wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM,border = 5)
+        vert_sizer.Add(row_sizer   ,0, flag =wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM,border = 5)
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer.Add(btSizer      ,0, flag = wx.LEFT|wx.CENTER,border = 1)
-        self.sizer.Add(vert_sizer   ,1, flag = wx.EXPAND,border = 5)
+        self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 5)
+        self.sizer.Add(vert_sizer   ,0, flag = wx.LEFT|wx.EXPAND,border = 15)
         self.SetSizer(self.sizer)
         self.Bind(wx.EVT_COMBOBOX, self.onTabChange, self.cbTabs )
 
     def onTabChange(self,event=None):
         tabList = self.parent.selPanel.tabList
-#     dfRad,dfRadTime = fastfarm.extractFFRadialData(fastfarm_out=ff_out, fastfarm_input=ff_in,D=D)
-#         iSel=self.cbTabs.GetSelection()
-#         if iSel==0:
-#             maskString = tabList.commonMaskString
-#         else:
-#             maskString= tabList.get(iSel-1).maskString
-#         if len(maskString)>0:
-#             self.textMask.SetValue(maskString)
-#         else:
-#             self.textMask.SetValue('') # no known mask
 
     def onApply(self,event=None):
         try:
