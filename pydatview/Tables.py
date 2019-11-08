@@ -43,7 +43,7 @@ class TableList(object): # todo inherit list
         # Returning a list of tables 
         for df,name in zip(dataframes, names):
             if df is not None:
-                self.append(Table(df=df, name=name))
+                self.append(Table(data=df, name=name))
 
     def load_tables_from_files(self, filenames=[], fileformat=None, bAdd=False):
         """ load multiple files, only trigger the plot at the end """
@@ -95,11 +95,11 @@ class TableList(object): # todo inherit list
         tabs=[]
         if not isinstance(dfs,dict):
             if len(dfs)>0:
-                tabs=[Table(df=dfs, name='default', filename=filename, fileformat=F.formatName())]
+                tabs=[Table(data=dfs, filename=filename, fileformat=F.formatName())]
         else:
             for k in list(dfs.keys()):
                 if len(dfs[k])>0:
-                    tabs.append(Table(df=dfs[k], name=k, filename=filename, fileformat=F.formatName()))
+                    tabs.append(Table(data=dfs[k], name=k, filename=filename, fileformat=F.formatName()))
         return tabs
             
     def getTabs(self):
@@ -227,39 +227,64 @@ class TableList(object): # todo inherit list
 # --------------------------------------------------------------------------------}
 # --- Table 
 # --------------------------------------------------------------------------------{
+# TODO sort out the naming
+#
+# Main naming concepts:
+#    name        : 
+#    active_name : 
+#    raw_name    : 
+#    filename    : 
 class Table(object):
-    def __init__(self,data=[],columns=[],name='',filename='',df=None, fileformat=''):
+    def __init__(self,data=None,name='',filename='',columns=[],fileformat=''):
         # Default init
         self.maskString=''
         self.mask=None
 
-        if df is not None:
-            # pandas
-            if len(name)==0:
-                if df.columns.name is not None:
-                    self.name=df.columns.name
-                else:
-                    self.name='default'
-            else:
-                self.name=name
-            self.data    = df
-            self.columns = self.columnsFromDF(df)
-        else: 
-            # ndarray??
-            raise Exception('Implementation of tables with ndarray dropped for now')
-        self.filename = filename
+        self.filename   = filename
         self.fileformat = fileformat
-        #self.name=os.path.dirname(filename)+'|'+os.path.splitext(os.path.basename(self.filename))[0]+'|'+ self.name
-        if len(self.filename)>0:
-            base=os.path.splitext(self.filename)[0]
+
+
+        if not isinstance(data,pd.DataFrame):
+            # ndarray??
+            raise NotImplementedError('Tables that are not dataframe not implemented.')
         else:
-            base=''
-        base2=base.replace('/','|').replace('\\','|')
-        if len(base2)>0:
-            self.name=base2 +'|'+ self.name
-        self.active_name=self.name
+            # --- Pandas DataFrame 
+            self.data    = data 
+            self.columns = self.columnsFromDF(data)
+            # --- Trying to figure out how to name this table
+            if len(name)==0:
+                if data.columns.name is not None:
+                    name=data.columns.name
+
+        self.setupName(name=name)
         
         self.convertTimeColumns()
+
+
+    def setupName(self,name=''):
+        # Creates a "codename": path | basename | name | ext
+        splits=[]
+        ext=''
+        if len(self.filename)>0:
+            base_dir = os.path.dirname(self.filename)
+            if len(base_dir)==0:
+                base_dir= os.getcwd() 
+                self.filename=os.path.join(base_dir,self.filename)
+            splits.append(base_dir.replace('/','|').replace('\\','|'))
+            basename,ext=os.path.splitext(os.path.basename(self.filename))
+            if len(basename)>0:
+                splits.append(basename)
+        if len(name)>0:
+            splits.append(name)
+        #if len(ext)>0:
+        #    splits.append(ext)
+        self.extension=ext
+        name='|'.join(splits)
+        if len(name)==0:
+            name='default'
+        self.name=name
+        self.active_name=self.name
+
 
     def __repr__(self):
         return 'Tab {} ({}x{}) (raw: {}, active: {}, file: {})'.format(self.name,self.nCols,self.nRows,self.raw_name, self.active_name,self.filename)
@@ -271,6 +296,12 @@ class Table(object):
     def clearMask(self):
         self.maskString=''
         self.mask=None
+
+    def addLabelToName(self,label):
+        print('raw_name',self.raw_name)
+        raw_name=self.raw_name
+        sp=raw_name.split('|')
+        print(sp)
 
     def applyMaskString(self,maskString,bAdd=True):
         df = self.data

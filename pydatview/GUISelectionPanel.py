@@ -979,7 +979,7 @@ if __name__ == '__main__':
 
     app = wx.App(False)
     self=wx.Frame(None,-1,"Title")
-    tab=Table(df=pd.DataFrame(data={'ColA': np.random.normal(0,1,100)+1,'ColB':np.random.normal(0,1,100)+2}))
+    tab=Table(data=pd.DataFrame(data={'ColA': np.random.normal(0,1,100)+1,'ColB':np.random.normal(0,1,100)+2}))
     selPanel=SelectionPanel(self,[tab],mode='twoColumnsMode')
     self.SetSize((800, 600))
     self.Center()

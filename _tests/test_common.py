@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from pydatview.common import unit,no_unit,ellude_common,getDt
+from pydatview.common import unit,no_unit,ellude_common,getDt, find_leftstop
 import datetime
 
 
@@ -60,13 +60,36 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(getDt([0,1]),1)
         self.assertEqual(getDt(np.array([0,1])),1)
     
-    def test_ellude(self):
-        self.assertListEqual(ellude_common(['AAA','ABA']),['A','B'])
 
-        # unit test for #25
-        S=ellude_common(['A.txt','A_.txt'])
-        if any([len(s)<=1 for s in S]):
-            raise Exception('[FAIL] ellude common with underscore difference, Bug #25')
+    def test_leftstop(self):
+        self.assertEqual(find_leftstop('A'   ),'A'  )
+        self.assertEqual(find_leftstop('_'   ),''   )
+        self.assertEqual(find_leftstop('A_'  ),'A'  )
+        self.assertEqual(find_leftstop('_B'  ),''   )
+        self.assertEqual(find_leftstop('ABC' ),'ABC')
+        self.assertEqual(find_leftstop('AB_D'),'AB' )
+        self.assertEqual(find_leftstop('AB.D'),'AB' )
+
+
+    def test_ellude(self):
+        print('')
+        print('')
+        self.assertListEqual(ellude_common(['>AA'   ,'>AB']    ),['AA'    ,'AB']     )
+        self.assertListEqual(ellude_common(['AAA'   ,'AAA_raw']),['AAA'   ,'AAA_raw'])
+        self.assertListEqual(ellude_common(['A_.txt','A.txt']  ),['A_'    ,'A']      )
+        self.assertListEqual(ellude_common(['A_'    ,'A']      ),['A_'    ,'A']      )
+        self.assertListEqual(ellude_common(['ABCDA_','ABCDAA'] ),['ABCDA_','ABCDAA'] )
+        S=['C:|A_BD', 'C:|A_BD_bld|DC', 'C:|A_BD_bld|BP']
+        self.assertListEqual(ellude_common(S),['BD','BD_bld|DC','BD_bld|BP']      )
+        self.assertListEqual(ellude_common(['C|FO'    , 'C|FO_HD']) , ['FO'     , 'FO_HD'] )
+        self.assertListEqual(ellude_common(['CT_0.11' , 'CT_0.22']) , ['11'     , '22'] ) # Unfortunate
+        self.assertListEqual(ellude_common(['CT_0.1'  , 'CT_0.9'])  , ['0.1'    , '0.9'] )
+        self.assertListEqual(ellude_common(['CT=0.1'  , 'CT=0.9'])  , ['CT=0.1' , 'CT=0.9'] )
+        self.assertListEqual(ellude_common(['AAA'     , 'ABA']      , minLength=-1) , ['A'                  , 'B']      )
+        print(ellude_common(['Farm.ifw.T1','Farm.ifw.T2'],minLength=2))
+        print('')
+        print('')
+
 
  
 if __name__ == '__main__':

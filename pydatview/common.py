@@ -29,11 +29,27 @@ def common_end(*strings):
     strings = [s[-1::-1] for s in strings]
     return common_start(strings)[-1::-1]
 
+def find_leftstop(s):
+    for i,c in enumerate(reversed(s)):
+        if c in ['.','_','|']:
+            i=i+1
+            return s[:len(s)-i]
+    return s
 
-def ellude_common(strings):
+def ellude_common(strings,minLength=2):
+    """
+    ellude the common parts of two strings
+
+    minLength:
+       if -1, string might be elluded up until there are of 0 length
+       if 0 , if a string of zero length is obtained, it will be tried to be extended until a stop character is found
+
+    """
     # Selecting only the strings that do not start with the safe '>' char
     S = [s for i,s in enumerate(strings) if ((len(s)>0) and (s[0]!= '>'))]
-    if len(S)==1:
+    if len(S)==0:
+        pass
+    elif len(S)==1:
         ns=S[0].rfind('|')+1
         ne=0;
     else:
@@ -57,13 +73,29 @@ def ellude_common(strings):
         ns=len(ss)     
         ne=len(se)     
 
+    # Reduce start length if some strings end up empty
+    # Look if any of the strings will end up empty
+        SSS=[len(s[ns:-ne].lstrip('_') if ne>0 else s[ns:].lstrip('_')) for s in S]
+        currentMinLength=np.min(SSS)
+        if currentMinLength<minLength:
+            delta=minLength-currentMinLength
+            #print('ss',ss,'ns',ns)
+            if delta>0:
+                ss=ss[:-delta]
+                ns=len(ss)
+            #print('ss',ss)
+            ss=find_leftstop(ss)
+            #print('ss',ss)
+            if len(ss)==ns:
+                ns=0
+            else:
+                ns=len(ss)+1
+
     for i,s in enumerate(strings):
         if len(s)>0 and s[0]=='>':
             strings[i]=s[1:]
         else:
-            s=s[ns:]
-            if ne>0:
-                s = s[:-ne]
+            s=s[ns:-ne] if ne>0 else s[ns:]
             strings[i]=s.lstrip('_')
             if len(strings[i])==0:
                 strings[i]='tab{}'.format(i)

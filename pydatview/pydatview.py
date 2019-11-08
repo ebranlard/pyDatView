@@ -168,7 +168,7 @@ class MainFrame(wx.Frame):
             self.AddTBBitmapTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.ART_PLUS),self.onAdd)
         except:
             self.AddTBBitmapTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.FILE_OPEN),self.onAdd)
-        #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onAdd)
+        #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onDEBUG)
         tb.AddStretchableSpace()
         tb.Realize() 
 
@@ -271,11 +271,11 @@ class MainFrame(wx.Frame):
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=True)
 
-    def load_df(self, df, name='default', bAdd=False, bPlot=True):
+    def load_df(self, df, name=None, bAdd=False, bPlot=True):
         if bAdd:
-            self.tabList.append(Table(df=df, name=name))
+            self.tabList.append(Table(data=df, name=name))
         else:
-            self.tabList = TableList( [Table(df=df, name=name)] )
+            self.tabList = TableList( [Table(data=df, name=name)] )
         self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])

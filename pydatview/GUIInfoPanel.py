@@ -455,7 +455,7 @@ if __name__ == '__main__':
 
     d ={'ColA': np.random.normal(0,1,100)+1,'ColB':np.random.normal(0,1,100)+2}
     df = pd.DataFrame(data=d)
-    tab=Table(df=df)
+    tab=Table(data=df)
     p1.showStats(None,[tab],[0],[0,1],tab.columns,0,erase=True)
 
     app.MainLoop()

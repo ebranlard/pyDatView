@@ -1007,7 +1007,7 @@ if __name__ == '__main__':
             super(FakeSelPanel,self).__init__(parent)
             d ={'ColA': np.linspace(0,1,100)+1,'ColB': np.random.normal(0,1,100)+0,'ColC':np.random.normal(0,1,100)+1}
             df = pd.DataFrame(data=d)
-            self.tabList=TableList([Table(df=df)])
+            self.tabList=TableList([Table(data=df)])
 
         def getPlotDataSelection(self):
             ID=[]
