@@ -247,7 +247,7 @@ def AD14_BldGag(AD):
     IR    = np.arange(1,len(Nodes)+1)[doPrint]
     return r_gag, IR
 
-def AD_BldGag(AD,AD_bld):
+def AD_BldGag(AD,AD_bld,chordOut=False):
     """ Returns the radial position of AeroDyn blade gages 
     INPUTS:
        - AD: either:
@@ -261,6 +261,7 @@ def AD_BldGag(AD,AD_bld):
     """
     if not isinstance(AD,weio.FASTInFile):
         AD = weio.FASTInFile(AD)
+    if not isinstance(AD_bld,weio.FASTInFile):
         AD_bld = weio.FASTInFile(AD_bld)
     #print(AD_bld.keys())
 
@@ -269,7 +270,11 @@ def AD_BldGag(AD,AD_bld):
         return np.array([])
     INodes = np.array(AD['BlOutNd'][:nOuts])
     r_gag = AD_bld['BldAeroNodes'][INodes-1,0]
-    return r_gag
+    if chordOut:
+        chord_gag = AD_bld['BldAeroNodes'][INodes-1,5]
+        return r_gag,chord_gag
+    else:
+        return r_gag
 
 # 
 # 
@@ -297,7 +302,8 @@ def spanwise(tsAvg,vr_bar,R,postprofile=None):
             dfRad.to_csv(postprofile,sep='\t',index=False)
     return dfRad
 
-def spanwiseAD(tsAvg,vr_bar,rho,R,nB,postprofile=None,IR=None):
+def spanwiseAD(tsAvg,vr_bar,rho,R,nB,chord=None,postprofile=None,IR=None):
+    r=vr_bar*R
     nr=len(vr_bar)
     Columns     = [('r/R_[-]', vr_bar)]
     # --- Extract radial data
@@ -307,10 +313,10 @@ def spanwiseAD(tsAvg,vr_bar,rho,R,nB,postprofile=None,IR=None):
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cl_[-]'     ,'B1Cl_[-]'   ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cd_[-]'     ,'B1Cd_[-]'   ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cm_[-]'     ,'B1Cm_[-]'   ))
-    Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cx_[-]'     ,'B1Cx_[-]'   ))
-    Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cy_[-]'     ,'B1Cy_[-]'   ))
-    Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cn_[-]'     ,'B1Cn_[-]'   ))
-    Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Ct_[-]'     ,'B1Ct_[-]'   ))
+    Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cx_[-]'     ,'B1cx_[-]'   ))
+    Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cy_[-]'     ,'B1cy_[-]'   ))
+    Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Cn_[-]'     ,'B1cn_[-]'   ))
+    Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Ct_[-]'     ,'B1ct_[-]'   ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Re_[-]' ,'B1Re_[-]' ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Vrel_[m/s]' ,'B1Vrel_[m/s]' ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Theta_[deg]','B1Theta_[deg]'))
@@ -319,17 +325,6 @@ def spanwiseAD(tsAvg,vr_bar,rho,R,nB,postprofile=None,IR=None):
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Vindx_[m/s]','B1Vindx_[m/s]'))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Vindy_[m/s]','B1Vindy_[m/s]'))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Fx_[N/m]'   ,'B1Fx_[N/m]'   ))
-    # Adding Ct value
-    if Columns[-1][1] is not None:
-        try:
-            r=vr_bar*R
-            Fx =Columns[-1][1]
-            U0=tsAvg['Wind1VelX_[m/s]']
-            Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * r)
-            Ct[vr_bar<0.01] = 0
-            Columns.append(('B1Ct_[-]', Ct))
-        except:
-            pass
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Fy_[N/m]'   ,'B1Fy_[N/m]'   ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Fl_[N/m]'   ,'B1Fl_[N/m]'   ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Fd_[N/m]'   ,'B1Fd_[N/m]'   ))
@@ -348,7 +343,7 @@ def spanwiseAD(tsAvg,vr_bar,rho,R,nB,postprofile=None,IR=None):
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}M_[-]' ,'B1M_[-]' ))
     Columns.append(extractSpanTS(tsAvg,nr,'B1N{:d}Mm_[N-m/m]'   ,'B1Mm_[N-m/m]'   ))
 
-    # AD 14
+    # --- AD 14
     Columns.append(extractSpanTS(tsAvg,nr,'Alpha{:02d}_[deg]'    ,'Alpha_[deg]'  ,  IR=IR))
     Columns.append(extractSpanTS(tsAvg,nr,'DynPres{:02d}_[Pa]'   ,'DynPres_[Pa]' ,  IR=IR))
     Columns.append(extractSpanTS(tsAvg,nr,'CLift{:02d}_[-]'      ,'CLift_[-]'    ,  IR=IR))
@@ -365,7 +360,31 @@ def spanwiseAD(tsAvg,vr_bar,rho,R,nB,postprofile=None,IR=None):
     Columns.append(extractSpanTS(tsAvg,nr,'ReNum{:02d}_[x10^6]'  ,'ReNum_[x10^6]',  IR=IR))
     Columns.append(extractSpanTS(tsAvg,nr,'Gamma{:02d}_[m^2/s]'  ,'Gamma_[m^2/s]',  IR=IR))
 
-    Columns.append(('r_[m]', vr_bar*R))
+    # --- Compute additional values (AD15 only)
+    ColNames = [n for n,_ in Columns]
+    iFx=ColNames.index('B1Fx_[N/m]')
+    if iFx>=0:
+        try:
+            Fx = np.array(Columns[iFx][1])
+            U0 = tsAvg['Wind1VelX_[m/s]']
+            Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * r)
+            Ct[vr_bar<0.01] = 0
+            Columns.append(('B1Ct_[-]', Ct))
+            CT=2*np.trapz(vr_bar*Ct,vr_bar)
+            Columns.append(('B1CtAvg_[-]', CT*np.ones(r.shape)))
+        except:
+            pass
+    iVrel=ColNames.index('B1Vrel_[m/s]')
+    iCl  =ColNames.index('B1Cl_[-]')
+    if iVrel>=0 and iCl>=0 and chord is not None:
+        try:
+            Vrel = np.array(Columns[iVrel][1])
+            Cl   = np.array(Columns[iCl][1])
+            Columns.append(('B1Gamma_[m^2/s]', 1/2 * chord*  Vrel * Cl))
+        except:
+            pass
+
+    Columns.append(('r_[m]', r))
 
     data     = np.column_stack([c for _,c in Columns if c is not None])
     ColNames = [n for n,_ in Columns if n is not None]
@@ -403,6 +422,7 @@ def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb'
 
     # --- Extract info (e.g. radial positions) from Fast input file
     fst = weio.FASTInputDeck(FST_In)
+    chord=None
     if fst.version == 'F7':
         # --- FAST7
         if  not hasattr(fst,'AD'):
@@ -425,7 +445,9 @@ def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb'
             if  not hasattr(fst.AD,'Bld1'):
                 raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
             rho        = fst.AD['AirDens']
-            r_FST_aero = AD_BldGag(fst.AD,fst.AD.Bld1) + fst.ED['HubRad']
+            r_FST_aero,chord = AD_BldGag(fst.AD,fst.AD.Bld1, chordOut = True)
+            print(chord)
+            r_FST_aero+= fst.ED['HubRad']
             IR         = None
 
         elif fst.ADversion == 'AD14':
@@ -445,7 +467,7 @@ def spanwisePostPro(FST_In,avgMethod='constantwindow',avgParam=5,out_ext='.outb'
         #print('IR      :',IR)
 
         # --- Extract radial data and export to csv if needed
-        dfAeroRad   = spanwiseAD(dfAvg.iloc[0], r_FST_aero/R, rho , R, nB=3, postprofile=postprofile, IR=IR)
+        dfAeroRad   = spanwiseAD(dfAvg.iloc[0], r_FST_aero/R, rho , R, nB=3, chord=chord, postprofile=postprofile, IR=IR)
         if r_FST_struct is None:
             dfStructRad=None
         else:
@@ -617,7 +639,7 @@ def templateReplaceGeneral(template_dir, PARAMS, workdir=None, main_file=None, n
 
     return files
 
-def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_function=None, RemoveAllowed=False, RemoveRefSubFiles=False):
+def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_function=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
     """ Replace parameters in a fast folder using a list of dictionaries where the keys are for instance:
         'FAST|DT', 'EDFile|GBRatio', 'ServoFile|GenEff'
     """
@@ -625,13 +647,23 @@ def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_fun
         return s.split('|')[0]
     def basename(s):
         return os.path.splitext(os.path.basename(s))[0]
-    def rebase(s,sid):
+    def rebase(wd,s,sid):
         split = os.path.splitext(os.path.basename(s))
-        return os.path.join(workdir,split[0]+sid+split[1])
-    def rebase_rel(s,sid):
+        return os.path.join(wd,split[0]+sid+split[1])
+    def rebase_rel(wd,s,sid):
         split = os.path.splitext(s)
-        return os.path.join(workdir,split[0]+sid+split[1])
-    # --- Saafety checks
+        return os.path.join(wd,split[0]+sid+split[1])
+    def get_strID(p) :
+        if name_function is None:
+            if '__name__' in p.keys():
+                strID=p['__name__']
+            else:
+                raise Exception('When calling `templateReplace`, either provide a naming function or profile the key `__name_` in the parameter dictionaries')
+        else:
+            strID =name_function(p)
+        return strID
+
+    # --- Safety checks
     if not os.path.exists(template_dir):
         raise Exception('Template directory does not exist: '+template_dir)
 
@@ -641,21 +673,23 @@ def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_fun
     if workdir is None:
         workdir=template_dir+'_Parametric'
 
-    # Copying template folder to workdir
-    if os.path.exists(workdir) and RemoveAllowed:
-        shutil.rmtree(workdir, ignore_errors=False, onerror=handleRemoveReadonlyWin)
-#     distutils.dir_util.copy_tree(template_dir, workdir)
-    #distutils.dir_util.copy_tree(template_dir, workdir)
-    #shutil.copytree(template_dir, workdir, ignore=ignore_patterns('.git'))
-    #files=glob.glob(os.path.join(template_dir,'*'))
-    #for f in files:
-    #    if os.path.isdir(f):
-    #        subfold=os.path.basename(f)
-    #        print('Copying subdirectory ',f,subfold)
-    #        copyTree(f, os.path.join(workdir,subfold))
-    copyTree(template_dir, workdir)
-    if RemoveAllowed:
-        removeFASTOuputs(workdir)
+    # Params need to be a list
+    if not isinstance(PARAMS,list):
+        PARAMS=[PARAMS]
+
+    if oneSimPerDir:
+        WORKDIRS=[os.path.join(workdir,get_strID(p)) for p in PARAMS]
+    else:
+        WORKDIRS=[workdir]*len(PARAMS)
+        # Copying template folder to workdir
+    for wd in list(set(WORKDIRS)):
+        if RemoveAllowed:
+            removeFASTOuputs(wd)
+        if os.path.exists(wd) and RemoveAllowed:
+            shutil.rmtree(wd, ignore_errors=False, onerror=handleRemoveReadonlyWin)
+        copyTree(template_dir, wd)
+        if RemoveAllowed:
+            removeFASTOuputs(wd)
 
     # --- Fast main file use as "master"
     if main_file is None:
@@ -663,18 +697,15 @@ def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_fun
         if len(FstFiles)>1:
             print(FstFiles)
             raise Exception('More than one fst file found in template folder, provide `main_file` or ensure there is only one `.fst` file') 
-        main_file=rebase(FstFiles.pop(),'')
-    else:
-        #main_file=os.path.join(template_dir, os.path.basename(main_file))
-        main_file=os.path.join(workdir, os.path.basename(main_file))
+        main_file=FstFiles.pop()
 
-    # Params need to be a list
-    if not isinstance(PARAMS,list):
-        PARAMS=[PARAMS]
 
     fastfiles=[]
     # TODO: Recursive loop splitting at the pipes '|', for now only 1 level supported...
-    for ip,p in enumerate(PARAMS):
+    for ip,(wd,p) in enumerate(zip(WORKDIRS,PARAMS)):
+        # 
+        main_file_new=os.path.join(wd, os.path.basename(main_file))
+
         if '__index__' not in p.keys():
             p['__index__']=ip
         if name_function is None:
@@ -688,9 +719,8 @@ def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_fun
         FileTypes = set(list(FileTypes)+['FAST']) # Enforcing FAST in list, so the main fst file is written
 
         # ---Copying main file and reading it
-        #fst_full = rebase(main_file,strID)
-        fst_full = os.path.join(workdir,strID+'.fst')
-        shutil.copyfile(main_file, fst_full )
+        fst_full = os.path.join(wd,strID+'.fst')
+        shutil.copyfile(main_file_new, fst_full )
         Files=dict()
         Files['FAST']=weio.FASTInFile(fst_full)
         # 
@@ -708,10 +738,9 @@ def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_fun
             if t=='FAST':
                 continue
             org_filename   = Files['FAST'][t].strip('"')
-#             org_filename_full =os.path.join(template_dir,org_filename)
-            org_filename_full =os.path.join(workdir,org_filename)
-            new_filename_full = rebase_rel(org_filename,'_'+strID)
-            new_filename      = os.path.relpath(new_filename_full,workdir)
+            org_filename_full =os.path.join(wd, org_filename)
+            new_filename_full = rebase_rel(wd, org_filename,'_'+strID)
+            new_filename      = os.path.relpath(new_filename_full,wd).replace('\\','/')
 #             print('org_filename',org_filename)
 #             print('org_filename',org_filename_full)
 #             print('New_filename',new_filename_full)
@@ -719,7 +748,6 @@ def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_fun
             shutil.copyfile(org_filename_full, new_filename_full)
             Files['FAST'][t] = '"'+new_filename+'"'
             # Reading files
-#             Files[t]=weio.FASTInFile(org_filename_full)
             Files[t]=weio.FASTInFile(new_filename_full)
         # --- Replacing in files
         for k,v in p.items():
@@ -735,15 +763,20 @@ def templateReplace(template_dir, PARAMS, workdir=None, main_file=None, name_fun
         fastfiles.append(fst_full)
     # --- Remove extra files at the end
     if RemoveRefSubFiles:
-        FST = weio.FASTInFile(main_file)
-        for t in FileTypes:
-            if t=='FAST':
-                continue
-            filename   = FST[t].strip('"')
-            #fullname   = rebase(filename,'')
-            fullname   = os.path.join(workdir,filename)
-            os.remove(fullname)
-    os.remove(main_file)
+        for wd in np.unique(WORKDIRS):
+            main_file_new=os.path.join(wd, os.path.basename(main_file))
+            FST = weio.FASTInFile(main_file_new)
+            for t in FileTypes:
+                if t=='FAST':
+                    continue
+                filename   = FST[t].strip('"')
+                #fullname   = rebase(filename,'')
+                fullname   = os.path.join(wd,filename)
+                os.remove(fullname)
+
+    for wd in np.unique(WORKDIRS):
+        main_file_new=os.path.join(wd, os.path.basename(main_file))
+        os.remove(main_file_new)
 
     return fastfiles
 
