@@ -200,7 +200,7 @@ class TableList(object): # todo inherit list
                     dfs_new.append(df_new)
                     names_new.append(name_new)
             except:
-                errors.append('Mask failed for table'+t.name) # TODO
+                errors.append('Mask failed for table: '+t.active_name) # TODO
 
         return dfs_new, names_new, errors
 
@@ -312,7 +312,8 @@ class Table(object):
             c_in_df   = df.columns[i]
             # TODO sort out the mess with asarray (introduced to have and/or
             # as array won't work with date comparison
-            if isinstance(df[c_in_df][0], pd._libs.tslibs.timestamps.Timestamp):
+            # NOTE: using iloc to avoid duplicates column issue
+            if isinstance(df.iloc[0,i], pd._libs.tslibs.timestamps.Timestamp):
                 sMask=sMask.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
             else:
                 sMask=sMask.replace('{'+c_no_unit+'}','np.asarray(df[\''+c_in_df+'\'])')
@@ -320,10 +321,13 @@ class Table(object):
         name_new = None
         if len(sMask.strip())>0 and sMask.strip().lower()!='no mask':
             try:
-                self.mask = np.asarray(eval(sMask))
+                mask = np.asarray(eval(sMask))
                 if bAdd:
-                    df_new = df[self.mask]
+                    df_new = df[mask]
                     name_new=self.raw_name+'_masked'
+                else:
+                    self.mask=mask
+                    self.maskString=maskString
             except:
                 raise Exception('Error: The mask failed for table: '+self.name)
         return df_new, name_new

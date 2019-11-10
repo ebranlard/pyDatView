@@ -1,4 +1,5 @@
 import wx
+import numpy as np
 
 # For log dec tool
 from .damping import logDecFromDecay
@@ -177,9 +178,10 @@ class MaskToolPanel(GUIToolPanel):
     def updateTabList(self,event=None):
         tabList = self.parent.selPanel.tabList
         tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+        iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
         self.cbTabs.Clear()
         [self.cbTabs.Append(tn) for tn in tabListNames]
-        self.cbTabs.SetSelection(0)
+        self.cbTabs.SetSelection(iSel)
 
 # --------------------------------------------------------------------------------}
 # --- Radial
@@ -254,6 +256,7 @@ class RadialToolPanel(GUIToolPanel):
     def updateTabList(self,event=None):
         tabList = self.parent.selPanel.tabList
         tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+        iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
         self.cbTabs.Clear()
         [self.cbTabs.Append(tn) for tn in tabListNames]
-        self.cbTabs.SetSelection(0)
+        self.cbTabs.SetSelection(iSel)
