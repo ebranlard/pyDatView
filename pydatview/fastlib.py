@@ -418,7 +418,10 @@ def spanwiseAD(tsAvg,vr_bar,rho,R,nB,chord=None,postprofile=None,IR=None):
 
     # --- Compute additional values (AD15 only)
     ColNames = [n for n,_ in Columns]
-    iFx=ColNames.index('B1Fx_[N/m]')
+    try: # for python 2
+        iFx=ColNames.index('B1Fx_[N/m]') 
+    except:
+        iFx=-1
     if iFx>=0:
         try:
             Fx = np.array(Columns[iFx][1])
@@ -430,8 +433,12 @@ def spanwiseAD(tsAvg,vr_bar,rho,R,nB,chord=None,postprofile=None,IR=None):
             Columns.append(('B1CtAvg_[-]', CT*np.ones(r.shape)))
         except:
             pass
-    iVrel=ColNames.index('B1Vrel_[m/s]')
-    iCl  =ColNames.index('B1Cl_[-]')
+    try:
+        iVrel=ColNames.index('B1Vrel_[m/s]')
+        iCl  =ColNames.index('B1Cl_[-]')
+    except:
+        iVrel=-1
+        iCl=-1
     if iVrel>=0 and iCl>=0 and chord is not None:
         try:
             Vrel = np.array(Columns[iVrel][1])
