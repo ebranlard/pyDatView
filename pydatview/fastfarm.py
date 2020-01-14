@@ -6,13 +6,8 @@ try:
     import weio
 except:
     raise Exception('Python package `weio` not found, please install it from https://github.com/ebranlard/weio ')
-try:
-    import welib.fastlib.fastlib as fastlib
-except:
-    try:
-        import fastlib
-    except:
-        raise Exception('You need the python module fastlib, you can get it by installing `welib` from https://github.com/ebranlard/welib or just download it from there')
+
+from . import fastlib
 
 
 
