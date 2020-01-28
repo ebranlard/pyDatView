@@ -362,45 +362,47 @@ def spanwise(tsAvg,vr_bar,R,postprofile=None):
 def spanwiseAD(tsAvg,vr_bar=None,rho=None,R=None,nB=None,chord=None,postprofile=None,IR=None):
     # --- Extract radial data
     Columns=[]
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Alpha_\[deg\]','B1Alpha_[deg]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)AOA_\[deg\]'  ,'B1Alpha_[deg]')) # DBGOuts
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)AxInd_\[-\]'  ,'B1AxInd_[-]'  ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)TnInd_\[-\]'  ,'B1TnInd_[-]'  ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)AIn_\[-\]'    ,'B1AxInd_[-]'  )) # DBGOuts
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)ApI_\[-\]'    ,'B1TnInd_[-]'  )) # DBGOuts
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Cl_\[-\]'     ,'B1Cl_[-]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Cd_\[-\]'     ,'B1Cd_[-]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Cm_\[-\]'     ,'B1Cm_[-]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Cx_\[-\]'     ,'B1Cx_[-]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Cy_\[-\]'     ,'B1Cy_[-]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Cn_\[-\]'     ,'B1Cn_[-]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Ct_\[-\]'     ,'B1Ct_[-]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Re_\[-\]'     ,'B1Re_[-]' ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Vrel_\[m/s\]' ,'B1Vrel_[m/s]' ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Theta_\[deg\]','B1Theta_[deg]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Phi_\[deg\]'  ,'B1Phi_[deg]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Twst_\[deg\]' ,'B1Twst_[deg]')) #DBGOuts
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Curve_\[deg\]','B1Curve_[deg]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Vindx_\[m/s\]','B1Vindx_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Vindy_\[m/s\]','B1Vindy_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Fx_\[N/m\]'   ,'B1Fx_[N/m]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Fy_\[N/m\]'   ,'B1Fy_[N/m]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Fl_\[N/m\]'   ,'B1Fl_[N/m]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Fd_\[N/m\]'   ,'B1Fd_[N/m]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Fn_\[N/m\]'   ,'B1Fn_[N/m]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Ft_\[N/m\]'   ,'B1Ft_[N/m]'   ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)VUndx_\[m/s\]','B1VUndx_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)VUndy_\[m/s\]','B1VUndy_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)VUndz_\[m/s\]','B1VUndz_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)VDisx_\[m/s\]','B1VDisx_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)VDisy_\[m/s\]','B1VDisy_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)VDisz_\[m/s\]','B1VDisz_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Vx_\[m/s\]'   ,'B1Vx_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Vy_\[m/s\]'   ,'B1Vy_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Vz_\[m/s\]'   ,'B1Vz_[m/s]'))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)DynP_\[Pa\]'  ,'B1DynP_[Pa]' ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)M_\[-\]'      ,'B1M_[-]' ))
-    Columns.append(extractSpanTSReg(tsAvg,'^B1N(\d*)Mm_\[N-m/m\]' ,'B1Mm_[N-m/m]'   ))
+    for sB in ['B1','B2','B3']:
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Alpha_\[deg\]',sB+'Alpha_[deg]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)AOA_\[deg\]'  ,sB+'Alpha_[deg]')) # DBGOuts
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)AxInd_\[-\]'  ,sB+'AxInd_[-]'  ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)TnInd_\[-\]'  ,sB+'TnInd_[-]'  ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)AIn_\[-\]'    ,sB+'AxInd_[-]'  )) # DBGOuts
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)ApI_\[-\]'    ,sB+'TnInd_[-]'  )) # DBGOuts
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cl_\[-\]'     ,sB+'Cl_[-]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cd_\[-\]'     ,sB+'Cd_[-]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cm_\[-\]'     ,sB+'Cm_[-]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cx_\[-\]'     ,sB+'Cx_[-]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cy_\[-\]'     ,sB+'Cy_[-]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cn_\[-\]'     ,sB+'Cn_[-]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Ct_\[-\]'     ,sB+'Ct_[-]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Re_\[-\]'     ,sB+'Re_[-]' ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vrel_\[m/s\]' ,sB+'Vrel_[m/s]' ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Theta_\[deg\]',sB+'Theta_[deg]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Phi_\[deg\]'  ,sB+'Phi_[deg]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Twst_\[deg\]' ,sB+'Twst_[deg]')) #DBGOuts
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Curve_\[deg\]',sB+'Curve_[deg]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vindx_\[m/s\]',sB+'Vindx_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vindy_\[m/s\]',sB+'Vindy_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fx_\[N/m\]'   ,sB+'Fx_[N/m]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fy_\[N/m\]'   ,sB+'Fy_[N/m]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fl_\[N/m\]'   ,sB+'Fl_[N/m]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fd_\[N/m\]'   ,sB+'Fd_[N/m]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fn_\[N/m\]'   ,sB+'Fn_[N/m]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Ft_\[N/m\]'   ,sB+'Ft_[N/m]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VUndx_\[m/s\]',sB+'VUndx_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VUndy_\[m/s\]',sB+'VUndy_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VUndz_\[m/s\]',sB+'VUndz_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VDisx_\[m/s\]',sB+'VDisx_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VDisy_\[m/s\]',sB+'VDisy_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VDisz_\[m/s\]',sB+'VDisz_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vx_\[m/s\]'   ,sB+'Vx_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vy_\[m/s\]'   ,sB+'Vy_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vz_\[m/s\]'   ,sB+'Vz_[m/s]'))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)DynP_\[Pa\]'  ,sB+'DynP_[Pa]' ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)M_\[-\]'      ,sB+'M_[-]' ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Mm_\[N-m/m\]' ,sB+'Mm_[N-m/m]'   ))
+        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Gam_\['       ,sB+'Gam_[m^2/s]')) #DBGOuts
 
     # --- AD 14
     Columns.append(extractSpanTSReg(tsAvg,'^Alpha(\d*)_\[deg\]'    ,'Alpha_[deg]'  ,  IR=IR))
@@ -435,6 +437,12 @@ def spanwiseAD(tsAvg,vr_bar=None,rho=None,R=None,nB=None,chord=None,postprofile=
         vr_bar = ids/(nrMax-1)
     else:
         bFakeVr=False
+        if (nrMax)<len(vr_bar):
+            vr_bar=vr_bar[1:nrMax]
+            if chord is not None:
+                chord =chord[1:nrMax]
+        elif (nrMax)>len(vr_bar):
+            raise Exception('Inconsitent length between radial stations and max index present in output chanels')
 
     for i in np.arange(len(data)):
         d=data[i]
@@ -451,6 +459,8 @@ def spanwiseAD(tsAvg,vr_bar=None,rho=None,R=None,nB=None,chord=None,postprofile=
     dataStack = dataStack[ValidRow[0],:]
     ids       = ids      [ValidRow[0]]
     vr_bar    = vr_bar   [ValidRow[0]]
+    if chord is not None:
+        chord    = chord   [ValidRow[0]]
 
     # --- Create a dataframe
     dfRad = pd.DataFrame(data= dataStack, columns = ColNames)
@@ -462,22 +472,22 @@ def spanwiseAD(tsAvg,vr_bar=None,rho=None,R=None,nB=None,chord=None,postprofile=
         if R is not None:
             r = vr_bar*R
 
-
     # --- Compute additional values (AD15 only)
-    try: # for python 2
-        Fx = dfRad['B1Fx_[N/m]']
-        U0 = tsAvg['Wind1VelX_[m/s]']
-        Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * r)
-        Ct[vr_bar<0.01] = 0
-        dfRad['B1Ct_[-]'] = Ct
-        CT=2*np.trapz(vr_bar*Ct,vr_bar)
-        dfRad['B1CtAvg_[-]']= CT*np.ones(r.shape)
-    except:
-        pass
-    try:
-        dfRad['B1Gamma_[m^2/s]'] = 1/2 * chord*  dfRad['B1Vrel_[m/s]'] * dfRad['B1Cl_[-]'] 
-    except:
-        pass
+    for sB in ['B1','B2','B3']:
+        try: # for python 2
+            Fx = dfRad[sB+'Fx_[N/m]']
+            U0 = tsAvg['Wind1VelX_[m/s]']
+            Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * r)
+            Ct[vr_bar<0.01] = 0
+            dfRad[sB+'Ct_[-]'] = Ct
+            CT=2*np.trapz(vr_bar*Ct,vr_bar)
+            dfRad[sB+'CtAvg_[-]']= CT*np.ones(r.shape)
+        except:
+            pass
+        try:
+            dfRad[sB+'Gamma_[m^2/s]'] = 1/2 * chord*  dfRad[sB+'Vrel_[m/s]'] * dfRad[sB+'Cl_[-]'] 
+        except:
+            pass
 
     dfRad['id_[#]']=ids+1
     if not bFakeVr:
@@ -542,8 +552,9 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
                 if  not hasattr(fst.AD,'Bld1'):
                     raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
                 rho        = fst.AD['AirDens']
-                r_FST_aero,chord = AD_BldGag(fst.AD,fst.AD.Bld1, chordOut = True)
-                print(chord)
+                r_FST_aero_gag,_ = AD_BldGag(fst.AD,fst.AD.Bld1, chordOut = True) # Only at Gages locations
+                r_FST_aero = fst.AD.Bld1['BldAeroNodes'][:,0] # Full span
+                chord      = fst.AD.Bld1['BldAeroNodes'][:,5] # Full span
                 r_FST_aero+= fst.ED['HubRad']
                 IR         = None
 
