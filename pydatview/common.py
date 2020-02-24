@@ -147,19 +147,22 @@ def getDt(x):
     """ returns dt in s """
     def myisnat(dt):
         if isinstance(dt,pd._libs.tslibs.timedeltas.Timedelta):
-            dt=pd.to_timedelta(dt,box=False)
+            try:
+                dt=pd.to_timedelta(dt) # pandas 1.0
+            except:
+                dt=pd.to_timedelta(dt,box=False) # backward compatibility
+                
         elif isinstance(dt,datetime.timedelta):
             dt=np.array([dt],dtype='timedelta64')[0]
-        elif isinstance(dt,pd._libs.tslibs.nattype.NaTType):
-            dt=pd.to_timedelta(dt,box=False)
-        #print(type(dt))
-        try:
-            isnat=np.isnat(dt)
-        except:
-            print(type(dt),type(dx))
-            isnat=False
-            raise
-        return isnat
+        return pd.isna(dt)
+#         try:
+#             print('>>>', dt,type(dt))
+#             isnat=np.isnat(dt)
+#         except:
+#             print(type(dt),type(dx))
+#             isnat=False
+#             raise
+#         return isnat
 
 
 

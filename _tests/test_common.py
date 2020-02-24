@@ -86,9 +86,9 @@ class TestCommon(unittest.TestCase):
         self.assertListEqual(ellude_common(['CT_0.1'  , 'CT_0.9'])  , ['0.1'    , '0.9'] )
         self.assertListEqual(ellude_common(['CT=0.1'  , 'CT=0.9'])  , ['CT=0.1' , 'CT=0.9'] )
         self.assertListEqual(ellude_common(['AAA'     , 'ABA']      , minLength=-1) , ['A'                  , 'B']      )
-        print(ellude_common(['Farm.ifw.T1','Farm.ifw.T2'],minLength=2))
-        print('')
-        print('')
+        #print(ellude_common(['Farm.ifw.T1','Farm.ifw.T2'],minLength=2))
+        #print('')
+        #print('')
 
 
  
