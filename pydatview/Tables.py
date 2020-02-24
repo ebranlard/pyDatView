@@ -99,7 +99,7 @@ class TableList(object): # todo inherit list
         else:
             for k in list(dfs.keys()):
                 if len(dfs[k])>0:
-                    tabs.append(Table(data=dfs[k], name=k, filename=filename, fileformat=F.formatName()))
+                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=F.formatName()))
         return tabs
             
     def getTabs(self):
@@ -252,11 +252,11 @@ class Table(object):
             self.data    = data 
             self.columns = self.columnsFromDF(data)
             # --- Trying to figure out how to name this table
-            if len(name)==0:
+            if name is None or len(str(name))==0:
                 if data.columns.name is not None:
                     name=data.columns.name
 
-        self.setupName(name=name)
+        self.setupName(name=str(name))
         
         self.convertTimeColumns()
 
@@ -274,7 +274,7 @@ class Table(object):
             basename,ext=os.path.splitext(os.path.basename(self.filename))
             if len(basename)>0:
                 splits.append(basename)
-        if len(name)>0:
+        if name is not None and len(name)>0:
             splits.append(name)
         #if len(ext)>0:
         #    splits.append(ext)
