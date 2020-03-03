@@ -146,7 +146,13 @@ class TableList(object): # todo inherit list
 
     def getDisplayTabNames(self):
         if self.Naming=='Ellude':
-            return  ellude_common([t.raw_name for t in self._tabs])
+            # Temporary hack, using last names if all last names are unique
+            names = [t.raw_name for t in self._tabs]
+            last_names=[n.split('|')[-1] for n in names]
+            if len(np.unique(last_names)) == len(names):
+                return  ellude_common(last_names)
+            else:
+                return  ellude_common(names)
         elif self.Naming=='FileNames':
             return [os.path.splitext(os.path.basename(t.filename))[0] for t in self._tabs]
         else:
