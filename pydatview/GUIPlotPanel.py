@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import wx
 import dateutil # required by matplotlib
@@ -29,6 +30,7 @@ except Exception as e:
         raise e
 from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
+from matplotlib import font_manager
 import gc
 
 from .spectral import fft_wrap
@@ -272,9 +274,22 @@ class PlotPanel(wx.Panel):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
+
+        # Font handling
         font = parent.GetFont()
         font.SetPointSize(font.GetPointSize()-1)
         self.SetFont(font) 
+        # Preparing a special font manager for chinese characters
+        self.specialFont=None
+        CH_F_PATHS = [
+                os.path.join(pyplot_rc['datapath'], 'fonts/ttf/SimHei.ttf'),
+                os.path.join(os.path.dirname(__file__),'../SimHei.ttf')]
+        for fpath in CH_F_PATHS:
+            if os.path.exists(fpath):
+                fontP = font_manager.FontProperties(fname=fpath)
+                fontP.set_size(font.GetPointSize())
+                self.specialFont=fontP
+                break
         # data
         self.selPanel = selPanel
         self.infoPanel=infoPanel
@@ -568,6 +583,7 @@ class PlotPanel(wx.Panel):
             d.x,d.xIsString,d.xIsDate,_ = tabs[d.it].getColumn(d.ix)
             d.y,d.yIsString,d.yIsDate,c = tabs[d.it].getColumn(d.iy)
             n=len(d.y)
+            d.needChineseFont = has_chinese_char(d.sy) or has_chinese_char(d.sx)
             # Stats of the raw data
             #d.x0Min  = xMin(d)
             #d.x0Max  = xMax(d)
@@ -738,6 +754,15 @@ class PlotPanel(wx.Panel):
 
         PD=self.plotData
 
+
+        needChineseFont = any([pd.needChineseFont for pd in PD])
+        if needChineseFont and self.specialFont is not None:
+            font_options      = {'fontproperties': self.specialFont}
+            font_options_legd = {'prop': self.specialFont}
+        else:
+            font_options      = {}
+            font_options_legd = {}
+
         bAllNeg=True
         for ax in axes:
             # Plot data
@@ -803,11 +828,11 @@ class PlotPanel(wx.Panel):
                     ax.plot([xmin,xmax],[xmin,xmax],'k--',linewidth=0.5)
 
         # Labels
-        axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx)
+        axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx, **font_options)
         for ax in axes:
             usy = unique([PD[i].sy for i in ax.iPD])
             if len(usy)<=3:
-                ax.set_ylabel(' and '.join(usy)) # consider legend
+                ax.set_ylabel(' and '.join(usy), **font_options) # consider legend
             else:
                 ax.set_ylabel('')
         # Legend
@@ -816,16 +841,16 @@ class PlotPanel(wx.Panel):
         usyP0 = unique([PD[i].syl for i in axes[0].iPD])
         if  self.pltTypePanel.cbCompare.GetValue():
             for ax in axes:
-                ax.legend(fancybox=False, loc=1)
+                ax.legend(fancybox=False, loc=1, **font_options_legd)
         elif len(usyP0)>1:
             #axes[0].legend(fancybox=False, framealpha=1, loc=1, shadow=None)
-            axes[0].legend(fancybox=False, loc=1)
+            axes[0].legend(fancybox=False, loc=1, **font_options_legd)
         elif len(axes)>1 and len(axes)==len(PD):
             # Special case when we have subplots and all plots have the same label
             usy = unique([pd.sy for pd in PD])
             if len(usy)==1:
                 for ax in axes:
-                    ax.legend(fancybox=False, loc=1)
+                    ax.legend(fancybox=False, loc=1, **font_options_legd)
             
         # --- Cursors for each individual plot
         # NOTE: cursors needs to be stored in the object!
