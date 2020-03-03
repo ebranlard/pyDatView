@@ -1,7 +1,10 @@
+# - *- coding: utf- 8 - *-
+from __future__ import unicode_literals,print_function
 import unittest
 import numpy as np
 import pandas as pd
 from pydatview.common import unit,no_unit,ellude_common,getDt, find_leftstop
+from pydatview.common import has_chinese_char
 import datetime
 
 
@@ -89,6 +92,12 @@ class TestCommon(unittest.TestCase):
         #print(ellude_common(['Farm.ifw.T1','Farm.ifw.T2'],minLength=2))
         #print('')
         #print('')
+
+    def test_chinese_char(self):
+        self.assertEqual(has_chinese_char('')    ,False)
+        self.assertEqual(has_chinese_char('aaaa'),False)
+        self.assertEqual(has_chinese_char('aa时'),True )
+        self.assertEqual(has_chinese_char('a时a'),True )
 
 
  
