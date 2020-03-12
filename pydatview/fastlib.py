@@ -324,7 +324,10 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
 
     nOuts=AD['NBlOuts']
     if nOuts<=0:
-        return np.array([])
+        if chordOut:
+            return np.array([]), np.array([])
+        else:
+            return np.array([])
     INodes = np.array(AD['BlOutNd'][:nOuts])
     r_gag = AD_bld['BldAeroNodes'][INodes-1,0]
     if chordOut:
@@ -553,10 +556,14 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
                     raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
                 rho        = fst.AD['AirDens']
                 r_FST_aero_gag,_ = AD_BldGag(fst.AD,fst.AD.Bld1, chordOut = True) # Only at Gages locations
-                r_FST_aero = fst.AD.Bld1['BldAeroNodes'][:,0] # Full span
-                chord      = fst.AD.Bld1['BldAeroNodes'][:,5] # Full span
-                r_FST_aero+= fst.ED['HubRad']
-                IR         = None
+                if len(r_FST_aero_gag)==0:
+                    # All outs?
+                    r_FST_aero = fst.AD.Bld1['BldAeroNodes'][:,0] # Full span
+                    chord      = fst.AD.Bld1['BldAeroNodes'][:,5] # Full span
+                    r_FST_aero+= fst.ED['HubRad']
+                    IR         = None
+                else:
+                    r_FST_aero = r_FST_aero_gag
 
             elif fst.ADversion == 'AD14':
                 try:
