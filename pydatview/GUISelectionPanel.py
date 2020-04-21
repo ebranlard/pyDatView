@@ -600,8 +600,10 @@ class ColumnPanel(wx.Panel):
         columns=['Index']+self.tab.columns
         if self.bShowID:
             columns= ['{:03d} '.format(i)+c for i,c in enumerate(columns)]
+        self.Freeze()
         self.lbColumns.Set(columns)
         self.comboX.Set(columns)
+        self.Thaw()
         # Restoring previous selection
         for i in ySel:
             if i<len(columns) and i>=0:
