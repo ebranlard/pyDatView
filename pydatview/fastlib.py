@@ -176,10 +176,18 @@ def run_fast(input_file, fastExe=None, wait=True, ShowOutputs=False, ShowCommand
 
 
 def writeBatch(batchfile, fastfiles, fastExe=None):
+    """ Write batch file, everything is written relative to the batch file"""
     if fastExe is None:
         fastExe=FAST_EXE
+    fastExe_abs   = os.path.abspath(fastExe)
+    batchfile_abs = os.path.abspath(batchfile)
+    batchdir      = os.path.dirname(batchfile_abs)
+    fastExe_rel   = os.path.relpath(fastExe_abs, batchdir)
     with open(batchfile,'w') as f:
-        for l in [fastExe + ' '+ os.path.basename(f) for f in fastfiles]:
+        for ff in fastfiles:
+            ff_abs = os.path.abspath(ff)
+            ff_rel = os.path.relpath(ff_abs, batchdir)
+            l = fastExe_rel + ' '+ ff_rel
             f.write("%s\n" % l)
 
 
@@ -251,13 +259,13 @@ def ED_BldGag(ED):
     _,r_nodes= ED_BldStations(ED)
     nOuts = ED['NBlGages']
     if nOuts<=0:
-        return np.array([])
+        return np.array([]), np.array([])
     if type(ED['BldGagNd']) is list:
         Inodes = np.asarray(ED['BldGagNd'])
     else:
         Inodes = np.array([ED['BldGagNd']])
     r_gag = r_nodes[ Inodes[:nOuts] -1]
-    return r_gag
+    return r_gag, Inodes
 
 def ED_TwrGag(ED):
     """ Returns the heights of ElastoDyn blade gages 
@@ -336,114 +344,58 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
     else:
         return r_gag
 
+def BD_BldGag(BD):
+    """ Returns the radial position of BeamDyn blade gages 
+    INPUTS:
+       - BD: either:
+           - a filename of a BeamDyn input file
+           - an instance of FileCl, as returned by reading the file, BD = weio.read(BD_filename)
+    OUTPUTS:
+       - r_gag: The radial positions of the gages, given from the rotor apex
+    """
+    if not isinstance(BD,weio.FASTInFile):
+        BD = weio.FASTInFile(BD)
+
+    M       = BD['MemberGeom']
+    r_nodes = M[:,2] # NOTE: we select the z axis here, and we don't take curvilenear coord
+    nOuts = BD['NNodeOuts']
+    if nOuts<=0:
+        nOuts=0
+    if type(BD['OutNd']) is list:
+        Inodes = np.asarray(BD['OutNd'])
+    else:
+        Inodes = np.array([BD['OutNd']])
+    r_gag = r_nodes[ Inodes[:nOuts] -1]
+    return r_gag, Inodes, r_nodes
+
 # 
 # 
 # 1, 7, 14, 21, 30, 36, 43, 52, 58 BldGagNd List of blade nodes that have strain gages [1 to BldNodes] (-) [unused if NBlGages=0]
 
-def spanwise(tsAvg,vr_bar,R,postprofile=None):
-    nr=len(vr_bar)
-    Columns     = [('r/R_[-]', vr_bar)]
-    Columns.append(extractSpanTS(tsAvg,nr,'Spn{:d}FLxb1_[kN]'   ,'FLxb1_[kN]'))
-    Columns.append(extractSpanTS(tsAvg,nr,'Spn{:d}MLyb1_[kN-m]' ,'MLxb1_[kN-m]'  ))
-    Columns.append(extractSpanTS(tsAvg,nr,'Spn{:d}MLxb1_[kN-m]' ,'MLyb1_[kN-m]'   ))
-    Columns.append(extractSpanTS(tsAvg,nr,'Spn{:d}MLzb1_[kN-m]' ,'MLzb1_[kN-m]'   ))
-    Columns.append(('r_[m]', vr_bar*R))
-
-    data     = np.column_stack([c for _,c in Columns if c is not None])
-    ColNames = [n for n,_ in Columns if n is not None]
-
-    # --- Export to dataframe and csv
-    if len(ColNames)<=2:
-        print('[WARN] No elastodyn spanwise data found.')
-        return None
-    else:
-        dfRad = pd.DataFrame(data= data, columns = ColNames)
-        if postprofile is not None:
-            dfRad.to_csv(postprofile,sep='\t',index=False)
-    return dfRad
-
-def spanwiseAD(tsAvg,vr_bar=None,rho=None,R=None,nB=None,chord=None,postprofile=None,IR=None):
-    # --- Extract radial data
-    Columns=[]
-    for sB in ['B1','B2','B3']:
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Alpha_\[deg\]',sB+'Alpha_[deg]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)AOA_\[deg\]'  ,sB+'Alpha_[deg]')) # DBGOuts
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)AxInd_\[-\]'  ,sB+'AxInd_[-]'  ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)TnInd_\[-\]'  ,sB+'TnInd_[-]'  ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)AIn_\[-\]'    ,sB+'AxInd_[-]'  )) # DBGOuts
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)ApI_\[-\]'    ,sB+'TnInd_[-]'  )) # DBGOuts
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cl_\[-\]'     ,sB+'Cl_[-]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cd_\[-\]'     ,sB+'Cd_[-]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cm_\[-\]'     ,sB+'Cm_[-]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cx_\[-\]'     ,sB+'Cx_[-]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cy_\[-\]'     ,sB+'Cy_[-]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Cn_\[-\]'     ,sB+'Cn_[-]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Ct_\[-\]'     ,sB+'Ct_[-]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Re_\[-\]'     ,sB+'Re_[-]' ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vrel_\[m/s\]' ,sB+'Vrel_[m/s]' ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Theta_\[deg\]',sB+'Theta_[deg]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Phi_\[deg\]'  ,sB+'Phi_[deg]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Twst_\[deg\]' ,sB+'Twst_[deg]')) #DBGOuts
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Curve_\[deg\]',sB+'Curve_[deg]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vindx_\[m/s\]',sB+'Vindx_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vindy_\[m/s\]',sB+'Vindy_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fx_\[N/m\]'   ,sB+'Fx_[N/m]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fy_\[N/m\]'   ,sB+'Fy_[N/m]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fl_\[N/m\]'   ,sB+'Fl_[N/m]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fd_\[N/m\]'   ,sB+'Fd_[N/m]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Fn_\[N/m\]'   ,sB+'Fn_[N/m]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Ft_\[N/m\]'   ,sB+'Ft_[N/m]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VUndx_\[m/s\]',sB+'VUndx_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VUndy_\[m/s\]',sB+'VUndy_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VUndz_\[m/s\]',sB+'VUndz_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VDisx_\[m/s\]',sB+'VDisx_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VDisy_\[m/s\]',sB+'VDisy_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)VDisz_\[m/s\]',sB+'VDisz_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vx_\[m/s\]'   ,sB+'Vx_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vy_\[m/s\]'   ,sB+'Vy_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Vz_\[m/s\]'   ,sB+'Vz_[m/s]'))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)DynP_\[Pa\]'  ,sB+'DynP_[Pa]' ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)M_\[-\]'      ,sB+'M_[-]' ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Mm_\[N-m/m\]' ,sB+'Mm_[N-m/m]'   ))
-        Columns.append(extractSpanTSReg(tsAvg,'^'+sB+'N(\d*)Gam_\['       ,sB+'Gam_[m^2/s]')) #DBGOuts
-
-    # --- AD 14
-    Columns.append(extractSpanTSReg(tsAvg,'^Alpha(\d*)_\[deg\]'    ,'Alpha_[deg]'  ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^DynPres(\d*)_\[Pa\]'   ,'DynPres_[Pa]' ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^CLift(\d*)_\[-\]'      ,'CLift_[-]'    ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^CDrag(\d*)_\[-\]'      ,'CDrag_[-]'    ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^CNorm(\d*)_\[-\]'      ,'CNorm_[-]'    ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^CTang(\d*)_\[-\]'      ,'CTang_[-]'    ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^CMomt(\d*)_\[-\]'      ,'CMomt_[-]'    ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^Pitch(\d*)_\[deg\]'    ,'Pitch_[deg]'  ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^AxInd(\d*)_\[-\]'      ,'AxInd_[-]'    ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^TanInd(\d*)_\[-\]'     ,'TanInd_[-]'   ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^ForcN(\d*)_\[N\]'      ,'ForcN_[N]'    ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^ForcT(\d*)_\[N\]'      ,'ForcT_[N]'    ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^Pmomt(\d*)_\[N-m\]'    ,'Pmomt_[N-N]'  ,  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^ReNum(\d*)_\[x10^6\]'  ,'ReNum_[x10^6]',  IR=IR))
-    Columns.append(extractSpanTSReg(tsAvg,'^Gamma(\d*)_\[m^2/s\]'  ,'Gamma_[m^2/s]',  IR=IR))
-
+# --------------------------------------------------------------------------------}
+# --- Helper functions for radial data  
+# --------------------------------------------------------------------------------{
+def _HarmonizeSpanwiseData(Name, Columns, vr, R, IR=None) :
+    """ helper function to use with spanwiseAD and spanwiseED """
     # --- Data present
     data     = [c for _,c in Columns if c is not None]
     ColNames = [n for n,_ in Columns if n is not None]
     Lengths  = [len(d) for d in data]
     if len(data)<=0:
-        print('[WARN] No spanwise aero data')
-        return None
+        print('[WARN] No spanwise data for '+Name)
+        return None, None, None
 
     # --- Harmonize data so that they all have the same length
     nrMax = np.max(Lengths)
     ids=np.arange(nrMax)
-    if vr_bar is None:
+    if vr is None:
         bFakeVr=True
         vr_bar = ids/(nrMax-1)
     else:
+        vr_bar=vr/R
         bFakeVr=False
         if (nrMax)<len(vr_bar):
             vr_bar=vr_bar[1:nrMax]
-            if chord is not None:
-                chord =chord[1:nrMax]
         elif (nrMax)>len(vr_bar):
             raise Exception('Inconsitent length between radial stations and max index present in output chanels')
 
@@ -454,7 +406,6 @@ def spanwiseAD(tsAvg,vr_bar=None,rho=None,R=None,nB=None,chord=None,postprofile=
             Values[:] = np.nan
             Values[1:len(d)] = d
             data[i] = Values
-            print('>> nr',len(d), nrMax,len(Values))
 
     # --- Combine data and remove 
     dataStack = np.column_stack([d for d in data])
@@ -462,8 +413,6 @@ def spanwiseAD(tsAvg,vr_bar=None,rho=None,R=None,nB=None,chord=None,postprofile=
     dataStack = dataStack[ValidRow[0],:]
     ids       = ids      [ValidRow[0]]
     vr_bar    = vr_bar   [ValidRow[0]]
-    if chord is not None:
-        chord    = chord   [ValidRow[0]]
 
     # --- Create a dataframe
     dfRad = pd.DataFrame(data= dataStack, columns = ColNames)
@@ -474,36 +423,224 @@ def spanwiseAD(tsAvg,vr_bar=None,rho=None,R=None,nB=None,chord=None,postprofile=
         dfRad.insert(0, 'r/R_[-]', vr_bar)
         if R is not None:
             r = vr_bar*R
+    if IR is not None:
+        dfRad['Node_[#]']=IR[:nrMax]
+    dfRad['i_[#]']=ids+1
+    if not bFakeVr:
+        dfRad['r_[m]'] = r
 
-    # --- Compute additional values (AD15 only)
+    return dfRad,  nrMax, ValidRow
+
+def insert_radial_columns(df, vr, R=None, IR=None):
+    """
+    Add some columns to the radial data
+    """
+    if df is None:
+        return df
+    if df.shape[1]==0:
+        return None
+    nrMax=len(df)
+    ids=np.arange(nrMax)
+    if vr is None:
+        # Radial position unknown
+        vr_bar = ids/(nrMax-1)
+        df.insert(0, 'i/n_[-]', vr_bar)
+    else:
+        vr_bar=vr/R
+        if (nrMax)<len(vr_bar):
+            vr_bar=vr_bar[1:nrMax]
+        elif (nrMax)>len(vr_bar):
+            raise Exception('Inconsitent length between radial stations and max index present in output chanels')
+        df.insert(0, 'r/R_[-]', vr_bar)
+
+    if IR is not None:
+        df['Node_[#]']=IR[:nrMax]
+    df['i_[#]']=ids+1
+    if vr is not None:
+        df['r_[m]'] = vr[:nrMax]
+    return df
+
+def find_matching_columns(Cols, PatternMap):
+    ColsInfo=[]
+    nrMax=0
+    for colpattern,colmap in PatternMap.items():
+        # Extracting columns matching pattern
+        cols, sIdx = find_matching_pattern(Cols, colpattern)
+        if len(cols)>0:
+            # Sorting by ID
+            cols  = np.asarray(cols)
+            Idx   = np.array([int(s) for s in sIdx])
+            Isort = np.argsort(Idx)
+            Idx   = Idx[Isort]
+            cols  = cols[Isort]
+            col={'name':colmap,'Idx':Idx,'cols':cols}
+            nrMax=max(nrMax,np.max(Idx))
+            ColsInfo.append(col)
+    return ColsInfo,nrMax
+
+def extract_spanwise_data(ColsInfo, nrMax, df=None,ts=None):
+    """ 
+    Extract spanwise data based on some column info
+    ColsInfo: see find_matching_columns
+    """
+    nCols = len(ColsInfo)
+    if nCols==0:
+        return None
+    if ts is not None:
+        Values = np.zeros((nrMax,nCols))
+        Values[:] = np.nan
+    elif df is not None:
+        raise NotImplementedError()
+
+    ColNames =[c['name'] for c in ColsInfo]
+
+    for ic,c in enumerate(ColsInfo):
+        Idx, cols, colname = c['Idx'], c['cols'], c['name']
+        for idx,col in zip(Idx,cols):
+            Values[idx-1,ic]=ts[col]
+        nMissing = np.sum(np.isnan(Values[:,ic]))
+        if len(cols)<nrMax:
+            #print(Values)
+            print('[WARN] Not all values found for {}, missing {}/{}'.format(colname,nMissing,nrMax))
+        if len(cols)>nrMax:
+            print('[WARN] More values found for {}, found {}/{}'.format(colname,len(cols),nrMax))
+    return pd.DataFrame(data=Values, columns=ColNames)
+
+def spanwiseColBD(Cols):
+    """ Return column info, available columns and indices that contain BD spanwise data"""
+    BDSpanMap=dict()
     for sB in ['B1','B2','B3']:
-        try: # for python 2
+        BDSpanMap['^'+sB+'N(\d)TDxr_\[m\]']=sB+'TDxr_[m]'
+        BDSpanMap['^'+sB+'N(\d)TDyr_\[m\]']=sB+'TDyr_[m]'
+        BDSpanMap['^'+sB+'N(\d)TDzr_\[m\]']=sB+'TDzr_[m]'
+    return find_matching_columns(Cols, BDSpanMap)
+
+def spanwiseColED(Cols):
+    """ Return column info, available columns and indices that contain ED spanwise data"""
+    EDSpanMap=dict()
+    for sB in ['b1','b2','b3']:
+        SB=sB.upper()
+        EDSpanMap['^Spn(\d)ALx'+sB+'_\[m/s^2\]']=SB+'ALx_[m/s^2]'
+        EDSpanMap['^Spn(\d)ALy'+sB+'_\[m/s^2\]']=SB+'ALy_[m/s^2]'
+        EDSpanMap['^Spn(\d)ALz'+sB+'_\[m/s^2\]']=SB+'ALz_[m/s^2]'
+        EDSpanMap['^Spn(\d)TDx'+sB+'_\[m\]'    ]=SB+'TDx_[m]'
+        EDSpanMap['^Spn(\d)TDy'+sB+'_\[m\]'    ]=SB+'TDy_[m]'
+        EDSpanMap['^Spn(\d)TDz'+sB+'_\[m\]'    ]=SB+'TDz_[m]'
+        EDSpanMap['^Spn(\d)RDx'+sB+'_\[deg\]'  ]=SB+'RDx_[deg]'
+        EDSpanMap['^Spn(\d)RDy'+sB+'_\[deg\]'  ]=SB+'RDy_[deg]'
+        EDSpanMap['^Spn(\d)RDz'+sB+'_\[deg\]'  ]=SB+'RDz_[deg]'
+        EDSpanMap['^Spn(\d)FLx'+sB+'_\[kN\]'   ]=SB+'FLx_[kN]'
+        EDSpanMap['^Spn(\d)FLy'+sB+'_\[kN\]'   ]=SB+'FLy_[kN]'
+        EDSpanMap['^Spn(\d)FLz'+sB+'_\[kN\]'   ]=SB+'FLz_[kN]'
+        EDSpanMap['^Spn(\d)MLy'+sB+'_\[kN-m\]' ]=SB+'MLx_[kN-m]'
+        EDSpanMap['^Spn(\d)MLx'+sB+'_\[kN-m\]' ]=SB+'MLy_[kN-m]'  
+        EDSpanMap['^Spn(\d)MLz'+sB+'_\[kN-m\]' ]=SB+'MLz_[kN-m]'
+    return find_matching_columns(Cols, EDSpanMap)
+
+def spanwiseColAD(Cols):
+    """ Return column info, available columns and indices that contain AD spanwise data"""
+    ADSpanMap=dict()
+    for sB in ['B1','B2','B3']:
+        ADSpanMap['^'+sB+'N(\d*)Alpha_\[deg\]']=sB+'Alpha_[deg]'
+        ADSpanMap['^'+sB+'N(\d*)AOA_\[deg\]'  ]=sB+'Alpha_[deg]' # DBGOuts
+        ADSpanMap['^'+sB+'N(\d*)AxInd_\[-\]'  ]=sB+'AxInd_[-]'  
+        ADSpanMap['^'+sB+'N(\d*)TnInd_\[-\]'  ]=sB+'TnInd_[-]'  
+        ADSpanMap['^'+sB+'N(\d*)AIn_\[deg\]'  ]=sB+'AxInd_[-]'   # DBGOuts NOTE BUG Unit
+        ADSpanMap['^'+sB+'N(\d*)ApI_\[deg\]'  ]=sB+'TnInd_[-]'   # DBGOuts NOTE BUG Unit
+        ADSpanMap['^'+sB+'N(\d*)AIn_\[-\]'    ]=sB+'AxInd_[-]'   # DBGOuts
+        ADSpanMap['^'+sB+'N(\d*)ApI_\[-\]'    ]=sB+'TnInd_[-]'   # DBGOuts
+        ADSpanMap['^'+sB+'N(\d*)Uin_\[m/s\]'  ]=sB+'Uin_[m/s]'     # DBGOuts
+        ADSpanMap['^'+sB+'N(\d*)Uit_\[m/s\]'  ]=sB+'Uit_[m/s]'     # DBGOuts
+        ADSpanMap['^'+sB+'N(\d*)Uir_\[m/s\]'  ]=sB+'Uir_[m/s]'     # DBGOuts
+        ADSpanMap['^'+sB+'N(\d*)Cl_\[-\]'     ]=sB+'Cl_[-]'   
+        ADSpanMap['^'+sB+'N(\d*)Cd_\[-\]'     ]=sB+'Cd_[-]'   
+        ADSpanMap['^'+sB+'N(\d*)Cm_\[-\]'     ]=sB+'Cm_[-]'   
+        ADSpanMap['^'+sB+'N(\d*)Cx_\[-\]'     ]=sB+'Cx_[-]'   
+        ADSpanMap['^'+sB+'N(\d*)Cy_\[-\]'     ]=sB+'Cy_[-]'   
+        ADSpanMap['^'+sB+'N(\d*)Cn_\[-\]'     ]=sB+'Cn_[-]'   
+        ADSpanMap['^'+sB+'N(\d*)Ct_\[-\]'     ]=sB+'Ct_[-]'   
+        ADSpanMap['^'+sB+'N(\d*)Re_\[-\]'     ]=sB+'Re_[-]' 
+        ADSpanMap['^'+sB+'N(\d*)Vrel_\[m/s\]' ]=sB+'Vrel_[m/s]' 
+        ADSpanMap['^'+sB+'N(\d*)Theta_\[deg\]']=sB+'Theta_[deg]'
+        ADSpanMap['^'+sB+'N(\d*)Phi_\[deg\]'  ]=sB+'Phi_[deg]'
+        ADSpanMap['^'+sB+'N(\d*)Twst_\[deg\]' ]=sB+'Twst_[deg]' #DBGOuts
+        ADSpanMap['^'+sB+'N(\d*)Curve_\[deg\]']=sB+'Curve_[deg]'
+        ADSpanMap['^'+sB+'N(\d*)Vindx_\[m/s\]']=sB+'Vindx_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)Vindy_\[m/s\]']=sB+'Vindy_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)Fx_\[N/m\]'   ]=sB+'Fx_[N/m]'   
+        ADSpanMap['^'+sB+'N(\d*)Fy_\[N/m\]'   ]=sB+'Fy_[N/m]'   
+        ADSpanMap['^'+sB+'N(\d*)Fl_\[N/m\]'   ]=sB+'Fl_[N/m]'   
+        ADSpanMap['^'+sB+'N(\d*)Fd_\[N/m\]'   ]=sB+'Fd_[N/m]'   
+        ADSpanMap['^'+sB+'N(\d*)Fn_\[N/m\]'   ]=sB+'Fn_[N/m]'   
+        ADSpanMap['^'+sB+'N(\d*)Ft_\[N/m\]'   ]=sB+'Ft_[N/m]'   
+        ADSpanMap['^'+sB+'N(\d*)VUndx_\[m/s\]']=sB+'VUndx_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)VUndy_\[m/s\]']=sB+'VUndy_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)VUndz_\[m/s\]']=sB+'VUndz_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)VDisx_\[m/s\]']=sB+'VDisx_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)VDisy_\[m/s\]']=sB+'VDisy_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)VDisz_\[m/s\]']=sB+'VDisz_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)Vx_\[m/s\]'   ]=sB+'Vx_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)Vy_\[m/s\]'   ]=sB+'Vy_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)Vz_\[m/s\]'   ]=sB+'Vz_[m/s]'
+        ADSpanMap['^'+sB+'N(\d*)DynP_\[Pa\]'  ]=sB+'DynP_[Pa]' 
+        ADSpanMap['^'+sB+'N(\d*)M_\[-\]'      ]=sB+'M_[-]' 
+        ADSpanMap['^'+sB+'N(\d*)Mm_\[N-m/m\]' ]=sB+'Mm_[N-m/m]'   
+        ADSpanMap['^'+sB+'N(\d*)Gam_\['       ]=sB+'Gam_[m^2/s]' #DBGOuts
+    # --- AD 14
+    ADSpanMap['^Alpha(\d*)_\[deg\]'  ]='Alpha_[deg]'  
+    ADSpanMap['^DynPres(\d*)_\[Pa\]' ]='DynPres_[Pa]' 
+    ADSpanMap['^CLift(\d*)_\[-\]'    ]='CLift_[-]'    
+    ADSpanMap['^CDrag(\d*)_\[-\]'    ]='CDrag_[-]'    
+    ADSpanMap['^CNorm(\d*)_\[-\]'    ]='CNorm_[-]'    
+    ADSpanMap['^CTang(\d*)_\[-\]'    ]='CTang_[-]'    
+    ADSpanMap['^CMomt(\d*)_\[-\]'    ]='CMomt_[-]'    
+    ADSpanMap['^Pitch(\d*)_\[deg\]'  ]='Pitch_[deg]'  
+    ADSpanMap['^AxInd(\d*)_\[-\]'    ]='AxInd_[-]'    
+    ADSpanMap['^TanInd(\d*)_\[-\]'   ]='TanInd_[-]'   
+    ADSpanMap['^ForcN(\d*)_\[N\]'    ]='ForcN_[N]'    
+    ADSpanMap['^ForcT(\d*)_\[N\]'    ]='ForcT_[N]'    
+    ADSpanMap['^Pmomt(\d*)_\[N-m\]'  ]='Pmomt_[N-N]'  
+    ADSpanMap['^ReNum(\d*)_\[x10^6\]']='ReNum_[x10^6]'
+    ADSpanMap['^Gamma(\d*)_\[m^2/s\]']='Gamma_[m^2/s]'
+
+    return find_matching_columns(Cols, ADSpanMap)
+
+def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, chord=None):
+    # --- Compute additional values (AD15 only)
+    if dfRad is None:
+        return None
+    if dfRad.shape[1]==0:
+        return dfRad
+    if chord is not None:
+        if vr is not None:
+            chord =chord[0:len(dfRad)]
+    for sB in ['B1','B2','B3']:
+        try:
+            vr_bar=vr/R
             Fx = dfRad[sB+'Fx_[N/m]']
             U0 = tsAvg['Wind1VelX_[m/s]']
-            Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * r)
-            Ct[vr_bar<0.01] = 0
-            dfRad[sB+'Ct_[-]'] = Ct
+            Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * vr)
+            Ct[vr<0.01*R] = 0
+            dfRad[sB+'Ctloc_[-]'] = Ct
             CT=2*np.trapz(vr_bar*Ct,vr_bar)
-            dfRad[sB+'CtAvg_[-]']= CT*np.ones(r.shape)
+            dfRad[sB+'CtAvg_[-]']= CT*np.ones(vr.shape)
         except:
             pass
         try:
             dfRad[sB+'Gamma_[m^2/s]'] = 1/2 * chord*  dfRad[sB+'Vrel_[m/s]'] * dfRad[sB+'Cl_[-]'] 
         except:
             pass
-
-    dfRad['id_[#]']=ids+1
-    if not bFakeVr:
-        dfRad['r_[m]'] = r
- 
-    # --- Export to dataframe and csv
-    if postprofile is not None:
-        dfRad.to_csv(postprofile,sep='\t',index=False)
+        try: 
+            if not sB+'Vindx_[m/s]' in dfRad.columns:
+                dfRad[sB+'Vindx_[m/s]']= -dfRad[sB+'AxInd_[-]'].values * dfRad[sB+'Vx_[m/s]'].values 
+                dfRad[sB+'Vindy_[m/s]']=  dfRad[sB+'TnInd_[-]'].values * dfRad[sB+'Vy_[m/s]'].values 
+        except:
+            pass
     return dfRad
 
 
 
-def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.outb',postprofile=None,df=None):
+def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.outb',df=None):
     """
     Postprocess FAST radial data
 
@@ -515,83 +652,280 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     """
     # --- Opens Fast output  and performs averaging
     if df is None:
-        df    = weio.read(FST_In.replace('.fst',out_ext)).toDataFrame()
+        df = weio.read(FST_In.replace('.fst',out_ext)).toDataFrame()
+        returnDF=True
     else:
-        pass
+        returnDF=False
     # NOTE: spanwise script doest not support duplicate columns
     df = df.loc[:,~df.columns.duplicated()]
     dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam) # NOTE: average 5 last seconds
 
     # --- Extract info (e.g. radial positions) from Fast input file
-    if FST_In is None: 
-        r_FST_struct = None
-        rho = 1.225
-        r_bar_FST_aero=None
-        R=None
-        chord=None
-        IR = None
+    # We don't have a .fst input file, so we'll rely on some default values for "r"
+    rho         = 1.225
+    chord       = None
+    # --- Extract radial positions of output channels
+    r_AD, r_ED, r_BD, IR_AD, IR_ED, IR_BD, R, r_hub, fst = FASTRadialOutputs(FST_In, OutputCols=df.columns.values)
+    if R is None: 
+        R=1
+    try:
+        chord  = fst.AD.Bld1['BldAeroNodes'][:,5] # Full span
+    except:
+        pass
+    try:
+        rho = fst.AD['Rho']
+    except:
+        try:
+            rho = fst.AD['AirDens']
+        except:
+            pass
+    #print('r_AD:', r_AD)
+    #print('r_ED:', r_ED)
+    #print('r_BD:', r_BD)
+    #print('I_AD:', IR_AD)
+    #print('I_ED:', IR_ED)
+    #print('I_BD:', IR_BD)
+    # --- Extract radial data and export to csv if needed
+    dfRad_AD    = None
+    dfRad_ED    = None
+    dfRad_BD    = None
+    Cols=dfAvg.columns.values
+    # --- AD
+    ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
+    dfRad_AD            = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=dfAvg.iloc[0])
+    dfRad_AD            = insert_extra_columns_AD(dfRad_AD, dfAvg.iloc[0], vr=r_AD, rho=rho, R=R, nB=3, chord=chord)
+    dfRad_AD            = insert_radial_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
+    # --- ED
+    ColsInfoED, nrMaxED = spanwiseColED(Cols)
+    dfRad_ED            = extract_spanwise_data(ColsInfoED, nrMaxED, df=None, ts=dfAvg.iloc[0])
+    dfRad_ED            = insert_radial_columns(dfRad_ED, r_ED, R=R, IR=IR_ED)
+    # --- BD
+    ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
+    dfRad_BD            = extract_spanwise_data(ColsInfoBD, nrMaxBD, df=None, ts=dfAvg.iloc[0])
+    dfRad_BD            = insert_radial_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
+    if returnDF:
+        return dfRad_ED , dfRad_AD, dfRad_BD, df
     else:
-        fst = weio.FASTInputDeck(FST_In)
-        chord=None
+        return dfRad_ED , dfRad_AD, dfRad_BD
+
+
+
+def spanwisePostProRows(df, FST_In=None):
+    """ 
+    Returns a 3D matrix: n x nSpan x nColumn where df is of size n x nColumn
+
+    NOTE: this is really not optimal. Spanwise columns should be extracted only once..
+    """
+    # --- Extract info (e.g. radial positions) from Fast input file
+    # We don't have a .fst input file, so we'll rely on some default values for "r"
+    rho         = 1.225
+    chord       = None
+    # --- Extract radial positions of output channels
+    r_AD, r_ED, r_BD, IR_AD, IR_ED, IR_BD, R, r_hub, fst = FASTRadialOutputs(FST_In, OutputCols=df.columns.values)
+    #print('r_AD:', r_AD)
+    #print('r_ED:', r_ED)
+    #print('r_BD:', r_BD)
+    if R is None: 
+        R=1
+    try:
+        chord  = fst.AD.Bld1['BldAeroNodes'][:,5] # Full span
+    except:
+        pass
+    try:
+        rho = fst.AD['Rho']
+    except:
+        try:
+            rho = fst.AD['AirDens']
+        except:
+            pass
+    # --- Extract radial data for each azimuthal average
+    M_AD=None
+    M_ED=None
+    M_BD=None
+    Col_AD=None
+    Col_ED=None
+    Col_BD=None
+    v = df.index.values
+
+    # --- Getting Column info
+    Cols=df.columns.values
+    if r_AD is not None:
+        ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
+    if r_ED is not None:
+        ColsInfoED, nrMaxED = spanwiseColED(Cols)
+    if r_BD is not None:
+        ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
+    for i,val in enumerate(v):
+        if r_AD is not None:
+            dfRad_AD = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=df.iloc[i])
+            dfRad_AD = insert_extra_columns_AD(dfRad_AD, df.iloc[i], vr=r_AD, rho=rho, R=R, nB=3, chord=chord)
+            dfRad_AD = insert_radial_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
+            if i==0:
+                M_AD = np.zeros((len(v), len(dfRad_AD), len(dfRad_AD.columns)))
+                Col_AD=dfRad_AD.columns.values
+            M_AD[i, :, : ] = dfRad_AD.values
+        if r_ED is not None and len(r_ED)>0:
+            dfRad_ED = extract_spanwise_data(ColsInfoED, nrMaxED, df=None, ts=df.iloc[i])
+            dfRad_ED = insert_radial_columns(dfRad_ED, r_ED, R=R, IR=IR_ED)
+            if i==0:
+                M_ED = np.zeros((len(v), len(dfRad_ED), len(dfRad_ED.columns)))
+                Col_ED=dfRad_ED.columns.values
+            M_ED[i, :, : ] = dfRad_ED.values
+        if r_BD is not None and len(r_BD)>0:
+            dfRad_BD = extract_spanwise_data(ColsInfoBD, nrMaxBD, df=None, ts=df.iloc[i])
+            dfRad_BD = insert_radial_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
+            if i==0:
+                M_BD = np.zeros((len(v), len(dfRad_BD), len(dfRad_BD.columns)))
+                Col_BD=dfRad_BD.columns.values
+            M_BD[i, :, : ] = dfRad_BD.values
+    return M_AD, Col_AD, M_ED, Col_ED, M_BD, Col_BD
+
+
+def FASTRadialOutputs(FST_In, OutputCols=None):
+    """ Returns radial positions where FAST has outputs
+    INPUTS:
+       FST_In: fast input file (.fst)
+    """
+    R           = None
+    r_hub =0
+    r_AD        = None 
+    r_ED        = None
+    r_BD        = None
+    IR_ED       = None
+    IR_AD       = None
+    IR_BD       = None
+    fst=None
+    if FST_In is not None:
+        fst = weio.FASTInputDeck(FST_In, readlist=['AD','ED','BD'])
+        # NOTE: all this below should be in FASTInputDeck
         if fst.version == 'F7':
             # --- FAST7
             if  not hasattr(fst,'AD'):
                 raise Exception('The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
-            r_FST_aero,IR   = AD14_BldGag(fst.AD)
+            r_AD,IR_AD = AD14_BldGag(fst.AD)
             R   = fst.fst['TipRad']
             try:
                 rho = fst.AD['Rho']
             except:
                 rho = fst.AD['AirDens']
-            r_FST_struct = None
         else:
             # --- OpenFAST 2
+            R = None
+
+            # --- ElastoDyn
             if  not hasattr(fst,'ED'):
-                raise Exception('The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
-            if  not hasattr(fst,'AD'):
-                raise Exception('The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
-
-            if fst.ADversion == 'AD15':
-                if  not hasattr(fst.AD,'Bld1'):
-                    raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
-                rho        = fst.AD['AirDens']
-                r_FST_aero_gag,_ = AD_BldGag(fst.AD,fst.AD.Bld1, chordOut = True) # Only at Gages locations
-                if len(r_FST_aero_gag)==0:
-                    # All outs?
-                    r_FST_aero = fst.AD.Bld1['BldAeroNodes'][:,0] # Full span
-                    chord      = fst.AD.Bld1['BldAeroNodes'][:,5] # Full span
-                    r_FST_aero+= fst.ED['HubRad']
-                    IR         = None
-                else:
-                    r_FST_aero = r_FST_aero_gag
-
-            elif fst.ADversion == 'AD14':
-                try:
-                    rho = fst.AD['Rho']
-                except:
-                    rho = fst.AD['AirDens']
-                r_FST_aero,IR   = AD14_BldGag(fst.AD)
-
+                print('[WARN] The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
+                #raise Exception('The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
             else:
-                raise Exception('AeroDyn version unknown')
+                R           = fst.ED['TipRad']
+                r_hub       = fst.ED['HubRad']
+                r_ED, IR_ED = ED_BldGag(fst.ED)
 
-            R   = fst.ED ['TipRad']
-            r_FST_struct = ED_BldGag(fst.ED)
-            #print('r struct:',r_FST_struct)
-            #print('r aero  :',r_FST_aero)
-            #print('IR      :',IR)
-        r_bar_FST_aero = r_FST_aero/R
+            # --- BeamDyn
+            if  hasattr(fst,'BD'):
+                r_BD, IR_BD, r_BD_All = BD_BldGag(fst.BD)
+                r_BD= r_BD+r_hub
+                if R is None:
+                    R = r_BD_All[-1] # just in case ED file missing
 
-    # --- Extract radial data and export to csv if needed
-    dfAeroRad   = spanwiseAD(dfAvg.iloc[0], r_bar_FST_aero, rho , R, nB=3, chord=chord, postprofile=postprofile, IR=IR)
-    if r_FST_struct is None:
-        dfStructRad=None
-    else:
-        dfStructRad = spanwise(dfAvg.iloc[0]  , r_FST_struct/R, R=R, postprofile=postprofile)
+            # --- AeroDyn
+            if  not hasattr(fst,'AD'):
+                print('[WARN] The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
+                #raise Exception('The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
+            else:
 
-    return dfStructRad , dfAeroRad
+                if fst.ADversion == 'AD15':
+                    if  not hasattr(fst.AD,'Bld1'):
+                        raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
+                    
+                    if 'B1N001Cl_[-]' in OutputCols:
+                        # This was compiled with all outs
+                        r_AD   = fst.AD.Bld1['BldAeroNodes'][:,0] # Full span
+                        r_AD   += r_hub
+                        IR_AD  = None
+                    else:
+                        r_AD,_ = AD_BldGag(fst.AD,fst.AD.Bld1, chordOut = True) # Only at Gages locations
+
+                elif fst.ADversion == 'AD14':
+                    r_AD,IR_AD = AD14_BldGag(fst.AD)
+
+                else:
+                    raise Exception('AeroDyn version unknown')
+    return r_AD, r_ED, r_BD, IR_AD, IR_ED, IR_BD, R, r_hub, fst
 
 
+
+def addToOutlist(OutList, Signals):
+    if not isinstance(Signals,list):
+        raise Exception('Signals must be a list')
+    for s in Signals:
+        ss=s.split()[0].strip().strip('"').strip('\'')
+        AlreadyIn = any([o.find(ss)==1 for o in OutList ])
+        if not AlreadyIn:
+            OutList.append(s)
+    return OutList
+
+
+
+# --------------------------------------------------------------------------------}
+# --- Generic df 
+# --------------------------------------------------------------------------------{
+def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False):
+    """ Add/rename columns of a dataframe, potentially perform operations between columns
+    """
+    if not inPlace:
+        df=df.copy()
+    ColMapMiss=[]
+    ColNew=[]
+    RenameMap=dict()
+    for k0,v in ColMap.items():
+        k=k0.strip()
+        v=v.strip()
+        if v.find('{')>=0:
+            search_results = re.finditer(r'\{.*?\}', v)
+            expr=v
+            # For more advanced operations, we use an eval
+            bFail=False
+            for item in search_results:
+                col=item.group(0)[1:-1]
+                if col not in df.columns:
+                    ColMapMiss.append(col)
+                    bFail=True
+                expr=expr.replace(item.group(0),'df[\''+col+'\']')
+            #print(k0, '=', expr)
+            if not bFail:
+                df[k]=eval(expr)
+                ColNew.append(k)
+            else:
+                print('[WARN] Column not present in dataframe, cannot evaluate: ',expr)
+        else:
+            #print(k0,'=',v)
+            if v not in df.columns:
+                ColMapMiss.append(v)
+                print('[WARN] Column not present in dataframe: ',v)
+            else:
+                RenameMap[k]=v
+
+    # Applying renaming only now so that expressions may be applied in any order
+    for k,v in RenameMap.items():
+        k=k.strip()
+        iCol = list(df.columns).index(v)
+        df.columns.values[iCol]=k
+        ColNew.append(k)
+    df.columns = df.columns.values # Hack to ensure columns are updated
+
+    if len(ColMapMiss)>0:
+        print('[FAIL] The following columns were not found in the dataframe:',ColMapMiss)
+        #print('Available columns are:',df.columns.values)
+
+    if bColKeepNewOnly:
+        ColNew = [c for c,_ in ColMap.items() if c in ColNew]# Making sure we respec order from user
+        ColKeepSafe = [c for c in ColNew if c in df.columns.values]
+        ColKeepMiss = [c for c in ColNew if c not in df.columns.values]
+        if len(ColKeepMiss)>0:
+            print('[WARN] Signals missing and omitted for ColKeep:\n       '+'\n       '.join(ColKeepMiss))
+        df=df[ColKeepSafe]
+    return df
 
 # --------------------------------------------------------------------------------}
 # --- Template replace 
@@ -654,7 +988,7 @@ def copyTree(src, dst):
                 forceMergeFlatDir(s, d)
 
 
-def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file=None, name_function=None, RemoveAllowed=False):
+def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
     """ Generate inputs files by replacing different parameters from a template file.
     The generated files are placed in the output directory `output_dir` 
     The files are read and written using the library `weio`. 
@@ -676,19 +1010,96 @@ def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file
 
       output_dir  : directory where files will be generated. 
     """
-    def fileID(s):
-        if s.find('|')<=0:
-            return 'ROOT'
-        else:
-            return s.split('|')[0]
-    def basename(s):
-        return os.path.splitext(os.path.basename(s))[0]
-    def rebase(s,sid):
-        split = os.path.splitext(os.path.basename(s))
-        return os.path.join(output_dir,split[0]+sid+split[1])
-    def rebase_rel(s,sid):
+    # --- Helper functions
+    def rebase_rel(wd,s,sid):
         split = os.path.splitext(s)
-        return os.path.join(output_dir,split[0]+sid+split[1])
+        return os.path.join(wd,split[0]+sid+split[1])
+    def get_strID(p) :
+        if '__name__' in p.keys():
+            strID=p['__name__']
+        else:
+            raise Exception('When calling `templateReplace`, provide the key `__name_` in the parameter dictionaries')
+        return strID
+
+    def splitAddress(sAddress):
+        sp = sAddress.split('|')
+        if len(sp)==1:
+            return sp[0],[]
+        else:
+            return sp[0],sp[1:]
+
+    def rebaseFileName(org_filename, WorkDir, strID):
+            new_filename_full = rebase_rel(WorkDir, org_filename,'_'+strID)
+            new_filename      = os.path.relpath(new_filename_full,WorkDir).replace('\\','/')
+            return new_filename, new_filename_full
+
+    def replaceRecurse(templatename_or_newname, FileKey, ParamKey, ParamValue, Files, strID, WorkDir, TemplateFiles):
+        """ 
+        FileKey: a single key defining which file we are currently modifying e.g. :'AeroFile', 'EDFile','FVWInputFileName'
+        ParamKey: the address key of the parameter to be changed, relative to the current FileKey
+                  e.g. 'EDFile|IntMethod' (if FileKey is '') 
+                       'IntMethod' (if FileKey is 'EDFile') 
+        ParamValue: the value to be used
+        Files: dict of files, as returned by weio, keys are "FileKeys" 
+        """
+        # --- Special handling for the root
+        if FileKey=='':
+            FileKey='Root'
+        # --- Open (or get if already open) file where a parameter needs to be changed
+        if FileKey in Files.keys():
+            # The file was already opened, it's stored
+            f = Files[FileKey]
+            newfilename_full = f.filename
+            newfilename      = os.path.relpath(newfilename_full,WorkDir).replace('\\','/')
+
+        else:
+            templatefilename              = templatename_or_newname
+            templatefilename_full         = os.path.join(WorkDir,templatefilename)
+            TemplateFiles.append(templatefilename_full)
+            if FileKey=='Root':
+                # Root files, we start from strID
+                ext = os.path.splitext(templatefilename)[-1]
+                newfilename_full = os.path.join(wd,strID+ext)
+                newfilename      = strID+ext
+            else:
+                newfilename, newfilename_full = rebaseFileName(templatefilename, WorkDir, strID)
+            #print('--------------------------------------------------------------')
+            #print('TemplateFile    :', templatefilename)
+            #print('TemplateFileFull:', templatefilename_full)
+            #print('NewFile         :', newfilename)
+            #print('NewFileFull     :', newfilename_full)
+            shutil.copyfile(templatefilename_full, newfilename_full)
+            f= weio.FASTInFile(newfilename_full) # open the template file for that filekey 
+            Files[FileKey]=f # store it
+
+        # --- Changing parameters in that file
+        NewFileKey_or_Key, ChildrenKeys = splitAddress(ParamKey)
+        if len(ChildrenKeys)==0:
+            # A simple parameter is changed 
+            Key    = NewFileKey_or_Key
+            #print('Setting', FileKey, '|',Key, 'to',ParamValue)
+            if Key=='OutList':
+                OutList=f[Key]
+                f[Key]=addToOutlist(OutList, ParamValue)
+            else:
+                f[Key] = ParamValue
+        else:
+            # Parameters needs to be changed in subfiles (children)
+            NewFileKey                = NewFileKey_or_Key
+            ChildrenKey            = '|'.join(ChildrenKeys)
+            child_templatefilename = f[NewFileKey].strip('"') # old filename that will be used as a template
+            baseparent = os.path.dirname(newfilename)
+            #print('Child templatefilename:',child_templatefilename)
+            #print('Parent base dir       :',baseparent)
+            WorkDir = os.path.join(WorkDir, baseparent)
+
+            #  
+            newchildFilename, Files = replaceRecurse(child_templatefilename, NewFileKey, ChildrenKey, ParamValue, Files, strID, WorkDir, TemplateFiles)
+            #print('Setting', FileKey, '|',NewFileKey, 'to',newchildFilename)
+            f[NewFileKey] = '"'+newchildFilename+'"'
+
+        return newfilename, Files
+
 
     # --- Safety checks
     if template_dir is None and output_dir is None:
@@ -704,15 +1115,6 @@ def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file
         if output_dir is None:
             output_dir=template_dir+'_Parametric'
 
-    # --- Creating output_dir - Copying template folder to output_dir if necessary
-    if os.path.exists(output_dir) and RemoveAllowed:
-        shutil.rmtree(output_dir, ignore_errors=False, onerror=handleRemoveReadonlyWin)
-    if template_dir is not None:
-        copyTree(template_dir, output_dir)
-    else:
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
     # --- Main file use as "master"
     if template_dir is not None:
         main_file=os.path.join(output_dir, os.path.basename(main_file))
@@ -723,113 +1125,12 @@ def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file
     if not isinstance(PARAMS,list):
         PARAMS=[PARAMS]
 
-    files=[]
-    # TODO: Recursive loop splitting at the pipes '|', for now only 1 level supported...
-    for ip,p in enumerate(PARAMS):
-        if '__index__' not in p.keys():
-            p['__index__']=ip
-        if name_function is None:
-            if '__name__' in p.keys():
-                strID=p['__name__']
-            else:
-                raise Exception('When calling `templateReplace`, either provide a naming function or profile the key `__name_` in the parameter dictionaries')
-        else:
-            strID =name_function(p)
-        FileTypes = set([fileID(k) for k in list(p.keys()) if (k!='__index__' and k!='__name__')])
-        FileTypes = set(list(FileTypes)+['ROOT']) # Enforcing ROOT in list, so the main file is written
-
-        # ---Copying main file and reading it
-        #fst_full = rebase(main_file,strID)
-        ext = os.path.splitext(main_file)[-1]
-        fst_full = os.path.join(output_dir,strID+ext)
-        shutil.copyfile(main_file, fst_full )
-        Files=dict()
-        Files['ROOT']=weio.FASTInFile(fst_full)
-        # --- Looping through required files and opening them
-        for t in FileTypes: 
-            # Doing a naive if
-            # The reason is that we want to account for more complex file types in the future
-            if t=='ROOT':
-                continue
-            org_filename      = Files['ROOT'][t].strip('"')
-            org_filename_full = os.path.join(output_dir,org_filename)
-            new_filename_full = rebase_rel(org_filename,'_'+strID)
-            new_filename      = os.path.relpath(new_filename_full,output_dir)
-#             print('org_filename',org_filename)
-#             print('org_filename',org_filename_full)
-#             print('New_filename',new_filename_full)
-#             print('New_filename',new_filename)
-            shutil.copyfile(org_filename_full, new_filename_full)
-            Files['ROOT'][t] = '"'+new_filename+'"'
-            # Reading files
-            Files[t]=weio.FASTInFile(new_filename_full)
-        # --- Replacing in files
-        for k,v in p.items():
-            if k =='__index__' or k=='__name__':
-                continue
-            sp= k.split('|')
-            kk=sp[0]
-            if len(sp)==1:
-                Files['ROOT'][kk]=v
-            elif len(sp)==2:
-                Files[sp[0]][sp[1]]=v
-            else:
-                raise Exception('Multi-level not supported')
-        # --- Rewritting all files
-        for t in FileTypes:
-            Files[t].write()
-
-        files.append(fst_full)
-
-    # --- Remove extra files at the end
-    if template_dir is not None:
-        os.remove(main_file)
-
-    return files
-
-def templateReplace(PARAMS, template_dir, workdir=None, main_file=None, name_function=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
-    """ Replace parameters in a fast folder using a list of dictionaries where the keys are for instance:
-        'FAST|DT', 'EDFile|GBRatio', 'ServoFile|GenEff'
-    """
-    def fileID(s):
-        return s.split('|')[0]
-    def basename(s):
-        return os.path.splitext(os.path.basename(s))[0]
-    def rebase(wd,s,sid):
-        split = os.path.splitext(os.path.basename(s))
-        return os.path.join(wd,split[0]+sid+split[1])
-    def rebase_rel(wd,s,sid):
-        split = os.path.splitext(s)
-        return os.path.join(wd,split[0]+sid+split[1])
-    def get_strID(p) :
-        if name_function is None:
-            if '__name__' in p.keys():
-                strID=p['__name__']
-            else:
-                raise Exception('When calling `templateReplace`, either provide a naming function or profile the key `__name_` in the parameter dictionaries')
-        else:
-            strID =name_function(p)
-        return strID
-
-    # --- Safety checks
-    if not os.path.exists(template_dir):
-        raise Exception('Template directory does not exist: '+template_dir)
-
-    # Default value of workdir if not provided
-    if template_dir[-1]=='/'  or template_dir[-1]=='\\' :
-        template_dir=template_dir[0:-1]
-    if workdir is None:
-        workdir=template_dir+'_Parametric'
-
-    # Params need to be a list
-    if not isinstance(PARAMS,list):
-        PARAMS=[PARAMS]
-
     if oneSimPerDir:
-        WORKDIRS=[os.path.join(workdir,get_strID(p)) for p in PARAMS]
+        WORKDIRS=[os.path.join(output_dir,get_strID(p)) for p in PARAMS]
     else:
-        WORKDIRS=[workdir]*len(PARAMS)
-        # Copying template folder to workdir
+        WORKDIRS=[output_dir]*len(PARAMS)
+    # --- Creating output_dir - Copying template folder to output_dir if necessary
+    # Copying template folder to workdir
     for wd in list(set(WORKDIRS)):
         if RemoveAllowed:
             removeFASTOuputs(wd)
@@ -839,99 +1140,55 @@ def templateReplace(PARAMS, template_dir, workdir=None, main_file=None, name_fun
         if RemoveAllowed:
             removeFASTOuputs(wd)
 
-    # --- Fast main file use as "master"
-    if main_file is None:
-        FstFiles=set(glob.glob(os.path.join(template_dir,'*.fst'))+glob.glob(os.path.join(template_dir,'*.FST')))
-        if len(FstFiles)>1:
-            print(FstFiles)
-            raise Exception('More than one fst file found in template folder, provide `main_file` or ensure there is only one `.fst` file') 
-        main_file=FstFiles.pop()
-    # if the user provided a full path to the main file, we scrap the directory. TODO, should be cleaner
-    if len(os.path.dirname(main_file))>0:
-        main_file=os.path.basename(main_file)
 
-
-
-    fastfiles=[]
-    # TODO: Recursive loop splitting at the pipes '|', for now only 1 level supported...
+    TemplateFiles=[]
+    files=[]
     for ip,(wd,p) in enumerate(zip(WORKDIRS,PARAMS)):
-        # 
-        main_file_new=os.path.join(wd, os.path.basename(main_file))
-
         if '__index__' not in p.keys():
             p['__index__']=ip
-        if name_function is None:
-            if '__name__' in p.keys():
-                strID=p['__name__']
-            else:
-                raise Exception('When calling `templateReplace`, either provide a naming function or profile the key `__name_` in the parameter dictionaries')
-        else:
-            strID =name_function(p)
-        FileTypes = set([fileID(k) for k in list(p.keys()) if (k!='__index__' and k!='__name__')])
-        FileTypes = set(list(FileTypes)+['FAST']) # Enforcing FAST in list, so the main fst file is written
 
-        # ---Copying main file and reading it
-        fst_full = os.path.join(wd,strID+'.fst')
-        shutil.copyfile(main_file_new, fst_full )
+        main_file_base = os.path.basename(main_file)
+        strID          = get_strID(p)
+        # --- Setting up files for this simulation
         Files=dict()
-        Files['FAST']=weio.FASTInFile(fst_full)
-        # 
-#         fst=weio.FASTInputDeck(main_file)
-#         for k,v in fst.inputfiles.items():
-#             rel = os.path.relpath(v,template_dir)
-#             if rel.find('/')<0 or rel.find('\\')<0:
-#                 print('Copying ',k,rel)
-#                 shutil.copyfile(os.path.join(template_dir,rel), os.path.join(workdir,rel))
-
-        # --- Looping through required files and opening them
-        for t in FileTypes: 
-            # Doing a naive if
-            # The reason is that we want to account for more complex file types in the future
-            if t=='FAST':
-                continue
-            org_filename   = Files['FAST'][t].strip('"')
-            org_filename_full =os.path.join(wd, org_filename)
-            new_filename_full = rebase_rel(wd, org_filename,'_'+strID)
-            new_filename      = os.path.relpath(new_filename_full,wd).replace('\\','/')
-#             print('org_filename',org_filename)
-#             print('org_filename',org_filename_full)
-#             print('New_filename',new_filename_full)
-#             print('New_filename',new_filename)
-            shutil.copyfile(org_filename_full, new_filename_full)
-            Files['FAST'][t] = '"'+new_filename+'"'
-            # Reading files
-            Files[t]=weio.FASTInFile(new_filename_full)
-        # --- Replacing in files
         for k,v in p.items():
             if k =='__index__' or k=='__name__':
                 continue
-            t,kk=k.split('|')
-            Files[t][kk]=v
-            #print(t+'|'+kk+'=',v)
-        # --- Rewritting all files
-        for t in FileTypes:
-            Files[t].write()
+            new_mainFile, Files = replaceRecurse(main_file_base, '', k, v, Files, strID, wd, TemplateFiles)
 
-        fastfiles.append(fst_full)
+        # --- Writting files
+        for k,f in Files.items():
+            if k=='Root':
+                files.append(f.filename)
+            f.write()
+
     # --- Remove extra files at the end
     if RemoveRefSubFiles:
-        for wd in np.unique(WORKDIRS):
-            main_file_new=os.path.join(wd, os.path.basename(main_file))
-            FST = weio.FASTInFile(main_file_new)
-            for t in FileTypes:
-                if t=='FAST':
-                    continue
-                filename   = FST[t].strip('"')
-                #fullname   = rebase(filename,'')
-                fullname   = os.path.join(wd,filename)
-                os.remove(fullname)
+        TemplateFiles, nCounts = np.unique(TemplateFiles, return_counts=True)
+        if not oneSimPerDir:
+            # we can only detele template files that were used by ALL simulations
+            TemplateFiles=[t for nc,t in zip(nCounts, TemplateFiles) if nc==len(PARAMS)]
+        for tf in TemplateFiles:
+            try:
+                os.remove(tf)
+            except:
+                print('[FAIL] Removing '+tf)
+                pass
+    return files
 
-    for wd in np.unique(WORKDIRS):
-        main_file_new=os.path.join(wd, os.path.basename(main_file))
-        os.remove(main_file_new)
-
-    return fastfiles
-
+def templateReplace(PARAMS, template_dir, workdir=None, main_file=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
+    """ Replace parameters in a fast folder using a list of dictionaries where the keys are for instance:
+        'FAST|DT', 'EDFile|GBRatio', 'ServoFile|GenEff'
+    """
+    # --- For backward compatibility, remove "FAST|" from the keys
+    for p in PARAMS:
+        old_keys=[ k for k,_ in p.items() if k.find('FAST|')==0]
+        for k_old in old_keys:
+            k_new=k_old.replace('FAST|','')
+            p[k_new] = p.pop(k_old)
+    
+    return templateReplaceGeneral(PARAMS, template_dir, output_dir=workdir, main_file=main_file, 
+            RemoveAllowed=RemoveAllowed, RemoveRefSubFiles=RemoveRefSubFiles, oneSimPerDir=oneSimPerDir)
 
 # --------------------------------------------------------------------------------}
 # --- Tools for template replacement 
@@ -985,10 +1242,6 @@ def paramsStiff(p=dict()):
 
 def paramsWS_RPM_Pitch(WS,RPM,Pitch,BaseDict=None,FlatInputs=False):
     """ """
-    # --- Naming function appropriate for such parametric study
-    def default_naming(p): # TODO TODO CHANGE ME
-        return '{:03d}_ws{:04.1f}_pt{:04.2f}_om{:04.2f}'.format(p['__index__'],p['InflowFile|HWindSpeed'],p['EDFile|BlPitch(1)'],p['EDFile|RotSpeed'])
-
     # --- Ensuring everythin is an iterator
     def iterify(x):
         if not isinstance(x, collections.Iterable): x = [x]
@@ -1026,10 +1279,10 @@ def paramsWS_RPM_Pitch(WS,RPM,Pitch,BaseDict=None,FlatInputs=False):
         p['EDFile|BlPitch(3)']     = pitch
 
         p['__index__']  = i
-        p['__name__']   = default_naming(p)
+        p['__name__']   = '{:03d}_ws{:04.1f}_pt{:04.2f}_om{:04.2f}'.format(p['__index__'],p['InflowFile|HWindSpeed'],p['EDFile|BlPitch(1)'],p['EDFile|RotSpeed'])
         i=i+1
         PARAMS.append(p)
-    return PARAMS, default_naming
+    return PARAMS
 
 
 # --------------------------------------------------------------------------------}
@@ -1166,6 +1419,43 @@ def extractSpanTS(ts, nr, col_pattern, colname, IR=None):
         print('[WARN] More values found for {}, found {}/{}'.format(colname,len(cols),nr))
     return (colname,Values)
 
+def bin_mean_DF(df, xbins, colBin ):
+    """ 
+    Perform bin averaging of a dataframe
+    """
+    if colBin not in df.columns.values:
+        raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
+    xmid      = (xbins[:-1]+xbins[1:])/2
+    df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
+    df2       = df.groupby('Bin').mean()                     # Average by bin
+    # also counting
+    df['Counts'] = 1
+    dfCount=df[['Counts','Bin']].groupby('Bin').sum()
+    df2['Counts'] = dfCount['Counts']
+    # Just in case some bins are missing (will be nan)
+    df2       = df2.reindex(xmid)
+    return df2
+
+def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
+    """ 
+    Average a dataframe based on azimuthal value
+    Returns a dataframe with same amount of columns as input, and azimuthal values as index
+    """
+    if psiBin is None: 
+        psiBin = np.arange(0,360+1,10)
+
+    if tStart is not None:
+        if colTime not in df.columns.values:
+            raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
+        df=df[ df[colTime]>tStart].copy()
+
+    dfPsi= bin_mean_DF(df, psiBin, colPsi)
+    if np.any(dfPsi['Counts']<1):
+        print('[WARN] some bins have no data! Increase the bin size.')
+
+    return dfPsi
+
+
 def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColSort=None,stats=['mean']):
     """
     See average PostPro for documentation, same interface, just does it for one dataframe
@@ -1206,6 +1496,7 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
             iBef=[0]
         else:
             tEnd = time[iBef[-1]]
+
         if avgParam is None:
             tStart=time[iBef[0]]
         else:
@@ -1359,13 +1650,13 @@ def CPCT_LambdaPitch(refdir,main_fastfile,Lambda=None,Pitch=np.linspace(-10,40,5
 
     # --- Creating set of parameters to be changed
     # TODO: verify that RtAeroCp and RtAeroCt are present in AeroDyn outlist
-    PARAMS,naming = paramsWS_RPM_Pitch(WS_flat,RPM_flat,Pitch_flat,BaseDict=BaseDict, FlatInputs=True)
+    PARAMS = paramsWS_RPM_Pitch(WS_flat,RPM_flat,Pitch_flat,BaseDict=BaseDict, FlatInputs=True)
 
     # --- Generating all files in a workdir
     workdir = refdir.strip('/').strip('\\')+'_CPLambdaPitch'
     print('>>> Generating inputs files in {}'.format(workdir))
     RemoveAllowed=ReRun # If the user want to rerun, we can remove, otherwise we keep existing simulations
-    fastFiles=templateReplace(PARAMS, refdir, workdir=workdir,name_function=naming,RemoveRefSubFiles=True,RemoveAllowed=RemoveAllowed,main_file=main_fastfile)
+    fastFiles=templateReplace(PARAMS, refdir, workdir=workdir,RemoveRefSubFiles=True,RemoveAllowed=RemoveAllowed,main_file=main_fastfile)
 
     # --- Running fast simulations
     print('>>> Running {} simulations...'.format(len(fastFiles)))
@@ -1424,10 +1715,9 @@ def CPCT_LambdaPitch(refdir,main_fastfile,Lambda=None,Pitch=np.linspace(-10,40,5
 if __name__=='__main__':
     pass
     # --- Test of templateReplace
-    def naming(p):
-        return '_ws_'+str(p['InflowFile|HWindSpeed'])
     PARAMS                          = {}
     PARAMS['FAST|TMax']             = 10
+    PARAMS['__name__']             =  'MyName'
     PARAMS['FAST|DT']               = 0.01
     PARAMS['FAST|DT_Out']           = 0.1
     PARAMS['EDFile|RotSpeed']       = 100
@@ -1436,5 +1726,5 @@ if __name__=='__main__':
     PARAMS['ServoFile|VS_Rgn2K']    = 0.00038245
     PARAMS['ServoFile|GenEff']      = 0.95
     PARAMS['InflowFile|HWindSpeed'] = 8
-    templateReplace(PARAMS,ref_dir,name_function=naming,RemoveRefSubFiles=True)
+    templateReplace(PARAMS,ref_dir,RemoveRefSubFiles=True)
 

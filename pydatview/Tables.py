@@ -373,9 +373,9 @@ class Table(object):
                 fst_in=Files[0]
 
 
-            dfRadED, dfRadAD= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, postprofile=None, df = self.data)
-            dfs_new  = [dfRadED, dfRadAD]
-            names_new=[self.raw_name+'_ED', self.raw_name+'_AD'] 
+            dfRadED, dfRadAD, dfRadBD= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = self.data)
+            dfs_new  = [dfRadAD, dfRadED, dfRadBD]
+            names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
         return dfs_new, names_new
 
     def convertTimeColumns(self):
