@@ -25,7 +25,10 @@ More information about the download, requirements and installation is provided [
 
 
 ## Usage
-The main script is executable and will open the GUI directly. A command line interface is provided, e.g.: 
+### Launching the GUI
+Windows users that used a `setup.exe` file should be able to look for `pyDatView` in the Windows menu, then launch it, and pin the program to the taskbar for easier access.  
+
+If you cloned this repository, the main script at the root (`pyDatView.py`) is executable and will open the GUI directly. A command line interface is provided, e.g.: 
 ```bash
 pyDatView file.csv
 ```
@@ -38,7 +41,16 @@ pydatview.show(filenames=['file.csv'])
 # OR
 pydatview.show('file.csv')
 ```
-
+### Workflow
+Documentation is scarce for now, but here are some tips for using the program:
+ - You can drag and drop files to the GUI directly to open them. Hold the Ctrl key to add.
+ - You can open several files at once, with same or different filetypes. 
+ - Look for the menus indicated by the "sandwich" symbol (3 horizontal bars &#2630;). These menus are also accessible with right clicks. 
+ - The menus will allow you to edit tables (rename, delete them), add or remove columns (for instance to convert a signal from one unit to another unit), or change the values displayed in the information table at the bottom. 
+ - Few options are also available in the menus `data` and `tools` located at the top of the program. 
+ - The modes and file format drop down menus at the top can usually be kept on `auto`. If a file cannot be read, pay attention to the file extension used, and possibly select a specific file format in the dropdown menu instead of `auto`. 
+ 
+ 
 
 ## Features
 Main features:
@@ -48,7 +60,7 @@ Main features:
 - Display of statistics
 - Export figure as pdf, png, eps, svg
 
-Kind of plots:
+Different kind of plots:
 - Scatter plots or line plots
 - Multiple plots using sub-figures or a different colors
 - Probability density function (PDF) plot
@@ -58,6 +70,14 @@ Plot options:
 - Logarithmic scales on x and y axis
 - Scaling of data between 0 and 1 using min and max
 - Synchronization of the x-axis of the sub-figures while zooming
+
+Data manipulation options:
+ - Remove columns in a table, add columns using a given formula, and export the table to csv
+ - Mask part of the data (for instance selecting times above a certain value to remove the transient). Apply the mask temporarily, or create a new table from it
+ - Estimate logarithmic decrement from a signal tthat is decaying
+ - Extract radial data from OpenFAST input files
+
+
 
 ## Screenshots
 
