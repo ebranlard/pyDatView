@@ -447,8 +447,8 @@ def insert_radial_columns(df, vr, R=None, IR=None):
         df.insert(0, 'i/n_[-]', vr_bar)
     else:
         vr_bar=vr/R
-        if (nrMax)<len(vr_bar):
-            vr_bar=vr_bar[1:nrMax]
+        if (nrMax)<=len(vr_bar):
+            vr_bar=vr_bar[:nrMax]
         elif (nrMax)>len(vr_bar):
             raise Exception('Inconsitent length between radial stations and max index present in output chanels')
         df.insert(0, 'r/R_[-]', vr_bar)
@@ -504,7 +504,10 @@ def extract_spanwise_data(ColsInfo, nrMax, df=None,ts=None):
             print('[WARN] Not all values found for {}, missing {}/{}'.format(colname,nMissing,nrMax))
         if len(cols)>nrMax:
             print('[WARN] More values found for {}, found {}/{}'.format(colname,len(cols),nrMax))
-    return pd.DataFrame(data=Values, columns=ColNames)
+
+    df = pd.DataFrame(data=Values, columns=ColNames)
+    df = df.reindex(sorted(df.columns), axis=1)
+    return df
 
 def spanwiseColBD(Cols):
     """ Return column info, available columns and indices that contain BD spanwise data"""
