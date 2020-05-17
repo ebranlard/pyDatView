@@ -326,13 +326,16 @@ class PlotPanel(wx.Panel):
         self.cbLogX    = wx.CheckBox(self.ctrlPanel, -1, 'Log-x',(10,10))
         self.cbLogY    = wx.CheckBox(self.ctrlPanel, -1, 'Log-y',(10,10))
         self.cbSync    = wx.CheckBox(self.ctrlPanel, -1, 'Sync-x',(10,10))
+        self.cbXHair   = wx.CheckBox(self.ctrlPanel, -1, 'CrossHair',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
+        self.cbXHair.SetValue(True) # Have cross hair by default
         self.Bind(wx.EVT_CHECKBOX, self.scatter_select, self.cbScatter)
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSub    )
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogX   )
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogY   )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSync )
+        self.Bind(wx.EVT_CHECKBOX, self.crosshair_event, self.cbXHair )
         # LAYOUT
         cb_sizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
         cb_sizer.Add(self.cbScatter, 0, flag=wx.ALL, border=1)
@@ -340,6 +343,7 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbLogX   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogY   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSync   , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbXHair  , 0, flag=wx.ALL, border=1)
         self.ctrlPanel.SetSizer(cb_sizer)
         # --- Ctrl Panel
         crossHairPanel= wx.Panel(self)
@@ -397,6 +401,15 @@ class PlotPanel(wx.Panel):
             self.cbLogY.SetValue(False)
         else:
             self.redraw_same_data()
+
+    def crosshair_event(self, event):
+        try:
+            self.multiCursors.vertOn =self.cbXHair.GetValue()
+            self.multiCursors.horizOn=self.cbXHair.GetValue()
+            self.multiCursors._update()
+        except:
+            pass
+
     def scatter_select(self, event):
         if self.pltTypePanel.cbPDF.GetValue() or self.pltTypePanel.cbFFT.GetValue():
             self.cbScatter.SetValue(False)
@@ -866,7 +879,8 @@ class PlotPanel(wx.Panel):
         #for ax in self.fig.axes:
         #    self.cursors.append(MyCursor(ax,horizOn=True, vertOn=False, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
         # Vertical cusor for all, commonly
-        self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn = True, vertOn=True, color='gray', linewidth=0.5, linestyle=':')
+        bXHair = self.cbXHair.GetValue()
+        self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn=bXHair, vertOn=bXHair, color='gray', linewidth=0.5, linestyle=':')
 
     def findPlotMode(self,PD):
         uTabs=unique([pd.it for pd in PD])
