@@ -301,7 +301,7 @@ class PlotPanel(wx.Panel):
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
-        self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
+        self.fig.set_tight_layout(True) # subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
         self.canvas = FigureCanvas(self, -1, self.fig)
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 
@@ -411,10 +411,8 @@ class PlotPanel(wx.Panel):
             pass
 
     def scatter_select(self, event):
-        if self.pltTypePanel.cbPDF.GetValue() or self.pltTypePanel.cbFFT.GetValue():
-            self.cbScatter.SetValue(False)
-        else:
-            self.redraw_same_data()
+        self.cbScatter.SetValue(self.cbScatter.GetValue())
+        self.redraw_same_data()
 
     def show_hide(self,panel,bShow):
         if bShow:
@@ -898,8 +896,8 @@ class PlotPanel(wx.Panel):
         return mode
 
     def findSubPlots(self,PD,mode):
-        uTabs=unique([pd.it for pd in PD])
-        usy=unique([pd.sy for pd in PD])
+        uTabs = unique([pd.it for pd in PD])
+        usy   = unique([pd.sy for pd in PD])
         bSubPlots = self.cbSub.IsChecked()
         bCompare  = self.pltTypePanel.cbCompare.GetValue() # NOTE bCompare somehow always 1Tab_nCols
         nSubPlots=1
@@ -910,7 +908,10 @@ class PlotPanel(wx.Panel):
                     nSubPlots=len(PD)
                     spreadBy='iy'
                 else:
-                    nSubPlots=len(usy)
+                    if len(uTabs)==1:
+                        nSubPlots=len(PD)
+                    else:
+                        nSubPlots=len(usy)
                     spreadBy='iy'
         elif mode=='nTabs_SameCols':
             if bSubPlots:
