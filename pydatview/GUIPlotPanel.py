@@ -610,11 +610,20 @@ class PlotPanel(wx.Panel):
             if len(y)!=len(yref):
                 raise NotImplementedError('Cannot compare signals of different lengths')
             if sComp=='Relative':
-                Error=(y-yRef)/yRef*100
+                if np.mean(np.abs(yref))<1e-7:
+                    Error=(y-yRef)/(yRef+1)*100
+                else:
+                    Error=(y-yRef)/yRef*100
             elif sComp=='|Relative|':
-                Error=abs((y-yRef)/yRef)*100
+                if np.mean(np.abs(yref))<1e-7:
+                    Error=abs((y-yRef)/(yRef+1))*100
+                else:
+                    Error=abs((y-yRef)/yRef)*100
             elif sComp=='Ratio':
-                Error=y/yRef
+                if np.mean(np.abs(yref))<1e-7:
+                    Error=(y+1)/(yRef+1)
+                else:
+                    Error=y/yRef
             elif sComp=='Absolute':
                 Error=y-yRef
             else:
