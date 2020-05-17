@@ -683,6 +683,7 @@ class SelectionPanel(wx.Panel):
         self.setTables(tabList)
 
     def updateLayout(self,mode=None):
+        self.Freeze()
         if mode is None:
             mode=self.modeRequested
         else:
@@ -696,7 +697,9 @@ class SelectionPanel(wx.Panel):
         elif mode=='threeColumnsMode':
             self.threeColumnsMode()
         else:
+            self.Thaw()
             raise Exception('Wrong mode for selection layout: {}'.format(self.mode))
+        self.Thaw()
 
 
     def autoMode(self):
@@ -807,8 +810,8 @@ class SelectionPanel(wx.Panel):
                 self.setTabForCol(ISel[0],1)
                 self.setTabForCol(ISel[1],2)
                 self.setTabForCol(ISel[2],3)
-            else:
-                raise Exception('Too many table selected.')
+            else: # Likely all tables have the same columns
+                self.setTabForCol(ISel[0],1)
         self.updateLayout(self.modeRequested)
 
     def setTabForCol(self,iTabSel,iPanel):

@@ -93,7 +93,9 @@ class TableList(object): # todo inherit list
             raise
         # Returning a list of tables 
         tabs=[]
-        if not isinstance(dfs,dict):
+        if dfs is None:
+            pass
+        elif not isinstance(dfs,dict):
             if len(dfs)>0:
                 tabs=[Table(data=dfs, filename=filename, fileformat=F.formatName())]
         else:

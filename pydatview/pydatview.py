@@ -295,6 +295,7 @@ class MainFrame(wx.Frame):
 
         if (not bReload) and (not bAdd):
             self.cleanGUI()
+        self.Freeze()
         # Setting status bar
         self.setStatusBar()
 
@@ -342,6 +343,7 @@ class MainFrame(wx.Frame):
         if bPlot:
             self.mainFrameUpdateLayout()
             self.onColSelectionChange(event=None)
+        self.Thaw()
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
@@ -484,6 +486,7 @@ class MainFrame(wx.Frame):
 
     def onReload(self, event=None):
         filenames = self.tabList.unique_filenames
+        filenames.sort()
         if len(filenames)>0:
             iFormat=self.comboFormats.GetSelection()
             if iFormat==0: # auto-format
