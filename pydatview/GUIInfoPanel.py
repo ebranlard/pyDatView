@@ -406,6 +406,7 @@ class InfoPanel(wx.Panel):
         self._showStats(erase=erase)
 
     def _showStats(self,erase=True):
+        self.Freeze()
         selCols=[c for c in self.Cols if c['s']]
         # Adding columns
         if erase:
@@ -433,6 +434,7 @@ class InfoPanel(wx.Panel):
         for i in range(self.tbStats.GetColumnCount()):
             self.tbStats.SetColumnWidth(i, wx.LIST_AUTOSIZE_USEHEADER) 
         self.tbStats.RefreshRows()
+        self.Thaw()
 
     def clean(self):
         self.tbStats.DeleteAllItems()
