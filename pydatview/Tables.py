@@ -416,8 +416,10 @@ class Table(object):
         self.data.columns.values[iCol]=newName
 
     def deleteColumns(self,ICol):
+        """ Delete columns by index, not column names which can have duplicates"""
         df=self.data
-        df.drop(df.columns[ICol],axis=1,inplace=True)
+        IKeep =[i for i in np.arange(df.shape[1]) if i not in ICol]
+        df = df.iloc[:, IKeep] # Drop won't work for duplicates
         for i in sorted(ICol, reverse=True):
             del(self.columns[i])
 
