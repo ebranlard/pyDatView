@@ -546,6 +546,8 @@ class MainFrame(wx.Frame):
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
         self.mainFrameUpdateLayout()
+        # --- Trigger to check number of columns
+        self.onTabSelectionChange()
 
     def mainFrameUpdateLayout(self, event=None):
         if hasattr(self,'selPanel'):
