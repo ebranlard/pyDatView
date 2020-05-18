@@ -189,6 +189,42 @@ def getDt(x):
     # TODO if dt> int res... do something
     return dt
 
+def getTabCommonColIndices(tabs):
+    cleanedColLists = [ [cleanCol(s) for s in t.columns] for t in tabs]
+    commonCols = cleanedColLists[0]
+    for i in np.arange(1,len(cleanedColLists)):
+        commonCols = list( set(commonCols) & set( cleanedColLists[i]))
+    # Keep original order
+    commonCols =[c for c in cleanedColLists[0] if c in commonCols] # Might have duplicates..
+    IMissPerTab=[]
+    IKeepPerTab=[]
+    IDuplPerTab=[] # Duplicates amongst the "common"
+    for cleanedCols in cleanedColLists:
+        IKeep=[]
+        IMiss=[]
+        IDupl=[]
+        # Ugly for loop here since we have to account for dupplicates
+        for comcol in commonCols:
+            I = [i for i, c in enumerate(cleanedCols) if c == comcol]
+            if len(I)==0:
+                pass
+            else:
+                if I[0] not in IKeep:
+                    IKeep.append(I[0])
+                    if len(I)>1:
+                        IDupl=IDupl+I[1:]
+        IMiss=[i for i,_  in enumerate(cleanedCols) if (i not in IKeep) and (i not in IDupl)]
+        IMissPerTab.append(IMiss)
+        IKeepPerTab.append(IKeep)
+        IDuplPerTab.append(IDupl)
+    return IKeepPerTab, IMissPerTab, IDuplPerTab
+
+
+def cleanCol(s):
+    s=no_unit(s).strip()
+    s=no_unit(s.replace('(',' [').replace(')',']'))
+    s=s.lower().strip().replace('_','').replace(' ','').replace('-','')
+    return s
 
 def no_unit(s):
     iu=s.rfind(' [')

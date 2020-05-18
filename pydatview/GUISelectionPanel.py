@@ -13,8 +13,8 @@ except:
 
 __all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES_ID','TablePopup','ColumnPopup']
 
-SEL_MODES    = ['auto','Same tables'    ,'2 tables','3 tables (exp.)'  ]
-SEL_MODES_ID = ['auto','sameColumnsMode','twoColumnsMode'  ,'threeColumnsMode' ]
+SEL_MODES    = ['auto','Same tables'    ,'Sim. tables' ,'2 tables','3 tables (exp.)'  ]
+SEL_MODES_ID = ['auto','sameColumnsMode','simColumnsMode','twoColumnsMode'  ,'threeColumnsMode' ]
 
 def ireplace(text, old, new):
     """ Replace case insensitive """
@@ -378,6 +378,7 @@ class ColumnPopup(wx.Menu):
             newName=dlg.GetValue()
             main=self.parent.mainframe
             ITab,STab=main.selPanel.getSelectedTables()
+            # TODO adapt me for Sim. tables mode
             if main.tabList.haveSameColumns(ITab):
                 for iTab,sTab in zip(ITab,STab):
                     main.tabList.get(iTab).renameColumn(self.ISel[0]-1,newName)
@@ -391,6 +392,7 @@ class ColumnPopup(wx.Menu):
         main=self.parent.mainframe
         iX = self.parent.comboX.GetSelection()
         ITab,STab=main.selPanel.getSelectedTables()
+        # TODO adapt me for Sim. tables mode
         if main.tabList.haveSameColumns(ITab):
             for iTab,sTab in zip(ITab,STab):
                 main.tabList.get(iTab).deleteColumns([i-1 for i in self.ISel if i>0])
@@ -516,9 +518,10 @@ class ColumnPanel(wx.Panel):
         super(ColumnPanel,self).__init__(parent)
         self.selPanel = selPanel;
         # Data
-        self.tab=[]
+        self.tab=None
         self.mainframe=mainframe
         self.bShowID=False
+        self.bReadOnly=False
         # GUI
 
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
@@ -549,38 +552,66 @@ class ColumnPanel(wx.Panel):
         self.SetSizer(sizerCol)
 
     def showColumnMenu(self,event):
-        pos = (self.bt.GetPosition()[0], self.bt.GetPosition()[1] + self.bt.GetSize()[1])
-        menu = ColumnPopup(self,fullmenu=True)
-        self.PopupMenu(menu, pos)
-        menu.Destroy()
+        if not self.bReadOnly and self.tab is not None:
+            pos = (self.bt.GetPosition()[0], self.bt.GetPosition()[1] + self.bt.GetSize()[1])
+            menu = ColumnPopup(self,fullmenu=True)
+            self.PopupMenu(menu, pos)
+            menu.Destroy()
         
     def OnColPopup(self,event):
-        menu = ColumnPopup(self)
-        self.PopupMenu(menu, event.GetPosition())
-        menu.Destroy()
+        if not self.bReadOnly and self.tab is not None:
+            menu = ColumnPopup(self)
+            self.PopupMenu(menu, event.GetPosition())
+            menu.Destroy()
 
     def getDefaultColumnX(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
         iSelect = min(1,nColsMax)
-        _,isString,_,_ = tab.getColumn(iSelect)
-        if isString:
-            iSelect = 0 # we roll back and select the index
+        if tab is not None:
+            _,isString,_,_ = tab.getColumn(iSelect)
+            if isString:
+                iSelect = 0 # we roll back and select the index
         return iSelect
 
     def getDefaultColumnY(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
         iSelect = min(2,nColsMax)
-        _,isString,_,_ = tab.getColumn(iSelect)
-        if isString:
-            iSelect = 0 # we roll back and select the index
+        if tab is not None:
+            _,isString,_,_ = tab.getColumn(iSelect)
+            if isString:
+                iSelect = 0 # we roll back and select the index
         return iSelect
 
-    def setTab(self,tab,xSel=-1,ySel=[]):
+    def setReadOnly(self, tabLabel='', cols=[]):
+        """ Set this list of columns as readonly and non selectable """
+        self.tab=None
+        self.bReadOnly=True
+        self.lb.SetLabel(tabLabel)
+        self.setColumnNames(columnNames=cols)
+        self.lbColumns.Enable(True)
+        self.comboX.Enable(False)
+        self.lbColumns.SetSelection(-1)
+        self.bt.Enable(False)
+        self.bShowID=False
+
+    def setTab(self,tab=None,xSel=-1,ySel=[],colNames=None, tabLabel=''):
         """ Set the table used for the columns, update the GUI """
         self.tab=tab;
-        if tab.active_name!='default':
-            self.lb.SetLabel(' '+tab.active_name)
-        self.setColumnNames(xSel,ySel)
+        self.lbColumns.Enable(True)
+        self.comboX.Enable(True)
+        self.bReadOnly=False
+        if tab is not None:
+            self.bt.Enable(True)
+            if tab.active_name!='default':
+                self.lb.SetLabel(' '+tab.active_name)
+            self.setColumnNames(xSel,ySel)
+        else:
+            self.bt.Enable(False)
+            self.lb.SetLabel(tabLabel)
+            self.setColumnNames(xSel,ySel)
+            self.setColumnNames(columnNames=colNames, xSel=xSel, ySel=ySel)
+
+
 
     def updateColumnNames(self):
         """ Update of column names from table, keeping selection """
@@ -594,17 +625,26 @@ class ColumnPanel(wx.Panel):
         self.lbColumns.SetString(i,newName)
         self.comboX.SetString(i,newName)
 
-    def setColumnNames(self,xSel=-1,ySel=[]):
-        """ Set columns from table """
-        # Populating..
-        columns=['Index']+self.tab.columns
+    def setColumnNames(self,xSel=-1,ySel=[],columnNames=None):
+        """ Set columns from table and possible select appropriate columns """
+        if columnNames is not None:
+            # Populating based on user inputs..
+            columns=columnNames
+        else:
+            if self.tab is None:
+                columns=self.lbColumns.GetStrings()
+                if len(columns)>0 and columns[0]=='000 Index':
+                    columns=[c[4:] for c in columns]
+            else:
+                # Populating based on table..
+                columns=['Index']+self.tab.columns
+
+        self.Freeze()
         if self.bShowID:
             columns= ['{:03d} '.format(i)+c for i,c in enumerate(columns)]
-        self.Freeze()
         self.lbColumns.Set(columns)
         self.comboX.Set(columns)
-        self.Thaw()
-        # Restoring previous selection
+        # Set selection if any
         for i in ySel:
             if i<len(columns) and i>=0:
                 self.lbColumns.SetSelection(i)
@@ -615,6 +655,7 @@ class ColumnPanel(wx.Panel):
             self.comboX.SetSelection(self.getDefaultColumnX(self.tab,len(columns)-1))
         else:
             self.comboX.SetSelection(xSel)
+        self.Thaw()
 
     def forceOneSelection(self):
         ISel=self.lbColumns.GetSelections()
@@ -622,10 +663,18 @@ class ColumnPanel(wx.Panel):
         if len(ISel)>0:
             self.lbColumns.SetSelection(ISel[0])
 
+    def forceZeroSelection(self):
+        self.lbColumns.SetSelection(-1)
+
     def empty(self):
         self.lbColumns.Clear()
         self.comboX.Clear()
         self.lb.SetLabel('')
+        self.bReadOnly=False
+        self.lbColumns.Enable(False)
+        self.comboX.Enable(False)
+        self.bt.Enable(False)
+        self.tab=None
 
     def getColumnSelection(self):
         iX = self.comboX.GetSelection()
@@ -645,7 +694,6 @@ class ColumnPanel(wx.Panel):
 # --------------------------------------------------------------------------------}
 # --- Selection Panel 
 # --------------------------------------------------------------------------------{
-
 class SelectionPanel(wx.Panel):
     """ Display options for the user to select data """
     def __init__(self, parent, tabList, mode='auto',mainframe=None):
@@ -659,6 +707,7 @@ class SelectionPanel(wx.Panel):
         self.tabSelections = {}
         self.tabSelected   = [] # NOTE only used to remember a selection after a reload
         self.modeRequested = mode
+        self.currentMode   = None
         self.nSplits = -1
 
         # GUI DATA
@@ -692,6 +741,8 @@ class SelectionPanel(wx.Panel):
             self.autoMode()
         elif mode=='sameColumnsMode':
             self.sameColumnsMode()
+        elif mode=='simColumnsMode':
+            self.simColumnsMode()
         elif mode=='twoColumnsMode':
             self.twoColumnsMode()
         elif mode=='threeColumnsMode':
@@ -714,14 +765,21 @@ class SelectionPanel(wx.Panel):
                 # We don't do same column because we know at least one table is different
                 # to avoid "jumping" too much
                 self.twoColumnsMode()
-            elif len(ISel)==2:
-                self.twoColumnsMode()
-            elif len(ISel)==3:
-                self.threeColumnsMode()
             else:
-                raise Exception('Too many panels selected')
+                # See if tables are quite similar
+                IKeepPerTab, IMissPerTab, IDuplPerTab= getTabCommonColIndices([self.tabList.get(i) for i in ISel])
+                if np.all(np.array([len(I) for I in IMissPerTab])<30) and np.all(np.array([len(I) for I in IKeepPerTab])>=2):
+                    self.simColumnsMode()
+                elif len(ISel)==2:
+                    self.twoColumnsMode()
+                elif len(ISel)==3:
+                    self.threeColumnsMode()
+                else:
+                    #self.simColumnsMode(self)
+                    raise Exception('Too many panels selected with significant columns differences.')
 
     def sameColumnsMode(self):
+        self.currentMode = 'sameColumnsMode'
         if self.nSplits==1:
             return
         if self.nSplits==0 and self.tabList.len()<=1:
@@ -741,7 +799,19 @@ class SelectionPanel(wx.Panel):
         else:
             self.nSplits=0
 
+    def simColumnsMode(self):
+        self.currentMode = 'simColumnsMode'
+        self.splitter.removeAll()
+        self.splitter.AppendWindow(self.tabPanel) 
+        self.splitter.AppendWindow(self.colPanel2) 
+        self.splitter.AppendWindow(self.colPanel1) 
+        self.splitter.setEquiSash()
+        if self.nSplits<2 and self.mainframe is not None:
+            self.mainframe.mainFrameUpdateLayout()
+        self.nSplits=2
+
     def twoColumnsMode(self):
+        self.currentMode = 'twoColumnsMode'
         if self.nSplits==2:
             return
         self.splitter.removeAll()
@@ -754,6 +824,7 @@ class SelectionPanel(wx.Panel):
         self.nSplits=2
 
     def threeColumnsMode(self):
+        self.currentMode = 'threeColumnsMode'
         if self.nSplits==3:
             return
         self.splitter.removeAll()
@@ -801,17 +872,20 @@ class SelectionPanel(wx.Panel):
             # Trigger - updating columns and layout
             ISel=self.tabPanel.lbTab.GetSelections()
             self.tabSelected=ISel
-            if len(ISel)==1:
-                self.setTabForCol(ISel[0],1)
-            elif len(ISel)==2:
-                self.setTabForCol(ISel[0],1)
-                self.setTabForCol(ISel[1],2)
-            elif len(ISel)==3:
-                self.setTabForCol(ISel[0],1)
-                self.setTabForCol(ISel[1],2)
-                self.setTabForCol(ISel[2],3)
-            else: # Likely all tables have the same columns
-                self.setTabForCol(ISel[0],1)
+            if self.currentMode=='simColumnsMode':
+                self.setColForSimTab(ISel)
+            else:
+                if len(ISel)==1:
+                    self.setTabForCol(ISel[0],1)
+                elif len(ISel)==2:
+                    self.setTabForCol(ISel[0],1)
+                    self.setTabForCol(ISel[1],2)
+                elif len(ISel)==3:
+                    self.setTabForCol(ISel[0],1)
+                    self.setTabForCol(ISel[1],2)
+                    self.setTabForCol(ISel[2],3)
+                else: # Likely all tables have the same columns
+                    self.setTabForCol(ISel[0],1)
         self.updateLayout(self.modeRequested)
 
     def setTabForCol(self,iTabSel,iPanel):
@@ -825,6 +899,78 @@ class SelectionPanel(wx.Panel):
             self.colPanel3.setTab(t,ts['xSel'],ts['ySel'])
         else:
             raise Exception('Wrong ipanel')
+
+    def setColForSimTab(self,ISel):
+        """ Set column panels for similar tables """
+        tabs = [self.tabList.get(i) for i in ISel]
+        IKeepPerTab, IMissPerTab, IDuplPerTab = getTabCommonColIndices(tabs)
+        LenMiss = np.array([len(I) for I in IMissPerTab])
+        LenKeep = np.array([len(I) for I in IKeepPerTab])
+        LenDupl = np.array([len(I) for I in IDuplPerTab])
+
+        ColInfo  = ['Sim. table mode ']
+        ColInfo += ['']
+        if self.tabList.haveSameColumns(ISel):
+            if len(ISel)>1:
+                ColInfo += ['Columns identical','']
+        else:
+            if (np.all(np.array(LenMiss)==0)):
+                ColInfo += ['Columns identical']
+                ColInfo += ['Order different!']
+
+                ColInfo += ['','First difference:']
+                ColInfo.append('----------------------------------')
+                bFirst=True
+                for it,t in enumerate(tabs):
+                    print('IKeep',IKeepPerTab[it])
+                    if it==0:
+                        continue
+                    INotOrdered=[ii for i,ii in enumerate(IKeepPerTab[it]) if ii!=IKeepPerTab[0][i]]
+                    print('INot',INotOrdered)
+                    if len(INotOrdered)>0:
+                        im=INotOrdered[0]
+                        if bFirst:
+                            ColInfo.append('{}:'.format(tabs[0].active_name))
+                            ColInfo.append('{:03d} {:s}'.format(im, tabs[0].columns[im]))
+                            bFirst=False
+                        ColInfo.append('{}:'.format(t.active_name))
+                        ColInfo.append('{:03d} {:s}'.format(im, t.columns[im]))
+                        ColInfo.append('----------------------------------')
+
+            else:
+                ColInfo += ['Columns different!']
+                ColInfo += ['(similar: {})'.format(LenKeep[0])]
+                ColInfo += ['','Missing columns:']
+                ColInfo.append('----------------------------------')
+                for it,t in enumerate(tabs):
+                    ColInfo.append('{}:'.format(t.active_name))
+                    if len(IMissPerTab[it])==0:
+                        ColInfo.append('    (None) ')
+                    for im in IMissPerTab[it]:
+                        ColInfo.append('{:03d} {:s}'.format(im, t.columns[im]))
+                    ColInfo.append('----------------------------------')
+
+        if (np.any(np.array(LenDupl)>0)):
+            if len(ISel)>1:
+                ColInfo += ['','Common duplicates:']
+            else:
+                ColInfo += ['','Duplicates:']
+            ColInfo.append('----------------------------------')
+            for it,t in enumerate(tabs):
+                ColInfo.append('{}:'.format(t.active_name))
+                if len(IDuplPerTab[it])==0:
+                    ColInfo.append('    (None) ')
+                for im in IDuplPerTab[it]:
+                    ColInfo.append('{:03d} {:s}'.format(im, t.columns[im]))
+                ColInfo.append('----------------------------------')
+
+
+        colNames = ['Index'] + [tabs[0].columns[i] for i in IKeepPerTab[0]]
+        self.colPanel1.setTab(tab=None, colNames=colNames, tabLabel=' Tab. Intersection')
+        self.colPanel2.setReadOnly(' Tab. Difference', ColInfo)
+        self.IKeepPerTab=IKeepPerTab
+
+
 
     def selectDefaultTable(self):
         # Selecting the first table
@@ -845,6 +991,11 @@ class SelectionPanel(wx.Panel):
         if len(ISel)>0:
             if self.modeRequested=='auto':
                 self.autoMode()
+            if self.currentMode=='simColumnsMode':# and len(ISel)>1:
+                self.setColForSimTab(ISel)
+                self.tabSelected=self.tabPanel.lbTab.GetSelections()
+                return
+
             if self.tabList.haveSameColumns(ISel):
                 # Setting tab
                 self.setTabForCol(ISel[0],1) 
@@ -867,7 +1018,7 @@ class SelectionPanel(wx.Panel):
                         for isel in ISel:
                             self.tabPanel.lbTab.SetSelection(isel)
                 else:
-                    Error(self,'The tables have different columns. Chose the "2/3 table mode" to compare them.')
+                    Error(self,'The tables selected have different columns.\n\nThis is not compatible with the "Same tables" mode. To compare them, chose one of the following mode: "2 tables", "3 tables" or "Sim. tables".')
                     self.colPanel2.empty()
                     self.colPanel3.empty()
                     # unselect all and select only the first one
@@ -880,17 +1031,21 @@ class SelectionPanel(wx.Panel):
             self.tabSelected=self.tabPanel.lbTab.GetSelections()
 
     def colSelectionChanged(self):
-        if self.nSplits in [2,3]:
-            ISel=self.tabPanel.lbTab.GetSelections()
-            if self.tabList.haveSameColumns(ISel):
-                pass # NOTE: this test is identical to onTabSelectionChange. Unification.
-            elif len(ISel)==2:
-                self.colPanel1.forceOneSelection()
-                self.colPanel2.forceOneSelection()
-            elif len(ISel)==3:
-                self.colPanel1.forceOneSelection()
-                self.colPanel2.forceOneSelection()
-                self.colPanel3.forceOneSelection()
+        """ Simple triggers when column selection is changed, NOTE: does not redraw """
+        if self.currentMode=='simColumnsMode':
+            self.colPanel2.forceZeroSelection()
+        else:
+            if self.nSplits in [2,3]:
+                ISel=self.tabPanel.lbTab.GetSelections()
+                if self.tabList.haveSameColumns(ISel):
+                    pass # TODO: this test is identical to onTabSelectionChange. Unification.
+                elif len(ISel)==2:
+                    self.colPanel1.forceOneSelection()
+                    self.colPanel2.forceOneSelection()
+                elif len(ISel)==3:
+                    self.colPanel1.forceOneSelection()
+                    self.colPanel2.forceOneSelection()
+                    self.colPanel3.forceOneSelection()
 
     def update_tabs(self, tabList):
         self.setTables(tabList, update=True)
@@ -938,26 +1093,46 @@ class SelectionPanel(wx.Panel):
         SameCol=False
         if self.tabList is not None  and self.tabList.len()>0:
             ITab,STab = self.getSelectedTables()
-            iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
-            SameCol=self.tabList.haveSameColumns(ITab)
-            if self.nSplits in [0,1] or SameCol:
+            if self.currentMode=='simColumnsMode' and len(ITab)>1:
+                iiX1,IY1,ssX1,SY1 = self.colPanel1.getColumnSelection()
+                SameCol=False
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
-                    for j,(iy,sy) in enumerate(zip(IY1,SY1)):
+                    IKeep=self.IKeepPerTab[i]
+                    for j,(iiy,ssy) in enumerate(zip(IY1,SY1)):
+                        if iiy==0:
+                            iy =  0
+                            sy =  ssy
+                        else:
+                            iy =  IKeep[iiy-1]+1
+                            sy =  self.tabList.get(itab).columns[IKeep[iiy-1]]
+                        if iiX1==0:
+                            iX1 =  0
+                            sX1 = ssX1
+                        else:
+                            iX1 =  IKeep[iiX1-1]+1
+                            sX1 =  self.tabList.get(itab).columns[IKeep[iiX1-1]]
                         ID.append([itab,iX1,iy,sX1,sy,stab])
-            elif self.nSplits in [2,3]:
-                if len(ITab)>=1:
-                    for j,(iy,sy) in enumerate(zip(IY1,SY1)):
-                        ID.append([ITab[0],iX1,iy,sX1,sy,STab[0]])
-                if len(ITab)>=2:
-                    iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
-                    for j,(iy,sy) in enumerate(zip(IY2,SY2)):
-                        ID.append([ITab[1],iX2,iy,sX2,sy,STab[1]])
-                if len(ITab)>=3:
-                    iX2,IY2,sX2,SY2 = self.colPanel3.getColumnSelection()
-                    for j,(iy,sy) in enumerate(zip(IY2,SY2)):
-                        ID.append([ITab[2],iX2,iy,sX2,sy,STab[2]])
             else:
-                raise Exception('Wrong number of splits {}'.format(self.nSplits))
+                iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
+                SameCol=self.tabList.haveSameColumns(ITab)
+                if self.nSplits in [0,1] or SameCol:
+                    for i,(itab,stab) in enumerate(zip(ITab,STab)):
+                        for j,(iy,sy) in enumerate(zip(IY1,SY1)):
+                            ID.append([itab,iX1,iy,sX1,sy,stab])
+                elif self.nSplits in [2,3]:
+                    if len(ITab)>=1:
+                        for j,(iy,sy) in enumerate(zip(IY1,SY1)):
+                            ID.append([ITab[0],iX1,iy,sX1,sy,STab[0]])
+                    if len(ITab)>=2:
+                        iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
+                        for j,(iy,sy) in enumerate(zip(IY2,SY2)):
+                            ID.append([ITab[1],iX2,iy,sX2,sy,STab[1]])
+                    if len(ITab)>=3:
+                        iX2,IY2,sX2,SY2 = self.colPanel3.getColumnSelection()
+                        for j,(iy,sy) in enumerate(zip(IY2,SY2)):
+                            ID.append([ITab[2],iX2,iy,sX2,sy,STab[2]])
+                else:
+                    raise Exception('Wrong number of splits {}'.format(self.nSplits))
         return ID,SameCol
 
     def getSelectedTables(self):

@@ -762,6 +762,10 @@ class PlotPanel(wx.Panel):
                         pd.x=xRef
                         pd.y=Error
                     self.plotData.append(pd)
+        elif mode =='nTabs_SimCols':
+            # --- Compare different tables, similar columns
+            print('Several Tabs, similar columns, TODO')
+            self.plotData=[]
 
 
 
@@ -881,9 +885,9 @@ class PlotPanel(wx.Panel):
         self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn=bXHair, vertOn=bXHair, color='gray', linewidth=0.5, linestyle=':')
 
     def findPlotMode(self,PD):
-        uTabs=unique([pd.it for pd in PD])
-        usy=unique([pd.sy for pd in PD])
-        uiy=unique([pd.iy for pd in PD])
+        uTabs = unique([pd.it for pd in PD])
+        usy   = unique([pd.sy for pd in PD])
+        uiy   = unique([pd.iy for pd in PD])
         if len(uTabs)<=0:
             raise Exception('No Table. Contact developer')
         elif len(uTabs)==1:
@@ -892,7 +896,10 @@ class PlotPanel(wx.Panel):
             if PD[0].SameCol:
                 mode='nTabs_SameCols'
             else:
-                mode='nTabs_1Col'
+                if len(uTabs) == len(PD):
+                    mode='nTabs_1Col'
+                else:
+                    mode='nTabs_SimCols'
         return mode
 
     def findSubPlots(self,PD,mode):
@@ -925,14 +932,22 @@ class PlotPanel(wx.Panel):
                     else:
                         nSubPlots=len(usy)
                         spreadBy='iy'
-        else:
-            mode='nTabs_1Col'
+        elif mode=='nTabs_SimCols':
+            if bSubPlots:
+                if bCompare:
+                    print('>>>TODO ',mode,len(usy),len(uTabs))
+                else:
+                    nSubPlots=int(len(PD)/len(uTabs))
+                    spreadBy='mod-ip'
+        elif mode=='nTabs_1Col':
             if bSubPlots:
                 if bCompare:
                     print('>>> TODO',mode,len(uTabs))
                 else:
                     nSubPlots=len(uTabs)
                     spreadBy='it'
+        else:
+            raise Exception('Unknown mode, contact developer.')
         return nSubPlots,spreadBy
 
     def distributePlots(self,mode,nSubPlots,spreadBy):
@@ -955,6 +970,10 @@ class PlotPanel(wx.Panel):
             elif spreadBy=='it':
                 for ipd,pd in enumerate(PD):
                     i=uTabs.index(pd.it)
+                    axes[i].iPD.append(ipd)
+            elif spreadBy=='mod-ip':
+                for ipd,pd in enumerate(PD):
+                    i=np.mod(ipd, nSubPlots)
                     axes[i].iPD.append(ipd)
             else:
                 raise Exception('Wrong spreadby value')
@@ -983,7 +1002,16 @@ class PlotPanel(wx.Panel):
                         pd.syl=no_unit(pd.sy)
                     else:
                         pd.syl=pd.sy #pd.syl=pd.st + ' - '+pd.sy
-
+        elif mode=='nTabs_SimCols':
+            bSubPlots = self.cbSub.IsChecked()
+            if bSubPlots: # spread by table name
+                for pd in self.plotData:
+                    pd.syl=pd.st
+            else:
+                for pd in self.plotData:
+                    pd.syl=pd.st + ' - '+pd.sy
+        else:
+            raise Exception('Unknown mode {}'.format(mode))
 
 
     def empty(self):
