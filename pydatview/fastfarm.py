@@ -11,6 +11,37 @@ from . import fastlib
 
 
 
+def spanwiseColFastFarm(Cols, nWT=9, nD=9):
+    """ Return column info, available columns and indices that contain AD spanwise data"""
+    FFSpanMap=dict()
+    for i in np.arange(nWT):
+        FFSpanMap['^CtT{:d}N(\d*)_\[-\]'.format(i+1)]='CtT{:d}_[-]'.format(i+1)
+    for i in np.arange(nWT):
+        for k in np.arange(nD):
+            FFSpanMap['^WkDfVxT{:d}N(\d*)D{:d}_\[m/s\]'.format(i+1,k+1) ]='WkDfVxT{:d}D{:d}_[m/s]'.format(i+1, k+1)  
+    for i in np.arange(nWT):
+        for k in np.arange(nD):
+            FFSpanMap['^WkDfVrT{:d}N(\d*)D{:d}_\[m/s\]'.format(i+1,k+1) ]='WkDfVrT{:d}D{:d}_[m/s]'.format(i+1, k+1)  
+
+    return fastlib.find_matching_columns(Cols, FFSpanMap)
+
+def diameterwiseColFastFarm(Cols, nWT=9):
+    """ Return column info, available columns and indices that contain AD spanwise data"""
+    FFDiamMap=dict()
+    for i in np.arange(nWT):
+        for x in ['X','Y','Z']:
+            FFDiamMap['^WkAxs{}T{:d}D(\d*)_\[-\]'.format(x,i+1)]   ='WkAxs{}T{:d}_[-]'.format(x,i+1) 
+    for i in np.arange(nWT):
+        for x in ['X','Y','Z']:
+            FFDiamMap['^WkPos{}T{:d}D(\d*)_\[m\]'.format(x,i+1)]   ='WkPos{}T{:d}_[m]'.format(x,i+1)
+    for i in np.arange(nWT):
+        for x in ['X','Y','Z']:
+            FFDiamMap['^WkVel{}T{:d}D(\d*)_\[m/s\]'.format(x,i+1)] ='WkVel{}T{:d}_[m/s]'.format(x,i+1) 
+    for i in np.arange(nWT):
+        for x in ['X','Y','Z']:
+            FFDiamMap['^WkDiam{}T{:d}D(\d*)_\[m\]'.format(x,i+1)]  ='WkDiam{}T{:d}_[m]'.format(x,i+1)
+    return fastlib.find_matching_columns(Cols, FFDiamMap)
+
 def SensorsFARMRadial(nWT=3,nD=10,nR=30,signals=None):
     """ Returns a list of FASTFarm sensors that are used for the radial distribution
     of quantities (e.g. Ct, Wake Deficits).
@@ -58,20 +89,34 @@ def spanwisePostProFF(fastfarm_input,avgMethod='constantwindow',avgParam=30,D=1,
 
     See faslibt.averageDF for `avgMethod` and `avgParam`.
     """
-    # --- Opening input file and extracting inportant variables
-    main=weio.FASTInFile(fastfarm_input)
-    iOut    = main['OutRadii']
-    dr      = main['dr']              # Radial increment of radial finite-difference grid (m)
-    OutDist = main['OutDist']         # List of downstream distances for wake output for an individual rotor
-    WT     = main['WindTurbines']
-    nWT    = len(WT)
-    vr_bar = dr*np.array(iOut)/(D/2)
-    vD     = np.array(OutDist)/D
-    nr=len(vr_bar)
-    nD=len(vD)
     # --- Opening ouputfile
     if df is None:
         df=weio.read(fastfarm_out).toDataFrame()
+
+    # --- Opening input file and extracting inportant variables
+    if fastfarm_input is None:
+        # We don't have an input file, guess numbers of turbine, diameters, Nodes...
+        cols, sIdx = fastlib.find_matching_pattern(df.columns.values, 'T(\d+)')
+        nWT = np.array(sIdx).astype(int).max()
+        cols, sIdx = fastlib.find_matching_pattern(df.columns.values, 'D(\d+)')
+        nD = np.array(sIdx).astype(int).max()
+        cols, sIdx = fastlib.find_matching_pattern(df.columns.values, 'N(\d+)')
+        nr = np.array(sIdx).astype(int).max()
+        vr=None
+        vD=None
+        D=0
+    else:
+        main=weio.FASTInFile(fastfarm_input)
+        iOut    = main['OutRadii']
+        dr      = main['dr']              # Radial increment of radial finite-difference grid (m)
+        OutDist = main['OutDist']         # List of downstream distances for wake output for an individual rotor
+        WT     = main['WindTurbines']
+        nWT    = len(WT)
+        vr     = dr*np.array(iOut)
+        vD     = np.array(OutDist)
+        nr=len(iOut)
+        nD=len(vD)
+
 
     # --- Extracting time series of radial data only
     colRadial = SensorsFARMRadial(nWT=nWT,nD=nD,nR=nr,signals=df.columns.values)
@@ -79,60 +124,26 @@ def spanwisePostProFF(fastfarm_input,avgMethod='constantwindow',avgParam=30,D=1,
     dfRadialTime = df[colRadial] # TODO try to do some magic with it, display it with a slider
 
     # --- Averaging data
-    dfAvg = fastlib.averageDF(df,avgMethod='constantwindow',avgParam=30)
+    dfAvg = fastlib.averageDF(df,avgMethod=avgMethod,avgParam=avgParam)
 
-    # --- Brute force storing of radial data
-    Columns     = [vr_bar]
-    if D==1:
-        ColumnNames = ['r_[m]']
+    # --- Extract radial data
+    ColsInfo, nrMax = spanwiseColFastFarm(df.columns.values, nWT=nWT, nD=nD)
+    dfRad        = fastlib.extract_spanwise_data(ColsInfo, nrMax, df=None, ts=dfAvg.iloc[0])
+    #dfRad       = fastlib.insert_radial_columns(dfRad, vr)
+    if vr is None: 
+        dfRad.insert(0, 'i_[#]', np.arange(nrMax)+1)
     else:
-        ColumnNames = ['r/R_[-]']
-    for iWT in range(nWT):
-        Values=np.zeros((len(vr_bar),1))
-        nCount=0
-        col_out='CtT{:d}_[-]'.format(iWT+1)
-        for ir in range(nr):
-            col='CtT{:d}N{:02d}_[-]'.format(iWT+1,ir+1)
-            if col in dfAvg.columns.values:
-                Values[ir,0]=dfAvg[col]
-                nCount+=1
-        if nCount!=nr and nCount>0:
-            print('[WARN] Not all values found for {}, found {}/{}'.format(col_out,nCount,nr))
-        if nCount>0:
-            Columns.append(Values)
-            ColumnNames.append('CtT{:d}'.format(iWT+1))
-    for iWT in range(nWT):
-        for iD in range(nD):
-            Values=np.zeros((len(vr_bar),1))
-            nCount=0
-            col_out='WkDfVxT{:d}D{:d}_[m/s]'.format(iWT+1,iD+1)
-            for ir in range(nr):
-                col='WkDfVxT{:d}N{:02d}D{:d}_[m/s]'.format(iWT+1,ir+1,iD+1)
-                if col in dfAvg.columns.values:
-                    Values[ir,0]=dfAvg[col]
-                    nCount+=1
-            if nCount!=nr and nCount>0:
-                print('[WARN] Not all values found for {}, found {}/{}'.format(col_out,nCount,nr))
-            if nCount>0:
-                Columns.append(Values)
-                ColumnNames.append(col_out)
-    for iWT in range(nWT):
-        for iD in range(nD):
-            Values=np.zeros((len(vr_bar),1))
-            nCount=0
-            col_out='WkDfVrT{:d}D{:d}_[m/s]'.format(iWT+1,iD+1)
-            for ir in range(nr):
-                col='WkDfVrT{:d}N{:02d}D{:d}_[m/s]'.format(iWT+1,ir+1,iD+1)
-                if col in dfAvg.columns.values:
-                    Values[ir,0]=dfAvg[col]
-                    nCount+=1
-            if nCount!=nr and nCount>0:
-                print('[WARN] Not all values found for {}, found {}/{}'.format(col_out,nCount,nr))
-            if nCount>0:
-                Columns.append(Values)
-                ColumnNames.append(col_out)
+        dfRad.insert(0, 'r_[m]', vr[:nrMax])
+    dfRad['i/n_[-]']=np.arange(nrMax)/nrMax
 
-    data=np.column_stack(Columns)
-    dfRad = pd.DataFrame(data=data, columns=ColumnNames)
-    return dfRad, dfRadialTime
+    # --- Extract downstream data
+    ColsInfo, nDMax = diameterwiseColFastFarm(df.columns.values, nWT=nWT)
+    dfDiam       = fastlib.extract_spanwise_data(ColsInfo, nDMax, df=None, ts=dfAvg.iloc[0])
+    #dfDiam      = fastlib.insert_radial_columns(dfDiam)
+    if vD is None:
+        dfDiam.insert(0, 'i_[#]', np.arange(nDMax)+1)
+    else:
+        dfDiam.insert(0, 'x_[m]', vD[:nDMax])
+    dfDiam['i/n_[-]'] = np.arange(nDMax)/nDMax
+    return dfRad, dfRadialTime, dfDiam
 

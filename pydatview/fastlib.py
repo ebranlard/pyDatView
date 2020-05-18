@@ -22,9 +22,18 @@ except:
         import welib.weio as weio
         print('Using `weio` from `welib`')
     except:
-        raise Exception('Fastlib needs the package `weio` to be installed from https://github.com/ebranlard/weio/`')
-    
-
+        print('[WARN] Fastlib relies on the package `weio` to be installed from https://github.com/ebranlard/weio/`')
+# --- Allowing FASTInFile to be shipped separately..
+try:
+    from weio.FASTInFile import *
+except:
+    try:
+        from weio.weio.FASTInFile import *
+    except:
+        try:
+            from FASTInFile import * 
+        except:
+            pass
 
 FAST_EXE='openfast'
 
@@ -121,9 +130,15 @@ def run_cmds(inputfiles, exe, parallel=True, ShowOutputs=True, nCores=None, Show
             print('      ',p.input_file)
         return False
 
-def run_cmd(input_file, exe, wait=True, ShowOutputs=False, ShowCommand=True):
-    """ Run a simple command of the form `exe input_file`  """
+def run_cmd(input_file_or_arglist, exe, wait=True, showOutputs=False, showCommand=True):
+    """ Run a simple command of the form `exe input_file` or `exe arg1 arg2`  """
     # TODO Better capture STDOUT
+    if isinstance(input_file_or_arglist, list):
+        args= [exe] + input_file_or_arglist
+        input_file     = ' '.join(input_file_or_arglist)
+        input_file_abs = input_file
+    else:
+        input_file=input_file_or_arglist
     if not os.path.isabs(input_file):
         input_file_abs=os.path.abspath(input_file)
     else:
@@ -140,7 +155,10 @@ def run_cmd(input_file, exe, wait=True, ShowOutputs=False, ShowCommand=True):
     if ShowCommand:
         print('Running: '+' '.join(args))
     if wait:
-        p=subprocess.call(args , stdout=STDOut, stderr=subprocess.STDOUT, shell=shell)
+        class Dummy():
+            pass
+        p=Dummy()
+        p.returncode=subprocess.call(args , stdout=STDOut, stderr=subprocess.STDOUT, shell=shell)
     else:
         p=subprocess.Popen(args, stdout=STDOut, stderr=subprocess.STDOUT, shell=shell)
     # Storing some info into the process
@@ -216,8 +234,8 @@ def ED_BldStations(ED):
         - bld_fract: fraction of the blade length were stations are defined
         - r_nodes: spanwise position from the rotor apex of the Blade stations
     """
-    if not isinstance(ED,weio.FASTInFile):
-        ED = weio.FASTInFile(ED)
+    if not isinstance(ED,FASTInFile):
+        ED = FASTInFile(ED)
 
     nBldNodes = ED['BldNodes']
     bld_fract    = np.arange(1./nBldNodes/2., 1, 1./nBldNodes)
@@ -235,8 +253,8 @@ def ED_TwrStations(ED):
         - r_fract: fraction of the towet length were stations are defined
         - h_nodes: height from the *ground* of the stations  (not from the Tower base)
     """
-    if not isinstance(ED,weio.FASTInFile):
-        ED = weio.FASTInFile(ED)
+    if not isinstance(ED,FASTInFile):
+        ED = FASTInFile(ED)
 
     nTwrNodes = ED['TwrNodes']
     twr_fract    = np.arange(1./nTwrNodes/2., 1, 1./nTwrNodes)
@@ -254,8 +272,8 @@ def ED_BldGag(ED):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the rotor apex
     """
-    if not isinstance(ED,weio.FASTInFile):
-        ED = weio.FASTInFile(ED)
+    if not isinstance(ED,FASTInFile):
+        ED = FASTInFile(ED)
     _,r_nodes= ED_BldStations(ED)
     nOuts = ED['NBlGages']
     if nOuts<=0:
@@ -276,8 +294,8 @@ def ED_TwrGag(ED):
     OUTPUTS:
        - h_gag: The heights of the gages, given from the ground height (tower base + TowerBsHt)
     """
-    if not isinstance(ED,weio.FASTInFile):
-        ED = weio.FASTInFile(ED)
+    if not isinstance(ED,FASTInFile):
+        ED = FASTInFile(ED)
     _,h_nodes= ED_TwrStations(ED)
     nOuts = ED['NTwGages']
     if nOuts<=0:
@@ -299,8 +317,8 @@ def AD14_BldGag(AD):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the blade root
     """
-    if not isinstance(AD,weio.FASTInFile):
-        AD = weio.FASTInFile(AD)
+    if not isinstance(AD,FASTInFile):
+        AD = FASTInFile(AD)
 
     Nodes=AD['BldAeroNodes']  
     if Nodes.shape[1]==6:
@@ -324,10 +342,10 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the blade root
     """
-    if not isinstance(AD,weio.FASTInFile):
-        AD = weio.FASTInFile(AD)
-    if not isinstance(AD_bld,weio.FASTInFile):
-        AD_bld = weio.FASTInFile(AD_bld)
+    if not isinstance(AD,FASTInFile):
+        AD = FASTInFile(AD)
+    if not isinstance(AD_bld,FASTInFile):
+        AD_bld = FASTInFile(AD_bld)
     #print(AD_bld.keys())
 
     nOuts=AD['NBlOuts']
@@ -353,8 +371,8 @@ def BD_BldGag(BD):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the rotor apex
     """
-    if not isinstance(BD,weio.FASTInFile):
-        BD = weio.FASTInFile(BD)
+    if not isinstance(BD,FASTInFile):
+        BD = FASTInFile(BD)
 
     M       = BD['MemberGeom']
     r_nodes = M[:,2] # NOTE: we select the z axis here, and we don't take curvilenear coord
@@ -431,7 +449,7 @@ def _HarmonizeSpanwiseData(Name, Columns, vr, R, IR=None) :
 
     return dfRad,  nrMax, ValidRow
 
-def insert_radial_columns(df, vr, R=None, IR=None):
+def insert_radial_columns(df, vr=None, R=None, IR=None):
     """
     Add some columns to the radial data
     """
@@ -441,7 +459,7 @@ def insert_radial_columns(df, vr, R=None, IR=None):
         return None
     nrMax=len(df)
     ids=np.arange(nrMax)
-    if vr is None:
+    if vr is None or R is None:
         # Radial position unknown
         vr_bar = ids/(nrMax-1)
         df.insert(0, 'i/n_[-]', vr_bar)
@@ -655,7 +673,7 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     """
     # --- Opens Fast output  and performs averaging
     if df is None:
-        df = weio.read(FST_In.replace('.fst',out_ext)).toDataFrame()
+        df = FASTInFile(FST_In.replace('.fst',out_ext)).toDataFrame()
         returnDF=True
     else:
         returnDF=False
@@ -991,9 +1009,9 @@ def copyTree(src, dst):
                 forceMergeFlatDir(s, d)
 
 
-def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
+def templateReplaceGeneral(PARAMS, templateDir=None, outputDir=None, main_file=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
     """ Generate inputs files by replacing different parameters from a template file.
-    The generated files are placed in the output directory `output_dir` 
+    The generated files are placed in the output directory `outputDir` 
     The files are read and written using the library `weio`. 
     The template file is read and its content can be changed like a dictionary.
     Each item of `PARAMS` correspond to a set of parameters that will be replaced
@@ -1008,10 +1026,10 @@ def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file
 
                PARAMS[0]={'FAST|DT':0.1, 'EDFile|GBRatio':1, 'ServoFile|GenEff':0.8}
 
-      template_dir: if provided, this directory and its content will be copied to `output_dir` 
+      templateDir: if provided, this directory and its content will be copied to `outputDir` 
                       before doing the parametric substitution
 
-      output_dir  : directory where files will be generated. 
+      outputDir  : directory where files will be generated. 
     """
     # --- Helper functions
     def rebase_rel(wd,s,sid):
@@ -1072,7 +1090,7 @@ def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file
             #print('NewFile         :', newfilename)
             #print('NewFileFull     :', newfilename_full)
             shutil.copyfile(templatefilename_full, newfilename_full)
-            f= weio.FASTInFile(newfilename_full) # open the template file for that filekey 
+            f= FASTInFile(newfilename_full) # open the template file for that filekey 
             Files[FileKey]=f # store it
 
         # --- Changing parameters in that file
@@ -1105,22 +1123,22 @@ def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file
 
 
     # --- Safety checks
-    if template_dir is None and output_dir is None:
+    if templateDir is None and outputDir is None:
         raise Exception('Provide at least a template directory OR an output directory')
 
-    if template_dir is not None:
-        if not os.path.exists(template_dir):
-            raise Exception('Template directory does not exist: '+template_dir)
+    if templateDir is not None:
+        if not os.path.exists(templateDir):
+            raise Exception('Template directory does not exist: '+templateDir)
 
-        # Default value of output_dir if not provided
-        if template_dir[-1]=='/'  or template_dir[-1]=='\\' :
-            template_dir=template_dir[0:-1]
-        if output_dir is None:
-            output_dir=template_dir+'_Parametric'
+        # Default value of outputDir if not provided
+        if templateDir[-1]=='/'  or templateDir[-1]=='\\' :
+            templateDir=templateDir[0:-1]
+        if outputDir is None:
+            outputDir=templateDir+'_Parametric'
 
     # --- Main file use as "master"
-    if template_dir is not None:
-        main_file=os.path.join(output_dir, os.path.basename(main_file))
+    if templateDir is not None:
+        main_file=os.path.join(outputDir, os.path.basename(main_file))
     else:
         main_file=main_file
 
@@ -1129,17 +1147,17 @@ def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file
         PARAMS=[PARAMS]
 
     if oneSimPerDir:
-        WORKDIRS=[os.path.join(output_dir,get_strID(p)) for p in PARAMS]
+        workDirS=[os.path.join(outputDir,get_strID(p)) for p in PARAMS]
     else:
-        WORKDIRS=[output_dir]*len(PARAMS)
-    # --- Creating output_dir - Copying template folder to output_dir if necessary
+        workDirS=[outputDir]*len(PARAMS)
+    # --- Creating outputDir - Copying template folder to outputDir if necessary
     # Copying template folder to workdir
     for wd in list(set(WORKDIRS)):
         if RemoveAllowed:
             removeFASTOuputs(wd)
         if os.path.exists(wd) and RemoveAllowed:
             shutil.rmtree(wd, ignore_errors=False, onerror=handleRemoveReadonlyWin)
-        copyTree(template_dir, wd)
+        copyTree(templateDir, wd)
         if RemoveAllowed:
             removeFASTOuputs(wd)
 
@@ -1179,7 +1197,7 @@ def templateReplaceGeneral(PARAMS, template_dir=None, output_dir=None, main_file
                 pass
     return files
 
-def templateReplace(PARAMS, template_dir, workdir=None, main_file=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
+def templateReplace(PARAMS, templateDir, workDir=None, main_file=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
     """ Replace parameters in a fast folder using a list of dictionaries where the keys are for instance:
         'FAST|DT', 'EDFile|GBRatio', 'ServoFile|GenEff'
     """
@@ -1190,7 +1208,7 @@ def templateReplace(PARAMS, template_dir, workdir=None, main_file=None, RemoveAl
             k_new=k_old.replace('FAST|','')
             p[k_new] = p.pop(k_old)
     
-    return templateReplaceGeneral(PARAMS, template_dir, output_dir=workdir, main_file=main_file, 
+    return templateReplaceGeneral(PARAMS, templateDir, outputDir=workDir, main_file=main_file, 
             RemoveAllowed=RemoveAllowed, RemoveRefSubFiles=RemoveRefSubFiles, oneSimPerDir=oneSimPerDir)
 
 # --------------------------------------------------------------------------------}
@@ -1580,18 +1598,33 @@ def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKee
                    Default: None, full simulation length is used
     """
     result=None
+    invalidFiles =[]
+    # Loop trough files and populate result
     for i,f in enumerate(outFiles):
-        df=weio.read(f).toDataFrame()
+        try:
+            df=weio.FASTOutFile(f).toDataFrame()
+        except:
+            invalidFiles.append(f)
+            continue
         postpro=averageDF(df, avgMethod=avgMethod, avgParam=avgParam, ColMap=ColMap, ColKeep=ColKeep,ColSort=ColSort,stats=stats)
         MeanValues=postpro # todo
-        if i==0:
-            result = MeanValues.copy()
-        else:
-            result=result.append(MeanValues, ignore_index=True)
+        if result is None:
+            # We create a dataframe here, now that we know the colums
+            columns = MeanValues.columns
+            result = pd.DataFrame(np.nan, index=np.arange(len(outFiles)), columns=columns)
+        result.iloc[i,:] = MeanValues.copy().values
+
     if ColSort is not None:
         # Sorting 
         result.sort_values([ColSort],inplace=True,ascending=True)
         result.reset_index(drop=True,inplace=True) 
+
+    if len(invalidFiles)==len(outFiles):
+        raise Exception('None of the files can be read (or exist)!')
+    elif len(invalidFiles)>0:
+        print('[WARN] There were {} missing/invalid files: {}'.format(len(invalidFiles),invalidFiles))
+
+
     return result 
 
 # --------------------------------------------------------------------------------}
@@ -1614,8 +1647,8 @@ def CPCT_LambdaPitch(refdir,main_fastfile,Lambda=None,Pitch=np.linspace(-10,40,5
         main_fastfile=os.path.basename(main_fastfile)
 
     # --- Reading main fast file to get rotor radius 
-    fst = weio.FASTInFile(os.path.join(refdir,main_fastfile))
-    ed  = weio.FASTInFile(os.path.join(refdir,fst['EDFile'].replace('"','')))
+    fst = FASTInFile(os.path.join(refdir,main_fastfile))
+    ed  = FASTInFile(os.path.join(refdir,fst['EDFile'].replace('"','')))
     R = ed['TipRad']
 
     # --- Making sure we have 
@@ -1729,5 +1762,5 @@ if __name__=='__main__':
     PARAMS['ServoFile|VS_Rgn2K']    = 0.00038245
     PARAMS['ServoFile|GenEff']      = 0.95
     PARAMS['InflowFile|HWindSpeed'] = 8
-    templateReplace(PARAMS,ref_dir,RemoveRefSubFiles=True)
+    templateReplace(PARAMS,refDir,RemoveRefSubFiles=True)
 

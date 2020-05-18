@@ -352,13 +352,13 @@ class Table(object):
             Files=[base+ext for ext in ['.fstf','.FSTF','.Fstf','.fmas','.FMAS','.Fmas'] if os.path.exists(base+ext)]
             if len(Files)==0:
                 fst_in=None
-                raise Exception('Error: No .fstf file found with name: '+base+'.fstf')
+                #raise Exception('Error: No .fstf file found with name: '+base+'.fstf')
             else:
                 fst_in=Files[0]
 
-                dfRad,_ =  fastfarm.spanwisePostProFF(fst_in,avgMethod='constantwindow',avgParam=30,D=1,df=df)
-                dfs_new  = [dfRad]
-                names_new=[self.raw_name+'_rad']
+            dfRad,_,dfDiam =  fastfarm.spanwisePostProFF(fst_in,avgMethod=avgMethod,avgParam=avgParam,D=1,df=df)
+            dfs_new  = [dfRad,dfDiam]
+            names_new=[self.raw_name+'_rad',self.raw_name+'_diam']
         else:
             # --- FAST files
 
