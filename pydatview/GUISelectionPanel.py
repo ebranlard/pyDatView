@@ -698,7 +698,7 @@ class SelectionPanel(wx.Panel):
             self.threeColumnsMode()
         else:
             self.Thaw()
-            raise Exception('Wrong mode for selection layout: {}'.format(self.mode))
+            raise Exception('Wrong mode for selection layout: {}'.format(mode))
         self.Thaw()
 
 
