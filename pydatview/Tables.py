@@ -417,9 +417,8 @@ class Table(object):
 
     def deleteColumns(self,ICol):
         """ Delete columns by index, not column names which can have duplicates"""
-        df=self.data
-        IKeep =[i for i in np.arange(df.shape[1]) if i not in ICol]
-        df = df.iloc[:, IKeep] # Drop won't work for duplicates
+        IKeep =[i for i in np.arange(self.data.shape[1]) if i not in ICol]
+        self.data = self.data.iloc[:, IKeep] # Drop won't work for duplicates
         for i in sorted(ICol, reverse=True):
             del(self.columns[i])
 
@@ -429,7 +428,7 @@ class Table(object):
     def addColumn(self,sNewName,NewCol,i=-1):
         if i<0:
             i=self.data.shape[1]
-        self.data.insert(i,sNewName,NewCol)
+        self.data.insert(int(i),sNewName,NewCol)
         self.columns=self.columnsFromDF(self.data)
 
     def getColumn(self,i):
