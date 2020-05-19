@@ -30,6 +30,7 @@ from .GUIPlotPanel import PlotPanel
 from .GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
 from .GUISelectionPanel import ColumnPopup,TablePopup
 from .GUIInfoPanel import InfoPanel
+from .GUIToolBox import GetKeyString
 from .Tables import TableList, Table
 # Helper
 from .common import *
@@ -206,6 +207,21 @@ class MainFrame(wx.Frame):
 
         self.Show()
         self.Bind(wx.EVT_SIZE, self.OnResizeWindow)
+
+        # Shortcuts
+        idFilter=wx.NewId()
+        self.Bind(wx.EVT_MENU, self.onFilter, id=idFilter)
+
+        accel_tbl = wx.AcceleratorTable(
+                [(wx.ACCEL_CTRL,  ord('F'), idFilter )]
+                )
+        self.SetAcceleratorTable(accel_tbl)
+
+    def onFilter(self,event):
+        if hasattr(self,'selPanel'):
+            self.selPanel.colPanel1.tFilter.SetFocus()
+        event.Skip()
+
 
     def AddTBBitmapTool(self,tb,label,bitmap,callback=None,Type=None):
         """ Adding a toolbar tool, safe depending on interface"""

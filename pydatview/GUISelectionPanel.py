@@ -4,6 +4,7 @@ try:
     from .common import *
     from .GUICommon import *
     from .GUIMultiSplit import MultiSplit
+    from .GUIToolBox import GetKeyString
 except:
     raise
 #     from common import *
@@ -344,18 +345,19 @@ class ColumnPopup(wx.Menu):
         self.Bind(wx.EVT_MENU, self.OnShowID, self.itShowID)
         self.Check(self.itShowID.GetId(), self.parent.bShowID)
 
-        item = wx.MenuItem(self, -1, "Add")
-        self.MyAppend(item)
-        self.Bind(wx.EVT_MENU, self.OnAddColumn, item)
+        if self.parent.tab is not None:  # TODO otherwise
+            item = wx.MenuItem(self, -1, "Add")
+            self.MyAppend(item)
+            self.Bind(wx.EVT_MENU, self.OnAddColumn, item)
 
-        if len(self.ISel)==1 and self.ISel[0]>0: 
-            item = wx.MenuItem(self, -1, "Rename")
-            self.MyAppend(item)
-            self.Bind(wx.EVT_MENU, self.OnRenameColumn, item)
-        if len(self.ISel)>=1 and self.ISel[0]>0: 
-            item = wx.MenuItem(self, -1, "Delete")
-            self.MyAppend(item)
-            self.Bind(wx.EVT_MENU, self.OnDeleteColumn, item)
+            if len(self.ISel)==1 and self.ISel[0]>=0: 
+                item = wx.MenuItem(self, -1, "Rename")
+                self.MyAppend(item)
+                self.Bind(wx.EVT_MENU, self.OnRenameColumn, item)
+            if len(self.ISel)>=1 and self.ISel[0]>=0: 
+                item = wx.MenuItem(self, -1, "Delete")
+                self.MyAppend(item)
+                self.Bind(wx.EVT_MENU, self.OnDeleteColumn, item)
 
     def MyAppend(self, item):
         try:
@@ -365,13 +367,15 @@ class ColumnPopup(wx.Menu):
 
     def OnShowID(self, event=None):
         self.parent.bShowID=self.itShowID.IsChecked()
-        self.parent.updateColumnNames()
+        xSel,ySel,_,_ = self.parent.getColumnSelection()
+        self.parent.setGUIColumns(xSel=xSel, ySel=ySel)
 
     def OnRenameColumn(self, event=None):
+        iFilt = self.ISel[0]
         if self.parent.bShowID:
-            oldName = self.parent.lbColumns.GetString(self.ISel[0])[4:]
+            oldName = self.parent.lbColumns.GetString(iFilt)[4:]
         else:
-            oldName = self.parent.lbColumns.GetString(self.ISel[0])
+            oldName = self.parent.lbColumns.GetString(iFilt)
         dlg = wx.TextEntryDialog(self.parent, 'New column name:', 'Rename column',oldName,wx.OK|wx.CANCEL)
         dlg.CentreOnParent()
         if dlg.ShowModal() == wx.ID_OK:
@@ -379,12 +383,14 @@ class ColumnPopup(wx.Menu):
             main=self.parent.mainframe
             ITab,STab=main.selPanel.getSelectedTables()
             # TODO adapt me for Sim. tables mode
-            if main.tabList.haveSameColumns(ITab):
-                for iTab,sTab in zip(ITab,STab):
-                    main.tabList.get(iTab).renameColumn(self.ISel[0]-1,newName)
-            else:
-                self.parent.tab.renameColumn(self.ISel[0]-1,newName)
-            self.parent.updateColumn(self.ISel[0],newName) #faster
+            iFull = self.parent.Filt2Full[iFilt]
+            if iFull>0: # Important since -1 would rename last column of table
+                if main.tabList.haveSameColumns(ITab):
+                    for iTab,sTab in zip(ITab,STab):
+                        main.tabList.get(iTab).renameColumn(iFull-1,newName)
+                else:
+                    self.parent.tab.renameColumn(iFull-1,newName)
+            self.parent.updateColumn(iFilt,newName) #faster
             self.parent.selPanel.updateLayout()
             # a trigger for the plot is required but skipped for now
 
@@ -393,12 +399,15 @@ class ColumnPopup(wx.Menu):
         iX = self.parent.comboX.GetSelection()
         ITab,STab=main.selPanel.getSelectedTables()
         # TODO adapt me for Sim. tables mode
+        IFull = [self.parent.Filt2Full[iFilt]-1 for iFilt in self.ISel]
+        IFull = [iFull for iFull in IFull if iFull>=0]
         if main.tabList.haveSameColumns(ITab):
             for iTab,sTab in zip(ITab,STab):
-                main.tabList.get(iTab).deleteColumns([i-1 for i in self.ISel if i>0])
+                main.tabList.get(iTab).deleteColumns(IFull)
         else:
-            self.parent.tab.deleteColumns([i-1 for i in self.ISel if i>0])
-        self.parent.setColumnNames(xSel=iX)
+            self.parent.tab.deleteColumns(IFull)
+        self.parent.setColumns()
+        self.parent.setGUIColumns(xSel=iX)
         main.redraw()
 
     def OnAddColumn(self, event):
@@ -416,11 +425,9 @@ class ColumnPopup(wx.Menu):
             main_unit=''
 
         sFormula=''
-
         xcol  = self.parent.comboX.GetStringSelection()
         xunit = unit(xcol)
         xcol  = no_unit(xcol)
-
 
         while (not bValid) and (not bCancelled):
             dlg = MyDialog(title='Add a new column',columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,formula=sFormula)
@@ -431,14 +438,15 @@ class ColumnPopup(wx.Menu):
                 sName    = dlg.name.GetValue()
                 sFormula = dlg.formula.GetValue()
                 if len(self.ISel)>0:
-                    i=self.ISel[-1]
+                    iFilt=self.ISel[-1]
+                    iFull=self.parent.Filt2Full[iFilt]
                 else:
-                    i=-1
-                # 
+                    iFull = -1
+
                 ITab,STab=main.selPanel.getSelectedTables()
                 if main.tabList.haveSameColumns(ITab):
                     for iTab,sTab in zip(ITab,STab):
-                        bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,i)
+                        bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,iFull)
                         if not bValid:
                             Error(self.parent,'The formula didn''t eval for table {}.'.format(sTab))
                             break
@@ -449,7 +457,8 @@ class ColumnPopup(wx.Menu):
             return
         if bValid:
             iX = self.parent.comboX.GetSelection()
-            self.parent.setColumnNames(xSel=iX,ySel=[i+1])
+            self.parent.setColumns()
+            self.parent.setGUIColumns(xSel=iX,ySel=[iFull+1])
             main.redraw()
 
 
@@ -520,10 +529,11 @@ class ColumnPanel(wx.Panel):
         # Data
         self.tab=None
         self.mainframe=mainframe
+        self.columns=[] # All the columns available (may be different from the displayed ones)
+        self.Filt2Full=None # Index of GUI columns in self.columns
         self.bShowID=False
         self.bReadOnly=False
-        # GUI
-
+        # --- GUI Toolbar
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
         self.bt=wx.Button(tb,wx.ID_ANY,CHAR['menu'], style=wx.BU_EXACTFIT)
         self.lb=wx.StaticText(tb, -1, '                                 ' )
@@ -532,6 +542,16 @@ class ColumnPanel(wx.Panel):
         tb.Bind(wx.EVT_BUTTON, self.showColumnMenu, self.bt)
         tb.Realize() 
 
+        # --- GUI Filter
+        self.btClear =wx.Button(self,wx.ID_ANY,CHAR['sun']  , style=wx.BU_EXACTFIT)
+        self.btFilter=wx.Button(self,wx.ID_ANY,CHAR['cloud'], style=wx.BU_EXACTFIT)
+        self.tFilter = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+        self.tFilter.SetValue('')
+        self.Bind(wx.EVT_BUTTON    , self.onClearFilter , self.btClear)
+        self.Bind(wx.EVT_BUTTON    , self.onFilterChange, self.btFilter)
+        self.tFilter.Bind(wx.EVT_KEY_DOWN, self.onFilterKey   , self.tFilter )
+        self.Bind(wx.EVT_TEXT_ENTER, self.onFilterChange, self.tFilter )
+        #
         if platform.system()=='Darwin':
             self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY, size=wx.Size(-1,35))
         else:
@@ -544,22 +564,30 @@ class ColumnPanel(wx.Panel):
         # Layout
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
         sizerX.Add(self.comboX   , 1, flag=wx.TOP | wx.BOTTOM, border=2)
+        sizerF = wx.BoxSizer(wx.HORIZONTAL)
+
+        sizerF.Add(self.tFilter, 1,  flag=          wx.CENTER|wx.TOP          , border=0)
+        sizerF.Add(self.btFilter, 0, flag=          wx.CENTER|wx.LEFT|wx.RIGHT, border=1)
+        sizerF.Add(self.btClear,  0, flag=          wx.CENTER|wx.LEFT         , border=1)
+
+
         sizerCol = wx.BoxSizer(wx.VERTICAL)
         sizerCol.Add(tb            , 0, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,border=1)
         #sizerCol.Add(self.comboX   , 0, flag=wx.TOP|wx.RIGHT|wx.BOTTOM|wx.TOP,border=2)
         sizerCol.Add(sizerX        , 0, flag=wx.EXPAND, border=0)
+        sizerCol.Add(sizerF        , 0, flag=wx.EXPAND|wx.TOP|wx.BOTTOM, border=0)
         sizerCol.Add(self.lbColumns, 2, flag=wx.EXPAND, border=0)
         self.SetSizer(sizerCol)
 
     def showColumnMenu(self,event):
-        if not self.bReadOnly and self.tab is not None:
+        if not self.bReadOnly:
             pos = (self.bt.GetPosition()[0], self.bt.GetPosition()[1] + self.bt.GetSize()[1])
             menu = ColumnPopup(self,fullmenu=True)
             self.PopupMenu(menu, pos)
             menu.Destroy()
         
     def OnColPopup(self,event):
-        if not self.bReadOnly and self.tab is not None:
+        if not self.bReadOnly:
             menu = ColumnPopup(self)
             self.PopupMenu(menu, event.GetPosition())
             menu.Destroy()
@@ -574,7 +602,13 @@ class ColumnPanel(wx.Panel):
         return iSelect
 
     def getDefaultColumnY(self,tab,nColsMax):
-        # Try the first column for x-axis, except if it's a string
+        # If a filter is applied, use the first element
+        # Otherwise, try the second element except if it's a string
+        if nColsMax<=0:
+            return -1
+        if nColsMax<len(self.columns)-1:
+            return 0
+
         iSelect = min(2,nColsMax)
         if tab is not None:
             _,isString,_,_ = tab.getColumn(iSelect)
@@ -582,17 +616,29 @@ class ColumnPanel(wx.Panel):
                 iSelect = 0 # we roll back and select the index
         return iSelect
 
+    def getGUIcolumns(self):
+        if len(self.Filt2Full)>len(self.columns):
+            print('',self.Filt2Full)
+            print('',self.columns)
+            raise Exception('Error in Filt2Full')
+        return self.columns[self.Filt2Full]
+
     def setReadOnly(self, tabLabel='', cols=[]):
         """ Set this list of columns as readonly and non selectable """
         self.tab=None
         self.bReadOnly=True
         self.lb.SetLabel(tabLabel)
-        self.setColumnNames(columnNames=cols)
+        self.setColumns(columnNames=cols)
+        self.setGUIColumns()
         self.lbColumns.Enable(True)
         self.comboX.Enable(False)
         self.lbColumns.SetSelection(-1)
         self.bt.Enable(False)
         self.bShowID=False
+        self.btClear.Enable(False)
+        self.btFilter.Enable(False)
+        self.tFilter.Enable(False)
+        self.tFilter.SetValue('')
 
     def setTab(self,tab=None,xSel=-1,ySel=[],colNames=None, tabLabel=''):
         """ Set the table used for the columns, update the GUI """
@@ -600,59 +646,87 @@ class ColumnPanel(wx.Panel):
         self.lbColumns.Enable(True)
         self.comboX.Enable(True)
         self.bReadOnly=False
+        self.btClear.Enable(True)
+        self.btFilter.Enable(True)
+        self.tFilter.Enable(True)
+        self.bt.Enable(True)
         if tab is not None:
-            self.bt.Enable(True)
+            self.Filt2Full=None # TODO
             if tab.active_name!='default':
                 self.lb.SetLabel(' '+tab.active_name)
-            self.setColumnNames(xSel,ySel)
+            self.setColumns()
+            self.setGUIColumns(xSel=xSel, ySel=ySel)
         else:
-            self.bt.Enable(False)
+            self.Filt2Full=None # TODO Decide whether filter should be applied...
             self.lb.SetLabel(tabLabel)
-            self.setColumnNames(xSel,ySel)
-            self.setColumnNames(columnNames=colNames, xSel=xSel, ySel=ySel)
-
-
-
-    def updateColumnNames(self):
-        """ Update of column names from table, keeping selection """
-        xSel,ySel,_,_ = self.getColumnSelection()
-        self.setColumnNames(xSel,ySel)
+            self.setColumns(columnNames=colNames)
+            self.setGUIColumns(xSel=xSel, ySel=ySel)
 
     def updateColumn(self,i,newName):
-        """ Update of one column name"""
+        """ Update of one column name
+            i: index in GUI
+        """
+        iFull = self.Filt2Full[i]
         if self.bShowID:
-            newName='{:03d} '.format(i)+newName
+            newName='{:03d} '.format(iFull)+newName
         self.lbColumns.SetString(i,newName)
-        self.comboX.SetString(i,newName)
+        self.comboX.SetString   (i,newName)   
+        self.columns[iFull] = newName
 
-    def setColumnNames(self,xSel=-1,ySel=[],columnNames=None):
-        """ Set columns from table and possible select appropriate columns """
+    def Full2Filt(self,iFull):
+        try:
+            return self.Filt2Full.index(iFull)
+        except:
+            return -1
+
+    def setColumns(self, columnNames=None):
+        # Get columns from user inputs, or table, or stored.
         if columnNames is not None:
             # Populating based on user inputs..
             columns=columnNames
+        elif self.tab is None:
+            columns=self.columns
         else:
-            if self.tab is None:
-                columns=self.lbColumns.GetStrings()
-                if len(columns)>0 and columns[0]=='000 Index':
-                    columns=[c[4:] for c in columns]
-            else:
-                # Populating based on table..
-                columns=['Index']+self.tab.columns
+            # Populating based on table (safest if table was updated)
+            columns=['Index']+self.tab.columns
+        # Storing columns, considered as "Full"
+        self.columns=np.array(columns)
 
+    def setGUIColumns(self, xSel=-1, ySel=[]):
+        """ Set GUI columns based on self.columns and potential filter """
+        # Filtering columns if neeed
+        sFilt = self.tFilter.GetLineText(0).strip()
+        if len(sFilt)>0:
+            Lf, If = filter_list(self.columns, sFilt)
+            self.Filt2Full = If
+        else:
+            self.Filt2Full = list(np.arange(len(self.columns)))
+        columns=self.columns[self.Filt2Full] 
+
+        # GUI update
         self.Freeze()
         if self.bShowID:
-            columns= ['{:03d} '.format(i)+c for i,c in enumerate(columns)]
-        self.lbColumns.Set(columns)
-        self.comboX.Set(columns)
-        # Set selection if any
-        for i in ySel:
-            if i<len(columns) and i>=0:
-                self.lbColumns.SetSelection(i)
-                self.lbColumns.EnsureVisible(i)
+            columnsY= ['{:03d} '.format(i)+c for i,c in enumerate(columns)]
+            columnsX= ['{:03d} '.format(i)+c for i,c in enumerate(self.columns)]
+        else:
+            columnsY= columns
+            columnsX= self.columns
+        self.lbColumns.Set(columnsY)   # potentially filterd
+        self.comboX.Set(columnsX) # non filtered
+
+        # Set selection for y, if any, and considering filtering
+        for iFull in ySel:
+            if iFull<len(columnsY) and iFull>=0:
+                iFilt = self.Full2Filt(iFull)
+                if iFilt>0:
+                    self.lbColumns.SetSelection(iFilt)
+                    self.lbColumns.EnsureVisible(iFilt)
         if len(self.lbColumns.GetSelections())<=0:
-            self.lbColumns.SetSelection(self.getDefaultColumnY(self.tab,len(columns)-1))
-        if (xSel<0) or xSel>len(columns):
-            self.comboX.SetSelection(self.getDefaultColumnX(self.tab,len(columns)-1))
+            self.lbColumns.SetSelection(self.getDefaultColumnY(self.tab,len(columnsY)-1))
+
+        # Set selection for x, if any, NOTE x is not filtered!
+        if (xSel<0) or xSel>len(columnsX):
+            self.comboX.SetSelection(self.getDefaultColumnX(self.tab,len(columnsX)-1))
         else:
             self.comboX.SetSelection(xSel)
         self.Thaw()
@@ -675,6 +749,12 @@ class ColumnPanel(wx.Panel):
         self.comboX.Enable(False)
         self.bt.Enable(False)
         self.tab=None
+        self.columns=[]
+        self.Filt2Full=None
+        self.btClear.Enable(False)
+        self.btFilter.Enable(False)
+        self.tFilter.Enable(False)
+        self.tFilter.SetValue('')
 
     def getColumnSelection(self):
         iX = self.comboX.GetSelection()
@@ -687,8 +767,28 @@ class ColumnPanel(wx.Panel):
             SY = [self.lbColumns.GetString(i)[4:] for i in IY]
         else:
             SY = [self.lbColumns.GetString(i) for i in IY]
-        return iX,IY,sX,SY
+        iXFull = iX # NOTE: x is always in full
+        IYFull = [self.Filt2Full[iY] for iY in IY]
+        return iXFull,IYFull,sX,SY
 
+    def onClearFilter(self, event=None):
+        self.tFilter.SetValue('')
+        self.onFilterChange()
+
+    def onFilterChange(self, event=None):
+        xSel,ySel,_,_ = self.getColumnSelection() # (indices in full)
+        self.setGUIColumns(xSel=xSel, ySel=ySel) # <<< Filtering done here
+        self.triggerPlot() # Trigger a col selection event
+
+    def onFilterKey(self, event=None):
+        s=GetKeyString(event)
+        if s=='ESCAPE' or s=='Ctrl+C':
+            self.onClearFilter()
+        event.Skip()
+
+    def triggerPlot(self):
+        event=wx.PyCommandEvent(wx.EVT_LISTBOX.typeId, self.lbColumns.GetId())
+        wx.PostEvent(self.GetEventHandler(), event)
 
 
 # --------------------------------------------------------------------------------}

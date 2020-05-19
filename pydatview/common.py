@@ -255,6 +255,18 @@ def inverse_unit(s):
     else:
         return '1/('+u+')'
 
+def filter_list(L, string):
+    """ simple (not regex or fuzzy) filtering of a list of strings
+    Returns matched indices and strings
+    """
+    ignore_case = string==string.lower()
+    if ignore_case:
+        I=[i for i,s in enumerate(L) if string in s.lower()]
+    else:
+        I=[i for i,s in enumerate(L) if string in s]
+    L_found =np.array(L)[I]
+    return L_found, I
+
 
 # --------------------------------------------------------------------------------}
 # ---  

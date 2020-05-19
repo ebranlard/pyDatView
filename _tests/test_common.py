@@ -5,9 +5,8 @@ import numpy as np
 import pandas as pd
 from pydatview.common import unit,no_unit,ellude_common,getDt, find_leftstop
 from pydatview.common import has_chinese_char
+from pydatview.common import filter_list
 import datetime
-
-
 
 class TestCommon(unittest.TestCase):
     def assertEqual(self, first, second, msg=None):
@@ -99,7 +98,16 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(has_chinese_char('aa时'),True )
         self.assertEqual(has_chinese_char('a时a'),True )
 
-
+    def test_filter(self):
+        L=['RotTrq_[kNm]','B1RootMy_[kNm]','B2RootMy_[kNm]','Power_[kW]']
+        Lf, If = filter_list(L,'Root')
+        self.assertEqual(If,[1,2])
+        Lf, If = filter_list(L,'ro')
+        self.assertEqual(If,[0,1,2])
+        self.assertEqual(Lf[0],'RotTrq_[kNm]')
+        Lf, If = filter_list(L,'Kro')
+        self.assertEqual(len(If),0)
+        self.assertEqual(len(Lf),0)
  
 if __name__ == '__main__':
     unittest.main()

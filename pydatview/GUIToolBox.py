@@ -5,6 +5,29 @@ from matplotlib.backend_bases import NavigationToolbar2
 from matplotlib.widgets import Cursor, MultiCursor
 # from matplotlib.widgets import AxesWidget
 
+def GetKeyString(evt):
+    """ returns a string describing the key combination being pressed """
+    keyMap = {}
+    keyMap[wx.WXK_TAB]    = 'TAB'
+    keyMap[wx.WXK_ESCAPE] = 'ESCAPE'
+    keyMap[wx.WXK_RETURN] = 'RETURN'
+
+    keycode = evt.GetKeyCode()
+    keyname = keyMap.get(keycode, None)
+    modifiers = ""
+    for mod, ch in ((evt.ControlDown(), 'Ctrl+'),
+                    (evt.AltDown(),     'Alt+'),
+                    (evt.ShiftDown(),   'Shift+'),
+                    (evt.MetaDown(),    'Meta+')):
+        if mod:
+            modifiers += ch
+
+    if keyname is None:
+        if 27 < keycode < 256:
+            keyname = chr(keycode)
+        else:
+            keyname = str(keycode)
+    return modifiers + keyname
 # --------------------------------------------------------------------------------}
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
