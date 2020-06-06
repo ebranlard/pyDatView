@@ -399,14 +399,14 @@ class Table(object):
                             self.data[c]=pd.to_datetime(self.data[c].values).to_pydatetime()
                             print('Column {} converted to datetime'.format(c))
                         else:
-                            print('Column {} inferred to string'.format(c))
+                            print('Column {} inferred as string'.format(c))
                     elif isinstance(y.values[0], (float, int)):
                         try:
                             self.data[c]=self.data[c].astype(float)
                             print('Column {} converted to float (likely nan)'.format(c))
                         except:
                             self.data[c]=self.data[c].astype(str)
-                            print('Column {} inferred to string'.format(c))
+                            print('Column {} inferred and converted to string'.format(c))
                     else :
                         print('>> Unknown type:',type(y.values[0]))
             #print(self.data.dtypes)
