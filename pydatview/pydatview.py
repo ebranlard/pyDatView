@@ -623,6 +623,10 @@ def MyExceptionHook(etype, value, trace):
     else:
         exception = 'The following exception occured:\n\n'+ tmp[-1]  + '\n'+tmp[-2].strip()
         Error(frame,exception)
+    try:
+        frame.Thaw() # Make sure any freeze event is stopped
+    except:
+        pass
 
 # --------------------------------------------------------------------------------}
 # --- Tests 
