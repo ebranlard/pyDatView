@@ -29,7 +29,7 @@ def ireplace(text, old, new):
 # --------------------------------------------------------------------------------}
 # ---  Formula diagog
 # --------------------------------------------------------------------------------{
-class MyDialog(wx.Dialog):
+class FormulaDialog(wx.Dialog):
     def __init__(self, title='', name='', formula='',columns=[],unit='',xcol='',xunit=''):
         wx.Dialog.__init__(self, None, title=title)
         # --- Data
@@ -430,7 +430,7 @@ class ColumnPopup(wx.Menu):
         xcol  = no_unit(xcol)
 
         while (not bValid) and (not bCancelled):
-            dlg = MyDialog(title='Add a new column',columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,formula=sFormula)
+            dlg = FormulaDialog(title='Add a new column',columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,formula=sFormula)
             dlg.CentreOnParent()
             dlg.ShowModal()
             bCancelled = not dlg.OK
@@ -444,15 +444,18 @@ class ColumnPopup(wx.Menu):
                     iFull = -1
 
                 ITab,STab=main.selPanel.getSelectedTables()
-                if main.tabList.haveSameColumns(ITab):
-                    for iTab,sTab in zip(ITab,STab):
-                        bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,iFull)
-                        if not bValid:
-                            Error(self.parent,'The formula didn''t eval for table {}.'.format(sTab))
-                            break
-                else:
-                    bValid=self.parent.tab.addColumnByFormula(sName,sFormula,i)
-                    Error(self.parent,'The formula didn''t eval')
+                #if main.tabList.haveSameColumns(ITab):
+                sError=''
+                nError=0
+                for iTab,sTab in zip(ITab,STab):
+                    bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,iFull)
+                    if not bValid:
+                        sError+='The formula didn''t eval for table {}\n'.format(sTab)
+                        nError+=1
+                if len(sError)>0:
+                    Error(self.parent,sError)
+                if nError<len(ITab):
+                    bValid=True
         if bCancelled:
             return
         if bValid:
