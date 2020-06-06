@@ -594,6 +594,14 @@ class PlotPanel(wx.Panel):
             d.x,d.xIsString,d.xIsDate,_ = tabs[d.it].getColumn(d.ix)
             d.y,d.yIsString,d.yIsDate,c = tabs[d.it].getColumn(d.iy)
             n=len(d.y)
+            if n>1000 and (d.xIsString):
+                self.plotData=[]
+                raise Exception('Error: x values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(d.st,d.sx))
+
+            if n>1000 and (d.yIsString):
+                self.plotData=[]
+                raise Exception('Error: y values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(d.st,d.sy))
+
             d.needChineseFont = has_chinese_char(d.sy) or has_chinese_char(d.sx)
             # Stats of the raw data
             #d.x0Min  = xMin(d)
