@@ -301,7 +301,8 @@ class PlotPanel(wx.Panel):
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
-        self.fig.set_tight_layout(True) # subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
+        #self.fig.set_tight_layout(True) 
+        self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
         self.canvas = FigureCanvas(self, -1, self.fig)
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
 
