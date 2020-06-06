@@ -21,8 +21,8 @@ script:
 before_deploy:
   - git fetch --unshallow
   - export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
-  - echo "Version: $VERSION_NAME"
   - if [[ "$TRAVIS_TAG" == "dev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
+  - echo $VERSION_NAME
   - pip install pynsist
   - pip install distlib
   - git clone https://github.com/takluyver/pynsist
