@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import platform
 import datetime
+import re
 
 CHAR={
 'menu'     : u'\u2630',
@@ -15,7 +16,9 @@ CHAR={
 'clear'    : u'-',
 'sun'      : u'\u2600',
 'suncloud' : u'\u26C5',
-'cloud'    : u'\u2601'
+'cloud'    : u'\u2601',
+'check'    : u'\u2714',
+'help'     : u'\u2753'
 }
 # --------------------------------------------------------------------------------}
 # --- ellude
@@ -114,6 +117,24 @@ def ellude_common(strings,minLength=2):
                 strings[i]='tab{}'.format(i)
     return strings
 
+
+# --------------------------------------------------------------------------------}
+# --- Key value 
+# --------------------------------------------------------------------------------{
+def extract_key_tuples(text):
+    """
+    all=(0.1,-2),b=(inf,0), c=(-inf,0.3e+10)
+    """
+    regex = re.compile(r'(?P<key>[\w\-]+)=\((?P<value1>[0-9+epinf.-]*?),(?P<value2>[0-9+epinf.-]*?)\)($|,)')
+    return  {match.group("key"): (np.float(match.group("value1")),np.float(match.group("value2"))) for match in regex.finditer(text.replace(' ',''))}
+
+
+def extract_key_num(text):
+    """
+    all=0.1, b=inf, c=-0.3e+10
+    """
+    regex = re.compile(r'(?P<key>[\w\-]+)=(?P<value>[0-9+epinf.-]*?)($|,)')
+    return {match.group("key"): np.float(match.group("value")) for match in regex.finditer(text.replace(' ',''))}
 
 # --------------------------------------------------------------------------------}
 # ---  
@@ -313,6 +334,22 @@ def pretty_num(x):
     else:
         return '{:.3e}'.format(x)
 
+def pretty_num_short(x,digits=3):
+    if digits==4:
+        if abs(x)<1000 and abs(x)>1e-1:
+            return "{:.4f}".format(x)
+        else:
+           return "{:.4e}".format(x)
+    elif digits==3:
+        if abs(x)<1000 and abs(x)>1e-1:
+            return "{:.3f}".format(x)
+        else:
+           return "{:.3e}".format(x)
+    elif digits==2:
+        if abs(x)<1000 and abs(x)>1e-1:
+            return "{:.2f}".format(x)
+        else:
+           return "{:.2e}".format(x)
 
 # --------------------------------------------------------------------------------}
 # --- Chinese characters  

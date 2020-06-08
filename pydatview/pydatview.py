@@ -140,7 +140,8 @@ class MainFrame(wx.Frame):
 
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
-        self.Bind(wx.EVT_MENU,self.onDamping, toolMenu.Append(wx.ID_ANY, 'Damping from decay'))
+        self.Bind(wx.EVT_MENU,self.onCurveFit, toolMenu.Append(wx.ID_ANY, 'Curve fitting'))
+        self.Bind(wx.EVT_MENU,self.onDamping,  toolMenu.Append(wx.ID_ANY, 'Damping from decay'))
 
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
@@ -204,7 +205,6 @@ class MainFrame(wx.Frame):
 
         self.SetSize((800, 600))
         self.Center()
-
         self.Show()
         self.Bind(wx.EVT_SIZE, self.OnResizeWindow)
 
@@ -216,6 +216,7 @@ class MainFrame(wx.Frame):
                 [(wx.ACCEL_CTRL,  ord('F'), idFilter )]
                 )
         self.SetAcceleratorTable(accel_tbl)
+
 
     def onFilter(self,event):
         if hasattr(self,'selPanel'):
@@ -424,6 +425,12 @@ class MainFrame(wx.Frame):
             Error(self,'Plot some data first')
             return
         self.plotPanel.showTool('LogDec')
+
+    def onCurveFit(self, event=None):
+        if not hasattr(self,'plotPanel'):
+            Error(self,'Plot some data first')
+            return
+        self.plotPanel.showTool('CurveFitting')
 
     def onMask(self, event=None):
         if not hasattr(self,'plotPanel'):
