@@ -3,7 +3,7 @@ import numpy as np
 
 # For log dec tool
 from .damping import logDecFromDecay
-from .common import CHAR
+from .common import CHAR, Error
 
 
 # --------------------------------------------------------------------------------}
