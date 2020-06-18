@@ -16,12 +16,12 @@ install:
 
 script: 
   - make test
-  - if [[ "$TRAVIS_TAG" == "" ]]; then export TRAVIS_TAG="dev" ; fi
+  - if [[ "$TRAVIS_TAG" == "" ]]; then export TRAVIS_TAG="vdev" ; fi
 
 before_deploy:
   - git fetch --unshallow
   - export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
-  - if [[ "$TRAVIS_TAG" == "dev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
+  - if [[ "$TRAVIS_TAG" == "vdev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
   - echo $VERSION_NAME
   - pip install pynsist
   - pip install distlib
