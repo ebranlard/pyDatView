@@ -16,12 +16,12 @@ install:
 
 script: 
   - make test
-  - if [[ "$TRAVIS_TAG" == "" ]]; then export TRAVIS_TAG="v0.2-dev" ; fi
+  - if [[ "$TRAVIS_TAG" == "" ]]; then export TRAVIS_TAG="vdev" ; fi
 
 before_deploy:
   - git fetch --unshallow
   - export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
-  - if [[ "$TRAVIS_TAG" == "v0.2-dev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
+  - if [[ "$TRAVIS_TAG" == "vdev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
   - echo $VERSION_NAME
   - pip install pynsist
   - pip install distlib
@@ -45,7 +45,7 @@ deploy:
   file:
       - pyDatView*.exe
       - pyDatView*.zip
-  name: $VERSION_NAME
+  name: "Latest development version: "$VERSION_NAME
   target_commitish: $TRAVIS_COMMIT 
   tag_name: $TRAVIS_TAG 
   on:
