@@ -715,7 +715,11 @@ class ColumnPanel(wx.Panel):
             columnsY= columns
             columnsX= self.columns
         self.lbColumns.Set(columnsY)   # potentially filterd
-        self.comboX.Set(columnsX) # non filtered
+        #  Slow line for many columns
+        # NOTE: limiting to 300 for now.. I'm not sure anywant would want to scroll more than that
+        # Consider adding a "more button"
+        #  see e.g. https://comp.soft-sys.wxwindows.narkive.com/gDfA1Ds5/long-load-time-in-wxpython
+        self.comboX.Set(columnsX[:300]) # non filtered
 
         # Set selection for y, if any, and considering filtering
         for iFull in ySel:
