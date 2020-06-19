@@ -4,9 +4,12 @@ import pandas as pd
 
 # For log dec tool
 from .damping import logDecFromDecay
-from .common import CHAR, Error, pretty_num_short
+from .common import CHAR, Error, pretty_num_short, Info
 from collections import OrderedDict
-from .curve_fitting import model_fit, extract_key_tuples, extract_key_num
+try:
+    from .curve_fitting import model_fit, extract_key_tuples, extract_key_num
+except:
+    pass # Issue with python 2
 
 
 # --------------------------------------------------------------------------------}
@@ -477,6 +480,11 @@ class CurveFitToolPanel(GUIToolPanel):
 #         else:
 #             p0=None
         # Constants
+        try:
+            model_fit.__name__
+        except:
+            Error(self,'Sorry, curve fitting is currently not available with python 2. Working on it..')
+            return
         fun_kwargs=extract_key_num(self.textConstants.GetLineText(0).replace('np.inf','inf'))
         print('>>> Model fit sFunc :',sFunc     )
         print('>>> Model fit p0    :',p0        )
@@ -516,34 +524,23 @@ class CurveFitToolPanel(GUIToolPanel):
         name='model_fit'
         if self.x is not None and self.y_fit is not None:
             df=pd.DataFrame({self.sx:self.x, self.sy:self.y_fit})
-            print('Adding>>',df)
             self.parent.mainframe.load_df(df,name,bAdd=True)
 
     def onHelp(self,event=None):
-        print('>>> Help')
-#         try:
-#             avgParam     = float(self.textAverageParam.GetLineText(0))
-#         except:
-#             raise Exception('Error: the averaging parameter needs to be an integer or a float')
-#         iSel         = self.cbTabs.GetSelection()
-#         avgMethod   = AVG_METHODS[self.cbMethod.GetSelection()]
-#         tabList      = self.parent.selPanel.tabList
-#         mainframe    = self.parent.mainframe
-#         if iSel==0:
-#             dfs, names, errors = tabList.radialAvg(avgMethod,avgParam)
-#             mainframe.load_dfs(dfs,names,bAdd=True)
-#             if len(errors)>0:
-#                 raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
-#         else:
-#             dfs, names = tabList.get(iSel-1).radialAvg(avgMethod,avgParam)
-#             mainframe.load_dfs(dfs,names,bAdd=True)
-# 
-#         self.updateTabList()
-# 
-#     def updateTabList(self,event=None):
-#         tabList = self.parent.selPanel.tabList
-#         tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
-#         iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
-#         self.cbTabs.Clear()
-#         [self.cbTabs.Append(tn) for tn in tabListNames]
-#         self.cbTabs.SetSelection(iSel)
+        Info(self,"""Curve fitting is still in beta.
+
+To perform a curve fit, adjusts the "Inputs section on the left":
+- Select a predefined equation to fit, using the scrolldown menu.
+- Adjust the initial gues for the parameters (if wanted)
+- (Only for few models: set constants values)
+- Click on "Fit"
+
+If you select a user-defined model:
+- Equation parameters are specified using curly brackets
+- Numpy functions are available using "np"
+
+Buttons:
+- Clear: remove the fit from the plot
+- Add: add the fit data to the list of tables (can then be exported)
+                
+""")

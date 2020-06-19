@@ -9,7 +9,6 @@ else
 endif
 
 testfile=weio/_tests/FASTIn_arf_coords.txt
-testfile= TestFit.csv
 all:
 ifeq ($(detected_OS),Darwin)        # Mac OS X
 	./pythonmac pyDatView.py $(testfile)
