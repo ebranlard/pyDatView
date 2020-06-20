@@ -11,7 +11,7 @@ sudo: true
 install:
 #  - sudo apt-get install python-wxgtk3.0
   - sudo apt-get install nsis
-  - pip install -r requirements.txt
+  - pip install -r _tools/travis_requirements.txt
   - pip install -r weio/requirements.txt
 
 script: 
