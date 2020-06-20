@@ -4,3 +4,4 @@ pandas
 future
 chardet
 wxpython
+scipy
