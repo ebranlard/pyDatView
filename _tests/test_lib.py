@@ -3,3 +3,4 @@
 from pydatview.spectral import TestSpectral
 from pydatview.damping import TestDamping
 from pydatview.fatigue import TestFatigue
+from pydatview.curve_fitting import TestFitting

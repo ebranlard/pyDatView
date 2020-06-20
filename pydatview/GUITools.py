@@ -6,11 +6,10 @@ import pandas as pd
 from .damping import logDecFromDecay
 from .common import CHAR, Error, pretty_num_short, Info
 from collections import OrderedDict
-try:
-    from .curve_fitting import model_fit, extract_key_tuples, extract_key_num
-except:
-    pass # Issue with python 2
+from .curve_fitting import model_fit, extract_key_miscnum, extract_key_num, MODELS, FITTERS, set_common_keys
 
+
+TOOL_BORDER=15
 
 # --------------------------------------------------------------------------------}
 # --- Default class for tools
@@ -119,7 +118,7 @@ class MaskToolPanel(GUIToolPanel):
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(btSizer      ,0, flag = wx.LEFT           ,border = 5)
-        self.sizer.Add(vert_sizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = 15)
+        self.sizer.Add(vert_sizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = TOOL_BORDER)
         self.SetSizer(self.sizer)
         self.Bind(wx.EVT_COMBOBOX, self.onTabChange, self.cbTabs )
 
@@ -232,7 +231,7 @@ class RadialToolPanel(GUIToolPanel):
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 5)
-        self.sizer.Add(vert_sizer   ,0, flag = wx.LEFT|wx.EXPAND,border = 15)
+        self.sizer.Add(vert_sizer   ,0, flag = wx.LEFT|wx.EXPAND,border = TOOL_BORDER)
         self.SetSizer(self.sizer)
         self.Bind(wx.EVT_COMBOBOX, self.onTabChange, self.cbTabs )
 
@@ -271,37 +270,19 @@ class RadialToolPanel(GUIToolPanel):
 # --------------------------------------------------------------------------------}
 # --- Curve Fitting
 # --------------------------------------------------------------------------------{
-MODELS =[
-    {'label':'User defined model',
-         'name':'eval:',
+MODELS_EXAMPLE =[
+    {'label':'User defined model', 'id':'eval:',
          'formula':'{a}*x**2 + {b}', 
          'coeffs':None,
          'consts':None,
          'bounds':None },
-    {'label':'Power law (u,alpha)',
-        'name':'predef: powerlaw_u_alpha',
-        'formula':'{u_ref} * (z / {z_ref}) ** {alpha}',
-        'coeffs': 'u_ref=10, alpha=0.1',
-        'consts': 'z_ref=100',
-        'bounds': 'u_ref=(0,inf), alpha=(-1,1)'},
-    {'label':'Gaussian',
-        'name':'eval:',
-        'formula':'1/({sigma}*sqrt(2*pi)) * exp(-1/2 * ((x-{mu})/{sigma})**2)',
-        'coeffs' :'sigma=1, mu=0',
-        'consts' :None,
-        'bounds' :None},
-    {'label':'Gaussian with y-offset',
-        'name':'eval:',
-        'formula':'1/({sigma}*sqrt(2*pi)) * exp(-1/2 * ((x-{mu})/{sigma})**2) + {y0}',
-        'coeffs' :'sigma=1, mu=0, y0=0',
-        'consts' :None,
-        'bounds' :'sigma=(-inf,inf), mu=(-inf,inf), y0=(-inf,inf)'},
-    {'label':'Exponential decay',
-        'name':'eval:',
-        'formula':'{A}*exp(-{k}*x)+{B}',
-        'coeffs' :'k=1, A=1, B=0',
-        'consts' :None,
-        'bounds' :None},
+    ]
+MODELS_EXTRA =[
+#     {'label':'Exponential decay', 'id':'eval:',
+#         'formula':'{A}*exp(-{k}*x)+{B}',
+#         'coeffs' :'k=1, A=1, B=0',
+#         'consts' :None,
+#         'bounds' :None},
 ]
 
 class CurveFitToolPanel(GUIToolPanel):
@@ -311,7 +292,7 @@ class CurveFitToolPanel(GUIToolPanel):
         # Data
         self.x     = None
         self.y_fit = None
-# 
+
         # GUI Objecst
         btClose    = self.getBtBitmap(self, 'Close','close', self.destroy)
         btClear    = self.getBtBitmap(self, 'Clear','sun', self.onClear) # DELETE
@@ -320,8 +301,8 @@ class CurveFitToolPanel(GUIToolPanel):
         btHelp     = self.getBtBitmap(self, 'Help','help', self.onHelp)
 
         boldFont = self.GetFont().Bold()
-        lbOutputs = wx.StaticText(self, -1, 'Model outputs')
-        lbInputs  = wx.StaticText(self, -1, 'Model inputs ')
+        lbOutputs = wx.StaticText(self, -1, 'Outputs')
+        lbInputs  = wx.StaticText(self, -1, 'Inputs ')
         lbOutputs.SetFont(boldFont)
         lbInputs.SetFont(boldFont)
 
@@ -334,8 +315,12 @@ class CurveFitToolPanel(GUIToolPanel):
         self.textCoeffs     = wx.TextCtrl(self, wx.ID_ANY, '', style=wx.TE_READONLY)
         self.textInfo       = wx.TextCtrl(self, wx.ID_ANY, '', style=wx.TE_READONLY)
 
-        Models=[d['label'] for d in MODELS]
-        self.cbModels = wx.ComboBox(self, choices=Models, style=wx.CB_READONLY)
+
+        self.Models=MODELS_EXAMPLE.copy() + FITTERS.copy() + MODELS.copy() + MODELS_EXTRA.copy()
+        sModels=[d['label'] for d in self.Models]
+
+
+        self.cbModels = wx.ComboBox(self, choices=sModels, style=wx.CB_READONLY)
         self.cbModels.SetSelection(0)
 
         btSizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
@@ -344,16 +329,6 @@ class CurveFitToolPanel(GUIToolPanel):
         btSizer.Add(btAdd     ,0,flag = wx.ALL|wx.EXPAND, border = 1)
         btSizer.Add(btCompFit ,0,flag = wx.ALL|wx.EXPAND, border = 1)
         btSizer.Add(btHelp    ,0,flag = wx.ALL|wx.EXPAND, border = 1)
-
-#         self.lb         = wx.StaticText( self, -1, """Select tables, averaging method and average parameter (`Period` methods uses the `azimuth` signal) """)
-#         self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
-#         self.cbMethod   = wx.ComboBox(self, choices=sAVG_METHODS, style=wx.CB_READONLY)
-#         self.cbMethod.SetSelection(0)
-#         self.textAverageParam = wx.TextCtrl(self, wx.ID_ANY, '2',size = (36,-1), style=wx.TE_PROCESS_ENTER)
-
-#         vertSizerCB = wx.BoxSizer(wx.VERTICAL)
-#         vertSizerCB.Add(wx.StaticText(self, -1, 'Model:') ,0, flag = wx.LEFT|wx.EXPAND,border = 1)
-#         vertSizerCB.Add(self.cbModels                       ,0, flag = wx.LEFT|wx.EXPAND,border = 1)
 
         inputSizer  = wx.FlexGridSizer(rows=5, cols=2, hgap=0, vgap=0)
         inputSizer.Add(lbInputs                             ,0, flag=wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM,border = 1)
@@ -379,15 +354,6 @@ class CurveFitToolPanel(GUIToolPanel):
         outputSizer.Add(self.textInfo                            ,1 , flag=wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND,border = 1)
         outputSizer.AddGrowableCol(1,0.5)
 
-
-        #print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
-        #font.SetFamily(wx.FONTFAMILY_DEFAULT)
-        #font.SetFamily(wx.FONTFAMILY_MODERN)
-        #font.SetFamily(wx.FONTFAMILY_SWISS)
-        #font.SetPointSize(8)
-        #print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
-        #self.SetFont(font) 
-
         horzSizer = wx.BoxSizer(wx.HORIZONTAL)
         horzSizer.Add(inputSizer    ,1.0, flag = wx.LEFT|wx.EXPAND,border = 2)
         horzSizer.Add(outputSizer   ,1.0, flag = wx.LEFT|wx.EXPAND,border = 9)
@@ -408,35 +374,51 @@ class CurveFitToolPanel(GUIToolPanel):
 
     def onModelChange(self,event=None):
         iModel = self.cbModels.GetSelection()
-        d = MODELS[iModel]
+        d = self.Models[iModel]
+        self.textFormula.SetEditable(True)
 
-        # Formula
-        if d['name'].find('eval:')==0 :
-            self.textFormula.Enable(True)
-        else:
-            self.textFormula.Enable(False)
-        self.textFormula.SetValue(d['formula'])
-
-        # Guess
-        if d['coeffs'] is None:
+        if d['id'].find('fitter:')==0 :
+            self.textGuess.Enable(False)
             self.textGuess.SetValue('')
-        else:
-            self.textGuess.SetValue(d['coeffs'])
-
-        # Constants
-        if d['consts'] is None or len(d['consts'].strip())==0:
-            self.textConstants.Enable(False)
-            self.textConstants.SetValue('')
-        else:
+            self.textFormula.Enable(False)
+            self.textFormula.SetValue(d['formula'])
+            self.textBounds.Enable(False)
+            self.textBounds.SetValue('')
             self.textConstants.Enable(True)
-            self.textConstants.SetValue(d['consts'])
-
-        # Bounds
-        self.textBounds.Enable(True)
-        if d['bounds'] is None or len(d['bounds'].strip())==0:
-            self.textBounds.SetValue('all=(-np.inf, np.inf)')
+            # NOTE: conversion to string works with list, and tuples, not numpy array
+            val = ', '.join([k+'='+str(v) for k,v in d['consts'].items()])
+            self.textConstants.SetValue(val)
         else:
-            self.textBounds.SetValue(d['bounds'])
+            # Formula
+            if d['id'].find('eval:')==0 :
+                self.textFormula.Enable(True)
+                self.textFormula.SetEditable(True)
+            else:
+                #self.textFormula.Enable(False)
+                self.textFormula.Enable(True)
+                self.textFormula.SetEditable(False)
+            self.textFormula.SetValue(d['formula'])
+
+            # Guess
+            if d['coeffs'] is None:
+                self.textGuess.SetValue('')
+            else:
+                self.textGuess.SetValue(d['coeffs'])
+
+            # Constants
+            if d['consts'] is None or len(d['consts'].strip())==0:
+                self.textConstants.Enable(False)
+                self.textConstants.SetValue('')
+            else:
+                self.textConstants.Enable(True)
+                self.textConstants.SetValue(d['consts'])
+
+            # Bounds
+            self.textBounds.Enable(True)
+            if d['bounds'] is None or len(d['bounds'].strip())==0:
+                self.textBounds.SetValue('all=(-np.inf, np.inf)')
+            else:
+                self.textBounds.SetValue(d['bounds'])
 
         # Outputs
         self.textFormulaNum.SetValue('(Click on Fit)')
@@ -452,44 +434,28 @@ class CurveFitToolPanel(GUIToolPanel):
         PD =self.parent.plotData[0]
 
         iModel = self.cbModels.GetSelection()
-        d = MODELS[iModel]
+        d = self.Models[iModel]
         
-        # Formula
-        sFunc=d['name']
-        if sFunc=='eval:':
-            sFunc+=self.textFormula.GetLineText(0)
-
-
-        # Bounds
-        bounds=self.textBounds.GetLineText(0).replace('np.inf','inf')
-
-#         dBounds=extract_key_tuples(self.textBounds.GetLineText(0).replace('np.inf','inf'))
-#         if len(dBounds)>0:
-#             if 'all' in dBounds.keys():
-#                 bounds=dBounds['all']
-#             else:
-#                 bounds=dBounds
-#         else:
-#             bounds=None
-# 
-        # Guess
-        p0=self.textGuess.GetLineText(0).replace('np.inf','inf')
-#         dGuess=extract_key_num(self.textGuess.GetLineText(0).replace('np.inf','inf'))
-#         if len(dGuess)>0:
-#             p0=dGuess
-#         else:
-#             p0=None
-        # Constants
-        try:
-            model_fit.__name__
-        except:
-            Error(self,'Sorry, curve fitting is currently not available with python 2. Working on it..')
-            return
-        fun_kwargs=extract_key_num(self.textConstants.GetLineText(0).replace('np.inf','inf'))
-        print('>>> Model fit sFunc :',sFunc     )
-        print('>>> Model fit p0    :',p0        )
-        print('>>> Model fit bounds:',bounds    )
-        print('>>> Model fit kwargs:',fun_kwargs)
+        if d['id'].find('fitter:')==0 :
+            sFunc=d['id']
+            p0=None
+            bounds=None
+            fun_kwargs=extract_key_miscnum(self.textConstants.GetLineText(0).replace('np.inf','inf'))
+        else:
+            # Formula
+            sFunc=d['id']
+            if sFunc=='eval:':
+                sFunc+=self.textFormula.GetLineText(0)
+            # Bounds
+            bounds=self.textBounds.GetLineText(0).replace('np.inf','inf')
+            # Guess
+            p0=self.textGuess.GetLineText(0).replace('np.inf','inf')
+            fun_kwargs=extract_key_num(self.textConstants.GetLineText(0).replace('np.inf','inf'))
+        #print('>>> Model fit sFunc :',sFunc     )
+        #print('>>> Model fit p0    :',p0        )
+        #print('>>> Model fit bounds:',bounds    )
+        #print('>>> Model fit kwargs:',fun_kwargs)
+        # Performing fit
         y_fit, pfit, fitter = model_fit(sFunc, PD.x, PD.y, p0=p0, bounds=bounds,**fun_kwargs)
             
         formatter = lambda x: pretty_num_short(x, digits=3)
@@ -501,14 +467,17 @@ class CurveFitToolPanel(GUIToolPanel):
 
         # Saving 
         d['formula'] = self.textFormula.GetLineText(0)
-        d['bounds']  = self.textBounds.GetLineText(0)
-        d['coeffs']  = self.textGuess.GetLineText(0)
-        d['consts']  = self.textConstants.GetLineText(0)
+        d['bounds']  = self.textBounds.GetLineText(0).replace('np.inf','inf')
+        d['coeffs']  = self.textGuess.GetLineText(0).replace('np.inf','inf')
+        if d['id'].find('fitter:')==0 :
+            d['consts'], _ = set_common_keys(d['consts'],fun_kwargs)
+        else:
+            d['consts']= self.textConstants.GetLineText(0).replace('np.inf','inf')
 
 
         # Plot
         ax=self.parent.fig.axes[0]
-        ax.plot(PD.x,y_fit,'o')
+        ax.plot(PD.x,y_fit,'o', ms=4)
         self.parent.canvas.draw()
 
         self.x=PD.x
