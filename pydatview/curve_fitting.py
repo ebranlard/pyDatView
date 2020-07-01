@@ -5,6 +5,7 @@ import string
 import re
 from collections import OrderedDict
 from numpy import sqrt, pi, exp, cos, sin, log, inf, arctan # for user convenience
+import six
 
 __all__  = ['model_fit']
 __all__ += ['ModelFitter','ContinuousPolynomialFitter','DiscretePolynomialFitter']
@@ -161,7 +162,8 @@ def model_fit(func, x, y, p0=None, bounds=None, **fun_kwargs):
         fitted data.
     fitter: ModelFitter object
     """
-    if isinstance(func,str) and func.find('fitter:')==0:
+
+    if isinstance(func,six.string_types) and func.find('fitter:')==0:
         predef_fitters=[m['id'] for m in FITTERS]
         if func not in predef_fitters:
             raise Exception('Function `{}` not defined in curve_fitting module\n Available fitters: {}'.format(func,predef_fitters))
@@ -206,7 +208,7 @@ class ModelFitter():
             self.model['name']           = func.__name__
             pass
 
-        elif isinstance(func,str):
+        elif isinstance(func,six.string_types):
             if func.find('predef:')==0:
                 # --- Minimization from a predefined function
                 predef_models=[m['id'] for m in MODELS]
@@ -279,7 +281,7 @@ class ModelFitter():
             self.model['bounds']=bounds # store in model
         bounds=self.model['bounds'] # usemodel bounds as default
         if bounds is not None:
-            if isinstance(bounds ,str): 
+            if isinstance(bounds ,six.string_types): 
                 bounds=extract_key_tuples(bounds)
 
             if isinstance(bounds ,dict): 
@@ -315,7 +317,7 @@ class ModelFitter():
          - if p0 is a string (e.g. " a=1, b=3"), it's converted to a dict 
          - if p0 is a dict, the ordered keys of model['coeffs'] are used to sort p0
         """
-        if isinstance(p0 ,str): 
+        if isinstance(p0 ,six.string_types): 
             p0=extract_key_num(p0)
             if len(p0)==0:
                 p0=None
@@ -388,7 +390,7 @@ class ModelFitter():
         x,y=self.clean_data(x,y)
 
         # nParams
-        if isinstance(p0 ,str): 
+        if isinstance(p0 ,six.string_types): 
             p0=extract_key_num(p0)
             if len(p0)==0:
                 p0=None
@@ -445,7 +447,7 @@ class ModelFitter():
         """ return formula with coeffs and consts evaluted numerically"""
         if fmt is None:
             fmt_fun = lambda x: str(x)
-        elif isinstance(fmt,str):
+        elif isinstance(fmt,six.string_types):
             fmt_fun = lambda x: ('{'+fmt+'}').format(x)
         elif callable(fmt):
             fmt_fun = fmt

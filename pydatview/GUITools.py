@@ -1,6 +1,7 @@
 import wx
 import numpy as np
 import pandas as pd
+import copy
 
 # For log dec tool
 from .damping import logDecFromDecay
@@ -316,7 +317,7 @@ class CurveFitToolPanel(GUIToolPanel):
         self.textInfo       = wx.TextCtrl(self, wx.ID_ANY, '', style=wx.TE_READONLY)
 
 
-        self.Models=MODELS_EXAMPLE.copy() + FITTERS.copy() + MODELS.copy() + MODELS_EXTRA.copy()
+        self.Models=copy.deepcopy(MODELS_EXAMPLE) + copy.deepcopy(FITTERS) + copy.deepcopy(MODELS) + copy.deepcopy(MODELS_EXTRA)
         sModels=[d['label'] for d in self.Models]
 
 
