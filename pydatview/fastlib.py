@@ -468,7 +468,8 @@ def insert_radial_columns(df, vr=None, R=None, IR=None):
         if (nrMax)<=len(vr_bar):
             vr_bar=vr_bar[:nrMax]
         elif (nrMax)>len(vr_bar):
-            raise Exception('Inconsitent length between radial stations and max index present in output chanels')
+            print(vr_bar)
+            raise Exception('Inconsitent length between radial stations ({:d}) and max index present in output chanels ({:d})'.format(len(vr_bar),nrMax))
         df.insert(0, 'r/R_[-]', vr_bar)
 
     if IR is not None:
@@ -562,51 +563,51 @@ def spanwiseColAD(Cols):
     """ Return column info, available columns and indices that contain AD spanwise data"""
     ADSpanMap=dict()
     for sB in ['B1','B2','B3']:
-        ADSpanMap['^'+sB+'N(\d*)Alpha_\[deg\]']=sB+'Alpha_[deg]'
-        ADSpanMap['^'+sB+'N(\d*)AOA_\[deg\]'  ]=sB+'Alpha_[deg]' # DBGOuts
-        ADSpanMap['^'+sB+'N(\d*)AxInd_\[-\]'  ]=sB+'AxInd_[-]'  
-        ADSpanMap['^'+sB+'N(\d*)TnInd_\[-\]'  ]=sB+'TnInd_[-]'  
-        ADSpanMap['^'+sB+'N(\d*)AIn_\[deg\]'  ]=sB+'AxInd_[-]'   # DBGOuts NOTE BUG Unit
-        ADSpanMap['^'+sB+'N(\d*)ApI_\[deg\]'  ]=sB+'TnInd_[-]'   # DBGOuts NOTE BUG Unit
-        ADSpanMap['^'+sB+'N(\d*)AIn_\[-\]'    ]=sB+'AxInd_[-]'   # DBGOuts
-        ADSpanMap['^'+sB+'N(\d*)ApI_\[-\]'    ]=sB+'TnInd_[-]'   # DBGOuts
-        ADSpanMap['^'+sB+'N(\d*)Uin_\[m/s\]'  ]=sB+'Uin_[m/s]'     # DBGOuts
-        ADSpanMap['^'+sB+'N(\d*)Uit_\[m/s\]'  ]=sB+'Uit_[m/s]'     # DBGOuts
-        ADSpanMap['^'+sB+'N(\d*)Uir_\[m/s\]'  ]=sB+'Uir_[m/s]'     # DBGOuts
-        ADSpanMap['^'+sB+'N(\d*)Cl_\[-\]'     ]=sB+'Cl_[-]'   
-        ADSpanMap['^'+sB+'N(\d*)Cd_\[-\]'     ]=sB+'Cd_[-]'   
-        ADSpanMap['^'+sB+'N(\d*)Cm_\[-\]'     ]=sB+'Cm_[-]'   
-        ADSpanMap['^'+sB+'N(\d*)Cx_\[-\]'     ]=sB+'Cx_[-]'   
-        ADSpanMap['^'+sB+'N(\d*)Cy_\[-\]'     ]=sB+'Cy_[-]'   
-        ADSpanMap['^'+sB+'N(\d*)Cn_\[-\]'     ]=sB+'Cn_[-]'   
-        ADSpanMap['^'+sB+'N(\d*)Ct_\[-\]'     ]=sB+'Ct_[-]'   
-        ADSpanMap['^'+sB+'N(\d*)Re_\[-\]'     ]=sB+'Re_[-]' 
-        ADSpanMap['^'+sB+'N(\d*)Vrel_\[m/s\]' ]=sB+'Vrel_[m/s]' 
-        ADSpanMap['^'+sB+'N(\d*)Theta_\[deg\]']=sB+'Theta_[deg]'
-        ADSpanMap['^'+sB+'N(\d*)Phi_\[deg\]'  ]=sB+'Phi_[deg]'
-        ADSpanMap['^'+sB+'N(\d*)Twst_\[deg\]' ]=sB+'Twst_[deg]' #DBGOuts
-        ADSpanMap['^'+sB+'N(\d*)Curve_\[deg\]']=sB+'Curve_[deg]'
-        ADSpanMap['^'+sB+'N(\d*)Vindx_\[m/s\]']=sB+'Vindx_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)Vindy_\[m/s\]']=sB+'Vindy_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)Fx_\[N/m\]'   ]=sB+'Fx_[N/m]'   
-        ADSpanMap['^'+sB+'N(\d*)Fy_\[N/m\]'   ]=sB+'Fy_[N/m]'   
-        ADSpanMap['^'+sB+'N(\d*)Fl_\[N/m\]'   ]=sB+'Fl_[N/m]'   
-        ADSpanMap['^'+sB+'N(\d*)Fd_\[N/m\]'   ]=sB+'Fd_[N/m]'   
-        ADSpanMap['^'+sB+'N(\d*)Fn_\[N/m\]'   ]=sB+'Fn_[N/m]'   
-        ADSpanMap['^'+sB+'N(\d*)Ft_\[N/m\]'   ]=sB+'Ft_[N/m]'   
-        ADSpanMap['^'+sB+'N(\d*)VUndx_\[m/s\]']=sB+'VUndx_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)VUndy_\[m/s\]']=sB+'VUndy_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)VUndz_\[m/s\]']=sB+'VUndz_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)VDisx_\[m/s\]']=sB+'VDisx_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)VDisy_\[m/s\]']=sB+'VDisy_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)VDisz_\[m/s\]']=sB+'VDisz_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)Vx_\[m/s\]'   ]=sB+'Vx_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)Vy_\[m/s\]'   ]=sB+'Vy_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)Vz_\[m/s\]'   ]=sB+'Vz_[m/s]'
-        ADSpanMap['^'+sB+'N(\d*)DynP_\[Pa\]'  ]=sB+'DynP_[Pa]' 
-        ADSpanMap['^'+sB+'N(\d*)M_\[-\]'      ]=sB+'M_[-]' 
-        ADSpanMap['^'+sB+'N(\d*)Mm_\[N-m/m\]' ]=sB+'Mm_[N-m/m]'   
-        ADSpanMap['^'+sB+'N(\d*)Gam_\['       ]=sB+'Gam_[m^2/s]' #DBGOuts
+        ADSpanMap['^[A]*'+sB+'N(\d*)Alpha_\[deg\]']=sB+'Alpha_[deg]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)AOA_\[deg\]'  ]=sB+'Alpha_[deg]' # DBGOuts
+        ADSpanMap['^[A]*'+sB+'N(\d*)AxInd_\[-\]'  ]=sB+'AxInd_[-]'  
+        ADSpanMap['^[A]*'+sB+'N(\d*)TnInd_\[-\]'  ]=sB+'TnInd_[-]'  
+        ADSpanMap['^[A]*'+sB+'N(\d*)AIn_\[deg\]'  ]=sB+'AxInd_[-]'   # DBGOuts NOTE BUG Unit
+        ADSpanMap['^[A]*'+sB+'N(\d*)ApI_\[deg\]'  ]=sB+'TnInd_[-]'   # DBGOuts NOTE BUG Unit
+        ADSpanMap['^[A]*'+sB+'N(\d*)AIn_\[-\]'    ]=sB+'AxInd_[-]'   # DBGOuts
+        ADSpanMap['^[A]*'+sB+'N(\d*)ApI_\[-\]'    ]=sB+'TnInd_[-]'   # DBGOuts
+        ADSpanMap['^[A]*'+sB+'N(\d*)Uin_\[m/s\]'  ]=sB+'Uin_[m/s]'     # DBGOuts
+        ADSpanMap['^[A]*'+sB+'N(\d*)Uit_\[m/s\]'  ]=sB+'Uit_[m/s]'     # DBGOuts
+        ADSpanMap['^[A]*'+sB+'N(\d*)Uir_\[m/s\]'  ]=sB+'Uir_[m/s]'     # DBGOuts
+        ADSpanMap['^[A]*'+sB+'N(\d*)Cl_\[-\]'     ]=sB+'Cl_[-]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Cd_\[-\]'     ]=sB+'Cd_[-]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Cm_\[-\]'     ]=sB+'Cm_[-]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Cx_\[-\]'     ]=sB+'Cx_[-]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Cy_\[-\]'     ]=sB+'Cy_[-]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Cn_\[-\]'     ]=sB+'Cn_[-]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Ct_\[-\]'     ]=sB+'Ct_[-]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Re_\[-\]'     ]=sB+'Re_[-]' 
+        ADSpanMap['^[A]*'+sB+'N(\d*)Vrel_\[m/s\]' ]=sB+'Vrel_[m/s]' 
+        ADSpanMap['^[A]*'+sB+'N(\d*)Theta_\[deg\]']=sB+'Theta_[deg]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)Phi_\[deg\]'  ]=sB+'Phi_[deg]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)Twst_\[deg\]' ]=sB+'Twst_[deg]' #DBGOuts
+        ADSpanMap['^[A]*'+sB+'N(\d*)Curve_\[deg\]']=sB+'Curve_[deg]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)Vindx_\[m/s\]']=sB+'Vindx_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)Vindy_\[m/s\]']=sB+'Vindy_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)Fx_\[N/m\]'   ]=sB+'Fx_[N/m]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Fy_\[N/m\]'   ]=sB+'Fy_[N/m]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Fl_\[N/m\]'   ]=sB+'Fl_[N/m]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Fd_\[N/m\]'   ]=sB+'Fd_[N/m]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Fn_\[N/m\]'   ]=sB+'Fn_[N/m]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Ft_\[N/m\]'   ]=sB+'Ft_[N/m]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)VUndx_\[m/s\]']=sB+'VUndx_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)VUndy_\[m/s\]']=sB+'VUndy_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)VUndz_\[m/s\]']=sB+'VUndz_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)VDisx_\[m/s\]']=sB+'VDisx_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)VDisy_\[m/s\]']=sB+'VDisy_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)VDisz_\[m/s\]']=sB+'VDisz_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)Vx_\[m/s\]'   ]=sB+'Vx_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)Vy_\[m/s\]'   ]=sB+'Vy_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)Vz_\[m/s\]'   ]=sB+'Vz_[m/s]'
+        ADSpanMap['^[A]*'+sB+'N(\d*)DynP_\[Pa\]'  ]=sB+'DynP_[Pa]' 
+        ADSpanMap['^[A]*'+sB+'N(\d*)M_\[-\]'      ]=sB+'M_[-]' 
+        ADSpanMap['^[A]*'+sB+'N(\d*)Mm_\[N-m/m\]' ]=sB+'Mm_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+'N(\d*)Gam_\['       ]=sB+'Gam_[m^2/s]' #DBGOuts
     # --- AD 14
     ADSpanMap['^Alpha(\d*)_\[deg\]'  ]='Alpha_[deg]'  
     ADSpanMap['^DynPres(\d*)_\[Pa\]' ]='DynPres_[Pa]' 
@@ -859,7 +860,7 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
                     if  not hasattr(fst.AD,'Bld1'):
                         raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
                     
-                    if 'B1N001Cl_[-]' in OutputCols:
+                    if 'B1N001Cl_[-]' in OutputCols or np.any(np.char.find(list(OutputCols),'AB1N')==0):
                         # This was compiled with all outs
                         r_AD   = fst.AD.Bld1['BldAeroNodes'][:,0] # Full span
                         r_AD   += r_hub

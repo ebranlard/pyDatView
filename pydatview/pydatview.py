@@ -360,7 +360,10 @@ class MainFrame(wx.Frame):
         if bPlot:
             self.mainFrameUpdateLayout()
             self.onColSelectionChange(event=None)
-        self.Thaw()
+        try:
+            self.Thaw()
+        except:
+            pass
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
