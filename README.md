@@ -44,7 +44,8 @@ pydatview.show('file.csv')
 ### Workflow
 Documentation is scarce for now, but here are some tips for using the program:
  - You can drag and drop files to the GUI directly to open them. Hold the Ctrl key to add.
- - You can open several files at once, with same or different filetypes. 
+ - You can open several files at once, with same or different filetypes. Upon opening multiple files, a new table appears with the list of open files.
+ - To add multiple channels or data from multiple files to a plot, use `ctrl + click` or shift-click to make selections.
  - Look for the menus indicated by the "sandwich" symbol (3 horizontal bars &#2630;). These menus are also accessible with right clicks. 
  - The menus will allow you to edit tables (rename, delete them), add or remove columns (for instance to convert a signal from one unit to another unit), or change the values displayed in the information table at the bottom. 
  - Few options are also available in the menus `data` and `tools` located at the top of the program. 
