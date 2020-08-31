@@ -1,5 +1,6 @@
 
 import wx
+import matplotlib
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.backend_bases import NavigationToolbar2
 from matplotlib.widgets import Cursor, MultiCursor
@@ -131,24 +132,29 @@ class MyMultiCursor(MultiCursor):
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
     def __init__(self, canvas):
         # Taken from matplotlib/backend_wx.py but added style:
-        wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
-        NavigationToolbar2.__init__(self, canvas)
+        self.VERSION = matplotlib.__version__
+        #print('MPL VERSION:',self.VERSION)
+        if self.VERSION[0]=='2' or self.VERSION[0]=='1': 
+            wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
+            NavigationToolbar2.__init__(self, canvas)
 
-        self.canvas = canvas
-        self._idle = True
-        try: # Old matplotlib
-            self.statbar = None 
-        except:
-            pass
-        self.prevZoomRect = None
-        self.zoom() # NOTE: #22 BREAK cursors #12!
-        self.retinaFix = 'wxMac' in wx.PlatformInfo
+            self.canvas = canvas
+            self._idle = True
+            try: # Old matplotlib
+                self.statbar = None 
+            except:
+                pass
+            self.prevZoomRect = None
+            self.retinaFix = 'wxMac' in wx.PlatformInfo
+            #NavigationToolbar2Wx.__init__(self, plotCanvas)
+        else:
+            NavigationToolbar2Wx.__init__(self, canvas)
         # --- Modif
-        #NavigationToolbar2Wx.__init__(self, plotCanvas)
-        self.DeleteToolByPos(1)
-        self.DeleteToolByPos(1)
-        self.DeleteToolByPos(3)
-        #self.SetBackgroundColour('white')
+        self.DeleteToolByPos(1) # arrow <
+        self.DeleteToolByPos(1) # arrow >
+        self.DeleteToolByPos(3) # zoom
+        self.zoom() # NOTE: #22 BREAK cursors #12!
+
     def press_zoom(self, event):
         NavigationToolbar2Wx.press_zoom(self,event)
         #self.SetToolBitmapSize((22,22))
@@ -160,11 +166,19 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         NavigationToolbar2Wx.zoom(self,*args)
 
     def pan(self, *args):
-        if self._active=='PAN':
-            NavigationToolbar2Wx.pan(self,*args)
-            self.zoom()
-        else:
-            NavigationToolbar2Wx.pan(self,*args)
+        if self.VERSION[0]=='2' or self.VERSION[0]=='1': 
+            if self._active=='PAN':
+                NavigationToolbar2Wx.pan(self,*args)
+                self.zoom()
+            else:
+                NavigationToolbar2Wx.pan(self,*args)
+        else: # 3
+            if self.mode == _Mode.PAN:
+                from matplotlib.backend_bases import _Mode
+                NavigationToolbar2Wx.pan(self,*args)
+                self.zoom()
+            else:
+                NavigationToolbar2Wx.pan(self,*args)
 
     def home(self, *args):
         """Restore the original view."""
@@ -172,3 +186,4 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
 
     def set_message(self, s):
         pass
+
