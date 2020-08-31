@@ -585,8 +585,11 @@ class MainFrame(wx.Frame):
             self.resizeSideColumn(sash)
 
     def OnResizeWindow(self, event):
-        self.mainFrameUpdateLayout()
-        self.Layout()
+        try:
+            self.mainFrameUpdateLayout()
+            self.Layout()
+        except:
+            pass
 
     # --- Side column
     def resizeSideColumn(self,width):
