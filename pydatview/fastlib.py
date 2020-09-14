@@ -23,15 +23,15 @@ except:
         print('Using `weio` from `welib`')
     except:
         print('[WARN] Fastlib relies on the package `weio` to be installed from https://github.com/ebranlard/weio/`')
-# --- Allowing FASTInFile to be shipped separately..
+# --- Allowing FASTInputFile to be shipped separately..
 try:
-    from weio.FASTInFile import *
+    from weio.fast_input_file import *
 except:
     try:
-        from weio.weio.FASTInFile import *
+        from weio.weio.fast_input_file import *
     except:
         try:
-            from FASTInFile import * 
+            from fast_input_file import * 
         except:
             pass
 
@@ -234,8 +234,8 @@ def ED_BldStations(ED):
         - bld_fract: fraction of the blade length were stations are defined
         - r_nodes: spanwise position from the rotor apex of the Blade stations
     """
-    if not isinstance(ED,FASTInFile):
-        ED = FASTInFile(ED)
+    if not isinstance(ED,FASTInputFile):
+        ED = FASTInputFile(ED)
 
     nBldNodes = ED['BldNodes']
     bld_fract    = np.arange(1./nBldNodes/2., 1, 1./nBldNodes)
@@ -253,8 +253,8 @@ def ED_TwrStations(ED):
         - r_fract: fraction of the towet length were stations are defined
         - h_nodes: height from the *ground* of the stations  (not from the Tower base)
     """
-    if not isinstance(ED,FASTInFile):
-        ED = FASTInFile(ED)
+    if not isinstance(ED,FASTInputFile):
+        ED = FASTInputFile(ED)
 
     nTwrNodes = ED['TwrNodes']
     twr_fract    = np.arange(1./nTwrNodes/2., 1, 1./nTwrNodes)
@@ -272,8 +272,8 @@ def ED_BldGag(ED):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the rotor apex
     """
-    if not isinstance(ED,FASTInFile):
-        ED = FASTInFile(ED)
+    if not isinstance(ED,FASTInputFile):
+        ED = FASTInputFile(ED)
     _,r_nodes= ED_BldStations(ED)
     nOuts = ED['NBlGages']
     if nOuts<=0:
@@ -294,8 +294,8 @@ def ED_TwrGag(ED):
     OUTPUTS:
        - h_gag: The heights of the gages, given from the ground height (tower base + TowerBsHt)
     """
-    if not isinstance(ED,FASTInFile):
-        ED = FASTInFile(ED)
+    if not isinstance(ED,FASTInputFile):
+        ED = FASTInputFile(ED)
     _,h_nodes= ED_TwrStations(ED)
     nOuts = ED['NTwGages']
     if nOuts<=0:
@@ -317,8 +317,8 @@ def AD14_BldGag(AD):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the blade root
     """
-    if not isinstance(AD,FASTInFile):
-        AD = FASTInFile(AD)
+    if not isinstance(AD,FASTInputFile):
+        AD = FASTInputFile(AD)
 
     Nodes=AD['BldAeroNodes']  
     if Nodes.shape[1]==6:
@@ -342,10 +342,10 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the blade root
     """
-    if not isinstance(AD,FASTInFile):
-        AD = FASTInFile(AD)
-    if not isinstance(AD_bld,FASTInFile):
-        AD_bld = FASTInFile(AD_bld)
+    if not isinstance(AD,FASTInputFile):
+        AD = FASTInputFile(AD)
+    if not isinstance(AD_bld,FASTInputFile):
+        AD_bld = FASTInputFile(AD_bld)
     #print(AD_bld.keys())
 
     nOuts=AD['NBlOuts']
@@ -371,8 +371,8 @@ def BD_BldGag(BD):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the rotor apex
     """
-    if not isinstance(BD,FASTInFile):
-        BD = FASTInFile(BD)
+    if not isinstance(BD,FASTInputFile):
+        BD = FASTInputFile(BD)
 
     M       = BD['MemberGeom']
     r_nodes = M[:,2] # NOTE: we select the z axis here, and we don't take curvilenear coord
@@ -674,7 +674,7 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     """
     # --- Opens Fast output  and performs averaging
     if df is None:
-        df = FASTInFile(FST_In.replace('.fst',out_ext)).toDataFrame()
+        df = FASTInputFile(FST_In.replace('.fst',out_ext)).toDataFrame()
         returnDF=True
     else:
         returnDF=False
@@ -1091,7 +1091,7 @@ def templateReplaceGeneral(PARAMS, templateDir=None, outputDir=None, main_file=N
             #print('NewFile         :', newfilename)
             #print('NewFileFull     :', newfilename_full)
             shutil.copyfile(templatefilename_full, newfilename_full)
-            f= FASTInFile(newfilename_full) # open the template file for that filekey 
+            f= FASTInputFile(newfilename_full) # open the template file for that filekey 
             Files[FileKey]=f # store it
 
         # --- Changing parameters in that file
@@ -1198,7 +1198,7 @@ def templateReplaceGeneral(PARAMS, templateDir=None, outputDir=None, main_file=N
                 pass
     return files
 
-def templateReplace(PARAMS, templateDir, workDir=None, main_file=None, RemoveAllowed=False, RemoveRefSubFiles=False, oneSimPerDir=False):
+def templateReplace(PARAMS, templateDir, outputDir=None, main_file=None, removeAllowed=False, removeRefSubFiles=False, oneSimPerDir=False):
     """ Replace parameters in a fast folder using a list of dictionaries where the keys are for instance:
         'FAST|DT', 'EDFile|GBRatio', 'ServoFile|GenEff'
     """
@@ -1209,7 +1209,7 @@ def templateReplace(PARAMS, templateDir, workDir=None, main_file=None, RemoveAll
             k_new=k_old.replace('FAST|','')
             p[k_new] = p.pop(k_old)
     
-    return templateReplaceGeneral(PARAMS, templateDir, outputDir=workDir, main_file=main_file, 
+    return templateReplaceGeneral(PARAMS, templateDir, outputDir=outputDir, main_file=main_file, 
             RemoveAllowed=RemoveAllowed, RemoveRefSubFiles=RemoveRefSubFiles, oneSimPerDir=oneSimPerDir)
 
 # --------------------------------------------------------------------------------}
@@ -1648,8 +1648,8 @@ def CPCT_LambdaPitch(refdir,main_fastfile,Lambda=None,Pitch=np.linspace(-10,40,5
         main_fastfile=os.path.basename(main_fastfile)
 
     # --- Reading main fast file to get rotor radius 
-    fst = FASTInFile(os.path.join(refdir,main_fastfile))
-    ed  = FASTInFile(os.path.join(refdir,fst['EDFile'].replace('"','')))
+    fst = FASTInputFile(os.path.join(refdir,main_fastfile))
+    ed  = FASTInputFile(os.path.join(refdir,fst['EDFile'].replace('"','')))
     R = ed['TipRad']
 
     # --- Making sure we have 
