@@ -1020,7 +1020,6 @@ class PlotPanel(wx.Panel):
                     spreadBy='it'
         else:
             raise Exception('Unknown mode, contact developer.')
-        # TODO: nSubPlots should be count of columns where non '-'-entries are found (each column represents one subplot)
         return nSubPlots,spreadBy
 
     def distributePlots(self,mode,nSubPlots,spreadBy):

@@ -1,5 +1,6 @@
 import wx
 import wx.lib.mixins.listctrl as listmix
+from wx.lib.buttons import GenButton
 import numpy as np
 try:
     from .common import *
@@ -372,7 +373,7 @@ class InfoPanel(wx.Panel):
 
         sizer_plot_matrix = wx.BoxSizer(wx.VERTICAL)
         sizer_plot_matrix_spacer = wx.BoxSizer(wx.VERTICAL)
-        plot_matrix_spacer= wx.Panel(self, size=(-1, 29))
+        plot_matrix_spacer= wx.Panel(self, size=(-1, 27))
         plot_matrix_spacer.SetSizer(sizer_plot_matrix_spacer)
 
         plot_matrix_sizer  = wx.FlexGridSizer(rows=1, cols=1, hgap=0, vgap=9)
@@ -483,9 +484,7 @@ class InfoPanel(wx.Panel):
                 if (i % nr_signals) == 0:
                     buttonLabel = '1'
                     showButton = True
-            btn = wx.Button(self.plotMatrixPanel, label=buttonLabel, size=(BUTTON_SIZE, BUTTON_SIZE), style=wx.BU_EXACTFIT)
-            # necessary to allow small button size (min is 21) and display label:
-            btn.SetBitmap(wx.Bitmap("pydatview/resources/dummy.png"))
+            btn = GenButton(self.plotMatrixPanel, label=buttonLabel, size=(BUTTON_SIZE, BUTTON_SIZE), style=wx.BU_EXACTFIT)
             btn.Bind(wx.EVT_BUTTON, self._OnClick)
             if showButton is False:
                 btn.Hide()
