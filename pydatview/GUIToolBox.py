@@ -173,8 +173,8 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
             else:
                 NavigationToolbar2Wx.pan(self,*args)
         else: # 3
+            from matplotlib.backend_bases import _Mode
             if self.mode == _Mode.PAN:
-                from matplotlib.backend_bases import _Mode
                 NavigationToolbar2Wx.pan(self,*args)
                 self.zoom()
             else:
