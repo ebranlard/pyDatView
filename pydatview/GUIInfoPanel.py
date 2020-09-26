@@ -1,5 +1,6 @@
 import wx
 import wx.lib.mixins.listctrl as listmix
+from wx.lib.buttons import GenButton
 import numpy as np
 try:
     from .common import *
@@ -223,10 +224,10 @@ class ColCheckMenu(wx.Menu):
         return [it.IsChecked() for it in self.GetMenuItems()]
 
     def onSelChange(self,event):
-         self.isClosed=True
-         for c,b in zip(self.parent.Cols,self.getSelections()):
-             c['s']=b
-         self.parent._showStats(erase=True)
+        self.isClosed=True
+        for c,b in zip(self.parent.Cols,self.getSelections()):
+            c['s']=b
+        self.parent._showStats(erase=True)
 
 
 class InfoPanel(wx.Panel):
@@ -352,6 +353,8 @@ class InfoPanel(wx.Panel):
         self.Cols=self.ColsReg
         self.menu=self.menuReg
         self.PD=[]
+        self.tab_mode = None
+        self.last_sub = False
 
         #self.bt = wx.Button(self, -1, u'\u22EE',style=wx.BU_EXACTFIT)
         self.bt = wx.Button(self, -1, u'\u2630',style=wx.BU_EXACTFIT)
@@ -367,9 +370,25 @@ class InfoPanel(wx.Panel):
         #self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.tbStats)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(self.bt     , 0, wx.LEFT, border=0)
+
+        sizer_plot_matrix = wx.BoxSizer(wx.VERTICAL)
+        sizer_plot_matrix_spacer = wx.BoxSizer(wx.VERTICAL)
+        plot_matrix_spacer= wx.Panel(self, size=(-1, 27))
+        plot_matrix_spacer.SetSizer(sizer_plot_matrix_spacer)
+
+        plot_matrix_sizer  = wx.FlexGridSizer(rows=1, cols=1, hgap=0, vgap=9)
+        self.plotMatrixPanel= wx.Panel(self)
+        self.plotMatrixPanel.SetSizer(plot_matrix_sizer)
+        self.plotMatrixPanel.Hide()
+
+        sizer_plot_matrix.Add(plot_matrix_spacer     , 0, wx.TOP, border=0)
+        sizer_plot_matrix.Add(self.plotMatrixPanel   , 0, wx.TOP, border=0)
+
+        sizer.Add(sizer_plot_matrix, 0, wx.LEFT, border=0)
         sizer.Add(self.tbStats, 2, wx.LEFT|wx.RIGHT|wx.EXPAND, border=3)
         self.SetSizer(sizer)
         self.SetMaxSize((-1, 50))
+
 
     def showMenu(self,event=None):
         if self.menu.isClosed:
@@ -431,10 +450,114 @@ class InfoPanel(wx.Panel):
                     else:
                         self.tbStats.SetStringItem(index, j,sv)
             index +=1
+
         for i in range(self.tbStats.GetColumnCount()):
             self.tbStats.SetColumnWidth(i, wx.LIST_AUTOSIZE_USEHEADER) 
         self.tbStats.RefreshRows()
         self.Thaw()
+
+
+    def setPlotMatrixCallbacks(self, callback_left, callback_right):
+        self._OnPlotMatrixLeftClick = callback_left
+        self._OnPlotMatrixRightClick = callback_right
+
+    def _OnLeftClick(self, event):
+        self._OnPlotMatrixLeftClick(event)
+        self.Refresh()
+
+    def _OnRightClick(self, event):
+        self._OnPlotMatrixRightClick(event)
+        self.Refresh()
+
+    def togglePlotMatrix(self, visibility):
+        if visibility:
+            self.plotMatrixPanel.Show()
+        else:
+            self.plotMatrixPanel.Hide()
+        self.Layout()
+        self.Refresh()
+        self.Update()
+
+    def setTabMode(self, mode):
+        self.tab_mode = mode
+
+    def recreatePlotMatrixPanel(self, PD, sub):
+        nr_signals = len(PD)
+        plot_matrix_sizer  = wx.FlexGridSizer(rows=nr_signals, cols=nr_signals, hgap=0, vgap=3)
+        self.plotMatrixPanel.DestroyChildren()
+        BUTTON_SIZE = 21
+        for i in range(nr_signals ** 2):
+            buttonLabel = "-"
+            showButton = False
+            if sub:
+                showButton = True
+                # Square matrix: up to n subplots
+                if (i % nr_signals) == int(i / nr_signals):
+                    buttonLabel = '1'
+            else:
+                # Single column: single plot
+                if (i % nr_signals) == 0:
+                    buttonLabel = '1'
+                    showButton = True
+            btn = GenButton(self.plotMatrixPanel, label=buttonLabel, size=(BUTTON_SIZE, BUTTON_SIZE), style=wx.BU_EXACTFIT)
+            btn.Bind(wx.EVT_BUTTON, self._OnLeftClick)
+            btn.Bind(wx.EVT_CONTEXT_MENU, self._OnRightClick)
+            
+            if showButton is False:
+                btn.Hide()
+            plot_matrix_sizer.Add(btn)
+        self.plotMatrixPanel.SetSizer(plot_matrix_sizer)
+        self.Layout()
+        self.Refresh()
+        self.Update()
+
+    def getNumberOfSubplots(self, PD, sub):
+        """Maximum length is len(PD).
+         If the selection has no entry for a column,
+         the number of subplots is reduced accordingly.
+         This is only allowed for the most outer subplots.
+        """
+        nr_signals = len(PD)
+        used_subplots = [0] * nr_signals
+        if nr_signals ** 2 != len(self.plotMatrixPanel.Children) or sub != self.last_sub:
+            self.recreatePlotMatrixPanel(PD, sub)
+        self.last_sub = sub
+        for i in range(nr_signals ** 2):
+            # iterate over rows where each corresponds to one signal
+            subplot = i % nr_signals
+            selection = self.plotMatrixPanel.Children[i].GetLabelText()
+            if selection == '1' or selection == '2':
+                used_subplots[subplot] = 1
+        if sub is False and sum(used_subplots) == 0 and self.tab_mode == '1Tab_nCols':
+            # Without subplot at least one signal must be selected
+            raise IndexError
+        return len([i for i, e in enumerate(used_subplots) if e != 0])
+    
+    def getPlotMatrix(self, PD, sub):
+        """Plot_matrix is nr_signals x nr_subplots.
+         Each column represents one subplot and each
+         row/pair value represents signal-index that
+         needs to be plotted: 1 -> left, 2 -> right, 0 -> not.
+         This is only valid in tab-mode == '1Tab_nCols'.
+        """
+        if self.tab_mode == '1Tab_nCols':
+            nr_signals = len(PD)
+            nr_subplots = self.getNumberOfSubplots(PD, sub)
+            plot_matrix  = [[0 for x in range(nr_subplots)] for y in range(nr_signals)]
+            for i in range(nr_signals ** 2):
+                # iterate over rows where each corresponds to one signal
+                subplot = i % nr_signals
+                signal = int(i / nr_signals)
+                selection = self.plotMatrixPanel.Children[i].GetLabelText()
+                if selection == '1':
+                    plot_matrix[signal][subplot] = 1
+                elif selection == '2':
+                    plot_matrix[signal][subplot] = 2
+        else:
+            # Destroy plot matrix panel
+            self.getNumberOfSubplots([], sub)
+            plot_matrix = None
+        return plot_matrix
 
     def clean(self):
         self.tbStats.DeleteAllItems()

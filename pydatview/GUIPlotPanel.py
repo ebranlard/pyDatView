@@ -293,6 +293,7 @@ class PlotPanel(wx.Panel):
         # data
         self.selPanel = selPanel
         self.infoPanel=infoPanel
+        self.infoPanel.setPlotMatrixCallbacks(self._OnPlotMatrixLeftClick, self._OnPlotMatrixRightClick)
         self.parent   = parent
         self.mainframe= mainframe
         self.plotData = []
@@ -305,10 +306,12 @@ class PlotPanel(wx.Panel):
         self.rightMarkerLine = None
         self.leftMarkerAnot = None
         self.rightMarkerAnot = None
+        self.xlim_prev = [[0, 1]]
+        self.ylim_prev = [[0, 1]]
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         #self.fig.set_tight_layout(True) 
-        self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
+        self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.88)
         self.canvas = FigureCanvas(self, -1, self.fig)
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
         self.canvas.mpl_connect('button_press_event', self.onMouseClick)
@@ -329,40 +332,69 @@ class PlotPanel(wx.Panel):
         # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
         # Check Boxes
-        self.cbScatter = wx.CheckBox(self.ctrlPanel, -1, 'Scatter',(10,10))
-        self.cbSub     = wx.CheckBox(self.ctrlPanel, -1, 'Subplot',(10,10))
-        self.cbLogX    = wx.CheckBox(self.ctrlPanel, -1, 'Log-x',(10,10))
-        self.cbLogY    = wx.CheckBox(self.ctrlPanel, -1, 'Log-y',(10,10))
-        self.cbSync    = wx.CheckBox(self.ctrlPanel, -1, 'Sync-x',(10,10))
-        self.cbXHair   = wx.CheckBox(self.ctrlPanel, -1, 'CrossHair',(10,10))
+        self.cbScatter    = wx.CheckBox(self.ctrlPanel, -1, 'Scatter',(10,10))
+        self.cbSub        = wx.CheckBox(self.ctrlPanel, -1, 'Subplot',(10,10))
+        self.cbLogX       = wx.CheckBox(self.ctrlPanel, -1, 'Log-x',(10,10))
+        self.cbLogY       = wx.CheckBox(self.ctrlPanel, -1, 'Log-y',(10,10))
+        self.cbSync       = wx.CheckBox(self.ctrlPanel, -1, 'Sync-x',(10,10))
+        self.cbXHair      = wx.CheckBox(self.ctrlPanel, -1, 'CrossHair',(10,10))
+        self.cbPlotMatrix = wx.CheckBox(self.ctrlPanel, -1, 'Matrix',(10,10))
+        self.cbAutoScale  = wx.CheckBox(self.ctrlPanel, -1, 'AutoScale',(10,10))
+        self.cbGrid       = wx.CheckBox(self.ctrlPanel, -1, 'Grid',(10,10))
+        self.cbStepPlot   = wx.CheckBox(self.ctrlPanel, -1, 'StepPlot',(10,10))
+        self.cbMarker     = wx.CheckBox(self.ctrlPanel, -1, 'Marker',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.cbXHair.SetValue(True) # Have cross hair by default
-        self.Bind(wx.EVT_CHECKBOX, self.scatter_select, self.cbScatter)
-        self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSub    )
-        self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogX   )
-        self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogY   )
-        self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSync )
-        self.Bind(wx.EVT_CHECKBOX, self.crosshair_event, self.cbXHair )
+        self.cbAutoScale.SetValue(True)
+        self.Bind(wx.EVT_CHECKBOX, self.scatter_select   , self.cbScatter)
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbSub    )
+        self.Bind(wx.EVT_CHECKBOX, self.log_select       , self.cbLogX   )
+        self.Bind(wx.EVT_CHECKBOX, self.log_select       , self.cbLogY   )
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbSync )
+        self.Bind(wx.EVT_CHECKBOX, self.crosshair_event  , self.cbXHair )
+        self.Bind(wx.EVT_CHECKBOX, self.plot_matrix_select, self.cbPlotMatrix )
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbAutoScale )
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbGrid )
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbStepPlot )
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbMarker )
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
-        cb_sizer.Add(self.cbScatter, 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbSub    , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbLogX   , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbLogY   , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbSync   , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbXHair  , 0, flag=wx.ALL, border=1)
+        cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=2, vgap=0)
+        # cb_sizer.Add(self.cbScatter     , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbSub         , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbLogX        , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbLogY        , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbSync        , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbXHair       , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbPlotMatrix  , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbAutoScale   , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbGrid        , 0, flag=wx.ALL, border=1)
+        # cb_sizer.Add(self.cbStepPlot    , 0, flag=wx.ALL, border=1)
+
+
+        cb_sizer.Add(self.cbScatter   , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbSub       , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbAutoScale , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbLogX      , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbLogY      , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbStepPlot  , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbSync      , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbXHair     , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbGrid      , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbPlotMatrix, 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbMarker    , 0, flag=wx.ALL, border=1)
+
         self.ctrlPanel.SetSizer(cb_sizer)
         # --- Ctrl Panel
         crossHairPanel= wx.Panel(self)
-        self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x = ...          ')
-        self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y = ...          ')
-        self.lbMarkerX1 = wx.StaticText(crossHairPanel, -1, '                 ')
-        self.lbMarkerX2 = wx.StaticText(crossHairPanel, -1, '                 ')
-        self.lbMarkerY1 = wx.StaticText(crossHairPanel, -1, '                 ')
-        self.lbMarkerY2 = wx.StaticText(crossHairPanel, -1, '                 ')
-        self.lbMarkerDeltaX = wx.StaticText(crossHairPanel, -1, '                 ')
-        self.lbMarkerDeltaY = wx.StaticText(crossHairPanel, -1, '                 ')
+        self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x = ...       ')
+        self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y = ...       ')
+        self.lbMarkerX1 = wx.StaticText(crossHairPanel, -1, '              ')
+        self.lbMarkerX2 = wx.StaticText(crossHairPanel, -1, '              ')
+        self.lbMarkerY1 = wx.StaticText(crossHairPanel, -1, '              ')
+        self.lbMarkerY2 = wx.StaticText(crossHairPanel, -1, '              ')
+        self.lbMarkerDeltaX = wx.StaticText(crossHairPanel, -1, '              ')
+        self.lbMarkerDeltaY = wx.StaticText(crossHairPanel, -1, '              ')
         font = getMonoFont(self)
         font.MakeSmaller()
         self.lbCrossHairX.SetFont(font)
@@ -395,7 +427,7 @@ class PlotPanel(wx.Panel):
         row_sizer.Add(sl3               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
         row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.ALL|wx.EXPAND|wx.CENTER , border=2)
         row_sizer.Add(sl4               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(crossHairPanel    , 0 , flag=wx.ALL|wx.EXPAND|wx.CENTER|wx.LEFT, border=2)
+        row_sizer.Add(crossHairPanel    , 0 , flag=wx.EXPAND|wx.CENTER|wx.LEFT, border=2)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
         self.slCtrl = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
@@ -409,7 +441,7 @@ class PlotPanel(wx.Panel):
         plotsizer.Add(self.cmpPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.mmxPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.slCtrl   ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(row_sizer     ,0,flag = wx.NORTH ,border = 5)
+        plotsizer.Add(row_sizer     ,0,flag = wx.EXPAND|wx.NORTH ,border = 5)
 
         self.show_hide(self.spcPanel, self.pltTypePanel.cbFFT.GetValue())
         self.show_hide(self.cmpPanel, self.pltTypePanel.cbCompare.GetValue())
@@ -418,6 +450,10 @@ class PlotPanel(wx.Panel):
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
+
+    def plot_matrix_select(self, event):
+        self.infoPanel.togglePlotMatrix(self.cbPlotMatrix.GetValue())
+        self.redraw_same_data()
 
     def redraw_event(self, event):
         self.redraw_same_data()
@@ -474,35 +510,31 @@ class PlotPanel(wx.Panel):
             x, y = event.xdata, event.ydata
             self.setMarkerLabel(self.lbCrossHairX, 'x ', x)
             self.setMarkerLabel(self.lbCrossHairY, 'y ', y)
+        self._store_limits()
 
     def onMouseClick(self, event):
-        for ax in self.fig.axes:
-            if event.inaxes == ax:
-                x, y = event.xdata, event.ydata
-                if event.button == 1:
-                    self.setMarker(ax, 'leftMarker', x, y, '1', 'firebrick')
-                elif event.button == 3:
-                    self.setMarker(ax, 'rightMarker', x, y, '2', 'darkgreen')
-                else:
+        if self.cbMarker.GetValue():
+            for ax in self.fig.axes:
+                if event.inaxes == ax:
+                    x, y = event.xdata, event.ydata
+                    if event.button == 1:
+                        self.setMarker(ax, 'leftMarker', x, y, '1', 'firebrick')
+                    elif event.button == 3:
+                        self.setMarker(ax, 'rightMarker', x, y, '2', 'darkgreen')
+                    else:
+                        return
+                    if self.leftMarker is not None:
+                        self.setMarkerLabel(self.lbMarkerX1, 'x1', self.leftMarker.get_xdata()[0])
+                        self.setMarkerLabel(self.lbMarkerY1, 'y1', self.leftMarker.get_ydata()[0])
+                    if self.rightMarker is not None:
+                        self.setMarkerLabel(self.lbMarkerX2, 'x2', self.rightMarker.get_xdata()[0])
+                        self.setMarkerLabel(self.lbMarkerY2, 'y2', self.rightMarker.get_ydata()[0])
+                    if self.leftMarker is not None and self.rightMarker is not None:
+                        self.setMarkerLabel(self.lbMarkerDeltaX, 'dx', self.rightMarker.get_xdata()[0] - self.leftMarker.get_xdata()[0])
+                        self.setMarkerLabel(self.lbMarkerDeltaY, 'dy', self.rightMarker.get_ydata()[0] - self.leftMarker.get_ydata()[0])
                     return
-                if self.leftMarker is not None:
-                    self.setMarkerLabel(self.lbMarkerX1, 'x1', self.leftMarker.get_xdata()[0])
-                    self.setMarkerLabel(self.lbMarkerY1, 'y1', self.leftMarker.get_ydata()[0])
-                if self.rightMarker is not None:
-                    self.setMarkerLabel(self.lbMarkerX2, 'x2', self.rightMarker.get_xdata()[0])
-                    self.setMarkerLabel(self.lbMarkerY2, 'y2', self.rightMarker.get_ydata()[0])
-                if self.leftMarker is not None and self.rightMarker is not None:
-                    self.setMarkerLabel(self.lbMarkerDeltaX, 'dx', self.rightMarker.get_xdata()[0] - self.leftMarker.get_xdata()[0])
-                    self.setMarkerLabel(self.lbMarkerDeltaY, 'dy', self.rightMarker.get_ydata()[0] - self.leftMarker.get_ydata()[0])
-                return
 
     def clearMarker(self):
-        self.setMarkerLabel(self.lbMarkerX1, 'x1', '')
-        self.setMarkerLabel(self.lbMarkerY1, 'y1', '')
-        self.setMarkerLabel(self.lbMarkerX2, 'x2', '')
-        self.setMarkerLabel(self.lbMarkerY2, 'y2', '')
-        self.setMarkerLabel(self.lbMarkerDeltaX, 'dx', '')
-        self.setMarkerLabel(self.lbMarkerDeltaY, 'dy', '')
         try:
             self.leftMarker.remove()
             self.leftMarkerLine.remove()
@@ -514,11 +546,17 @@ class PlotPanel(wx.Panel):
             self.rightMarkerLine.remove()
             self.rightMarkerAnot.remove()
         except AttributeError:
-            pass    
+            pass
         self.leftMarker = None
         self.rightMarker = None
         self.leftMarkerLine = None
         self.rightMarkerLine = None
+        self.setMarkerLabel(self.lbMarkerX1, 'x1', '')
+        self.setMarkerLabel(self.lbMarkerY1, 'y1', '')
+        self.setMarkerLabel(self.lbMarkerX2, 'x2', '')
+        self.setMarkerLabel(self.lbMarkerY2, 'y2', '')
+        self.setMarkerLabel(self.lbMarkerDeltaX, 'dx', '')
+        self.setMarkerLabel(self.lbMarkerDeltaY, 'dy', '')
 
     def setMarker(self, ax, marker_ref, x, y, annotation, color):
         if ((self.leftMarker is not None and ax != self.leftMarker.axes) or
@@ -536,15 +574,19 @@ class PlotPanel(wx.Panel):
             setattr(self, marker_ref, ax.plot(x, y, color=color, marker='o', markersize=1)[0])
             setattr(self, marker_ref + 'Line', ax.axvline(x=x, color=color, linewidth=0.5))
             setattr(self, marker_ref + 'Anot', ax.annotate(annotation, (x, y), color=color))
+        if self.cbAutoScale.IsChecked() is False:
+            for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
 
     def setMarkerLabel(self, label, label_text, value):
         try:
             if abs(value)<1000 and abs(value)>1e-4:
-                label.SetLabel('{:.3}={:10.5f}'.format(label_text, value))
+                label.SetLabel('{:.2}={:11.5f}'.format(label_text, value))
             else:
-                label.SetLabel('{:.3}={:10.3e}'.format(label_text, value))
+                label.SetLabel('{:.2}={:11.3e}'.format(label_text, value))
         except TypeError:
-            label.SetLabel('                '.format(label_text))
+            label.SetLabel('              '.format(label_text))
 
     def removeTools(self,event=None,Layout=True):
         try:
@@ -869,19 +911,58 @@ class PlotPanel(wx.Panel):
             print('Several Tabs, similar columns, TODO')
             self.plotData=[]
 
+    def _OnPlotMatrixLeftClick(self, event):
+        """Toggle plot-states from None, to left-axis, to right-axis.
+            Left-click goes forwards, right-click goes backwards.
+            IndexError to avoid "holes" in matrix with outer adjacent populated entries
+        """
+        btn = event.GetEventObject()
+        label = btn.GetLabelText()
+        if label == '-':
+            btn.SetLabel('1')
+            try:
+                self.infoPanel.getPlotMatrix(self.plotData, self.cbSub.IsChecked())
+            except IndexError:
+                btn.SetLabel('-')
+        elif label == '1':
+            btn.SetLabel('2')
+        else:
+            btn.SetLabel('-')
+            try:
+                self.infoPanel.getPlotMatrix(self.plotData, self.cbSub.IsChecked())
+            except IndexError:
+                btn.SetLabel('1')
+        self.redraw_same_data()
 
+    def _OnPlotMatrixRightClick(self, event):
+        btn = event.GetEventObject()
+        label = btn.GetLabelText()
+        if label == '-':
+            btn.SetLabel('2')
+            try:
+                self.infoPanel.getPlotMatrix(self.plotData, self.cbSub.IsChecked())
+            except IndexError:
+                btn.SetLabel('-')
+        elif label == '1':
+            btn.SetLabel('-')
+            try:
+                self.infoPanel.getPlotMatrix(self.plotData, self.cbSub.IsChecked())
+            except IndexError:
+                btn.SetLabel('2')
+        else:
+            btn.SetLabel('1')
+        self.redraw_same_data()
 
-
-    def plot_all(self):
+    def plot_all(self, keep_limits=True):
         self.multiCursors=[]
         self.clearMarker()
 
         axes=self.fig.axes
 
         bScatter=self.cbScatter.IsChecked()
+        bStep=self.cbStepPlot.IsChecked()
 
         PD=self.plotData
-
 
         needChineseFont = any([pd.needChineseFont for pd in PD])
         if needChineseFont and self.specialFont is not None:
@@ -891,103 +972,161 @@ class PlotPanel(wx.Panel):
             font_options      = {}
             font_options_legd = {}
 
-        bAllNeg=True
-        for ax in axes:
+        for ax_left, axis_idx in zip(axes, range(len(axes))):
+            ax_right = None
             # Plot data
-            vDate=[PD[i].yIsDate for i in ax.iPD]
+            vDate=[PD[i].yIsDate for i in ax_left.iPD]
             if any(vDate) and len(vDate)>1:
                 Error(self,'Cannot plot date and other value on the same axis')
                 return
 
             #Keep me - tight axis, attempt to optimize
             #try:
-            #    xMin=np.min([PD[i].x0Min[0] for i in ax.iPD])
-            #    xMax=np.max([PD[i].x0Max[0] for i in ax.iPD])
-            #    ax.set_xlim(xMin,xMax)
-            #    ax.autoscale(False)
+            #    xMin=np.min([PD[i].x0Min[0] for i in ax_left.iPD])
+            #    xMax=np.max([PD[i].x0Max[0] for i in ax_left.iPD])
+            #    ax_left.set_xlim(xMin,xMax)
+            #    ax_left.autoscale(False)
             #except:
             #    pass
             #try:
-            #    yMin=np.min([PD[i].y0Min[0] for i in ax.iPD])
-            #    yMax=np.max([PD[i].y0Max[0] for i in ax.iPD])
-            #    ax.set_ylim(yMin,yMax)
-            #    ax.autoscale(False)
+            #    yMin=np.min([PD[i].y0Min[0] for i in ax_left.iPD])
+            #    yMax=np.max([PD[i].y0Max[0] for i in ax_left.iPD])
+            #    ax_left.set_ylim(yMin,yMax)
+            #    ax_left.autoscale(False)
             #except:
             #    pass
 
-
-            for ipd in ax.iPD:
-                pd=PD[ipd]
-                if bScatter or len(pd.x)==1:
-                    sty='o'
-                else:
-                    sty='-'
-                ax.plot(pd.x,pd.y,sty,label=pd.syl,markersize=1)
-                try:
-                    bAllNeg=bAllNeg and  all(pd.y<=0)
-                except:
-                    pass # Dates
+            pm = self.infoPanel.getPlotMatrix(PD, self.cbSub.IsChecked())
+            __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bScatter, bStep)
+            ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bScatter, bStep)
 
             # Log Axes
             if self.cbLogX.IsChecked():
-                ax.set_xscale("log", nonposx='clip')
+                ax_left.set_xscale("log", nonposx='clip')
             if self.cbLogY.IsChecked():
-                if bAllNeg:
-                    pass
-                else:
-                    ax.set_yscale("log", nonposy='clip')
+                if bAllNegLeft is False:
+                    ax_left.set_yscale("log", nonposy='clip')
+                if bAllNegRight is False and ax_right is not None:
+                    ax_right.set_yscale("log", nonposy='clip')
 
             # XLIM - TODO FFT ONLY NASTY
             if self.pltTypePanel.cbFFT.GetValue():
                 try:
                     xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
                     if xlim>0:
-                        ax.set_xlim([0,xlim])
-                        pd=PD[ax.iPD[0]]
+                        ax_left.set_xlim([0,xlim])
+                        pd=PD[ax_left.iPD[0]]
                         I=pd.x<xlim
-                        ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax.iPD])
-                        ax.set_ylim(bottom=ymin/2)
+                        ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
+                        ax_left.set_ylim(bottom=ymin/2)
                 except:
                     pass
+            elif self.cbAutoScale.IsChecked() is False and keep_limits:
+                for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
+                    ax.set_xlim(xlim)
+                    ax.set_ylim(ylim)
+
+            ax_left.grid(self.cbGrid.IsChecked())
+
             # Special Grids
             if self.pltTypePanel.cbCompare.GetValue():
                 if self.cmpPanel.rbType.GetStringSelection()=='Y-Y':
-                    xmin,xmax=ax.get_xlim()
-                    ax.plot([xmin,xmax],[xmin,xmax],'k--',linewidth=0.5)
+                    xmin,xmax=ax_left.get_xlim()
+                    ax_left.plot([xmin,xmax],[xmin,xmax],'k--',linewidth=0.5)
 
-        # Labels
-        axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx, **font_options)
-        for ax in axes:
-            usy = unique([PD[i].sy for i in ax.iPD])
-            if len(usy)<=3:
-                ax.set_ylabel(' and '.join(usy), **font_options) # consider legend
+            # Labels
+            yleft_labels = []
+            yright_labels = []
+            yleft_legends = []
+            yright_legends = []
+            if pm is None:
+                yleft_labels = unique([PD[i].sy for i in ax_left.iPD])
+                if axis_idx == 0:
+                    yleft_legends = unique([PD[i].syl for i in ax_left.iPD])
             else:
-                ax.set_ylabel('')
-        # Legend
+                for signal_idx in range(len(PD)):
+                    if pm[signal_idx][axis_idx] == 1:
+                        yleft_labels.append(PD[signal_idx].sy)
+                        yleft_legends.append(PD[signal_idx].syl)
+                    elif pm[signal_idx][axis_idx] == 2:
+                        yright_labels.append(PD[signal_idx].sy)
+                        yright_legends.append(PD[signal_idx].syl)
+                yleft_labels = unique(yleft_labels)
+                yright_labels = unique(yright_labels)
+                yleft_legends = unique(yleft_legends)
+                yright_legends = unique(yright_legends)
+
+            if len(yleft_labels) > 0 and len(yleft_labels) <= 3:
+                ax_left.set_ylabel(' and '.join(yleft_labels), **font_options)
+            elif ax_left is not None:
+                ax_left.set_ylabel('')
+            if len(yright_labels) > 0 and len(yright_labels) <= 3:
+                ax_right.set_ylabel(' and '.join(yright_labels), **font_options)
+            elif ax_right is not None:
+                ax_right.set_ylabel('')
+
+            # Legends
+            if (self.pltTypePanel.cbCompare.GetValue() or 
+                ((len(yleft_legends) + len(yright_legends)) > 1)):
+                if len(yleft_legends) > 0:
+                    ax_left.legend(fancybox=False, loc=1, **font_options_legd)
+                if ax_right is not None and len(yright_legends) > 0:
+                    ax_right.legend(fancybox=False, loc=4, **font_options_legd)
+            elif len(axes)>1 and len(axes)==len(PD):
+                # TODO: can this be removed? If there is only one unique signal
+                # per subplot, normally only ylabel is displayed and no legend.
+                # Special case when we have subplots and all plots have the same label
+                usy = unique([pd.sy for pd in PD])
+                if len(usy)==1:
+                    for ax in axes:
+                        ax.legend(fancybox=False, loc=1, **font_options_legd)
+
+        axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx, **font_options)
+
         #print('sy :',[pd.sy for pd in PD])
         #print('syl:',[pd.syl for pd in PD])
-        usyP0 = unique([PD[i].syl for i in axes[0].iPD])
-        if  self.pltTypePanel.cbCompare.GetValue():
-            for ax in axes:
-                ax.legend(fancybox=False, loc=1, **font_options_legd)
-        elif len(usyP0)>1:
-            #axes[0].legend(fancybox=False, framealpha=1, loc=1, shadow=None)
-            axes[0].legend(fancybox=False, loc=1, **font_options_legd)
-        elif len(axes)>1 and len(axes)==len(PD):
-            # Special case when we have subplots and all plots have the same label
-            usy = unique([pd.sy for pd in PD])
-            if len(usy)==1:
-                for ax in axes:
-                    ax.legend(fancybox=False, loc=1, **font_options_legd)
-            
+
         # --- Cursors for each individual plot
         # NOTE: cursors needs to be stored in the object!
-        #for ax in self.fig.axes:
-        #    self.cursors.append(MyCursor(ax,horizOn=True, vertOn=False, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
+        #for ax_left in self.fig.axes:
+        #    self.cursors.append(MyCursor(ax_left,horizOn=True, vertOn=False, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
         # Vertical cusor for all, commonly
         bXHair = self.cbXHair.GetValue()
         self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn=bXHair, vertOn=bXHair, color='gray', linewidth=0.5, linestyle=':')
 
+    def plotSignals(self, ax, axis_idx, PD, pm, left_right, is_scatter, is_step):
+        axis = None
+        bAllNeg = True
+        if pm is None:
+            loop_range = ax.iPD
+        else:
+            loop_range = range(len(PD))
+        for signal_idx in loop_range:
+            do_plot = False
+            if left_right == 1 and (pm is None or pm[signal_idx][axis_idx] == left_right):
+                do_plot = True
+                axis = ax
+            elif left_right == 2 and pm is not None and pm[signal_idx][axis_idx] == left_right:
+                do_plot = True
+                if axis is None:
+                    axis = ax.twinx()
+                    ax.set_zorder(axis.get_zorder()+1)
+                    ax.patch.set_visible(False)
+                    axis._get_lines.prop_cycler = ax._get_lines.prop_cycler
+            pd=PD[signal_idx]
+            if is_scatter or len(pd.x)==1:
+                sty='o'
+            else:
+                sty='-'
+            if do_plot:
+                if is_step:
+                    plot = axis.step
+                else:
+                    plot = axis.plot
+                plot(pd.x,pd.y,sty,label=pd.syl,markersize=1)
+                bAllNeg = bAllNeg and all(pd.y<=0)
+        return axis, bAllNeg
+            
     def findPlotMode(self,PD):
         uTabs = unique([pd.it for pd in PD])
         usy   = unique([pd.sy for pd in PD])
@@ -1013,17 +1152,14 @@ class PlotPanel(wx.Panel):
         bCompare  = self.pltTypePanel.cbCompare.GetValue() # NOTE bCompare somehow always 1Tab_nCols
         nSubPlots=1
         spreadBy='none'
+        self.infoPanel.setTabMode(mode)
         if mode=='1Tab_nCols':
             if bSubPlots:
-                if bCompare:
-                    nSubPlots=len(PD)
-                    spreadBy='iy'
+                if bCompare or len(uTabs)==1:
+                    nSubPlots = self.infoPanel.getNumberOfSubplots(PD, self.cbSub.IsChecked())
                 else:
-                    if len(uTabs)==1:
-                        nSubPlots=len(PD)
-                    else:
-                        nSubPlots=len(usy)
-                    spreadBy='iy'
+                    nSubPlots=len(usy)
+                spreadBy='iy'
         elif mode=='nTabs_SameCols':
             if bSubPlots:
                 if bCompare:
@@ -1070,7 +1206,8 @@ class PlotPanel(wx.Panel):
             if spreadBy=='iy':
                 for ipd,pd in enumerate(PD):
                     i=uiy.index(pd.iy)
-                    axes[i].iPD.append(ipd)
+                    if i < len(axes):
+                        axes[i].iPD.append(ipd)
             elif spreadBy=='it':
                 for ipd,pd in enumerate(PD):
                     i=uTabs.index(pd.it)
@@ -1151,10 +1288,10 @@ class PlotPanel(wx.Panel):
         if self.infoPanel is not None:
             self.infoPanel.showStats(self.plotData,self.pltTypePanel.plotType())
 
-    def redraw_same_data(self):
-        self._redraw_same_data()
+    def redraw_same_data(self, keep_limits=True):
+        self._redraw_same_data(keep_limits)
 
-    def _redraw_same_data(self):
+    def _redraw_same_data(self, keep_limits=True):
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
@@ -1169,8 +1306,9 @@ class PlotPanel(wx.Panel):
         if not self.pltTypePanel.cbCompare.GetValue():
             self.setLegendLabels(mode)
 
-        self.plot_all()
+        self.plot_all(keep_limits)
         self.canvas.draw()
+        self._store_limits()
 
     def _redraw(self):
         self.clean_memory()
@@ -1186,6 +1324,14 @@ class PlotPanel(wx.Panel):
                 self.cleanPlot();
                 return
         self._redraw_same_data()
+
+    def _store_limits(self):
+        self.xlim_prev = []
+        self.ylim_prev = []
+        for ax in self.fig.axes:
+            self.xlim_prev.append(ax.get_xlim())
+            self.ylim_prev.append(ax.get_ylim())
+
 
 if __name__ == '__main__':
     import pandas as pd;
