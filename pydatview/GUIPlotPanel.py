@@ -293,7 +293,7 @@ class PlotPanel(wx.Panel):
         # data
         self.selPanel = selPanel
         self.infoPanel=infoPanel
-        self.infoPanel.setPlotMatrixCallback(self._OnPlotMatrixClick)
+        self.infoPanel.setPlotMatrixCallbacks(self._OnPlotMatrixLeftClick, self._OnPlotMatrixRightClick)
         self.parent   = parent
         self.mainframe= mainframe
         self.plotData = []
@@ -329,6 +329,7 @@ class PlotPanel(wx.Panel):
         self.cbLogY    = wx.CheckBox(self.ctrlPanel, -1, 'Log-y',(10,10))
         self.cbSync    = wx.CheckBox(self.ctrlPanel, -1, 'Sync-x',(10,10))
         self.cbXHair   = wx.CheckBox(self.ctrlPanel, -1, 'CrossHair',(10,10))
+        self.cbPlotMatrix = wx.CheckBox(self.ctrlPanel, -1, 'PlotMatrix',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.cbXHair.SetValue(True) # Have cross hair by default
@@ -338,14 +339,16 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.log_select    , self.cbLogY   )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event  , self.cbSync )
         self.Bind(wx.EVT_CHECKBOX, self.crosshair_event, self.cbXHair )
+        self.Bind(wx.EVT_CHECKBOX, self.plot_matrix_event, self.cbPlotMatrix )
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
+        cb_sizer  = wx.FlexGridSizer(rows=4, cols=2, hgap=2, vgap=0)
         cb_sizer.Add(self.cbScatter, 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub    , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogX   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogY   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSync   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbXHair  , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbPlotMatrix  , 0, flag=wx.ALL, border=1)
         self.ctrlPanel.SetSizer(cb_sizer)
         # --- Ctrl Panel
         crossHairPanel= wx.Panel(self)
@@ -392,6 +395,10 @@ class PlotPanel(wx.Panel):
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
+
+    def plot_matrix_event(self, event):
+        self.infoPanel.togglePlotMatrix(self.cbPlotMatrix.GetValue())
+        self.redraw_same_data()
 
     def redraw_event(self, event):
         self.redraw_same_data()
@@ -778,7 +785,11 @@ class PlotPanel(wx.Panel):
             print('Several Tabs, similar columns, TODO')
             self.plotData=[]
 
-    def _OnPlotMatrixClick(self, event):
+    def _OnPlotMatrixLeftClick(self, event):
+        """Toggle plot-states from None, to left-axis, to right-axis.
+            Left-click goes forwards, right-click goes backwards.
+            IndexError to avoid "holes" in matrix with outer adjacent populated entries
+        """
         btn = event.GetEventObject()
         label = btn.GetLabelText()
         if label == '-':
@@ -794,10 +805,27 @@ class PlotPanel(wx.Panel):
             try:
                 self.infoPanel.getPlotMatrix(self.plotData, self.cbSub.IsChecked())
             except IndexError:
-                # Matrix must not have "holes" with outer adjacent populated entries
                 btn.SetLabel('1')
         self.redraw_same_data()
 
+    def _OnPlotMatrixRightClick(self, event):
+        btn = event.GetEventObject()
+        label = btn.GetLabelText()
+        if label == '-':
+            btn.SetLabel('2')
+            try:
+                self.infoPanel.getPlotMatrix(self.plotData, self.cbSub.IsChecked())
+            except IndexError:
+                btn.SetLabel('-')
+        elif label == '1':
+            btn.SetLabel('-')
+            try:
+                self.infoPanel.getPlotMatrix(self.plotData, self.cbSub.IsChecked())
+            except IndexError:
+                btn.SetLabel('2')
+        else:
+            btn.SetLabel('1')
+        self.redraw_same_data()
 
     def plot_all(self):
         self.multiCursors=[]

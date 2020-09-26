@@ -379,6 +379,7 @@ class InfoPanel(wx.Panel):
         plot_matrix_sizer  = wx.FlexGridSizer(rows=1, cols=1, hgap=0, vgap=9)
         self.plotMatrixPanel= wx.Panel(self)
         self.plotMatrixPanel.SetSizer(plot_matrix_sizer)
+        self.plotMatrixPanel.Hide()
 
         sizer_plot_matrix.Add(plot_matrix_spacer     , 0, wx.TOP, border=0)
         sizer_plot_matrix.Add(self.plotMatrixPanel   , 0, wx.TOP, border=0)
@@ -456,12 +457,26 @@ class InfoPanel(wx.Panel):
         self.Thaw()
 
 
-    def setPlotMatrixCallback(self, callback):
-        self._OnPlotMatrixClick = callback
+    def setPlotMatrixCallbacks(self, callback_left, callback_right):
+        self._OnPlotMatrixLeftClick = callback_left
+        self._OnPlotMatrixRightClick = callback_right
 
-    def _OnClick(self, event):
-        self._OnPlotMatrixClick(event)
+    def _OnLeftClick(self, event):
+        self._OnPlotMatrixLeftClick(event)
+        self.Refresh()
 
+    def _OnRightClick(self, event):
+        self._OnPlotMatrixRightClick(event)
+        self.Refresh()
+
+    def togglePlotMatrix(self, visibility):
+        if visibility:
+            self.plotMatrixPanel.Show()
+        else:
+            self.plotMatrixPanel.Hide()
+        self.Layout()
+        self.Refresh()
+        self.Update()
 
     def setTabMode(self, mode):
         self.tab_mode = mode
@@ -485,7 +500,9 @@ class InfoPanel(wx.Panel):
                     buttonLabel = '1'
                     showButton = True
             btn = GenButton(self.plotMatrixPanel, label=buttonLabel, size=(BUTTON_SIZE, BUTTON_SIZE), style=wx.BU_EXACTFIT)
-            btn.Bind(wx.EVT_BUTTON, self._OnClick)
+            btn.Bind(wx.EVT_BUTTON, self._OnLeftClick)
+            btn.Bind(wx.EVT_CONTEXT_MENU, self._OnRightClick)
+            
             if showButton is False:
                 btn.Hide()
             plot_matrix_sizer.Add(btn)
@@ -493,7 +510,6 @@ class InfoPanel(wx.Panel):
         self.Layout()
         self.Refresh()
         self.Update()
-
 
     def getNumberOfSubplots(self, PD, sub):
         """Maximum length is len(PD).
