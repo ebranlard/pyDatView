@@ -299,12 +299,19 @@ class PlotPanel(wx.Panel):
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
+        self.leftMarker = None
+        self.rightMarker = None
+        self.leftMarkerLine = None
+        self.rightMarkerLine = None
+        self.leftMarkerAnot = None
+        self.rightMarkerAnot = None
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         #self.fig.set_tight_layout(True) 
         self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.98)
         self.canvas = FigureCanvas(self, -1, self.fig)
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
+        self.canvas.mpl_connect('button_press_event', self.onMouseClick)
 
         self.navTB = MyNavigationToolbar2Wx(self.canvas)
 
@@ -348,15 +355,34 @@ class PlotPanel(wx.Panel):
         self.ctrlPanel.SetSizer(cb_sizer)
         # --- Ctrl Panel
         crossHairPanel= wx.Panel(self)
-        self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x= ...      ')
-        self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y= ...      ')
-        self.lbCrossHairX.SetFont(getMonoFont(self))
-        self.lbCrossHairY.SetFont(getMonoFont(self))
-        cbCH  = wx.FlexGridSizer(rows=2, cols=1, hgap=2, vgap=0)
+        self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x = ...          ')
+        self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y = ...          ')
+        self.lbMarkerX1 = wx.StaticText(crossHairPanel, -1, '                 ')
+        self.lbMarkerX2 = wx.StaticText(crossHairPanel, -1, '                 ')
+        self.lbMarkerY1 = wx.StaticText(crossHairPanel, -1, '                 ')
+        self.lbMarkerY2 = wx.StaticText(crossHairPanel, -1, '                 ')
+        self.lbMarkerDeltaX = wx.StaticText(crossHairPanel, -1, '                 ')
+        self.lbMarkerDeltaY = wx.StaticText(crossHairPanel, -1, '                 ')
+        font = getMonoFont(self)
+        font.MakeSmaller()
+        self.lbCrossHairX.SetFont(font)
+        self.lbCrossHairY.SetFont(font)
+        self.lbMarkerX1.SetFont(font)
+        self.lbMarkerX2.SetFont(font)
+        self.lbMarkerY1.SetFont(font)
+        self.lbMarkerY2.SetFont(font)
+        self.lbMarkerDeltaX.SetFont(font)
+        self.lbMarkerDeltaY.SetFont(font)
+        cbCH  = wx.FlexGridSizer(rows=4, cols=2, hgap=2, vgap=0)
         cbCH.Add(self.lbCrossHairX   , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbMarkerDeltaX , 0, flag=wx.ALL, border=1)
         cbCH.Add(self.lbCrossHairY   , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbMarkerDeltaY , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbMarkerX1     , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbMarkerX2     , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbMarkerY1     , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbMarkerY2     , 0, flag=wx.ALL, border=1)
         crossHairPanel.SetSizer(cbCH)
-
 
         # --- layout of panels
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -369,7 +395,7 @@ class PlotPanel(wx.Panel):
         row_sizer.Add(sl3               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
         row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.ALL|wx.EXPAND|wx.CENTER , border=2)
         row_sizer.Add(sl4               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(crossHairPanel,0, flag=wx.EXPAND|wx.CENTER|wx.LEFT    , border=2)
+        row_sizer.Add(crossHairPanel    , 0 , flag=wx.ALL|wx.EXPAND|wx.CENTER|wx.LEFT, border=2)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
         self.slCtrl = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
@@ -446,14 +472,79 @@ class PlotPanel(wx.Panel):
     def onMouseMove(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
-            if abs(x)<1000 and abs(x)>1e-4:
-                self.lbCrossHairX.SetLabel("x={:10.5f}".format(x))
+            self.setMarkerLabel(self.lbCrossHairX, 'x ', x)
+            self.setMarkerLabel(self.lbCrossHairY, 'y ', y)
+
+    def onMouseClick(self, event):
+        for ax in self.fig.axes:
+            if event.inaxes == ax:
+                x, y = event.xdata, event.ydata
+                if event.button == 1:
+                    self.setMarker(ax, 'leftMarker', x, y, '1', 'firebrick')
+                elif event.button == 3:
+                    self.setMarker(ax, 'rightMarker', x, y, '2', 'darkgreen')
+                else:
+                    return
+                if self.leftMarker is not None:
+                    self.setMarkerLabel(self.lbMarkerX1, 'x1', self.leftMarker.get_xdata()[0])
+                    self.setMarkerLabel(self.lbMarkerY1, 'y1', self.leftMarker.get_ydata()[0])
+                if self.rightMarker is not None:
+                    self.setMarkerLabel(self.lbMarkerX2, 'x2', self.rightMarker.get_xdata()[0])
+                    self.setMarkerLabel(self.lbMarkerY2, 'y2', self.rightMarker.get_ydata()[0])
+                if self.leftMarker is not None and self.rightMarker is not None:
+                    self.setMarkerLabel(self.lbMarkerDeltaX, 'dx', self.rightMarker.get_xdata()[0] - self.leftMarker.get_xdata()[0])
+                    self.setMarkerLabel(self.lbMarkerDeltaY, 'dy', self.rightMarker.get_ydata()[0] - self.leftMarker.get_ydata()[0])
+                return
+
+    def clearMarker(self):
+        self.setMarkerLabel(self.lbMarkerX1, 'x1', '')
+        self.setMarkerLabel(self.lbMarkerY1, 'y1', '')
+        self.setMarkerLabel(self.lbMarkerX2, 'x2', '')
+        self.setMarkerLabel(self.lbMarkerY2, 'y2', '')
+        self.setMarkerLabel(self.lbMarkerDeltaX, 'dx', '')
+        self.setMarkerLabel(self.lbMarkerDeltaY, 'dy', '')
+        try:
+            self.leftMarker.remove()
+            self.leftMarkerLine.remove()
+            self.leftMarkerAnot.remove()
+        except AttributeError:
+            pass
+        try:
+            self.rightMarker.remove()
+            self.rightMarkerLine.remove()
+            self.rightMarkerAnot.remove()
+        except AttributeError:
+            pass    
+        self.leftMarker = None
+        self.rightMarker = None
+        self.leftMarkerLine = None
+        self.rightMarkerLine = None
+
+    def setMarker(self, ax, marker_ref, x, y, annotation, color):
+        if ((self.leftMarker is not None and ax != self.leftMarker.axes) or
+            (self.rightMarker is not None and ax != self.rightMarker.axes)):
+            self.clearMarker()
+        try:
+            marker = getattr(self, marker_ref)
+            markerLine = getattr(self, marker_ref + 'Line')
+            markerAnot = getattr(self, marker_ref + 'Anot')
+            marker.set_data([x],[y])
+            markerLine.set_data([x, x], [0, 1])
+            markerAnot.set_x(x)
+            markerAnot.set_y(y)
+        except AttributeError:            
+            setattr(self, marker_ref, ax.plot(x, y, color=color, marker='o', markersize=1)[0])
+            setattr(self, marker_ref + 'Line', ax.axvline(x=x, color=color, linewidth=0.5))
+            setattr(self, marker_ref + 'Anot', ax.annotate(annotation, (x, y), color=color))
+
+    def setMarkerLabel(self, label, label_text, value):
+        try:
+            if abs(value)<1000 and abs(value)>1e-4:
+                label.SetLabel('{:.3}={:10.5f}'.format(label_text, value))
             else:
-                self.lbCrossHairX.SetLabel("x={:10.3e}".format(x))
-            if abs(y)<1000 and abs(y)>1e-4:
-                self.lbCrossHairY.SetLabel("y={:10.5f}".format(y))
-            else:
-                self.lbCrossHairY.SetLabel("y={:10.3e}".format(y))
+                label.SetLabel('{:.3}={:10.3e}'.format(label_text, value))
+        except TypeError:
+            label.SetLabel('                '.format(label_text))
 
     def removeTools(self,event=None,Layout=True):
         try:
@@ -783,6 +874,8 @@ class PlotPanel(wx.Panel):
 
     def plot_all(self):
         self.multiCursors=[]
+        self.clearMarker()
+
         axes=self.fig.axes
 
         bScatter=self.cbScatter.IsChecked()
