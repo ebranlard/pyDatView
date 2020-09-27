@@ -502,11 +502,11 @@ class PlotPanel(wx.Panel):
                         # Ignore zoom-actions. Possibly add small tolerance.
                         return
                     if event.button == 1:
-                        self.infoPanel.setMeasurements(x, None)
+                        self.infoPanel.setMeasurements((x, y), None)
                         self.leftMeasure.set(ax_idx, x, y)
                         self.leftMeasure.plot(ax, ax_idx)
                     elif event.button == 3:
-                        self.infoPanel.setMeasurements(None, x)
+                        self.infoPanel.setMeasurements(None, (x, y))
                         self.rightMeasure.set(ax_idx, x, y)
                         self.rightMeasure.plot(ax, ax_idx)
                     else:

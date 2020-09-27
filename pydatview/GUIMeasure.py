@@ -40,24 +40,19 @@ class GUIMeasure:
             pass
 
         # Hook annotation to closest on signal
-        x = self.x
-        y = self.y
-        y_closest = y
+        x_closest = self.x
+        y_closest = self.y
         rdist_min = 1e9
         for line in ax.get_lines():
             # TODO: check if 'if'can be avoided by using len(PD):
-            if str(line).startswith('_line') is False:
-                try:
-                    indx = np.searchsorted(line.get_xdata(), [self.x])[0]
-                    x = line.get_xdata()[indx]
-                    y = line.get_ydata()[indx]
-                except IndexError:
-                    continue
-                rdist = abs(x - self.x) + abs(y - self.y)
-                if rdist < rdist_min:
-                    rdist_min = rdist
-                    x_closest = x
-                    y_closest = y
+            if str(line).startswith('Line2D(_line') is False:
+                xy = np.array([line.get_xdata(), line.get_ydata()]).transpose()
+                for (x, y) in xy:
+                    rdist = abs(x - self.x) + abs(y - self.y)
+                    if rdist < rdist_min:
+                        rdist_min = rdist
+                        x_closest = x
+                        y_closest = y
         self.x = x_closest
         self.y = y_closest
 
@@ -78,10 +73,15 @@ class GUIMeasure:
 
 def formatValue(value):
     try:
-        if abs(value)<1000 and abs(value)>1e-4:
+        if abs(value) < 1000 and abs(value) > 1e-4:
             s = '{:.4f}'.format(value)
         else:
             s = '{:.3e}'.format(value)
     except TypeError:
         s = ''
     return s
+
+
+def find_closest(matrix, vector):
+    indx = np.array([np.linalg.norm(x+y) for (x, y) in matrix-vector]).argmin()
+    return matrix[indx]

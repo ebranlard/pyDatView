@@ -146,12 +146,19 @@ def intyx2(pd):
         s=pretty_num(v)
     return v,s
 
-def meas(pd, x):
+def meas(pd, xymeas):
     try:
-        indx = np.searchsorted(pd.x, [x])[0]
-        v=pd.y[indx]
+        y_closest='NA'
+        xy = np.array([pd.x, pd.y]).transpose()
+        rdist_min = 1e9
+        for (x, y) in xy:
+            rdist = abs(x - xymeas[0]) + abs(y - xymeas[1])
+            if rdist < rdist_min:
+                rdist_min = rdist
+                y_closest = y
+        v=y_closest
         s=pretty_num(v)
-    except IndexError:
+    except (IndexError, TypeError):
         v='NA'
         s='NA'
     return v,s
@@ -342,6 +349,8 @@ class InfoPanel(wx.Panel):
         self.ColsPDF.append({'name':'Min(PDF)'      , 'al':'R' , 'f':yMin   , 's' :True})
         self.ColsPDF.append({'name':'Max(PDF)'      , 'al':'R' , 'f':yMax   , 's' :True})
         self.ColsPDF.append({'name':u'\u222By(PDF)' , 'al':'R' , 'f':inty   , 's' :True})
+        self.ColsPDF.append({'name':'Meas 1'        , 'al':'R' , 'f':meas   , 's' :False})
+        self.ColsPDF.append({'name':'Meas 2'        , 'al':'R' , 'f':meas   , 's' :False})
         self.ColsPDF.append({'name':'n(PDF)'        , 'al':'R' , 'f':ylen   , 's' :True})
         self.ColsCmp=[]
         self.ColsCmp.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
@@ -370,8 +379,8 @@ class InfoPanel(wx.Panel):
         self.PD=[]
         self.tab_mode = None
         self.last_sub = False
-        self.measX1 = np.NaN
-        self.measX2 = np.NaN
+        self.measXY1 = (np.NaN, np.NaN)
+        self.measXY2 = (np.NaN, np.NaN)
 
         #self.bt = wx.Button(self, -1, u'\u22EE',style=wx.BU_EXACTFIT)
         self.bt = wx.Button(self, -1, u'\u2630',style=wx.BU_EXACTFIT)
@@ -457,9 +466,9 @@ class InfoPanel(wx.Panel):
             for j,c in enumerate(selCols):
                 # TODO: could be nicer:
                 if c['name'] == 'Meas 1':
-                    v,sv=c['f'](pd, self.measX1)
+                    v,sv=c['f'](pd, self.measXY1)
                 elif c['name'] == 'Meas 2':
-                    v,sv=c['f'](pd, self.measX2)
+                    v,sv=c['f'](pd, self.measXY2)
                 else:
                     v,sv=c['f'](pd)
                 try:
@@ -582,12 +591,12 @@ class InfoPanel(wx.Panel):
             plot_matrix = None
         return plot_matrix
 
-    def setMeasurements(self, x1, x2):
+    def setMeasurements(self, xy1, xy2):
         # TODO: auto add columns when in Measure-mode?
-        if x1 is not None:
-            self.measX1 = x1
-        if x2 is not None:
-            self.measX2 = x2
+        if xy1 is not None:
+            self.measXY1 = xy1
+        if xy2 is not None:
+            self.measXY2 = xy2
         self._showStats()
 
     def clean(self):
