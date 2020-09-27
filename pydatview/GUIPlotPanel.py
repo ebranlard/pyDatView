@@ -38,6 +38,7 @@ from .common import *
 from .GUICommon import * 
 from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
 from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel, CurveFitToolPanel
+from .GUIMeasure import GUIMeasure
 #     from spectral import fft_wrap
 
 font = {'size'   : 8}
@@ -293,19 +294,15 @@ class PlotPanel(wx.Panel):
         # data
         self.selPanel = selPanel
         self.infoPanel=infoPanel
-        self.infoPanel.setPlotMatrixCallbacks(self._OnPlotMatrixLeftClick, self._OnPlotMatrixRightClick)
+        self.infoPanel.setPlotMatrixCallbacks(self._onPlotMatrixLeftClick, self._onPlotMatrixRightClick)
         self.parent   = parent
         self.mainframe= mainframe
         self.plotData = []
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
-        self.leftMarker = None
-        self.rightMarker = None
-        self.leftMarkerLine = None
-        self.rightMarkerLine = None
-        self.leftMarkerAnot = None
-        self.rightMarkerAnot = None
+        self.leftMeasure = GUIMeasure(1, 'firebrick')
+        self.rightMeasure = GUIMeasure(2, 'darkgreen')
         self.xlim_prev = [[0, 1]]
         self.ylim_prev = [[0, 1]]
         # GUI
@@ -315,6 +312,8 @@ class PlotPanel(wx.Panel):
         self.canvas = FigureCanvas(self, -1, self.fig)
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
         self.canvas.mpl_connect('button_press_event', self.onMouseClick)
+        self.canvas.mpl_connect('button_release_event', self.onMouseRelease)
+        self.clickLocation = (None, 0, 0)
 
         self.navTB = MyNavigationToolbar2Wx(self.canvas)
 
@@ -342,7 +341,7 @@ class PlotPanel(wx.Panel):
         self.cbAutoScale  = wx.CheckBox(self.ctrlPanel, -1, 'AutoScale',(10,10))
         self.cbGrid       = wx.CheckBox(self.ctrlPanel, -1, 'Grid',(10,10))
         self.cbStepPlot   = wx.CheckBox(self.ctrlPanel, -1, 'StepPlot',(10,10))
-        self.cbMarker     = wx.CheckBox(self.ctrlPanel, -1, 'Marker',(10,10))
+        self.cbMeasure    = wx.CheckBox(self.ctrlPanel, -1, 'Measure',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.cbXHair.SetValue(True) # Have cross hair by default
@@ -357,21 +356,9 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbAutoScale )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbGrid )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbStepPlot )
-        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbMarker )
+        self.Bind(wx.EVT_CHECKBOX, self.measure_select   , self.cbMeasure )
         # LAYOUT
         cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=2, vgap=0)
-        # cb_sizer.Add(self.cbScatter     , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbSub         , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbLogX        , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbLogY        , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbSync        , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbXHair       , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbPlotMatrix  , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbAutoScale   , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbGrid        , 0, flag=wx.ALL, border=1)
-        # cb_sizer.Add(self.cbStepPlot    , 0, flag=wx.ALL, border=1)
-
-
         cb_sizer.Add(self.cbScatter   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub       , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbAutoScale , 0, flag=wx.ALL, border=1)
@@ -382,38 +369,24 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbXHair     , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbGrid      , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbPlotMatrix, 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbMarker    , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbMeasure   , 0, flag=wx.ALL, border=1)
 
         self.ctrlPanel.SetSizer(cb_sizer)
         # --- Ctrl Panel
         crossHairPanel= wx.Panel(self)
         self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x = ...       ')
         self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y = ...       ')
-        self.lbMarkerX1 = wx.StaticText(crossHairPanel, -1, '              ')
-        self.lbMarkerX2 = wx.StaticText(crossHairPanel, -1, '              ')
-        self.lbMarkerY1 = wx.StaticText(crossHairPanel, -1, '              ')
-        self.lbMarkerY2 = wx.StaticText(crossHairPanel, -1, '              ')
-        self.lbMarkerDeltaX = wx.StaticText(crossHairPanel, -1, '              ')
-        self.lbMarkerDeltaY = wx.StaticText(crossHairPanel, -1, '              ')
-        font = getMonoFont(self)
-        font.MakeSmaller()
-        self.lbCrossHairX.SetFont(font)
-        self.lbCrossHairY.SetFont(font)
-        self.lbMarkerX1.SetFont(font)
-        self.lbMarkerX2.SetFont(font)
-        self.lbMarkerY1.SetFont(font)
-        self.lbMarkerY2.SetFont(font)
-        self.lbMarkerDeltaX.SetFont(font)
-        self.lbMarkerDeltaY.SetFont(font)
-        cbCH  = wx.FlexGridSizer(rows=4, cols=2, hgap=2, vgap=0)
+        self.lbDeltaX = wx.StaticText(crossHairPanel,     -1, '              ')
+        self.lbDeltaY = wx.StaticText(crossHairPanel,     -1, '              ')
+        self.lbCrossHairX.SetFont(getMonoFont(self))
+        self.lbCrossHairY.SetFont(getMonoFont(self))
+        self.lbDeltaX.SetFont(getMonoFont(self))
+        self.lbDeltaY.SetFont(getMonoFont(self))
+        cbCH  = wx.FlexGridSizer(rows=4, cols=1, hgap=0, vgap=0)
         cbCH.Add(self.lbCrossHairX   , 0, flag=wx.ALL, border=1)
-        cbCH.Add(self.lbMarkerDeltaX , 0, flag=wx.ALL, border=1)
         cbCH.Add(self.lbCrossHairY   , 0, flag=wx.ALL, border=1)
-        cbCH.Add(self.lbMarkerDeltaY , 0, flag=wx.ALL, border=1)
-        cbCH.Add(self.lbMarkerX1     , 0, flag=wx.ALL, border=1)
-        cbCH.Add(self.lbMarkerX2     , 0, flag=wx.ALL, border=1)
-        cbCH.Add(self.lbMarkerY1     , 0, flag=wx.ALL, border=1)
-        cbCH.Add(self.lbMarkerY2     , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbDeltaX       , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbDeltaY       , 0, flag=wx.ALL, border=1)
         crossHairPanel.SetSizer(cbCH)
 
         # --- layout of panels
@@ -453,6 +426,11 @@ class PlotPanel(wx.Panel):
 
     def plot_matrix_select(self, event):
         self.infoPanel.togglePlotMatrix(self.cbPlotMatrix.GetValue())
+        self.redraw_same_data()
+
+    def measure_select(self, event):
+        if self.cbMeasure.IsChecked():
+            self.cbAutoScale.SetValue(False)
         self.redraw_same_data()
 
     def redraw_event(self, event):
@@ -508,85 +486,48 @@ class PlotPanel(wx.Panel):
     def onMouseMove(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
-            self.setMarkerLabel(self.lbCrossHairX, 'x ', x)
-            self.setMarkerLabel(self.lbCrossHairY, 'y ', y)
+            self.lbCrossHairX.SetLabel('x =' + self.formatLabelValue(x))
+            self.lbCrossHairY.SetLabel('y =' + self.formatLabelValue(y)) 
         self._store_limits()
 
     def onMouseClick(self, event):
-        if self.cbMarker.GetValue():
-            for ax in self.fig.axes:
+        self.clickLocation = (event.inaxes, event.xdata, event.ydata)
+
+    def onMouseRelease(self, event):
+        if self.cbMeasure.GetValue():
+            for ax, ax_idx in zip(self.fig.axes, range(len(self.fig.axes))):
                 if event.inaxes == ax:
                     x, y = event.xdata, event.ydata
+                    if self.clickLocation != (ax, x, y):
+                        # Ignore zoom-actions. Possibly add small tolerance.
+                        return
                     if event.button == 1:
-                        self.setMarker(ax, 'leftMarker', x, y, '1', 'firebrick')
+                        self.infoPanel.setMeasurements(x, None)
+                        self.leftMeasure.set(ax_idx, x, y)
+                        self.leftMeasure.plot(ax, ax_idx)
                     elif event.button == 3:
-                        self.setMarker(ax, 'rightMarker', x, y, '2', 'darkgreen')
+                        self.infoPanel.setMeasurements(None, x)
+                        self.rightMeasure.set(ax_idx, x, y)
+                        self.rightMeasure.plot(ax, ax_idx)
                     else:
                         return
-                    if self.leftMarker is not None:
-                        self.setMarkerLabel(self.lbMarkerX1, 'x1', self.leftMarker.get_xdata()[0])
-                        self.setMarkerLabel(self.lbMarkerY1, 'y1', self.leftMarker.get_ydata()[0])
-                    if self.rightMarker is not None:
-                        self.setMarkerLabel(self.lbMarkerX2, 'x2', self.rightMarker.get_xdata()[0])
-                        self.setMarkerLabel(self.lbMarkerY2, 'y2', self.rightMarker.get_ydata()[0])
-                    if self.leftMarker is not None and self.rightMarker is not None:
-                        self.setMarkerLabel(self.lbMarkerDeltaX, 'dx', self.rightMarker.get_xdata()[0] - self.leftMarker.get_xdata()[0])
-                        self.setMarkerLabel(self.lbMarkerDeltaY, 'dy', self.rightMarker.get_ydata()[0] - self.leftMarker.get_ydata()[0])
+                    if self.leftMeasure.axis_idx == self.rightMeasure.axis_idx and self.leftMeasure.axis_idx != -1:
+                        self.lbDeltaX.SetLabel('dx=' + self.formatLabelValue(self.rightMeasure.x - self.leftMeasure.x))
+                        self.lbDeltaY.SetLabel('dy=' + self.formatLabelValue(self.rightMeasure.y - self.leftMeasure.y))
+                    else:
+                        self.lbDeltaX.SetLabel('')
+                        self.lbDeltaY.SetLabel('')
                     return
 
-    def clearMarker(self):
-        try:
-            self.leftMarker.remove()
-            self.leftMarkerLine.remove()
-            self.leftMarkerAnot.remove()
-        except AttributeError:
-            pass
-        try:
-            self.rightMarker.remove()
-            self.rightMarkerLine.remove()
-            self.rightMarkerAnot.remove()
-        except AttributeError:
-            pass
-        self.leftMarker = None
-        self.rightMarker = None
-        self.leftMarkerLine = None
-        self.rightMarkerLine = None
-        self.setMarkerLabel(self.lbMarkerX1, 'x1', '')
-        self.setMarkerLabel(self.lbMarkerY1, 'y1', '')
-        self.setMarkerLabel(self.lbMarkerX2, 'x2', '')
-        self.setMarkerLabel(self.lbMarkerY2, 'y2', '')
-        self.setMarkerLabel(self.lbMarkerDeltaX, 'dx', '')
-        self.setMarkerLabel(self.lbMarkerDeltaY, 'dy', '')
-
-    def setMarker(self, ax, marker_ref, x, y, annotation, color):
-        if ((self.leftMarker is not None and ax != self.leftMarker.axes) or
-            (self.rightMarker is not None and ax != self.rightMarker.axes)):
-            self.clearMarker()
-        try:
-            marker = getattr(self, marker_ref)
-            markerLine = getattr(self, marker_ref + 'Line')
-            markerAnot = getattr(self, marker_ref + 'Anot')
-            marker.set_data([x],[y])
-            markerLine.set_data([x, x], [0, 1])
-            markerAnot.set_x(x)
-            markerAnot.set_y(y)
-        except AttributeError:            
-            setattr(self, marker_ref, ax.plot(x, y, color=color, marker='o', markersize=1)[0])
-            setattr(self, marker_ref + 'Line', ax.axvline(x=x, color=color, linewidth=0.5))
-            setattr(self, marker_ref + 'Anot', ax.annotate(annotation, (x, y), color=color))
-        if self.cbAutoScale.IsChecked() is False:
-            for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
-                ax.set_xlim(xlim)
-                ax.set_ylim(ylim)
-
-    def setMarkerLabel(self, label, label_text, value):
+    def formatLabelValue(self, value):
         try:
             if abs(value)<1000 and abs(value)>1e-4:
-                label.SetLabel('{:.2}={:11.5f}'.format(label_text, value))
+                s = '{:10.5f}'.format(value)
             else:
-                label.SetLabel('{:.2}={:11.3e}'.format(label_text, value))
+                s = '{:10.3e}'.format(value)
         except TypeError:
-            label.SetLabel('              '.format(label_text))
+            s = '            '
+        return s
 
     def removeTools(self,event=None,Layout=True):
         try:
@@ -911,7 +852,7 @@ class PlotPanel(wx.Panel):
             print('Several Tabs, similar columns, TODO')
             self.plotData=[]
 
-    def _OnPlotMatrixLeftClick(self, event):
+    def _onPlotMatrixLeftClick(self, event):
         """Toggle plot-states from None, to left-axis, to right-axis.
             Left-click goes forwards, right-click goes backwards.
             IndexError to avoid "holes" in matrix with outer adjacent populated entries
@@ -934,7 +875,7 @@ class PlotPanel(wx.Panel):
                 btn.SetLabel('1')
         self.redraw_same_data()
 
-    def _OnPlotMatrixRightClick(self, event):
+    def _onPlotMatrixRightClick(self, event):
         btn = event.GetEventObject()
         label = btn.GetLabelText()
         if label == '-':
@@ -955,7 +896,13 @@ class PlotPanel(wx.Panel):
 
     def plot_all(self, keep_limits=True):
         self.multiCursors=[]
-        self.clearMarker()
+
+        if self.cbMeasure.GetValue() is False:
+            for measure in [self.leftMeasure, self.rightMeasure]:
+                measure.clear()
+                self.infoPanel.setMeasurements(np.NaN, np.NaN)
+                self.lbDeltaX.SetLabel('')
+                self.lbDeltaY.SetLabel('')
 
         axes=self.fig.axes
 
@@ -973,6 +920,7 @@ class PlotPanel(wx.Panel):
             font_options_legd = {}
 
         for ax_left, axis_idx in zip(axes, range(len(axes))):
+
             ax_right = None
             # Plot data
             vDate=[PD[i].yIsDate for i in ax_left.iPD]
@@ -999,6 +947,9 @@ class PlotPanel(wx.Panel):
             pm = self.infoPanel.getPlotMatrix(PD, self.cbSub.IsChecked())
             __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bScatter, bStep)
             ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bScatter, bStep)
+
+            for measure in [self.leftMeasure, self.rightMeasure]:
+                measure.plot(ax_left, axis_idx)
 
             # Log Axes
             if self.cbLogX.IsChecked():
@@ -1295,6 +1246,13 @@ class PlotPanel(wx.Panel):
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
+        elif len(self.plotData) == 1 and self.cbMeasure.GetValue() is False:
+            self.cbAutoScale.SetValue(True)
+            # Force autoscale when only plotting a single signal?
+            # self.cbAutoScale.Disable()
+        else:
+            # self.cbAutoScale.Enable()
+            pass
 
         mode=self.findPlotMode(self.plotData)
         nPlots,spreadBy=self.findSubPlots(self.plotData,mode)
@@ -1307,6 +1265,7 @@ class PlotPanel(wx.Panel):
             self.setLegendLabels(mode)
 
         self.plot_all(keep_limits)
+        # self.replotMeasurements()
         self.canvas.draw()
         self._store_limits()
 
