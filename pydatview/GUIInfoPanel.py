@@ -146,6 +146,24 @@ def intyx2(pd):
         s=pretty_num(v)
     return v,s
 
+def meas(pd, xymeas):
+    try:
+        y_closest='NA'
+        xy = np.array([pd.x, pd.y]).transpose()
+        rdist_min = 1e9
+        for (x, y) in xy:
+            rdist = abs(x - xymeas[0]) + abs(y - xymeas[1])
+            if rdist < rdist_min:
+                rdist_min = rdist
+                y_closest = y
+        v=y_closest
+        s=pretty_num(v)
+    except (IndexError, TypeError):
+        v='NA'
+        s='NA'
+    return v,s
+
+
 def dx(pd):
     if len(pd.x)<=1:
         return 'NA','NA'
@@ -256,6 +274,8 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'Max'          , 'al':'R' , 'f':y0Max   , 's' :True})
         self.ColsReg.append({'name':'Range'        , 'al':'R' , 'f':yRange , 's' :True})
         self.ColsReg.append({'name':'dx'           , 'al':'R' , 'f':dx     , 's' :True})
+        self.ColsReg.append({'name':'Meas 1'       , 'al':'R' , 'f':meas   , 's' :False})
+        self.ColsReg.append({'name':'Meas 2'       , 'al':'R' , 'f':meas   , 's' :False})
         self.ColsReg.append({'name':'xMin'         , 'al':'R' , 'f':xMin   , 's' :False})
         self.ColsReg.append({'name':'xMax'         , 'al':'R' , 'f':xMax   , 's' :False})
         self.ColsReg.append({'name':'xRange'       , 'al':'R' , 'f':xRange , 's' :False})
@@ -295,6 +315,8 @@ class InfoPanel(wx.Panel):
         self.ColsFFT.append({'name':'nWin(FFT)'     , 'al':'R' , 'f':lambda x:Info(x,'LWin')  , 's' :False})
         self.ColsFFT.append({'name':'nFFT(FFT)'     , 'al':'R' , 'f':lambda x:Info(x,'nFFT')  , 's' :False})
         self.ColsFFT.append({'name':'n(FFT)'        , 'al':'R' , 'f':ylen   , 's' :True})
+        self.ColsFFT.append({'name':'Meas 1'        , 'al':'R' , 'f':meas   , 's' :False})
+        self.ColsFFT.append({'name':'Meas 2'        , 'al':'R' , 'f':meas   , 's' :False})
         self.ColsFFT.append({'name':'n     '        , 'al':'R' , 'f':n0     , 's' :True})
         self.ColsMinMax=[]
         self.ColsMinMax.append({'name':'Directory'                  , 'al':'L' , 'f':baseDir , 's':False})
@@ -327,6 +349,8 @@ class InfoPanel(wx.Panel):
         self.ColsPDF.append({'name':'Min(PDF)'      , 'al':'R' , 'f':yMin   , 's' :True})
         self.ColsPDF.append({'name':'Max(PDF)'      , 'al':'R' , 'f':yMax   , 's' :True})
         self.ColsPDF.append({'name':u'\u222By(PDF)' , 'al':'R' , 'f':inty   , 's' :True})
+        self.ColsPDF.append({'name':'Meas 1'        , 'al':'R' , 'f':meas   , 's' :False})
+        self.ColsPDF.append({'name':'Meas 2'        , 'al':'R' , 'f':meas   , 's' :False})
         self.ColsPDF.append({'name':'n(PDF)'        , 'al':'R' , 'f':ylen   , 's' :True})
         self.ColsCmp=[]
         self.ColsCmp.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
@@ -355,6 +379,8 @@ class InfoPanel(wx.Panel):
         self.PD=[]
         self.tab_mode = None
         self.last_sub = False
+        self.measXY1 = (np.NaN, np.NaN)
+        self.measXY2 = (np.NaN, np.NaN)
 
         #self.bt = wx.Button(self, -1, u'\u22EE',style=wx.BU_EXACTFIT)
         self.bt = wx.Button(self, -1, u'\u2630',style=wx.BU_EXACTFIT)
@@ -438,7 +464,13 @@ class InfoPanel(wx.Panel):
         index = self.tbStats.GetItemCount()
         for pd in self.PD:
             for j,c in enumerate(selCols):
-                v,sv=c['f'](pd)
+                # TODO: could be nicer:
+                if c['name'] == 'Meas 1':
+                    v,sv=c['f'](pd, self.measXY1)
+                elif c['name'] == 'Meas 2':
+                    v,sv=c['f'](pd, self.measXY2)
+                else:
+                    v,sv=c['f'](pd)
                 try:
                     if j==0:
                         self.tbStats.InsertItem(index,  sv)
@@ -458,15 +490,15 @@ class InfoPanel(wx.Panel):
 
 
     def setPlotMatrixCallbacks(self, callback_left, callback_right):
-        self._OnPlotMatrixLeftClick = callback_left
-        self._OnPlotMatrixRightClick = callback_right
+        self._onPlotMatrixLeftClick = callback_left
+        self._onPlotMatrixRightClick = callback_right
 
-    def _OnLeftClick(self, event):
-        self._OnPlotMatrixLeftClick(event)
+    def _onLeftClick(self, event):
+        self._onPlotMatrixLeftClick(event)
         self.Refresh()
 
-    def _OnRightClick(self, event):
-        self._OnPlotMatrixRightClick(event)
+    def _onRightClick(self, event):
+        self._onPlotMatrixRightClick(event)
         self.Refresh()
 
     def togglePlotMatrix(self, visibility):
@@ -500,8 +532,8 @@ class InfoPanel(wx.Panel):
                     buttonLabel = '1'
                     showButton = True
             btn = GenButton(self.plotMatrixPanel, label=buttonLabel, size=(BUTTON_SIZE, BUTTON_SIZE), style=wx.BU_EXACTFIT)
-            btn.Bind(wx.EVT_BUTTON, self._OnLeftClick)
-            btn.Bind(wx.EVT_CONTEXT_MENU, self._OnRightClick)
+            btn.Bind(wx.EVT_BUTTON, self._onLeftClick)
+            btn.Bind(wx.EVT_CONTEXT_MENU, self._onRightClick)
             
             if showButton is False:
                 btn.Hide()
@@ -558,6 +590,14 @@ class InfoPanel(wx.Panel):
             self.getNumberOfSubplots([], sub)
             plot_matrix = None
         return plot_matrix
+
+    def setMeasurements(self, xy1, xy2):
+        # TODO: auto add columns when in Measure-mode?
+        if xy1 is not None:
+            self.measXY1 = xy1
+        if xy2 is not None:
+            self.measXY2 = xy2
+        self._showStats()
 
     def clean(self):
         self.tbStats.DeleteAllItems()
