@@ -925,7 +925,6 @@ class PlotPanel(wx.Panel):
             font_options_legd = {}
 
         for ax_left, axis_idx in zip(axes, range(len(axes))):
-
             ax_right = None
             # Plot data
             vDate=[PD[i].yIsDate for i in ax_left.iPD]
