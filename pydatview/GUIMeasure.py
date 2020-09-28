@@ -47,12 +47,12 @@ class GUIMeasure:
             # TODO: check if 'if'can be avoided by using len(PD):
             if str(line).startswith('Line2D(_line') is False:
                 xy = np.array([line.get_xdata(), line.get_ydata()]).transpose()
-                for (x, y) in xy:
-                    rdist = abs(x - self.x) + abs(y - self.y)
-                    if rdist < rdist_min:
-                        rdist_min = rdist
-                        x_closest = x
-                        y_closest = y
+                x, y = find_closest(xy, [self.x, self.y])
+                rdist = abs(x - self.x) + abs(y - self.y)
+                if rdist < rdist_min:
+                    rdist_min = rdist
+                    x_closest = x
+                    y_closest = y
         self.x = x_closest
         self.y = y_closest
 
@@ -83,5 +83,5 @@ def formatValue(value):
 
 
 def find_closest(matrix, vector):
-    indx = np.array([np.linalg.norm(x+y) for (x, y) in matrix-vector]).argmin()
+    indx = np.array([np.linalg.norm([x, y]) for (x, y) in matrix-vector]).argmin()
     return matrix[indx]

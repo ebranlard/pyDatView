@@ -499,7 +499,9 @@ class PlotPanel(wx.Panel):
                 if event.inaxes == ax:
                     x, y = event.xdata, event.ydata
                     if self.clickLocation != (ax, x, y):
-                        # Ignore zoom-actions. Possibly add small tolerance.
+                        # Ignore measurements for zoom-actions. Possibly add small tolerance.
+                        # Zoom-actions disable autoscale
+                        self.cbAutoScale.SetValue(False)
                         return
                     if event.button == 1:
                         self.infoPanel.setMeasurements((x, y), None)
@@ -511,6 +513,9 @@ class PlotPanel(wx.Panel):
                         self.rightMeasure.plot(ax, ax_idx)
                     else:
                         return
+                    if self.cbAutoScale.IsChecked() is False:
+                        self._restore_limits()
+                        
                     if self.leftMeasure.axis_idx == self.rightMeasure.axis_idx and self.leftMeasure.axis_idx != -1:
                         self.lbDeltaX.SetLabel('dx=' + self.formatLabelValue(self.rightMeasure.x - self.leftMeasure.x))
                         self.lbDeltaY.SetLabel('dy=' + self.formatLabelValue(self.rightMeasure.y - self.leftMeasure.y))
@@ -973,9 +978,7 @@ class PlotPanel(wx.Panel):
                 except:
                     pass
             elif self.cbAutoScale.IsChecked() is False and keep_limits:
-                for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
-                    ax.set_xlim(xlim)
-                    ax.set_ylim(ylim)
+                self._restore_limits()
 
             ax_left.grid(self.cbGrid.IsChecked())
 
@@ -1246,13 +1249,16 @@ class PlotPanel(wx.Panel):
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
-        elif len(self.plotData) == 1 and self.cbMeasure.GetValue() is False:
-            self.cbAutoScale.SetValue(True)
-            # Force autoscale when only plotting a single signal?
-            # self.cbAutoScale.Disable()
-        else:
-            # self.cbAutoScale.Enable()
-            pass
+        # elif len(self.plotData) == 1 and self.cbMeasure.GetValue() is False:
+        elif len(self.plotData) == 1:
+            # If single signal view is out of range, enable autoscale (could be regardless of cbMeasure?)
+            for (x, y) in np.array([self.plotData[0].x, self.plotData[0].y]).transpose():
+                if (self.xlim_prev[0][0] < x and x < self.xlim_prev[0][1] and
+                    self.ylim_prev[0][0] < y and y < self.ylim_prev[0][1]):
+                    break
+            else:
+                self.cbAutoScale.SetValue(True)
+                # Possibly clear measures here?
 
         mode=self.findPlotMode(self.plotData)
         nPlots,spreadBy=self.findSubPlots(self.plotData,mode)
@@ -1290,6 +1296,11 @@ class PlotPanel(wx.Panel):
         for ax in self.fig.axes:
             self.xlim_prev.append(ax.get_xlim())
             self.ylim_prev.append(ax.get_ylim())
+
+    def _restore_limits(self):
+        for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
 
 
 if __name__ == '__main__':

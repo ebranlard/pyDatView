@@ -9,7 +9,7 @@ except:
     from common import *
     from GUICommon import *
     from fatigue import eq_load
-
+from .GUIMeasure import find_closest
 from .fatigue import eq_load
 # --------------------------------------------------------------------------------}
 # --- InfoPanel 
@@ -148,15 +148,9 @@ def intyx2(pd):
 
 def meas(pd, xymeas):
     try:
-        y_closest='NA'
+        v='NA'
         xy = np.array([pd.x, pd.y]).transpose()
-        rdist_min = 1e9
-        for (x, y) in xy:
-            rdist = abs(x - xymeas[0]) + abs(y - xymeas[1])
-            if rdist < rdist_min:
-                rdist_min = rdist
-                y_closest = y
-        v=y_closest
+        __, v = find_closest(xy, [xymeas[0], xymeas[1]])
         s=pretty_num(v)
     except (IndexError, TypeError):
         v='NA'
