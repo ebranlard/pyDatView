@@ -905,7 +905,7 @@ class PlotPanel(wx.Panel):
         if self.cbMeasure.GetValue() is False:
             for measure in [self.leftMeasure, self.rightMeasure]:
                 measure.clear()
-                self.infoPanel.setMeasurements(np.NaN, np.NaN)
+                self.infoPanel.setMeasurements(None, None)
                 self.lbDeltaX.SetLabel('')
                 self.lbDeltaY.SetLabel('')
 
@@ -952,6 +952,7 @@ class PlotPanel(wx.Panel):
             __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bScatter, bStep)
             ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bScatter, bStep)
 
+            self.infoPanel.setMeasurements(self.leftMeasure.get_xydata(), self.rightMeasure.get_xydata())
             for measure in [self.leftMeasure, self.rightMeasure]:
                 measure.plot(ax_left, axis_idx)
 
@@ -1248,7 +1249,6 @@ class PlotPanel(wx.Panel):
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
-        # elif len(self.plotData) == 1 and self.cbMeasure.GetValue() is False:
         elif len(self.plotData) == 1:
             # If single signal view is out of range, enable autoscale (could be regardless of cbMeasure?)
             for (x, y) in np.array([self.plotData[0].x, self.plotData[0].y]).transpose():
@@ -1257,7 +1257,6 @@ class PlotPanel(wx.Panel):
                     break
             else:
                 self.cbAutoScale.SetValue(True)
-                # Possibly clear measures here?
 
         mode=self.findPlotMode(self.plotData)
         nPlots,spreadBy=self.findSubPlots(self.plotData,mode)
@@ -1270,7 +1269,6 @@ class PlotPanel(wx.Panel):
             self.setLegendLabels(mode)
 
         self.plot_all(keep_limits)
-        # self.replotMeasurements()
         self.canvas.draw()
         self._store_limits()
 

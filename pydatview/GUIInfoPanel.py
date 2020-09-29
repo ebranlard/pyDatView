@@ -11,6 +11,7 @@ except:
     from fatigue import eq_load
 from .GUIMeasure import find_closest
 from .fatigue import eq_load
+import os
 # --------------------------------------------------------------------------------}
 # --- InfoPanel 
 # --------------------------------------------------------------------------------{
@@ -232,6 +233,11 @@ class ColCheckMenu(wx.Menu):
             if c['s']:
                 self.Check(it.GetId(), True)
 
+    def setItem(self, name, value):
+        for it in self.GetMenuItems():
+            if it.GetItemLabelText() == name:
+                self.Check(it.GetId(), value)
+
     def getSelections(self):
         return [it.IsChecked() for it in self.GetMenuItems()]
 
@@ -373,12 +379,8 @@ class InfoPanel(wx.Panel):
         self.PD=[]
         self.tab_mode = None
         self.last_sub = False
-        self.measXY1 = (np.NaN, np.NaN)
-        self.measXY2 = (np.NaN, np.NaN)
-
-        #self.bt = wx.Button(self, -1, u'\u22EE',style=wx.BU_EXACTFIT)
-        self.bt = wx.Button(self, -1, u'\u2630',style=wx.BU_EXACTFIT)
-        self.bt.Bind(wx.EVT_BUTTON, self.showMenu)
+        self.meas_xy1 = (None, None)
+        self.meas_xy2 = (None, None)
 
         self.tbStats = TestListCtrl(self, size=(-1,100),
                          style=wx.LC_REPORT
@@ -389,11 +391,16 @@ class InfoPanel(wx.Panel):
         # For sorting see wx/lib/mixins/listctrl.py listmix.ColumnSorterMixin
         #self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.tbStats)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(self.bt     , 0, wx.LEFT, border=0)
+        # sizer.Add(self.bt     , 0, wx.LEFT, border=0)
 
         sizer_plot_matrix = wx.BoxSizer(wx.VERTICAL)
         sizer_plot_matrix_spacer = wx.BoxSizer(wx.VERTICAL)
         plot_matrix_spacer= wx.Panel(self, size=(-1, 27))
+
+        # self.bt = wx.Button(plot_matrix_spacer, -1, u'\u22EE', style=wx.BU_EXACTFIT)
+        self.bt = wx.Button(plot_matrix_spacer, -1, u'\u2630', style=wx.BU_EXACTFIT)
+        self.bt.Bind(wx.EVT_BUTTON, self.showMenu)
+        sizer_plot_matrix_spacer.Add(self.bt     , 0, wx.TOP, border=0)
         plot_matrix_spacer.SetSizer(sizer_plot_matrix_spacer)
 
         plot_matrix_sizer  = wx.FlexGridSizer(rows=1, cols=1, hgap=0, vgap=9)
@@ -460,9 +467,9 @@ class InfoPanel(wx.Panel):
             for j,c in enumerate(selCols):
                 # TODO: could be nicer:
                 if c['name'] == 'Meas 1':
-                    v,sv=c['f'](pd, self.measXY1)
+                    v,sv=c['f'](pd, self.meas_xy1)
                 elif c['name'] == 'Meas 2':
-                    v,sv=c['f'](pd, self.measXY2)
+                    v,sv=c['f'](pd, self.meas_xy2)
                 else:
                     v,sv=c['f'](pd)
                 try:
@@ -511,7 +518,10 @@ class InfoPanel(wx.Panel):
         nr_signals = len(PD)
         plot_matrix_sizer  = wx.FlexGridSizer(rows=nr_signals, cols=nr_signals, hgap=0, vgap=3)
         self.plotMatrixPanel.DestroyChildren()
-        BUTTON_SIZE = 21
+        if os.name == 'nt':
+            BUTTON_SIZE = 17
+        else:
+            BUTTON_SIZE = 21
         for i in range(nr_signals ** 2):
             buttonLabel = "-"
             showButton = False
@@ -567,30 +577,47 @@ class InfoPanel(wx.Panel):
          This is only valid in tab-mode == '1Tab_nCols'.
         """
         if self.tab_mode == '1Tab_nCols':
-            nr_signals = len(PD)
-            nr_subplots = self.getNumberOfSubplots(PD, sub)
-            plot_matrix  = [[0 for x in range(nr_subplots)] for y in range(nr_signals)]
-            for i in range(nr_signals ** 2):
-                # iterate over rows where each corresponds to one signal
-                subplot = i % nr_signals
-                signal = int(i / nr_signals)
-                selection = self.plotMatrixPanel.Children[i].GetLabelText()
-                if selection == '1':
-                    plot_matrix[signal][subplot] = 1
-                elif selection == '2':
-                    plot_matrix[signal][subplot] = 2
+            if not self.plotMatrixPanel.IsShown():
+                # keep panel, display plots normally
+                plot_matrix = None
+            else:
+                nr_signals = len(PD)
+                nr_subplots = self.getNumberOfSubplots(PD, sub)
+                plot_matrix  = [[0 for x in range(nr_subplots)] for y in range(nr_signals)]
+                for i in range(nr_signals ** 2):
+                    # iterate over rows where each corresponds to one signal
+                    subplot = i % nr_signals
+                    signal = int(i / nr_signals)
+                    selection = self.plotMatrixPanel.Children[i].GetLabelText()
+                    if selection == '1':
+                        plot_matrix[signal][subplot] = 1
+                    elif selection == '2':
+                        plot_matrix[signal][subplot] = 2
         else:
             # Destroy plot matrix panel
             self.getNumberOfSubplots([], sub)
             plot_matrix = None
         return plot_matrix
+    
+    def setCol(self, name, value):
+        for c in self.Cols:
+            if c['name'] == name:
+                c['s'] = value
 
     def setMeasurements(self, xy1, xy2):
-        # TODO: auto add columns when in Measure-mode?
         if xy1 is not None:
-            self.measXY1 = xy1
+            self.meas_xy1 = xy1
+            self.menu.setItem('Meas 1', True)
+            self.setCol('Meas 1', True)
         if xy2 is not None:
-            self.measXY2 = xy2
+            self.meas_xy2 = xy2
+            self.menu.setItem('Meas 2', True)
+            self.setCol('Meas 2', True)
+        elif xy1 is None:
+            self.menu.setItem('Meas 1', False)
+            self.setCol('Meas 1', False)
+            self.menu.setItem('Meas 1', False)
+            self.setCol('Meas 2', False)
         self._showStats()
 
     def clean(self):

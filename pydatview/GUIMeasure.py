@@ -12,8 +12,8 @@ class GUIMeasure:
 
     def clear(self):
         self.axis_idx = -1
-        self.x = np.NaN
-        self.y = np.NaN
+        self.x = None
+        self.y = None
         if self.point is not None:
             self.point.remove()
         self.point = None
@@ -23,6 +23,12 @@ class GUIMeasure:
         if self.annotation is not None:
             self.annotation.remove()
         self.annotation = None
+
+    def get_xydata(self):
+        if self.x is None or self.y is None:
+            return None
+        else:
+            return (self.x, self.y)
 
     def set(self, axis_idx, x, y):
         self.axis_idx = axis_idx
