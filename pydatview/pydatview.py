@@ -203,7 +203,7 @@ class MainFrame(wx.Frame):
         self.FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND,border=0)
         self.SetSizer(self.FrameSizer)
 
-        self.SetSize((800, 600))
+        self.SetSize((1000, 700))
         self.Center()
         self.Show()
         self.Bind(wx.EVT_SIZE, self.OnResizeWindow)
