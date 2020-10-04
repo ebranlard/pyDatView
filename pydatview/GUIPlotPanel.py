@@ -315,12 +315,12 @@ class PlotPanel(wx.Panel):
         self.canvas.mpl_connect('button_release_event', self.onMouseRelease)
         self.clickLocation = (None, 0, 0)
 
-        self.navTB = MyNavigationToolbar2Wx(self.canvas, 1)
-        self.navTBAux = MyNavigationToolbar2Wx(self.canvas, 2)
+        self.navTBTop = MyNavigationToolbar2Wx(self.canvas, 1)
+        self.navTBBottom = MyNavigationToolbar2Wx(self.canvas, 2)
 
         self.toolbar_sizer  = wx.BoxSizer(wx.VERTICAL)
-        self.toolbar_sizer.Add(self.navTB)
-        self.toolbar_sizer.Add(self.navTBAux)
+        self.toolbar_sizer.Add(self.navTBTop)
+        self.toolbar_sizer.Add(self.navTBBottom)
 
 
         # --- Tool Panel
