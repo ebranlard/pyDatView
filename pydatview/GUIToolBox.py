@@ -130,7 +130,7 @@ class MyMultiCursor(MultiCursor):
 
 
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
-    def __init__(self, canvas):
+    def __init__(self, canvas, tools):
         # Taken from matplotlib/backend_wx.py but added style:
         self.VERSION = matplotlib.__version__
         #print('MPL VERSION:',self.VERSION)
@@ -150,10 +150,27 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         else:
             NavigationToolbar2Wx.__init__(self, canvas)
         # --- Modif
-        self.DeleteToolByPos(1) # arrow <
-        self.DeleteToolByPos(1) # arrow >
-        self.DeleteToolByPos(3) # zoom
-        self.zoom() # NOTE: #22 BREAK cursors #12!
+        if tools == 1:
+            self.DeleteToolByPos(1) # arrow <
+            self.DeleteToolByPos(1) # arrow >
+            self.DeleteToolByPos(3) # zoom
+            self.DeleteToolByPos(3) # |
+            self.DeleteToolByPos(3) # subplots
+            self.DeleteToolByPos(3) # |
+            self.DeleteToolByPos(3) # save
+            self.DeleteToolByPos(1) # |
+            self.zoom() # NOTE: #22 BREAK cursors #12!
+        elif tools == 2:
+            self.DeleteToolByPos(0) # home
+            self.DeleteToolByPos(0) # arrow <
+            self.DeleteToolByPos(0) # arrow >
+            self.DeleteToolByPos(0) # |
+            self.DeleteToolByPos(0) # pan
+            self.DeleteToolByPos(0) # zoom
+            self.DeleteToolByPos(3) # |
+            self.DeleteToolByPos(1) # |
+        else:
+            raise ValueError('Not supported!')
 
     def press_zoom(self, event):
         NavigationToolbar2Wx.press_zoom(self,event)
@@ -186,4 +203,3 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
 
     def set_message(self, s):
         pass
-

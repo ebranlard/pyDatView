@@ -315,7 +315,12 @@ class PlotPanel(wx.Panel):
         self.canvas.mpl_connect('button_release_event', self.onMouseRelease)
         self.clickLocation = (None, 0, 0)
 
-        self.navTB = MyNavigationToolbar2Wx(self.canvas)
+        self.navTB = MyNavigationToolbar2Wx(self.canvas, 1)
+        self.navTBAux = MyNavigationToolbar2Wx(self.canvas, 2)
+
+        self.toolbar_sizer  = wx.BoxSizer(wx.VERTICAL)
+        self.toolbar_sizer.Add(self.navTB)
+        self.toolbar_sizer.Add(self.navTBAux)
 
 
         # --- Tool Panel
@@ -396,7 +401,7 @@ class PlotPanel(wx.Panel):
         sl4 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         row_sizer.Add(self.pltTypePanel , 0 , flag=wx.ALL|wx.CENTER           , border=2)
         row_sizer.Add(sl2               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(self.navTB        , 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER , border=2)
+        row_sizer.Add(self.toolbar_sizer, 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER , border=2)
         row_sizer.Add(sl3               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
         row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.ALL|wx.EXPAND|wx.CENTER , border=2)
         row_sizer.Add(sl4               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
