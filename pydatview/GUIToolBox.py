@@ -150,6 +150,11 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         else:
             NavigationToolbar2Wx.__init__(self, canvas)
 
+        # Make sure we start in zoom mode
+        if 'Pan' in keep_tools:
+            self.zoom() # NOTE: #22 BREAK cursors #12!
+
+        # Remove unnecessary tools
         tools = [self.GetToolByPos(i) for i in range(self.GetToolsCount())]
         for i, t in reversed(list(enumerate(tools))):
             if t.GetLabel() not in keep_tools:
