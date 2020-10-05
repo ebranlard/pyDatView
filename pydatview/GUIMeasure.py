@@ -88,6 +88,30 @@ def formatValue(value):
     return s
 
 
-def find_closest(matrix, vector):
-    indx = np.array([np.linalg.norm([x, y]) for (x, y) in matrix-vector]).argmin()
-    return matrix[indx]
+def find_closest(matrix, vector, single=True):
+    """Return closest point(s).
+    By default return closest single point.
+    Set single=False to find up to two y-values on
+    one x-position, where index needs to have
+    min. discontinuity of 1% of number of samples
+    and y-values need to differ at least by 5% of FS.
+    """
+    ind = np.argsort(abs(matrix - vector), axis=0)
+    closest = matrix[ind[0, 0]]
+    N = 5
+    closest_Nind = ind[0:N-1]
+    diff = np.diff(closest_Nind[:, 0])
+    discont_ind = [i for i, x in enumerate(diff) if abs(x) > (len(matrix) / 100)]
+    for di in discont_ind:
+        y = matrix[closest_Nind[di+1, 0]][1]
+        if abs(closest[1] - y) > (max(matrix[:, 1]) / 20):
+            closest = np.vstack([closest, matrix[closest_Nind[di+1, 0]]])
+            break
+    if closest.ndim == 2:
+        # For multiple y-candidates find closest on y-direction:
+        ind_y = np.argsort(abs(closest[:, 1] - vector[1]))
+        closest = closest[ind_y, :]
+    if closest.ndim == 1 or single is False:
+        return closest
+    else:
+        return closest[0, :]

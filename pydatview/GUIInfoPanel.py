@@ -151,8 +151,13 @@ def meas(pd, xymeas):
     try:
         v='NA'
         xy = np.array([pd.x, pd.y]).transpose()
-        __, v = find_closest(xy, [xymeas[0], xymeas[1]])
-        s=pretty_num(v)
+        points = find_closest(xy, [xymeas[0], xymeas[1]], False)
+        if points.ndim == 1:
+            v = points[1]
+            s=pretty_num(v)
+        else:
+            v = points[0, 1]
+            s = ' / '.join([str(p) for p in points[:, 1]])
     except (IndexError, TypeError):
         v='NA'
         s='NA'
