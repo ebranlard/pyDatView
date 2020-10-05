@@ -473,8 +473,8 @@ class ColumnPopup(wx.Menu):
                 sError=''
                 nError=0
                 for iTab,sTab in zip(ITab,STab):
-                    if self.parent.tab.active_name == sTab:
-                    # apply formula to exactly one table only
+                    if main.selPanel.currentMode == 'sameColumnsMode' or self.parent.tab.active_name == sTab:
+                        # apply formula to all tables with same columns, otherwise only to active table
                         if title.startswith('Edit'):
                             bValid=main.tabList.get(iTab).setColumnByFormula(sName,sFormula,iFull)
                         else:
@@ -638,6 +638,7 @@ class ColumnPanel(wx.Panel):
                 self.lbColumns.UnsetToolTip()
         except AttributeError:
             pass
+        event.Skip()
 
     def getDefaultColumnX(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
