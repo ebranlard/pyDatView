@@ -156,12 +156,8 @@ def meas(pd, xymeas):
             v = points[1]
             s=pretty_num(v)
         else:
-            for p in points:
-                if v == 'NA':
-                    v = p[1]
-                    s=pretty_num(v)
-                else:
-                    s = s + ' / ' + str(p[1])
+            v = points[0, 1]
+            s = ' / '.join([str(p) for p in points[:, 1]])
     except (IndexError, TypeError):
         v='NA'
         s='NA'
