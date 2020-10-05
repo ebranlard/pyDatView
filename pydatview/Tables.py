@@ -103,7 +103,7 @@ class TableList(object): # todo inherit list
                 if len(dfs[k])>0:
                     tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=F.formatName()))
         return tabs
-            
+
     def getTabs(self):
         # TODO remove me later
         return self._tabs
@@ -250,7 +250,7 @@ class Table(object):
 
         self.filename   = filename
         self.fileformat = fileformat
-
+        self.formulas = []
 
         if not isinstance(data,pd.DataFrame):
             # ndarray??
@@ -421,16 +421,38 @@ class Table(object):
         self.data = self.data.iloc[:, IKeep] # Drop won't work for duplicates
         for i in sorted(ICol, reverse=True):
             del(self.columns[i])
+            for f in self.formulas:
+                if f['pos'] == (i + 1):
+                    self.formulas.remove(f)
+                    break
+            for f in self.formulas:
+                if f['pos'] > (i + 1):
+                    f['pos'] = f['pos'] - 1
 
     def rename(self,new_name):
         self.name='>'+new_name
 
-    def addColumn(self,sNewName,NewCol,i=-1):
+    def addColumn(self,sNewName,NewCol,i=-1,sFormula=''):
         if i<0:
             i=self.data.shape[1]
         self.data.insert(int(i),sNewName,NewCol)
         self.columns=self.columnsFromDF(self.data)
-
+        for f in self.formulas:
+            if f['pos'] > i:
+                f['pos'] = f['pos'] + 1
+        self.formulas.append({'pos': i+1, 'formula': sFormula, 'name': sNewName})
+    
+    def setColumn(self,sNewName,NewCol,i,sFormula=''):
+        if i<1:
+            raise ValueError('Cannot set column at position ' + str(i))
+        self.data = self.data.drop(columns=self.data.columns[i-1])
+        self.data.insert(int(i-1),sNewName,NewCol)
+        self.columns=self.columnsFromDF(self.data)
+        for f in self.formulas:
+            if f['pos'] == i:
+                f['name'] = sNewName
+                f['formula'] = sFormula
+        
     def getColumn(self,i):
         """ Return column of data, where i=0 is the index column
         If a mask exist, the mask is applied
@@ -485,7 +507,15 @@ class Table(object):
         if NewCol is None:
             return False
         else:
-            self.addColumn(sNewName,NewCol,i)
+            self.addColumn(sNewName,NewCol,i,sFormula)
+            return True
+    
+    def setColumnByFormula(self,sNewName,sFormula,i=-1):
+        NewCol=self.evalFormula(sFormula)
+        if NewCol is None:
+            return False
+        else:
+            self.setColumn(sNewName,NewCol,i,sFormula)
             return True
 
 

@@ -107,7 +107,8 @@ class MainFrame(wx.Frame):
         wx.Frame.__init__(self, None, -1, PROG_NAME+' '+PROG_VERSION)
         # Data
         self.tabList=TableList()
-            
+        self.restore_formulas = []
+
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
         # --- GUI
@@ -285,6 +286,16 @@ class MainFrame(wx.Frame):
             self.clean_memory(bReload=bReload)
 
         warn = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bAdd=bAdd)
+        if bReload:
+            # Restore formulas that were previously added
+            ITab, __ = self.selPanel.getAllTables()
+            if len(ITab) != len(self.restore_formulas):
+                raise ValueError('Invalid length of tabs and formulas!')
+            for iTab, f_list in zip(ITab, self.restore_formulas):
+                for f in f_list:
+                    self.tabList.get(iTab).addColumnByFormula(f['name'], f['formula'])
+            self.restore_formulas = []
+
         if len(warn)>0:
             Warn(self,warn)
         if self.tabList.len()>0:
@@ -514,6 +525,14 @@ class MainFrame(wx.Frame):
         filenames = self.tabList.unique_filenames
         filenames.sort()
         if len(filenames)>0:
+            # Save formulas to restore them after reload with sorted tabs
+            _ITab, _STab = self.selPanel.getAllTables()
+            ITab = [iTab for __, iTab in sorted(zip(_STab, _ITab))]
+            self.restore_formulas = []
+            for iTab in ITab:
+                f = self.tabList.get(iTab).formulas
+                f = sorted(f, key=lambda k: k['pos'])
+                self.restore_formulas.append(f)
             iFormat=self.comboFormats.GetSelection()
             if iFormat==0: # auto-format
                 Format = None
