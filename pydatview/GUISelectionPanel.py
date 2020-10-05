@@ -472,8 +472,9 @@ class ColumnPopup(wx.Menu):
                 #if main.tabList.haveSameColumns(ITab):
                 sError=''
                 nError=0
+                haveSameColumns=main.tabList.haveSameColumns(ITab)
                 for iTab,sTab in zip(ITab,STab):
-                    if main.selPanel.currentMode == 'sameColumnsMode' or self.parent.tab.active_name == sTab:
+                    if haveSameColumns or self.parent.tab.active_name == sTab:
                         # apply formula to all tables with same columns, otherwise only to active table
                         if title.startswith('Edit'):
                             bValid=main.tabList.get(iTab).setColumnByFormula(sName,sFormula,iFull)
