@@ -130,7 +130,7 @@ class MyMultiCursor(MultiCursor):
 
 
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
-    def __init__(self, canvas):
+    def __init__(self, canvas, keep_tools):
         # Taken from matplotlib/backend_wx.py but added style:
         self.VERSION = matplotlib.__version__
         #print('MPL VERSION:',self.VERSION)
@@ -149,11 +149,16 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
             #NavigationToolbar2Wx.__init__(self, plotCanvas)
         else:
             NavigationToolbar2Wx.__init__(self, canvas)
-        # --- Modif
-        self.DeleteToolByPos(1) # arrow <
-        self.DeleteToolByPos(1) # arrow >
-        self.DeleteToolByPos(3) # zoom
-        self.zoom() # NOTE: #22 BREAK cursors #12!
+
+        # Make sure we start in zoom mode
+        if 'Pan' in keep_tools:
+            self.zoom() # NOTE: #22 BREAK cursors #12!
+
+        # Remove unnecessary tools
+        tools = [self.GetToolByPos(i) for i in range(self.GetToolsCount())]
+        for i, t in reversed(list(enumerate(tools))):
+            if t.GetLabel() not in keep_tools:
+                self.DeleteToolByPos(i)
 
     def press_zoom(self, event):
         NavigationToolbar2Wx.press_zoom(self,event)
@@ -186,4 +191,3 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
 
     def set_message(self, s):
         pass
-

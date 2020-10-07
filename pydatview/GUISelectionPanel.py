@@ -185,7 +185,7 @@ class FormulaDialog(wx.Dialog):
 
     def getDefaultName(self):
         if len(self.columns)>0:
-            return self.stripBrackets(self.getOneColName())+' New '+self.get_unit()
+            return self.stripBrackets(self.getOneColName())+' New'+self.get_unit()
         else:
             return ''
 
@@ -354,6 +354,11 @@ class ColumnPopup(wx.Menu):
                 item = wx.MenuItem(self, -1, "Rename")
                 self.MyAppend(item)
                 self.Bind(wx.EVT_MENU, self.OnRenameColumn, item)
+            if len(self.ISel) == 1 and any(
+                    f['pos'] == self.ISel[0] for f in self.parent.tab.formulas):
+                item = wx.MenuItem(self, -1, "Edit")
+                self.MyAppend(item)
+                self.Bind(wx.EVT_MENU, self.OnEditColumn, item)
             if len(self.ISel)>=1 and self.ISel[0]>=0: 
                 item = wx.MenuItem(self, -1, "Delete")
                 self.MyAppend(item)
@@ -394,6 +399,22 @@ class ColumnPopup(wx.Menu):
             self.parent.selPanel.updateLayout()
             # a trigger for the plot is required but skipped for now
 
+    def OnEditColumn(self, event):
+        main=self.parent.mainframe
+        if len(self.ISel) != 1:
+            raise ValueError('Only one signal can be edited!')
+        ITab, STab = main.selPanel.getSelectedTables()
+        for iTab,sTab in zip(ITab,STab):
+            if sTab == self.parent.tab.active_name:
+                for f in main.tabList.get(iTab).formulas:
+                    if f['pos'] == self.ISel[0]:
+                        sName = f['name']
+                        sFormula = f['formula']
+                        break
+                else:
+                    raise ValueError('No formula found at {0} for table {1}!'.format(self.ISel[0], sTab))
+        self.showFormulaDialog('Edit column', sName, sFormula)
+
     def OnDeleteColumn(self, event):
         main=self.parent.mainframe
         iX = self.parent.comboX.GetSelection()
@@ -411,9 +432,15 @@ class ColumnPopup(wx.Menu):
         main.redraw()
 
     def OnAddColumn(self, event):
+        main=self.parent.mainframe
+        self.showFormulaDialog('Add a new column')
+
+    def showFormulaDialog(self, title, name='', formula=''):
         bValid=False
         bCancelled=False
         main=self.parent.mainframe
+        sName=name
+        sFormula=formula
 
         if self.parent.bShowID:
             columns=[no_unit(self.parent.lbColumns.GetString(i)[4:]) for i in self.ISel]
@@ -423,14 +450,12 @@ class ColumnPopup(wx.Menu):
             main_unit=unit(self.parent.lbColumns.GetString(self.ISel[-1]))
         else:
             main_unit=''
-
-        sFormula=''
         xcol  = self.parent.comboX.GetStringSelection()
         xunit = unit(xcol)
         xcol  = no_unit(xcol)
 
         while (not bValid) and (not bCancelled):
-            dlg = FormulaDialog(title='Add a new column',columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,formula=sFormula)
+            dlg = FormulaDialog(title=title,columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,name=sName,formula=sFormula)
             dlg.CentreOnParent()
             dlg.ShowModal()
             bCancelled = not dlg.OK
@@ -447,11 +472,17 @@ class ColumnPopup(wx.Menu):
                 #if main.tabList.haveSameColumns(ITab):
                 sError=''
                 nError=0
+                haveSameColumns=main.tabList.haveSameColumns(ITab)
                 for iTab,sTab in zip(ITab,STab):
-                    bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,iFull)
-                    if not bValid:
-                        sError+='The formula didn''t eval for table {}\n'.format(sTab)
-                        nError+=1
+                    if haveSameColumns or self.parent.tab.active_name == sTab:
+                        # apply formula to all tables with same columns, otherwise only to active table
+                        if title.startswith('Edit'):
+                            bValid=main.tabList.get(iTab).setColumnByFormula(sName,sFormula,iFull)
+                        else:
+                            bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,iFull)
+                        if not bValid:
+                            sError+='The formula didn''t eval for table {}\n'.format(sTab)
+                            nError+=1
                 if len(sError)>0:
                     Error(self.parent,sError)
                 if nError<len(ITab):
@@ -564,6 +595,8 @@ class ColumnPanel(wx.Panel):
         self.lbColumns.SetFont(getMonoFont(self))
         # Events
         self.lbColumns.Bind(wx.EVT_RIGHT_DOWN, self.OnColPopup)
+        self.lbColumns.Bind(wx.EVT_MOTION, self.OnColMotion)
+
         # Layout
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
         sizerX.Add(self.comboX   , 1, flag=wx.TOP | wx.BOTTOM, border=2)
@@ -594,6 +627,19 @@ class ColumnPanel(wx.Panel):
             menu = ColumnPopup(self)
             self.PopupMenu(menu, event.GetPosition())
             menu.Destroy()
+
+    def OnColMotion(self,event):
+        item = self.lbColumns.HitTest(event.GetPosition())
+        try:
+            for f in self.tab.formulas:
+                if f['pos'] == item:
+                    self.lbColumns.SetToolTip(wx.ToolTip('[{0}]: {1}'.format(f['pos'], f['formula'])))
+                    break
+            else:
+                self.lbColumns.UnsetToolTip()
+        except AttributeError:
+            pass
+        event.Skip()
 
     def getDefaultColumnX(self,tab,nColsMax):
         # Try the first column for x-axis, except if it's a string
@@ -1244,6 +1290,11 @@ class SelectionPanel(wx.Panel):
 
     def getSelectedTables(self):
         I=self.tabPanel.lbTab.GetSelections()
+        S=[self.tabPanel.lbTab.GetString(i) for i in I]
+        return I,S
+
+    def getAllTables(self):
+        I=range(self.tabPanel.lbTab.GetCount())
         S=[self.tabPanel.lbTab.GetString(i) for i in I]
         return I,S
 

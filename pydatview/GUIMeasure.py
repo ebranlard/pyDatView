@@ -12,8 +12,8 @@ class GUIMeasure:
 
     def clear(self):
         self.axis_idx = -1
-        self.x = np.NaN
-        self.y = np.NaN
+        self.x = None
+        self.y = None
         if self.point is not None:
             self.point.remove()
         self.point = None
@@ -23,6 +23,12 @@ class GUIMeasure:
         if self.annotation is not None:
             self.annotation.remove()
         self.annotation = None
+
+    def get_xydata(self):
+        if self.x is None or self.y is None:
+            return None
+        else:
+            return (self.x, self.y)
 
     def set(self, axis_idx, x, y):
         self.axis_idx = axis_idx
@@ -47,12 +53,12 @@ class GUIMeasure:
             # TODO: check if 'if'can be avoided by using len(PD):
             if str(line).startswith('Line2D(_line') is False:
                 xy = np.array([line.get_xdata(), line.get_ydata()]).transpose()
-                for (x, y) in xy:
-                    rdist = abs(x - self.x) + abs(y - self.y)
-                    if rdist < rdist_min:
-                        rdist_min = rdist
-                        x_closest = x
-                        y_closest = y
+                x, y = find_closest(xy, [self.x, self.y])
+                rdist = abs(x - self.x) + abs(y - self.y)
+                if rdist < rdist_min:
+                    rdist_min = rdist
+                    x_closest = x
+                    y_closest = y
         self.x = x_closest
         self.y = y_closest
 
@@ -82,6 +88,30 @@ def formatValue(value):
     return s
 
 
-def find_closest(matrix, vector):
-    indx = np.array([np.linalg.norm(x+y) for (x, y) in matrix-vector]).argmin()
-    return matrix[indx]
+def find_closest(matrix, vector, single=True):
+    """Return closest point(s).
+    By default return closest single point.
+    Set single=False to find up to two y-values on
+    one x-position, where index needs to have
+    min. discontinuity of 1% of number of samples
+    and y-values need to differ at least by 5% of FS.
+    """
+    ind = np.argsort(abs(matrix - vector), axis=0)
+    closest = matrix[ind[0, 0]]
+    N = 5
+    closest_Nind = ind[0:N-1]
+    diff = np.diff(closest_Nind[:, 0])
+    discont_ind = [i for i, x in enumerate(diff) if abs(x) > (len(matrix) / 100)]
+    for di in discont_ind:
+        y = matrix[closest_Nind[di+1, 0]][1]
+        if abs(closest[1] - y) > (max(matrix[:, 1]) / 20):
+            closest = np.vstack([closest, matrix[closest_Nind[di+1, 0]]])
+            break
+    if closest.ndim == 2:
+        # For multiple y-candidates find closest on y-direction:
+        ind_y = np.argsort(abs(closest[:, 1] - vector[1]))
+        closest = closest[ind_y, :]
+    if closest.ndim == 1 or single is False:
+        return closest
+    else:
+        return closest[0, :]
