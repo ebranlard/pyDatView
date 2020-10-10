@@ -126,6 +126,7 @@ class SpectralCtrlPanel(wx.Panel):
     def __init__(self, parent):
         super(SpectralCtrlPanel,self).__init__(parent)
         self.parent   = parent
+        # --- GUI widgets
         lb = wx.StaticText( self, -1, 'Type:')
         self.cbType            = wx.ComboBox(self, choices=['PSD','f x PSD','Amplitude'] , style=wx.CB_READONLY)
         self.cbType.SetSelection(0)
@@ -137,12 +138,16 @@ class SpectralCtrlPanel(wx.Panel):
         self.cbAveragingMethod.SetSelection(0)
         self.lbP2 = wx.StaticText( self, -1, '2^n:')
         self.scP2 = wx.SpinCtrl(self, value='11',size=wx.Size(40,-1))
-        self.lbWinLength = wx.StaticText( self, -1, '(2048)  ')
+        self.lbWinLength = wx.StaticText( self, -1, '(2048) ')
         self.scP2.SetRange(3, 19)
         lbMaxFreq     = wx.StaticText( self, -1, 'Xlim:')
         self.tMaxFreq = wx.TextCtrl(self,size = (30,-1),style=wx.TE_PROCESS_ENTER)
         self.tMaxFreq.SetValue("-1")
         self.cbDetrend = wx.CheckBox(self, -1, 'Detrend',(10,10))
+        lbX = wx.StaticText( self, -1, 'x:')
+        self.cbTypeX = wx.ComboBox(self, choices=['1/x','2pi/x','x'] , style=wx.CB_READONLY)
+        self.cbTypeX.SetSelection(0)
+        # Layout
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
         dummy_sizer.Add(lb                    ,0, flag = wx.CENTER|wx.LEFT,border = 1)
         dummy_sizer.Add(self.cbType           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
@@ -155,6 +160,8 @@ class SpectralCtrlPanel(wx.Panel):
         dummy_sizer.Add(self.lbWinLength      ,0, flag = wx.CENTER|wx.LEFT,border = 1)
         dummy_sizer.Add(lbMaxFreq             ,0, flag = wx.CENTER|wx.LEFT,border = 6)
         dummy_sizer.Add(self.tMaxFreq         ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(lbX                   ,0, flag = wx.CENTER|wx.LEFT,border = 6)
+        dummy_sizer.Add(self.cbTypeX          ,0, flag = wx.CENTER|wx.LEFT,border = 1)
         dummy_sizer.Add(self.cbDetrend        ,0, flag = wx.CENTER|wx.LEFT,border = 7)
         self.SetSizer(dummy_sizer)
         self.Bind(wx.EVT_COMBOBOX  ,self.onSpecCtrlChange)
@@ -630,6 +637,7 @@ class PlotPanel(wx.Panel):
                 d.x = (d.x-mi)/(mx-mi)
 
     def setPD_FFT(self,d):
+        # --- TODO, make this independent of GUI
         if d.yIsString or d.yIsDate:
             Warn(self,'Cannot plot FFT of dates or strings')
             self.pltTypePanel.cbRegular.SetValue(True)
@@ -638,6 +646,7 @@ class PlotPanel(wx.Panel):
             self.pltTypePanel.cbRegular.SetValue(True)
         else:
             output_type      = self.spcPanel.cbType.GetStringSelection()
+            x_type           = self.spcPanel.cbTypeX.GetStringSelection()
             averaging        = self.spcPanel.cbAveraging.GetStringSelection()
             averaging_window = self.spcPanel.cbAveragingMethod.GetStringSelection()
             bDetrend         = self.spcPanel.cbDetrend.IsChecked()
@@ -658,12 +667,28 @@ class PlotPanel(wx.Panel):
             elif output_type=='Amplitude':
                 d.sy= 'FFT({}) [{}]'.format(no_unit(d.sy), unit(d.sy))
             else:
-                raise Exception('Unsopported FFT type {} '.format(output_type))
+                raise Exception('Unsupported FFT type {} '.format(output_type))
             # x label
-            if unit(d.sx)=='s':
-                d.sx= 'Frequency [Hz]'
+            if x_type=='1/x':
+                if unit(d.sx)=='s':
+                    d.sx= 'Frequency [Hz]'
+                else:
+                    d.sx= ''
+            elif x_type=='x':
+                d.x=1/d.x
+                if unit(d.sx)=='s':
+                    d.sx= 'Period [s]'
+                else:
+                    d.sx= ''
+            elif x_type=='2pi/x':
+                d.x=2*np.pi*d.x
+                if unit(d.sx)=='s':
+                    d.sx= 'Cyclic frequency [rad/s]'
+                else:
+                    d.sx= ''
             else:
-                d.sx= ''
+                raise Exception('Unsupported x-type {} '.format(output_type))
+
             if hasattr(Info,'nExp') and Info.nExp!=nExp:
                 self.spcPanel.scP2.SetValue(Info.nExp)
                 self.spcPanel.updateP2(Info.nExp)
@@ -989,6 +1014,8 @@ class PlotPanel(wx.Panel):
                         I=pd.x<xlim
                         ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
                         ax_left.set_ylim(bottom=ymin/2)
+                    if self.spcPanel.cbTypeX.GetStringSelection()=='x':
+                        ax_left.invert_xaxis()
                 except:
                     pass
             elif self.cbAutoScale.IsChecked() is False and keep_limits:
