@@ -650,7 +650,16 @@ class PlotPanel(wx.Panel):
             # --- Setting plot options
             d.Info=Info
             d.xIsDate=False
-            d.sy= 'FFT('+no_unit(d.sy)+')'
+            # y label
+            if output_type=='PSD':
+                d.sy= 'PSD({}) [({})^2/{}]'.format(no_unit(d.sy), unit(d.sy), unit(d.sx))
+            elif output_type=='f x PSD':
+                d.sy= 'f-weighted PSD({}) [({})^2]'.format(no_unit(d.sy), unit(d.sy))
+            elif output_type=='Amplitude':
+                d.sy= 'FFT({}) [{}]'.format(no_unit(d.sy), unit(d.sy))
+            else:
+                raise Exception('Unsopported FFT type {} '.format(output_type))
+            # x label
             if unit(d.sx)=='s':
                 d.sx= 'Frequency [Hz]'
             else:
