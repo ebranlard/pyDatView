@@ -288,6 +288,10 @@ def filter_list(L, string):
     L_found =np.array(L)[I]
     return L_found, I
 
+def unique(l):
+    """ Return unique values of a list"""
+    used=set()
+    return [x for x in l if x not in used and (used.add(x) or True)]
 
 # --------------------------------------------------------------------------------}
 # ---  
@@ -419,6 +423,15 @@ def Error(parent, message, caption = 'Error!'):
 # --------------------------------------------------------------------------------}
 # ---  
 # --------------------------------------------------------------------------------{
+
+def isString(x):
+    b = x.dtype == np.object and isinstance(x.values[0], str)
+    return b 
+
+def isDate(x):
+    return np.issubdtype(x.dtype, np.datetime64)
+
+
 def yMean(pd):
     if pd.yIsString or  pd.yIsDate:
         return None,'NA'
