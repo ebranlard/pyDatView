@@ -33,8 +33,8 @@ from matplotlib.pyplot import rcParams as pyplot_rc
 from matplotlib import font_manager
 import gc
 
-from .spectral import fft_wrap
-from .common import * 
+from .common import * # unique
+from .plotdata import PlotData, compareMultiplePD
 from .GUICommon import * 
 from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
 from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel, CurveFitToolPanel
@@ -45,30 +45,6 @@ font = {'size'   : 8}
 matplotlib_rc('font', **font)
 pyplot_rc['agg.path.chunksize'] = 20000
 
-def unique(l):
-    used=set()
-    return [x for x in l if x not in used and (used.add(x) or True)]
-
-class PlotData():
-    def __init__(s):
-        s.id=-1
-        s.it=-1
-        s.ix=-1 # column index
-        s.iy=-1 # column index
-        s.sx=''
-        s.sy=''
-        s.st=''
-        s.syl=''
-        s.filename = ''
-        s.tabname = ''
-        #d.x,d.xIsString,d.xIsDate,_ = tabs[d.it].getColumn(d.ix)
-        #d.y,d.yIsString,d.yIsDate,c = tabs[d.it].getColumn(d.iy)
-        pass
-
-    def __repr__(s):
-        s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
-        return s1
-
 
 class PDFCtrlPanel(wx.Panel):
     def __init__(self, parent):
@@ -77,14 +53,18 @@ class PDFCtrlPanel(wx.Panel):
         lb = wx.StaticText( self, -1, 'Number of bins:')
         self.scBins = wx.SpinCtrl(self, value='50',size=wx.Size(70,-1))
         self.scBins.SetRange(3, 10000)
+        self.cbSmooth = wx.CheckBox(self, -1, 'Smooth',(10,10))
+        self.cbSmooth.SetValue(False)
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
         dummy_sizer.Add(lb                    ,0, flag = wx.CENTER|wx.LEFT,border = 1)
         dummy_sizer.Add(self.scBins           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.cbSmooth         ,0, flag = wx.CENTER|wx.LEFT,border = 6)
         self.SetSizer(dummy_sizer)
-        self.Bind(wx.EVT_TEXT      ,self.onBinsChange  ,self.scBins     )
+        self.Bind(wx.EVT_TEXT    , self.onPDFOptionChange, self.scBins)
+        self.Bind(wx.EVT_CHECKBOX, self.onPDFOptionChange)
         self.Hide() 
 
-    def onBinsChange(self,event=None):
+    def onPDFOptionChange(self,event=None):
         self.parent.redraw(); # DATA HAS CHANGED
 
 class MinMaxPanel(wx.Panel):
@@ -126,6 +106,7 @@ class SpectralCtrlPanel(wx.Panel):
     def __init__(self, parent):
         super(SpectralCtrlPanel,self).__init__(parent)
         self.parent   = parent
+        # --- GUI widgets
         lb = wx.StaticText( self, -1, 'Type:')
         self.cbType            = wx.ComboBox(self, choices=['PSD','f x PSD','Amplitude'] , style=wx.CB_READONLY)
         self.cbType.SetSelection(0)
@@ -137,12 +118,16 @@ class SpectralCtrlPanel(wx.Panel):
         self.cbAveragingMethod.SetSelection(0)
         self.lbP2 = wx.StaticText( self, -1, '2^n:')
         self.scP2 = wx.SpinCtrl(self, value='11',size=wx.Size(40,-1))
-        self.lbWinLength = wx.StaticText( self, -1, '(2048)  ')
+        self.lbWinLength = wx.StaticText( self, -1, '(2048) ')
         self.scP2.SetRange(3, 19)
         lbMaxFreq     = wx.StaticText( self, -1, 'Xlim:')
         self.tMaxFreq = wx.TextCtrl(self,size = (30,-1),style=wx.TE_PROCESS_ENTER)
         self.tMaxFreq.SetValue("-1")
         self.cbDetrend = wx.CheckBox(self, -1, 'Detrend',(10,10))
+        lbX = wx.StaticText( self, -1, 'x:')
+        self.cbTypeX = wx.ComboBox(self, choices=['1/x','2pi/x','x'] , style=wx.CB_READONLY)
+        self.cbTypeX.SetSelection(0)
+        # Layout
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
         dummy_sizer.Add(lb                    ,0, flag = wx.CENTER|wx.LEFT,border = 1)
         dummy_sizer.Add(self.cbType           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
@@ -155,6 +140,8 @@ class SpectralCtrlPanel(wx.Panel):
         dummy_sizer.Add(self.lbWinLength      ,0, flag = wx.CENTER|wx.LEFT,border = 1)
         dummy_sizer.Add(lbMaxFreq             ,0, flag = wx.CENTER|wx.LEFT,border = 6)
         dummy_sizer.Add(self.tMaxFreq         ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(lbX                   ,0, flag = wx.CENTER|wx.LEFT,border = 6)
+        dummy_sizer.Add(self.cbTypeX          ,0, flag = wx.CENTER|wx.LEFT,border = 1)
         dummy_sizer.Add(self.cbDetrend        ,0, flag = wx.CENTER|wx.LEFT,border = 7)
         self.SetSizer(dummy_sizer)
         self.Bind(wx.EVT_COMBOBOX  ,self.onSpecCtrlChange)
@@ -569,298 +556,76 @@ class PlotPanel(wx.Panel):
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
 
-    def setPD_PDF(self,d,c):
+    def setPD_PDF(self,PD,c):
+        """ Convert plot data to PDF data based on GUI options"""
         # ---PDF
-        n=len(d.y)
-        if d.yIsString:
-            if n>100:
-                Warn(self,'Dataset has string format and is too large to display')
-                self.pltTypePanel.cbRegular.SetValue(True)
-                return
-            else:
-                vc = c.value_counts().sort_index()
-                d.x = vc.keys().tolist()
-                d.y = vc/n # TODO counts/PDF option
-                d.yIsString=False
-                d.xIsString=True
-        elif d.yIsDate:
-            Warn(self,'Cannot plot PDF of dates')
-            self.pltTypePanel.cbRegular.SetValue(True)
-            return
-        else:
-            nBins=self.pdfPanel.scBins.GetValue()
-            #min(int(n/10),50)
-            if nBins>=n:
-                nBins=n
+        nBins   = self.pdfPanel.scBins.GetValue()
+        bSmooth = self.pdfPanel.cbSmooth.GetValue()
+        try:
+            nBins_out= PD.toPDF(nBins,bSmooth)
+            if nBins_out!=nBins:
                 self.pdfPanel.scBins.SetValue(nBins)
-            d.y, d.x = np.histogram(d.y[~np.isnan(d.y)], bins=nBins)
-            dx   = d.x[1] - d.x[0]
-            d.x  = d.x[:-1] + dx/2
-            d.y  = d.y / (n*dx) # TODO counts /PDF option
-        d.sx = d.sy;
-        d.sy = 'PDF('+no_unit(d.sy)+')'
-        iu = inverse_unit(d.sy)
-        if len(iu)>0:
-            d.sy += ' ['+ iu +']'
-
-    def setPD_MinMax(self,d):
-        if self.mmxPanel.cbyMinMax.IsChecked():
-            if d.yIsString:
-                Warn(self,'Cannot compute min-max for strings')
-                self.mmxPanel.cbyMinMax.SetValue(False)
-                #self.pltTypePanel.cbRegular.SetValue(True)
-                return
-            mi= np.nanmin(d.y)
-            mx= np.nanmax(d.y)
-            if mi == mx:
-                d.y=d.y*0
-            else:
-                d.y = (d.y-mi)/(mx-mi)
-        if self.mmxPanel.cbxMinMax.IsChecked():
-            if d.xIsString:
-                Warn(self,'Cannot compute min-max for strings')
-                self.mmxPanel.cbxMinMax.SetValue(False)
-                #self.pltTypePanel.cbRegular.SetValue(True)
-                return
-            mi= np.nanmin(d.x)
-            mx= np.nanmax(d.x)
-            if mi == mx:
-                d.x=d.x*0
-            else:
-                d.x = (d.x-mi)/(mx-mi)
-
-    def setPD_FFT(self,d):
-        if d.yIsString or d.yIsDate:
-            Warn(self,'Cannot plot FFT of dates or strings')
+        except Exception as e:
+            self.removeTools(Layout=True) # <<< TODO does not work
             self.pltTypePanel.cbRegular.SetValue(True)
-        elif d.xIsString:
-            Warn(self,'Cannot plot FFT if x axis is string')
-            self.pltTypePanel.cbRegular.SetValue(True)
-        else:
-            output_type      = self.spcPanel.cbType.GetStringSelection()
-            averaging        = self.spcPanel.cbAveraging.GetStringSelection()
-            averaging_window = self.spcPanel.cbAveragingMethod.GetStringSelection()
-            bDetrend         = self.spcPanel.cbDetrend.IsChecked()
-            nExp             = self.spcPanel.scP2.GetValue()
-            dt=None
-            if d.xIsDate:
-                dt = getDt(d.x)
-            # --- Computing fft - x is freq, y is Amplitude
-            d.x, d.y, Info = fft_wrap(d.x, d.y, dt=dt, output_type=output_type,averaging=averaging,averaging_window=averaging_window,detrend=bDetrend,nExp=nExp)
-            # --- Setting plot options
-            d.Info=Info
-            d.xIsDate=False
-            d.sy= 'FFT('+no_unit(d.sy)+')'
-            if unit(d.sx)=='s':
-                d.sx= 'Frequency [Hz]'
-            else:
-                d.sx= ''
-            if hasattr(Info,'nExp') and Info.nExp!=nExp:
-                self.spcPanel.scP2.SetValue(Info.nExp)
-                self.spcPanel.updateP2(Info.nExp)
+            raise e # Used to be Warn
+
+    def setPD_MinMax(self,PD):
+        """ Convert plot data to MinMax data based on GUI options"""
+        yScale=self.mmxPanel.cbyMinMax.IsChecked()
+        xScale=self.mmxPanel.cbxMinMax.IsChecked()
+        try:
+            PD.toMinMax(xScale,yScale)
+        except Exception as e:
+            self.mmxPanel.cbxMinMax.SetValue(False)
+            raise e # Used to be Warn
+
+    def setPD_FFT(self,pd):
+        """ Convert plot data to FFT data based on GUI options"""
+        yType      = self.spcPanel.cbType.GetStringSelection()
+        xType      = self.spcPanel.cbTypeX.GetStringSelection()
+        avgMethod  = self.spcPanel.cbAveraging.GetStringSelection()
+        avgWindow  = self.spcPanel.cbAveragingMethod.GetStringSelection()
+        bDetrend   = self.spcPanel.cbDetrend.IsChecked()
+        nExp       = self.spcPanel.scP2.GetValue()
+        # Convert plotdata to FFT data
+        Info = pd.toFFT(yType=yType, xType=xType, avgMethod=avgMethod, avgWindow=avgWindow, bDetrend=bDetrend, nExp=nExp) 
+        # Trigger
+        if hasattr(Info,'nExp') and Info.nExp!=nExp:
+            self.spcPanel.scP2.SetValue(Info.nExp)
+            self.spcPanel.updateP2(Info.nExp)
 
 
     def getPlotData(self,plotType):
         ID,SameCol=self.selPanel.getPlotDataSelection()
         del self.plotData
         self.plotData=[]
-        tabs=self.selPanel.tabList.getTabs() # TODO
-        for i,idx in enumerate(ID):
-            d=PlotData();
-            d.id = i
-            d.it = idx[0]
-            d.ix = idx[1]
-            d.iy = idx[2]
-            d.sx = idx[3]
-            d.sy = idx[4]
-            d.syl = ''
-            d.st = idx[5]
-            d.filename = tabs[d.it].filename
-            d.tabname = tabs[d.it].active_name
-            d.SameCol = SameCol
-            d.x,d.xIsString,d.xIsDate,_ = tabs[d.it].getColumn(d.ix)
-            d.y,d.yIsString,d.yIsDate,c = tabs[d.it].getColumn(d.iy)
-            n=len(d.y)
-            if n>1000 and (d.xIsString):
-                self.plotData=[]
-                raise Exception('Error: x values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(d.st,d.sx))
-
-            if n>1000 and (d.yIsString):
-                self.plotData=[]
-                raise Exception('Error: y values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(d.st,d.sy))
-
-            d.needChineseFont = has_chinese_char(d.sy) or has_chinese_char(d.sx)
-            # Stats of the raw data
-            #d.x0Min  = xMin(d)
-            #d.x0Max  = xMax(d)
-            d.y0Min  = yMin(d)
-            d.y0Max  = yMax(d)
-            d.y0Std  = yStd(d)
-            d.y0Mean = yMean(d)
-            d.n0     = (n,'{:d}'.format(n))
-            # Possible change of data
-            if plotType=='MinMax':
-                self.setPD_MinMax(d) 
-            elif plotType=='PDF':
-                self.setPD_PDF(d,c)  
-            elif plotType=='FFT':
-                self.setPD_FFT(d) 
-            self.plotData.append(d)
+        tabs=self.selPanel.tabList.getTabs() # TODO, selPanel should just return the PlotData...
+        try:
+            for i,idx in enumerate(ID):
+                # Initialize each plotdata based on selected table and selected id channels
+                pd=PlotData();
+                pd.fromIDs(tabs,i,idx,SameCol) 
+                # Possible change of data
+                if plotType=='MinMax':
+                    self.setPD_MinMax(pd) 
+                elif plotType=='PDF':
+                    self.setPD_PDF(pd,pd.c)  
+                elif plotType=='FFT':
+                    self.setPD_FFT(pd) 
+                self.plotData.append(pd)
+        except Exception as e:
+            self.plotData=[]
+            raise e
 
     def PD_Compare(self,mode):
-        # --- Comparison
-        PD=self.plotData
+        """ Perform comparison of the selected PlotData, returns new plotData with the comparison. """
         sComp = self.cmpPanel.rbType.GetStringSelection()
-
-        def getError(y,yref,method):
-            if len(y)!=len(yref):
-                raise NotImplementedError('Cannot compare signals of different lengths')
-            if sComp=='Relative':
-                if np.mean(np.abs(yref))<1e-7:
-                    Error=(y-yRef)/(yRef+1)*100
-                else:
-                    Error=(y-yRef)/yRef*100
-            elif sComp=='|Relative|':
-                if np.mean(np.abs(yref))<1e-7:
-                    Error=abs((y-yRef)/(yRef+1))*100
-                else:
-                    Error=abs((y-yRef)/yRef)*100
-            elif sComp=='Ratio':
-                if np.mean(np.abs(yref))<1e-7:
-                    Error=(y+1)/(yRef+1)
-                else:
-                    Error=y/yRef
-            elif sComp=='Absolute':
-                Error=y-yRef
-            else:
-                raise Exception('Something wrong '+sComp)
-            return Error
-
-        def getErrorLabel(ylab=''):
-            if len(ylab)>0:
-                ylab=no_unit(ylab)
-                ylab='in '+ylab+' '
-            if sComp=='Relative':
-                return 'Relative error '+ylab+'[%]';
-            elif sComp=='|Relative|':
-                return 'Abs. relative error '+ylab+'[%]';
-            if sComp=='Ratio':
-                return 'Ratio '+ylab.replace('in','of')+'[-]';
-            elif sComp=='Absolute':
-                usy   = unique([pd.sy for pd in PD])
-                yunits= unique([unit(sy) for sy in usy])
-                if len(yunits)==1 and len(yunits[0])>0:
-                    return 'Absolute error '+ylab+'['+yunits[0]+']'
-                else:
-                    return 'Absolute error '+ylab;
-            elif sComp=='Y-Y':
-                return PD[0].sy
-
-        xlabelAll=PD[0].sx
-
-        
-        if any([pd.yIsString for pd in PD]):
-            Warn(self,'Cannot compare strings')
+        try:
+            self.plotData = compareMultiplePD(self.plotData,mode, sComp)
+        except Exception as e:
             self.pltTypePanel.cbRegular.SetValue(True)
-            return
-        if any([pd.yIsDate for pd in PD]):
-            Warn(self,'Cannot compare dates with other values')
-            self.pltTypePanel.cbRegular.SetValue(True)
-            return
-
-
-        if mode=='nTabs_1Col':
-            ylabelAll=getErrorLabel(PD[1].sy)
-            usy   = unique([pd.sy for pd in PD])
-            #print('Compare - different tabs - 1 col')
-            st  = [pd.st for pd in PD]
-            if len(usy)==1:
-               SS=usy[0] + ', '+ ' wrt. '.join(st[::-1])
-               if sComp=='Y-Y':
-                   xlabelAll=PD[0].st+', '+PD[0].sy
-                   ylabelAll=PD[1].st+', '+PD[1].sy
-            else:
-                SS=' wrt. '.join(usy[::-1])
-                if sComp=='Y-Y':
-                    xlabelAll=PD[0].sy
-                    ylabelAll=PD[1].sy
-
-            xRef = PD[0].x
-            yRef = PD[0].y
-            PD[1].syl=SS
-            y=np.interp(xRef,PD[1].x,PD[1].y)
-            if sComp=='Y-Y':
-                PD[1].x=yRef
-                PD[1].y=y
-            else:
-                Error = getError(y,yRef,sComp)
-                PD[1].x=xRef
-                PD[1].y=Error
-            PD[1].sx=xlabelAll
-            PD[1].sy=ylabelAll
-            self.plotData=[PD[1]]
-
-        elif mode=='1Tab_nCols':
-            # --- Compare one table - different columns
-            #print('One Tab, different columns')
-            ylabelAll=getErrorLabel()
-            xRef = PD[0].x
-            yRef = PD[0].y
-            pdRef=PD[0]
-            for pd in PD[1:]:
-                if sComp=='Y-Y':
-                    pd.syl = no_unit(pd.sy)+' wrt. '+no_unit(pdRef.sy)
-                    pd.x   = yRef
-                    pd.sx  = PD[0].sy
-                else:
-                    pd.syl = no_unit(pd.sy)+' wrt. '+no_unit(pdRef.sy)
-                    pd.sx  = xlabelAll
-                    pd.sy  = ylabelAll
-                    Error  = getError(pd.y,yRef,sComp)
-                    pd.x=xRef
-                    pd.y=Error
-            self.plotData=PD[1:]
-        elif mode =='nTabs_SameCols':
-            # --- Compare different tables, same column
-            #print('Several Tabs, same columns')
-            uiy=unique([pd.iy for pd in PD])
-            uit=unique([pd.it for pd in PD])
-            self.plotData=[]
-            for iy in uiy:
-                PD_SameCol=[pd for pd in PD if pd.iy==iy]
-                xRef = PD_SameCol[0].x
-                yRef = PD_SameCol[0].y
-                ylabelAll=getErrorLabel(PD_SameCol[0].sy)
-                for pd in PD_SameCol[1:]:
-                    if pd.xIsString:
-                        if len(xRef)==len(pd.x):
-                            pass # fine able to interpolate
-                        else:
-                            Error(self,'X values have different length and are strings, cannot interpolate string. Use `Index` for x instead.')
-                    else:
-                        pd.y=np.interp(xRef,pd.x,pd.y)
-                    if sComp=='Y-Y':
-                        pd.x=yRef
-                        pd.sx=PD_SameCol[0].st+', '+PD_SameCol[0].sy
-                        if len(PD_SameCol)==1:
-                            pd.sy =pd.st+', '+pd.sy
-                        else:
-                            pd.syl= pd.st
-                    else:
-                        if len(uit)<=2:
-                            pd.syl = pd.st+' wrt. '+PD_SameCol[0].st+', '+pd.sy
-                        else:
-                            pd.syl = pd.st+'|'+pd.sy
-                        pd.sx  = xlabelAll
-                        pd.sy  = ylabelAll
-                        Error = getError(pd.y,yRef,sComp)
-                        pd.x=xRef
-                        pd.y=Error
-                    self.plotData.append(pd)
-        elif mode =='nTabs_SimCols':
-            # --- Compare different tables, similar columns
-            print('Several Tabs, similar columns, TODO')
-            self.plotData=[]
+            raise e
 
     def _onPlotMatrixLeftClick(self, event):
         """Toggle plot-states from None, to left-axis, to right-axis.
@@ -984,6 +749,8 @@ class PlotPanel(wx.Panel):
                         I=pd.x<xlim
                         ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
                         ax_left.set_ylim(bottom=ymin/2)
+                    if self.spcPanel.cbTypeX.GetStringSelection()=='x':
+                        ax_left.invert_xaxis()
                 except:
                     pass
             elif self.cbAutoScale.IsChecked() is False and keep_limits:
@@ -1260,12 +1027,17 @@ class PlotPanel(wx.Panel):
             return
         elif len(self.plotData) == 1:
             # If single signal view is out of range, enable autoscale (could be regardless of cbMeasure?)
-            for (x, y) in np.array([self.plotData[0].x, self.plotData[0].y]).transpose():
-                if (self.xlim_prev[0][0] < x and x < self.xlim_prev[0][1] and
-                    self.ylim_prev[0][0] < y and y < self.ylim_prev[0][1]):
-                    break
-            else:
-                self.cbAutoScale.SetValue(True)
+            # NOTE: 
+            # I've commented this below since it can be expensive
+            # we can consider using pd.yMin and pd.yMax (the x equivalents are not computed)
+            #   these values don't exist for FFT and PDF I believe 
+            # raises an issue when x or y values are strings or date
+            #for (x, y) in np.array([self.plotData[0].x, self.plotData[0].y]).transpose():
+            #    if (self.xlim_prev[0][0] < x and x < self.xlim_prev[0][1] and
+            #        self.ylim_prev[0][0] < y and y < self.ylim_prev[0][1]):
+            #        break
+            #else:
+            self.cbAutoScale.SetValue(True)
 
         mode=self.findPlotMode(self.plotData)
         nPlots,spreadBy=self.findSubPlots(self.plotData,mode)

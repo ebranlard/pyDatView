@@ -7,6 +7,7 @@ dist
 *.spec
 *.callgrind
 *.prof
+*.ttf
 DEBUG.py
 _TODO
 _FFT
@@ -14,3 +15,4 @@ _Damping
 _Fatigue
 _tools/*
 _*.bat
+_*

@@ -9,6 +9,8 @@ else
 endif
 
 testfile= weio/weio/tests/example_files/FASTIn_arf_coords.txt
+# testfile= _TestFiles/CSV_xIsString_Generic.csv 
+# testfile= _TestFiles/VTS.Farm.T3.outb
 all:
 ifeq ($(detected_OS),Darwin)        # Mac OS X
 	./pythonmac pyDatView.py $(testfile)
@@ -43,9 +45,9 @@ help:
 
 test:
 ifeq ($(detected_OS),Darwin)        # Mac OS X
-	./pythonmac -m unittest discover -v
+	./pythonmac -m unittest discover -v tests
 else
-	python -m unittest discover -v
+	python -m unittest discover -v tests
 endif
 
 prof:
