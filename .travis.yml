@@ -4,6 +4,7 @@ language: python
 python:
   - "2.7"
   - "3.6"
+  - "3.7"
 os: 
  - linux
 sudo: true
@@ -15,7 +16,6 @@ install:
   - pip install -r weio/requirements.txt
 
 script: 
-  - pip install -e .
   - make test
   - if [[ "$TRAVIS_TAG" == "" ]]; then export TRAVIS_TAG="vdev" ; fi
 

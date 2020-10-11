@@ -16,3 +16,4 @@ _Fatigue
 _tools/*
 _*.bat
 _*
+!__init__.py

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import numpy as np
 from .common import no_unit, unit, inverse_unit, has_chinese_char
 from .common import isString, isDate
@@ -98,10 +99,9 @@ class PlotData():
         Uses "stats" library  (from welib/pybra)
         NOTE: inPlace
         """
-        try:
-            from .utils.stats import pdf_gaussian_kde, pdf_histogram
-        except:
-            from utils.stats import pdf_gaussian_kde, pdf_histogram
+        from pydatview.utils.stats import pdf_gaussian_kde, pdf_histogram
+        #except:
+        #    from utils.stats import pdf_gaussian_kde, pdf_histogram
 
         n=len(PD.y)
         if PD.yIsString:
