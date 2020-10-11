@@ -53,14 +53,18 @@ class PDFCtrlPanel(wx.Panel):
         lb = wx.StaticText( self, -1, 'Number of bins:')
         self.scBins = wx.SpinCtrl(self, value='50',size=wx.Size(70,-1))
         self.scBins.SetRange(3, 10000)
+        self.cbSmooth = wx.CheckBox(self, -1, 'Smooth',(10,10))
+        self.cbSmooth.SetValue(False)
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
         dummy_sizer.Add(lb                    ,0, flag = wx.CENTER|wx.LEFT,border = 1)
         dummy_sizer.Add(self.scBins           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.cbSmooth         ,0, flag = wx.CENTER|wx.LEFT,border = 6)
         self.SetSizer(dummy_sizer)
-        self.Bind(wx.EVT_TEXT      ,self.onBinsChange  ,self.scBins     )
+        self.Bind(wx.EVT_TEXT    , self.onPDFOptionChange, self.scBins)
+        self.Bind(wx.EVT_CHECKBOX, self.onPDFOptionChange)
         self.Hide() 
 
-    def onBinsChange(self,event=None):
+    def onPDFOptionChange(self,event=None):
         self.parent.redraw(); # DATA HAS CHANGED
 
 class MinMaxPanel(wx.Panel):
@@ -555,12 +559,14 @@ class PlotPanel(wx.Panel):
     def setPD_PDF(self,PD,c):
         """ Convert plot data to PDF data based on GUI options"""
         # ---PDF
-        nBins=self.pdfPanel.scBins.GetValue()
+        nBins   = self.pdfPanel.scBins.GetValue()
+        bSmooth = self.pdfPanel.cbSmooth.GetValue()
         try:
-            nBins_out= PD.toPDF(nBins)
+            nBins_out= PD.toPDF(nBins,bSmooth)
             if nBins_out!=nBins:
                 self.pdfPanel.scBins.SetValue(nBins)
         except Exception as e:
+            self.removeTools(Layout=True) # <<< TODO does not work
             self.pltTypePanel.cbRegular.SetValue(True)
             raise e # Used to be Warn
 

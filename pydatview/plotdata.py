@@ -4,6 +4,9 @@ from .common import isString, isDate
 from .common import unique
 from .common import yMin, yMax, yStd, yMean # TODO put these directly into this class maybe
 
+
+
+
 class PlotData():
     """ 
     Class for plot data
@@ -90,10 +93,13 @@ class PlotData():
         return s1
 
 
-    def toPDF(PD, nBins=30):
+    def toPDF(PD, nBins=30, smooth=False):
         """ Convert y-data to Probability density function (PDF) as function of x 
+        Uses "stats" library  (from welib/pybra)
         NOTE: inPlace
         """
+        from .utils.stats import pdf_gaussian_kde, pdf_histogram
+
         n=len(PD.y)
         if PD.yIsString:
             if n>100:
@@ -106,13 +112,13 @@ class PlotData():
         elif PD.yIsDate:
             raise Exception('Warn: Cannot plot PDF of dates')
         else:
-            #min(int(n/10),50)
             if nBins>=n:
                 nBins=n
-            PD.y, PD.x = np.histogram(PD.y[~np.isnan(PD.y)], bins=nBins)
-            dx   = PD.x[1] - PD.x[0]
-            PD.x  = PD.x[:-1] + dx/2
-            PD.y  = PD.y / (n*dx) # TODO counts /PDF option
+            if smooth:
+                PD.x, PD.y = pdf_gaussian_kde(PD.y, nOut=nBins)
+            else:
+                PD.x, PD.y = pdf_histogram(PD.y, nBins=nBins, norm=True, count=False)
+
         PD.sx = PD.sy;
         PD.sy = 'PDF('+no_unit(PD.sy)+')'
         iu = inverse_unit(PD.sy)
