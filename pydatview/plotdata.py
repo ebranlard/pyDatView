@@ -98,7 +98,10 @@ class PlotData():
         Uses "stats" library  (from welib/pybra)
         NOTE: inPlace
         """
-        from .utils.stats import pdf_gaussian_kde, pdf_histogram
+        try:
+            from .utils.stats import pdf_gaussian_kde, pdf_histogram
+        except:
+            from utils.stats import pdf_gaussian_kde, pdf_histogram
 
         n=len(PD.y)
         if PD.yIsString:
