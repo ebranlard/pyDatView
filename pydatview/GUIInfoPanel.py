@@ -8,9 +8,6 @@ try:
 except:
     from common import *
     from GUICommon import *
-    from fatigue import eq_load
-from .GUIMeasure import find_closest
-from .fatigue import eq_load
 import os
 # --------------------------------------------------------------------------------}
 # --- InfoPanel 
@@ -23,197 +20,6 @@ class TestListCtrl(wx.ListCtrl,listmix.ListRowHighlighter):
         #listmix.ListCtrlAutoWidthMixin.__init__(self)
         listmix.ListRowHighlighter.__init__(self)
         #self.setResizeColumn(0)
-
-# --------------------------------------------------------------------------------}
-# --- Stats functions
-# --------------------------------------------------------------------------------{
-def yName(pd):
-    return pd.sy, pd.sy
-
-def fileName(pd):
-    return os.path.basename(pd.filename), os.path.basename(pd.filename)
-
-def baseDir(pd):
-    return os.path.dirname(pd.filename),os.path.join(os.path.dirname(pd.filename),'')
-
-def tabName(pd):
-    return pd.tabname, pd.tabname
-
-def ylen(pd):
-    v=len(pd.y)
-    s='{:d}'.format(v)
-    return v,s
-
-def y0Mean(pd):
-    v=pd.y0Mean[0]
-    s=pd.y0Mean[1]
-    return v,s
-
-def n0(pd):
-    v=pd.n0[0]
-    s=pd.n0[1]
-    return v,s
-
-def y0Std(pd):
-    v=pd.y0Std[0]
-    s=pd.y0Std[1]
-    return v,s
-
-def y0Var(pd):
-    if pd.y0Std[0] is not None: 
-        v=pd.y0Std[0]**2
-        s=pretty_num(v)
-    else:
-        v=None
-        s='NA'
-    return v,s
-
-def y0TI(pd):
-    v=pd.y0Std[0]/pd.y0Mean[0]
-    s=pretty_num(v)
-    return v,s
-
-def y0Min(pd):
-    v=pd.y0Min[0]
-    s=pd.y0Min[1]
-    return v,s
-
-def y0Max(pd):
-    v=pd.y0Max[0]
-    s=pd.y0Max[1]
-    return v,s
-
-def yRange(pd):
-    if pd.yIsString:
-        return 'NA','NA'
-    elif pd.yIsDate:
-        dtAll=getDt([pd.x[-1]-pd.x[0]])
-        return '',pretty_time(dtAll)
-    else:
-        v=np.nanmax(pd.y)-np.nanmin(pd.y)
-        s=pretty_num(v)
-    return v,s
-
-def xRange(pd):
-    if pd.xIsString:
-        return 'NA','NA'
-    elif pd.xIsDate:
-        dtAll=getDt([pd.x[-1]-pd.x[0]])
-        return '',pretty_time(dtAll)
-    else:
-        v=np.nanmax(pd.x)-np.nanmin(pd.x)
-        s=pretty_num(v)
-    return v,s
-
-
-def inty(pd):
-    if pd.yIsString or pd.yIsDate or pd.xIsString or pd.xIsDate:
-        return None,'NA'
-    else:
-        v=np.trapz(y=pd.y,x=pd.x)
-        s=pretty_num(v)
-    return v,s
-
-def intyintdx(pd):
-    if pd.yIsString or pd.yIsDate or pd.xIsString or pd.xIsDate:
-        return None,'NA'
-    else:
-        v=np.trapz(y=pd.y,x=pd.x)/np.trapz(y=pd.x*0+1,x=pd.x)
-        s=pretty_num(v)
-    return v,s
-
-def intyx1(pd):
-    if pd.yIsString or pd.yIsDate or pd.xIsString or pd.xIsDate:
-        return None,'NA'
-    else:
-        v=np.trapz(y=pd.y*pd.x,x=pd.x)
-        s=pretty_num(v)
-    return v,s
-
-def intyx1_scaled(pd):
-    if pd.yIsString or pd.yIsDate or pd.xIsString or pd.xIsDate:
-        return None,'NA'
-    else:
-        v=np.trapz(y=pd.y*pd.x,x=pd.x)
-        v=v/np.trapz(y=pd.y,x=pd.x)
-        s=pretty_num(v)
-    return v,s
-
-def intyx2(pd):
-    if pd.yIsString or pd.yIsDate or pd.xIsString or pd.xIsDate:
-        return None,'NA'
-    else:
-        v=np.trapz(y=pd.y*pd.x**2,x=pd.x)
-        s=pretty_num(v)
-    return v,s
-
-def meas(pd, xymeas):
-    try:
-        v='NA'
-        xy = np.array([pd.x, pd.y]).transpose()
-        points = find_closest(xy, [xymeas[0], xymeas[1]], False)
-        if points.ndim == 1:
-            v = points[1]
-            s=pretty_num(v)
-        else:
-            v = points[0, 1]
-            s = ' / '.join([str(p) for p in points[:, 1]])
-    except (IndexError, TypeError):
-        v='NA'
-        s='NA'
-    return v,s
-
-
-def dx(pd):
-    if len(pd.x)<=1:
-        return 'NA','NA'
-    if pd.xIsString:
-        return None,'NA'
-    elif  pd.xIsDate:
-        dt=getDt(pd.x)
-        return dt,pretty_time(dt)
-    else:
-        v=pd.x[1]-pd.x[0]
-        s=pretty_num(v)
-        return v,s
-
-def xMax(pd):
-    if pd.xIsString:
-        return pd.x[-1],pd.x[-1]
-    elif  pd.xIsDate:
-        return pd.x[-1],'{}'.format(pd.x[-1])
-    else:
-        v=np.nanmax(pd.x)
-        s=pretty_num(v)
-        return v,s
-def xMin(pd):
-    if pd.xIsString:
-        return pd.x[0],pd.x[0]
-    elif  pd.xIsDate:
-        return pd.x[0],'{}'.format(pd.x[0])
-    else:
-        v=np.nanmin(pd.x)
-        s=pretty_num(v)
-        return v,s
-
-def leq(pd,m):
-    if pd.yIsString or  pd.yIsDate:
-        return 'NA','NA'
-    else:
-        T,_=xRange(pd)
-        v=eq_load(pd.y, m=m, neq=T)[0][0]
-        return v,pretty_num(v)
-
-def Info(pd,var):
-    if var=='LSeg':
-        return '','{:d}'.format(pd.Info.LSeg)
-    elif var=='LWin':
-        return '','{:d}'.format(pd.Info.LWin)
-    elif var=='LOvlp':
-        return '','{:d}'.format(pd.Info.LOvlp)
-    elif var=='nFFT':
-        return '','{:d}'.format(pd.Info.nFFT)
-
 
 
 
@@ -266,107 +72,106 @@ class InfoPanel(wx.Panel):
         #   f   : function used to evaluate value
         #   s   : selected or not
         self.ColsReg=[]
-        self.ColsReg.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
-        self.ColsReg.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
-        self.ColsReg.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
-        self.ColsReg.append({'name':'Column'       , 'al':'L' , 'f':yName  , 's':True})
-        self.ColsReg.append({'name':'Mean'         , 'al':'R' , 'f':y0Mean  , 's' :True})
-        self.ColsReg.append({'name':'Std'          , 'al':'R' , 'f':y0Std   , 's' :True})
-        self.ColsReg.append({'name':'Var'          , 'al':'R' , 'f':y0Var  , 's' :False})
-        self.ColsReg.append({'name':'Std/Mean (TI)', 'al':'R' , 'f':y0TI   , 's' :False})
-        self.ColsReg.append({'name':'Min'          , 'al':'R' , 'f':y0Min   , 's' :True})
-        #self.ColsReg.append({'name':'Max'         , 'al':'R' , 'f':y0Max  , 's' :True})
-        self.ColsReg.append({'name':'Max'          , 'al':'R' , 'f':y0Max   , 's' :True})
-        self.ColsReg.append({'name':'Range'        , 'al':'R' , 'f':yRange , 's' :True})
-        self.ColsReg.append({'name':'dx'           , 'al':'R' , 'f':dx     , 's' :True})
-        self.ColsReg.append({'name':'Meas 1'       , 'al':'R' , 'f':meas   , 's' :False})
-        self.ColsReg.append({'name':'Meas 2'       , 'al':'R' , 'f':meas   , 's' :False})
-        self.ColsReg.append({'name':'xMin'         , 'al':'R' , 'f':xMin   , 's' :False})
-        self.ColsReg.append({'name':'xMax'         , 'al':'R' , 'f':xMax   , 's' :False})
-        self.ColsReg.append({'name':'xRange'       , 'al':'R' , 'f':xRange , 's' :False})
-        self.ColsReg.append({'name':u'\u222By'     , 'al':'R' , 'f':inty   , 's' :False})
-        self.ColsReg.append({'name':u'\u222By/\u222Bdx', 'al':'R' , 'f':intyintdx   , 's' :False})
-        self.ColsReg.append({'name':u'\u222By.x  ' , 'al':'R' , 'f':intyx1 , 's' :False})
-        self.ColsReg.append({'name':u'\u222By.x/\u222By' , 'al':'R' , 'f':intyx1_scaled , 's' :False})
-        self.ColsReg.append({'name':u'\u222By.x^2' , 'al':'R' , 'f':intyx2 , 's' :False})
-        self.ColsReg.append({'name':'L_eq(m=3)'    , 'al':'R' , 'f':lambda x:leq(x,m=3) , 's' :False})
-        self.ColsReg.append({'name':'L_eq(m=4)'    , 'al':'R' , 'f':lambda x:leq(x,m=4) , 's' :False})
-        self.ColsReg.append({'name':'L_eq(m=5)'    , 'al':'R' , 'f':lambda x:leq(x,m=5) , 's' :False})
-        self.ColsReg.append({'name':'L_eq(m=7)'    , 'al':'R' , 'f':lambda x:leq(x,m=7) , 's' :False})
-        self.ColsReg.append({'name':'L_eq(m=8)'    , 'al':'R' , 'f':lambda x:leq(x,m=8) , 's' :False})
-        self.ColsReg.append({'name':'L_eq(m=9)'    , 'al':'R' , 'f':lambda x:leq(x,m=9) , 's' :False})
-        self.ColsReg.append({'name':'L_eq(m=10)'   , 'al':'R' , 'f':lambda x:leq(x,m=10), 's' :False})
-        self.ColsReg.append({'name':'L_eq(m=12)'   , 'al':'R' , 'f':lambda x:leq(x,m=12), 's' :False})
-        self.ColsReg.append({'name':'n'            , 'al':'R' , 'f':ylen   , 's' :True})
+        self.ColsReg.append({'name':'Directory'    , 'al':'L' , 'm':'baseDir' , 's':False})
+        self.ColsReg.append({'name':'Filename'     , 'al':'L' , 'm':'fileName', 's':False})
+        self.ColsReg.append({'name':'Table'        , 'al':'L' , 'm':'tabName' , 's':False})
+        self.ColsReg.append({'name':'Column'       , 'al':'L' , 'm':'yName'  , 's':True})
+        self.ColsReg.append({'name':'Mean'         , 'al':'R' , 'm':'y0Mean'  , 's' :True})
+        self.ColsReg.append({'name':'Std'          , 'al':'R' , 'm':'y0Std'   , 's' :True})
+        self.ColsReg.append({'name':'Var'          , 'al':'R' , 'm':'y0Var' , 's' :False})
+        self.ColsReg.append({'name':'Std/Mean (TI)', 'al':'R' , 'm':'y0TI'  , 's' :False})
+        self.ColsReg.append({'name':'Min'          , 'al':'R' , 'm':'y0Min'  , 's' :True})
+        self.ColsReg.append({'name':'Max'          , 'al':'R' , 'm':'y0Max'  , 's' :True})
+        self.ColsReg.append({'name':'Range'        , 'al':'R' , 'm':'yRange', 's' :True})
+        self.ColsReg.append({'name':'dx'           , 'al':'R' , 'm':'dx'    , 's' :True})
+        self.ColsReg.append({'name':'Meas 1'       , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsReg.append({'name':'Meas 2'       , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsReg.append({'name':'xMin'         , 'al':'R' , 'm':'xMin'  , 's' :False})
+        self.ColsReg.append({'name':'xMax'         , 'al':'R' , 'm':'xMax'  , 's' :False})
+        self.ColsReg.append({'name':'xRange'       , 'al':'R' , 'm':'xRange', 's' :False})
+        self.ColsReg.append({'name':u'\u222By'         , 'al':'R' , 'm':'inty'          , 's' :False})
+        self.ColsReg.append({'name':u'\u222By/\u222Bdx', 'al':'R' , 'm':'intyintdx'     , 's' :False})
+        self.ColsReg.append({'name':u'\u222By.x  '     , 'al':'R' , 'm':'intyx1'        , 's' :False})
+        self.ColsReg.append({'name':u'\u222By.x/\u222By','al':'R' , 'm':'intyx1_scaled' , 's' :False})
+        self.ColsReg.append({'name':u'\u222By.x^2'     , 'al':'R' , 'm':'intyx2'        , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=3)'    , 'al':'R' , 'f':lambda x:x.leq(m=3) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=4)'    , 'al':'R' , 'f':lambda x:x.leq(m=4) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=5)'    , 'al':'R' , 'f':lambda x:x.leq(m=5) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=7)'    , 'al':'R' , 'f':lambda x:x.leq(m=7) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=8)'    , 'al':'R' , 'f':lambda x:x.leq(m=8) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=9)'    , 'al':'R' , 'f':lambda x:x.leq(m=9) , 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=10)'   , 'al':'R' , 'f':lambda x:x.leq(m=10), 's' :False})
+        self.ColsReg.append({'name':'L_eq(m=12)'   , 'al':'R' , 'f':lambda x:x.leq(m=12), 's' :False})
+        self.ColsReg.append({'name':'n'            , 'al':'R' , 'm':'ylen'   , 's' :True})
         self.ColsFFT=[]
-        self.ColsFFT.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
-        self.ColsFFT.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
-        self.ColsFFT.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
-        self.ColsFFT.append({'name':'Column'        , 'al':'L' , 'f':yName  , 's':True})
-        self.ColsFFT.append({'name':'Mean'          , 'al':'R' , 'f':y0Mean , 's' :True})
-        self.ColsFFT.append({'name':'Std'           , 'al':'R' , 'f':y0Std  , 's' :True})
-        self.ColsFFT.append({'name':'Min'           , 'al':'R' , 'f':y0Min  , 's' :True})
-        self.ColsFFT.append({'name':'Max'           , 'al':'R' , 'f':y0Max  , 's' :True})
-        self.ColsFFT.append({'name':'Mean(FFT)'     , 'al':'R' , 'f':yMean  , 's' :False})
-        self.ColsFFT.append({'name':'Std(FFT)'      , 'al':'R' , 'f':yStd   , 's' :False})
-        self.ColsFFT.append({'name':'Min(FFT)'      , 'al':'R' , 'f':yMin   , 's' :True})
-        self.ColsFFT.append({'name':'Max(FFT)'      , 'al':'R' , 'f':yMax   , 's' :True})
-        self.ColsFFT.append({'name':'Var'           , 'al':'R' , 'f':y0Var  , 's' :False})
-        self.ColsFFT.append({'name':u'\u222By(FFT)' , 'al':'R' , 'f':inty   , 's' :True})
-        self.ColsFFT.append({'name':'dx(FFT)'       , 'al':'R' , 'f':dx     , 's' :True})
-        self.ColsFFT.append({'name':'xMax(FFT)'     , 'al':'R' , 'f':xMax   , 's' :True})
-        self.ColsFFT.append({'name':'nOvlp(FFT)'    , 'al':'R' , 'f':lambda x:Info(x,'LOvlp') , 's' :False})
-        self.ColsFFT.append({'name':'nSeg(FFT)'     , 'al':'R' , 'f':lambda x:Info(x,'LSeg')  , 's' :False})
-        self.ColsFFT.append({'name':'nWin(FFT)'     , 'al':'R' , 'f':lambda x:Info(x,'LWin')  , 's' :False})
-        self.ColsFFT.append({'name':'nFFT(FFT)'     , 'al':'R' , 'f':lambda x:Info(x,'nFFT')  , 's' :False})
-        self.ColsFFT.append({'name':'n(FFT)'        , 'al':'R' , 'f':ylen   , 's' :True})
-        self.ColsFFT.append({'name':'Meas 1'        , 'al':'R' , 'f':meas   , 's' :False})
-        self.ColsFFT.append({'name':'Meas 2'        , 'al':'R' , 'f':meas   , 's' :False})
-        self.ColsFFT.append({'name':'n     '        , 'al':'R' , 'f':n0     , 's' :True})
+        self.ColsFFT.append({'name':'Directory'    , 'al':'L' , 'm':'baseDir' , 's':False})
+        self.ColsFFT.append({'name':'Filename'     , 'al':'L' , 'm':'fileName', 's':False})
+        self.ColsFFT.append({'name':'Table'        , 'al':'L' , 'm':'tabName' , 's':False})
+        self.ColsFFT.append({'name':'Column'        , 'al':'L' , 'm':'yName'  , 's':True})
+        self.ColsFFT.append({'name':'Mean'          , 'al':'R' , 'm':'y0Mean' , 's' :True})
+        self.ColsFFT.append({'name':'Std'           , 'al':'R' , 'm':'y0Std'  , 's' :True})
+        self.ColsFFT.append({'name':'Min'           , 'al':'R' , 'm':'y0Min'  , 's' :True})
+        self.ColsFFT.append({'name':'Max'           , 'al':'R' , 'm':'y0Max'  , 's' :True})
+        self.ColsFFT.append({'name':'Mean(FFT)'     , 'al':'R' , 'm':'yMean'  , 's' :False})
+        self.ColsFFT.append({'name':'Std(FFT)'      , 'al':'R' , 'm':'yStd'   , 's' :False})
+        self.ColsFFT.append({'name':'Min(FFT)'      , 'al':'R' , 'm':'yMin'   , 's' :True})
+        self.ColsFFT.append({'name':'Max(FFT)'      , 'al':'R' , 'm':'yMax'   , 's' :True})
+        self.ColsFFT.append({'name':'Var'           , 'al':'R' , 'm':'y0Var'  , 's' :False})
+        self.ColsFFT.append({'name':u'\u222By(FFT)' , 'al':'R' , 'm':'inty'   , 's' :True})
+        self.ColsFFT.append({'name':'dx(FFT)'       , 'al':'R' , 'm':'dx'     , 's' :True})
+        self.ColsFFT.append({'name':'xMax(FFT)'     , 'al':'R' , 'm':'xMax'   , 's' :True})
+        self.ColsFFT.append({'name':'nOvlp(FFT)'    , 'al':'R' , 'f':lambda x:x.Info('LOvlp') , 's' :False})
+        self.ColsFFT.append({'name':'nSeg(FFT)'     , 'al':'R' , 'f':lambda x:x.Info('LSeg')  , 's' :False})
+        self.ColsFFT.append({'name':'nWin(FFT)'     , 'al':'R' , 'f':lambda x:x.Info('LWin')  , 's' :False})
+        self.ColsFFT.append({'name':'nFFT(FFT)'     , 'al':'R' , 'f':lambda x:x.Info('nFFT')  , 's' :False})
+        self.ColsFFT.append({'name':'n(FFT)'        , 'al':'R' , 'm':'ylen'  , 's' :True})
+        self.ColsFFT.append({'name':'Meas 1'        , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsFFT.append({'name':'Meas 2'        , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsFFT.append({'name':'n     '        , 'al':'R' , 'm':'n0'    , 's' :True})
         self.ColsMinMax=[]
-        self.ColsMinMax.append({'name':'Directory'                  , 'al':'L' , 'f':baseDir , 's':False})
-        self.ColsMinMax.append({'name':'Filename'                   , 'al':'L' , 'f':fileName, 's':False})
-        self.ColsMinMax.append({'name':'Table'                      , 'al':'L' , 'f':tabName , 's':False})
-        self.ColsMinMax.append({'name':'Column'                     , 'al':'L' , 'f':yName  , 's':True})
-        self.ColsMinMax.append({'name':'Mean'                       , 'al':'R' , 'f':y0Mean , 's' :True})
-        self.ColsMinMax.append({'name':'Std'                        , 'al':'R' , 'f':y0Std  , 's' :True})
-        self.ColsMinMax.append({'name':'Min'                        , 'al':'R' , 'f':y0Min  , 's' :True})
-        self.ColsMinMax.append({'name':'Max'                        , 'al':'R' , 'f':y0Max  , 's' :True})
-        self.ColsMinMax.append({'name':'Mean(MinMax)'               , 'al':'R' , 'f':yMean  , 's' :True})
-        self.ColsMinMax.append({'name':'Std(MinMax)'                , 'al':'R' , 'f':yStd   , 's' :True})
-        self.ColsMinMax.append({'name':u'\u222By(MinMax)'           , 'al':'R' , 'f':inty , 's' :True})
-        self.ColsMinMax.append({'name':u'\u222By.x(MinMax)  '       , 'al':'R' , 'f':intyx1 , 's' :False})
-        self.ColsMinMax.append({'name':u'\u222By.x/\u222By(MinMax)' , 'al':'R' , 'f':intyx1_scaled , 's' :False})
-        self.ColsMinMax.append({'name':u'\u222By.x^2(MinMax)'       , 'al':'R' , 'f':intyx2 , 's' :False})
-        self.ColsMinMax.append({'name':'dx(MinMax)'                 , 'al':'R' , 'f':dx     , 's' :False})
-        self.ColsMinMax.append({'name':'n'                          , 'al':'R' , 'f':ylen   , 's' :True})
+        self.ColsMinMax.append({'name':'Directory'                  , 'al':'L' , 'm':'baseDir', 's':False})
+        self.ColsMinMax.append({'name':'Filename'                   , 'al':'L' , 'm':'fileName', 's':False})
+        self.ColsMinMax.append({'name':'Table'                      , 'al':'L' , 'm':'tabName' , 's':False})
+        self.ColsMinMax.append({'name':'Column'                     , 'al':'L' , 'm':'yName'  , 's':True})
+        self.ColsMinMax.append({'name':'Mean'                       , 'al':'R' , 'm':'y0Mean' , 's' :True})
+        self.ColsMinMax.append({'name':'Std'                        , 'al':'R' , 'm':'y0Std'  , 's' :True})
+        self.ColsMinMax.append({'name':'Min'                        , 'al':'R' , 'm':'y0Min'  , 's' :True})
+        self.ColsMinMax.append({'name':'Max'                        , 'al':'R' , 'm':'y0Max'  , 's' :True})
+        self.ColsMinMax.append({'name':'Mean(MinMax)'               , 'al':'R' , 'm':'yMean'  , 's' :True})
+        self.ColsMinMax.append({'name':'Std(MinMax)'                , 'al':'R' , 'm':'yStd'   , 's' :True})
+        self.ColsMinMax.append({'name':u'\u222By(MinMax)'           , 'al':'R' , 'm':'inty' , 's' :True})
+        self.ColsMinMax.append({'name':u'\u222By.x(MinMax)  '       , 'al':'R' , 'm':'intyx1' , 's' :False})
+        self.ColsMinMax.append({'name':u'\u222By.x/\u222By(MinMax)' , 'al':'R' , 'm':'intyx1_scaled' , 's' :False})
+        self.ColsMinMax.append({'name':u'\u222By.x^2(MinMax)'       , 'al':'R' , 'm':'intyx2' , 's' :False})
+        self.ColsMinMax.append({'name':'dx(MinMax)'                 , 'al':'R' , 'm':'dx'     , 's' :False})
+        self.ColsMinMax.append({'name':'n'                          , 'al':'R' , 'm':'ylen'   , 's' :True})
         self.ColsPDF=[]
-        self.ColsPDF.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
-        self.ColsPDF.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
-        self.ColsPDF.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
-        self.ColsPDF.append({'name':'Column'        , 'al':'L' , 'f':yName  , 's':True})
-        self.ColsPDF.append({'name':'Mean'          , 'al':'R' , 'f':y0Mean , 's' :True})
-        self.ColsPDF.append({'name':'Std'           , 'al':'R' , 'f':y0Std  , 's' :True})
-        self.ColsPDF.append({'name':'Min'           , 'al':'R' , 'f':y0Min  , 's' :True})
-        self.ColsPDF.append({'name':'Max'           , 'al':'R' , 'f':y0Max  , 's' :True})
-        self.ColsPDF.append({'name':'Mean(PDF)'     , 'al':'R' , 'f':yMean  , 's' :False})
-        self.ColsPDF.append({'name':'Std(PDF)'      , 'al':'R' , 'f':yStd   , 's' :False})
-        self.ColsPDF.append({'name':'Min(PDF)'      , 'al':'R' , 'f':yMin   , 's' :True})
-        self.ColsPDF.append({'name':'Max(PDF)'      , 'al':'R' , 'f':yMax   , 's' :True})
-        self.ColsPDF.append({'name':u'\u222By(PDF)' , 'al':'R' , 'f':inty   , 's' :True})
-        self.ColsPDF.append({'name':'Meas 1'        , 'al':'R' , 'f':meas   , 's' :False})
-        self.ColsPDF.append({'name':'Meas 2'        , 'al':'R' , 'f':meas   , 's' :False})
-        self.ColsPDF.append({'name':'n(PDF)'        , 'al':'R' , 'f':ylen   , 's' :True})
+        self.ColsPDF.append({'name':'Directory'     , 'al':'L' , 'm':'baseDir' , 's':False})
+        self.ColsPDF.append({'name':'Filename'      , 'al':'L' , 'm':'fileName', 's':False})
+        self.ColsPDF.append({'name':'Table'         , 'al':'L' , 'm':'tabName' , 's':False})
+        self.ColsPDF.append({'name':'Column'        , 'al':'L' , 'm':'yName'  , 's':True})
+        self.ColsPDF.append({'name':'Mean'          , 'al':'R' , 'm':'y0Mean' , 's' :True})
+        self.ColsPDF.append({'name':'Std'           , 'al':'R' , 'm':'y0Std'  , 's' :True})
+        self.ColsPDF.append({'name':'Min'           , 'al':'R' , 'm':'y0Min'  , 's' :True})
+        self.ColsPDF.append({'name':'Max'           , 'al':'R' , 'm':'y0Max'  , 's' :True})
+        self.ColsPDF.append({'name':'Mean(PDF)'     , 'al':'R' , 'm':'yMean'  , 's' :False})
+        self.ColsPDF.append({'name':'Std(PDF)'      , 'al':'R' , 'm':'yStd'  , 's' :False})
+        self.ColsPDF.append({'name':'Min(PDF)'      , 'al':'R' , 'm':'yMin'  , 's' :True})
+        self.ColsPDF.append({'name':'Max(PDF)'      , 'al':'R' , 'm':'yMax'  , 's' :True})
+        self.ColsPDF.append({'name':u'\u222By(PDF)' , 'al':'R' , 'm':'inty'  , 's' :True})
+        self.ColsPDF.append({'name':'Meas 1'        , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsPDF.append({'name':'Meas 2'        , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsPDF.append({'name':'n(PDF)'        , 'al':'R' , 'm':'ylen'  , 's' :True})
         self.ColsCmp=[]
-        self.ColsCmp.append({'name':'Directory'    , 'al':'L' , 'f':baseDir , 's':False})
-        self.ColsCmp.append({'name':'Filename'     , 'al':'L' , 'f':fileName, 's':False})
-        self.ColsCmp.append({'name':'Table'        , 'al':'L' , 'f':tabName , 's':False})
-        self.ColsCmp.append({'name':'Column','al':'L','f':yName ,'s':True})
-        self.ColsCmp.append({'name':'Mean(Cmp)' , 'al':'R' , 'f':yMean  , 's' :True})
-        self.ColsCmp.append({'name':'Std(Cmp)'  , 'al':'R' , 'f':yStd   , 's' :True})
-        self.ColsCmp.append({'name':'Min(Cmp)'  , 'al':'R' , 'f':yMin   , 's' :True})
-        self.ColsCmp.append({'name':'Max(Cmp)'  , 'al':'R' , 'f':yMax   , 's' :True})
-        self.ColsCmp.append({'name':'n(Cmp)'    , 'al':'R' , 'f':ylen   , 's' :True})
+        self.ColsCmp.append({'name':'Directory' , 'al':'L' , 'm':'baseDir' , 's':False})
+        self.ColsCmp.append({'name':'Filename'  , 'al':'L' , 'm':'fileName', 's':False})
+        self.ColsCmp.append({'name':'Table'     , 'al':'L' , 'm':'tabName' , 's':False})
+        self.ColsCmp.append({'name':'Column'    , 'al':'L' , 'm':'yName'   ,'s':True})
+        self.ColsCmp.append({'name':'Mean(Cmp)' , 'al':'R' , 'm':'yMean'  , 's' :True})
+        self.ColsCmp.append({'name':'Std(Cmp)'  , 'al':'R' , 'm':'yStd'   , 's' :True})
+        self.ColsCmp.append({'name':'Min(Cmp)'  , 'al':'R' , 'm':'yMin'   , 's' :True})
+        self.ColsCmp.append({'name':'Max(Cmp)'  , 'al':'R' , 'm':'yMax'   , 's' :True})
+        self.ColsCmp.append({'name':'n(Cmp)'    , 'al':'R' , 'm':'ylen'   , 's' :True})
 
         self.menuReg=ColCheckMenu(self)
         self.menuReg.setColumns(self.ColsReg)
@@ -468,15 +273,19 @@ class InfoPanel(wx.Panel):
                     self.tbStats.InsertColumn(i,c['name'], AL[c['al']])
         # Inserting items
         index = self.tbStats.GetItemCount()
-        for pd in self.PD:
+        for PD in self.PD:
             for j,c in enumerate(selCols):
                 # TODO: could be nicer:
-                if c['name'] == 'Meas 1':
-                    v,sv=c['f'](pd, self.meas_xy1)
-                elif c['name'] == 'Meas 2':
-                    v,sv=c['f'](pd, self.meas_xy2)
+                if 'm' in c.keys():
+                    if c['name'] == 'Meas 1':
+                        v,sv=getattr(PD,c['m'])(self.meas_xy1)
+                    elif c['name'] == 'Meas 2':
+                        v,sv=getattr(PD,c['m'])(self.meas_xy2)
+                    else:
+                        v,sv=getattr(PD,c['m'])()
                 else:
-                    v,sv=c['f'](pd)
+                    v,sv=c['f'](PD)
+
                 try:
                     if j==0:
                         self.tbStats.InsertItem(index,  sv)

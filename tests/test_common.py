@@ -6,6 +6,7 @@ import pandas as pd
 from pydatview.common import unit,no_unit,ellude_common,getDt, find_leftstop
 from pydatview.common import has_chinese_char
 from pydatview.common import filter_list
+from pydatview.common import rectangleOverlap
 import datetime
 
 class TestCommon(unittest.TestCase):
@@ -108,6 +109,13 @@ class TestCommon(unittest.TestCase):
         Lf, If = filter_list(L,'Kro')
         self.assertEqual(len(If),0)
         self.assertEqual(len(Lf),0)
+
+    def test_rectangleOverlap(self):
+        self.assertEqual(rectangleOverlap(0,0,1,1,0,0,2,2)   ,True) # rect1 contained
+        self.assertEqual(rectangleOverlap(-2,-2,1,1,0,0,1,1) ,True) # rect2 contained
+        self.assertEqual(rectangleOverlap(-2,-2, 1, 1,0,0,2,2),True)  # overlap corner2 in
+        self.assertEqual(rectangleOverlap(-2,-2, 1, 1,-3,0,2,2),True)  # overlap 
+        self.assertEqual(rectangleOverlap(-2,-2,-1,-1,0,0,1,1),False)
  
 if __name__ == '__main__':
     unittest.main()

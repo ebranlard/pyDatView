@@ -294,6 +294,17 @@ def unique(l):
     return [x for x in l if x not in used and (used.add(x) or True)]
 
 # --------------------------------------------------------------------------------}
+# --- geometry 
+# --------------------------------------------------------------------------------{
+def rectangleOverlap(BLx1, BLy1, TRx1, TRy1, BLx2, BLy2, TRx2, TRy2):
+    """ returns true if two rectangles overlap 
+    BL: Bottom left
+    TR: top right
+    "1" rectangle 1
+    "2" rectangle 2
+    """
+    return not (TRx1 < BLx2 or BLx1 > TRx2 or TRy1 < BLy2 or BLy1> TRy2)
+# --------------------------------------------------------------------------------}
 # ---  
 # --------------------------------------------------------------------------------{
 def pretty_time(t):
@@ -431,59 +442,3 @@ def isString(x):
 def isDate(x):
     return np.issubdtype(x.dtype, np.datetime64)
 
-
-def yMean(pd):
-    if pd.yIsString or  pd.yIsDate:
-        return None,'NA'
-    else:
-        v=np.nanmean(pd.y)
-        s=pretty_num(v)
-    return (v,s)
-
-def yStd(pd):
-    if pd.yIsString or  pd.yIsDate:
-        return None,'NA'
-    else:
-        v=np.nanstd(pd.y)
-        s=pretty_num(v)
-    return (v,s)
-
-def yMin(pd):
-    if pd.yIsString:
-        return pd.y[0],pd.y[0].strip()
-    elif pd.yIsDate:
-        return pd.y[0],'{}'.format(pd.y[0])
-    else:
-        v=np.nanmin(pd.y)
-        s=pretty_num(v)
-    return (v,s)
-
-def yMax(pd):
-    if pd.yIsString:
-        return pd.y[-1],pd.y[-1].strip()
-    elif pd.yIsDate:
-        return pd.y[-1],'{}'.format(pd.y[-1])
-    else:
-        v=np.nanmax(pd.y)
-        s=pretty_num(v)
-    return (v,s)
-
-def xMin(pd):
-    if pd.xIsString:
-        return pd.x[0],pd.x[0].strip()
-    elif pd.xIsDate:
-        return pd.x[0],'{}'.format(pd.x[0])
-    else:
-        v=np.nanmin(pd.x)
-        s=pretty_num(v)
-    return (v,s)
-
-def xMax(pd):
-    if pd.xIsString:
-        return pd.x[-1],pd.x[-1].strip()
-    elif pd.xIsDate:
-        return pd.x[-1],'{}'.format(pd.x[-1])
-    else:
-        v=np.nanmax(pd.x)
-        s=pretty_num(v)
-    return (v,s)

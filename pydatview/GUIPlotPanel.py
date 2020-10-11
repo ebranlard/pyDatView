@@ -1022,18 +1022,16 @@ class PlotPanel(wx.Panel):
             self.cleanPlot();
             return
         elif len(self.plotData) == 1:
-            # If single signal view is out of range, enable autoscale (could be regardless of cbMeasure?)
-            # NOTE: 
-            # I've commented this below since it can be expensive
-            # we can consider using pd.yMin and pd.yMax (the x equivalents are not computed)
-            #   these values don't exist for FFT and PDF I believe 
-            # raises an issue when x or y values are strings or date
-            #for (x, y) in np.array([self.plotData[0].x, self.plotData[0].y]).transpose():
-            #    if (self.xlim_prev[0][0] < x and x < self.xlim_prev[0][1] and
-            #        self.ylim_prev[0][0] < y and y < self.ylim_prev[0][1]):
-            #        break
-            #else:
-            self.cbAutoScale.SetValue(True)
+            if self.plotData[0].xIsString or self.plotData[0].yIsString or self.plotData[0].xIsDate or self.plotData[0].yIsDate:
+                self.cbAutoScale.SetValue(True)
+            else:
+                if rectangleOverlap(self.plotData[0]._xMin[0], self.plotData[0]._yMin[0], 
+                        self.plotData[0]._xMax[0], self.plotData[0]._yMax[0],
+                        self.xlim_prev[0][0], self.ylim_prev[0][0], 
+                        self.xlim_prev[0][1], self.ylim_prev[0][1]):
+                    pass
+                else:
+                    self.cbAutoScale.SetValue(True)
 
         mode=self.findPlotMode(self.plotData)
         nPlots,spreadBy=self.findSubPlots(self.plotData,mode)

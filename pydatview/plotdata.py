@@ -1,11 +1,11 @@
 from __future__ import absolute_import
+import os
 import numpy as np
 from .common import no_unit, unit, inverse_unit, has_chinese_char
-from .common import isString, isDate
-from .common import unique
-from .common import yMin, yMax, yStd, yMean # TODO put these directly into this class maybe
-
-
+from .common import isString, isDate, getDt
+from .common import unique, pretty_num, pretty_time
+from .GUIMeasure import find_closest # Should not depend on wx 
+from .fatigue import eq_load
 
 
 class PlotData():
@@ -79,20 +79,19 @@ class PlotData():
                 raise Exception('Error: y values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sy))
         PD.needChineseFont = has_chinese_char(PD.sy) or has_chinese_char(PD.sx)
         # Stats of the raw data (computed once and for all, since it can be expensive for large dataset
-        #PD.x0Min  = xMin(d)
-        #PD.x0Max  = xMax(d)
-        PD.y0Min  = yMin(PD)  # Min from original data (might be modified by FFT/PDF/MinMax
-        PD.y0Max  = yMax(PD)  # Max from orignial data
-        PD.y0Std  = yStd(PD)
-        PD.y0Mean = yMean(PD)
-        PD.n0     = (n,'{:d}'.format(n))
-
-
+        PD.computeRange()
+        # Store the values of the original data (labelled "0"), since the data might be modified later by PDF or MinMax etc.
+        PD._y0Min = PD._yMin
+        PD._y0Max = PD._yMax
+        PD._x0Min = PD._xMin
+        PD._x0Max = PD._xMax
+        PD._y0Std  = PD.yStd()
+        PD._y0Mean = PD.yMean()
+        PD._n0     = (n,'{:d}'.format(n))
 
     def __repr__(s):
         s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
         return s1
-
 
     def toPDF(PD, nBins=30, smooth=False):
         """ Convert y-data to Probability density function (PDF) as function of x 
@@ -128,6 +127,9 @@ class PlotData():
         if len(iu)>0:
             PD.sy += ' ['+ iu +']'
 
+        # Compute min max once and for all
+        PD.computeRange()
+
         return nBins
 
 
@@ -138,8 +140,8 @@ class PlotData():
         if yScale:
             if PD.yIsString:
                 raise Exception('Warn: Cannot compute min-max for strings')
-            mi = PD.y0Min[0] #mi= np.nanmin(PD.y)
-            mx = PD.y0Max[0] #mx= np.nanmax(PD.y)
+            mi = PD._y0Min[0] #mi= np.nanmin(PD.y)
+            mx = PD._y0Max[0] #mx= np.nanmax(PD.y)
             if mi == mx:
                 PD.y=PD.y*0
             else:
@@ -147,13 +149,17 @@ class PlotData():
         if xScale:
             if PD.xIsString:
                 raise Exception('Warn: Cannot compute min-max for strings')
-            mi= np.nanmin(PD.x) # NOTE: currently not precomputed for performance.. but might as well..
-            mx= np.nanmax(PD.x)
+            mi= PD._x0Min[0]
+            mx= PD._x0Max[0]
             if mi == mx:
                 PD.x=PD.x*0
             else:
                 PD.x = (PD.x-mi)/(mx-mi)
 
+        # Compute min max once and for all
+        PD.computeRange()
+
+        return None
 
 
     def toFFT(PD, yType='Amplitude', xType='1/x', avgMethod='Welch', avgWindow='Hamming', bDetrend=True, nExp=8):
@@ -174,47 +180,314 @@ class PlotData():
             raise Exception('Warn: Cannot plot FFT of dates or strings')
         elif PD.xIsString:
             raise Exception('Warn: Cannot plot FFT if x axis is string')
+
+        dt=None
+        if PD.xIsDate:
+            dt = getDt(PD.x)
+        # --- Computing fft - x is freq, y is Amplitude
+        PD.x, PD.y, Info = fft_wrap(PD.x, PD.y, dt=dt, output_type=yType,averaging=avgMethod, averaging_window=avgWindow,detrend=bDetrend,nExp=nExp)
+        # --- Setting plot options
+        PD._Info=Info
+        PD.xIsDate=False
+        # y label
+        if yType=='PSD':
+            PD.sy= 'PSD({}) [({})^2/{}]'.format(no_unit(PD.sy), unit(PD.sy), unit(PD.sx))
+        elif yType=='f x PSD':
+            PD.sy= 'f-weighted PSD({}) [({})^2]'.format(no_unit(PD.sy), unit(PD.sy))
+        elif yType=='Amplitude':
+            PD.sy= 'FFT({}) [{}]'.format(no_unit(PD.sy), unit(PD.sy))
         else:
-            dt=None
-            if PD.xIsDate:
-                dt = getDt(PD.x)
-            # --- Computing fft - x is freq, y is Amplitude
-            PD.x, PD.y, Info = fft_wrap(PD.x, PD.y, dt=dt, output_type=yType,averaging=avgMethod, averaging_window=avgWindow,detrend=bDetrend,nExp=nExp)
-            # --- Setting plot options
-            PD.Info=Info
-            PD.xIsDate=False
-            # y label
-            if yType=='PSD':
-                PD.sy= 'PSD({}) [({})^2/{}]'.format(no_unit(PD.sy), unit(PD.sy), unit(PD.sx))
-            elif yType=='f x PSD':
-                PD.sy= 'f-weighted PSD({}) [({})^2]'.format(no_unit(PD.sy), unit(PD.sy))
-            elif yType=='Amplitude':
-                PD.sy= 'FFT({}) [{}]'.format(no_unit(PD.sy), unit(PD.sy))
+            raise Exception('Unsupported FFT type {} '.format(yType))
+        # x label
+        if xType=='1/x':
+            if unit(PD.sx)=='s':
+                PD.sx= 'Frequency [Hz]'
             else:
-                raise Exception('Unsupported FFT type {} '.format(yType))
-            # x label
-            if xType=='1/x':
-                if unit(PD.sx)=='s':
-                    PD.sx= 'Frequency [Hz]'
-                else:
-                    PD.sx= ''
-            elif xType=='x':
-                PD.x=1/PD.x
-                if unit(PD.sx)=='s':
-                    PD.sx= 'Period [s]'
-                else:
-                    PD.sx= ''
-            elif xType=='2pi/x':
-                PD.x=2*np.pi*PD.x
-                if unit(PD.sx)=='s':
-                    PD.sx= 'Cyclic frequency [rad/s]'
-                else:
-                    PD.sx= ''
+                PD.sx= ''
+        elif xType=='x':
+            PD.x=1/PD.x
+            if unit(PD.sx)=='s':
+                PD.sx= 'Period [s]'
             else:
-                raise Exception('Unsupported x-type {} '.format(xType))
+                PD.sx= ''
+        elif xType=='2pi/x':
+            PD.x=2*np.pi*PD.x
+            if unit(PD.sx)=='s':
+                PD.sx= 'Cyclic frequency [rad/s]'
+            else:
+                PD.sx= ''
+        else:
+            raise Exception('Unsupported x-type {} '.format(xType))
 
-            return Info
+        PD.computeRange()
+        return Info
 
+    def computeRange(PD):
+        """  Compute min max of data once and for all and store 
+        From the performance tests, this ends up having a non negligible cost for large dataset,
+        so we store it to reuse these as much as possible. 
+        If possible, should be used for the plotting as well, so that matplotlib don't
+        have to compute them again
+        NOTE: each variable is a tuple (v,s), with a float and its string representation
+        """
+        PD._xMin  = PD._xMinCalc() 
+        PD._xMax  = PD._xMaxCalc()
+        PD._yMin  = PD._yMinCalc() 
+        PD._yMax  = PD._yMaxCalc()
+
+
+    # --------------------------------------------------------------------------------}
+    # --- Stats functions that should only becalled once, could maybe use @attributes..
+    # --------------------------------------------------------------------------------{
+    def _yMinCalc(PD):
+        if PD.yIsString:
+            return PD.y[0],PD.y[0].strip()
+        elif PD.yIsDate:
+            return PD.y[0],'{}'.format(PD.y[0])
+        else:
+            v=np.nanmin(PD.y)
+            s=pretty_num(v)
+        return (v,s)
+
+    def _yMaxCalc(PD):
+        if PD.yIsString:
+            return PD.y[-1],PD.y[-1].strip()
+        elif PD.yIsDate:
+            return PD.y[-1],'{}'.format(PD.y[-1])
+        else:
+            v=np.nanmax(PD.y)
+            s=pretty_num(v)
+        return (v,s)
+
+    def _xMinCalc(PD):
+        if PD.xIsString:
+            return PD.x[0],PD.x[0].strip()
+        elif PD.xIsDate:
+            return PD.x[0],'{}'.format(PD.x[0])
+        else:
+            v=np.nanmin(PD.x)
+            s=pretty_num(v)
+        return (v,s)
+
+    def _xMaxCalc(PD):
+        if PD.xIsString:
+            return PD.x[-1],PD.x[-1].strip()
+        elif PD.xIsDate:
+            return PD.x[-1],'{}'.format(PD.x[-1])
+        else:
+            v=np.nanmax(PD.x)
+            s=pretty_num(v)
+        return (v,s)
+
+    def xMin(PD):
+        return PD._xMin
+
+    def xMax(PD):
+        return PD._xMax
+
+    def yMin(PD):
+        return PD._yMin
+
+    def yMax(PD):
+        return PD._yMax
+
+    def y0Min(PD):
+        return PD._y0Min
+
+    def y0Max(PD):
+        return PD._y0Max
+
+    def y0Mean(PD):
+        return PD._y0Mean
+
+    def y0Std(PD):
+        return PD._y0Std
+
+    def n0(PD):
+        return PD._n0
+
+    # --------------------------------------------------------------------------------}
+    # --- Stats functions
+    # --------------------------------------------------------------------------------{
+    def yMean(PD):
+        if PD.yIsString or  PD.yIsDate:
+            return None,'NA'
+        else:
+            v=np.nanmean(PD.y)
+            s=pretty_num(v)
+        return (v,s)
+
+    def yStd(PD):
+        if PD.yIsString or  PD.yIsDate:
+            return None,'NA'
+        else:
+            v=np.nanstd(PD.y)
+            s=pretty_num(v)
+        return (v,s)
+
+    def yName(PD):
+        return PD.sy, PD.sy
+
+    def fileName(PD):
+        return os.path.basename(PD.filename), os.path.basename(PD.filename)
+
+    def baseDir(PD):
+        return os.path.dirname(PD.filename),os.path.join(os.path.dirname(PD.filename),'')
+
+    def tabName(PD):
+        return PD.tabname, PD.tabname
+
+    def ylen(PD):
+        v=len(PD.y)
+        s='{:d}'.format(v)
+        return v,s
+
+
+    def y0Var(PD):
+        if PD._y0Std[0] is not None: 
+            v=PD._y0Std[0]**2
+            s=pretty_num(v)
+        else:
+            v=None
+            s='NA'
+        return v,s
+
+    def y0TI(PD):
+        v=PD._y0Std[0]/PD._y0Mean[0]
+        s=pretty_num(v)
+        return v,s
+
+
+    def yRange(PD):
+        if PD.yIsString:
+            return 'NA','NA'
+        elif PD.yIsDate:
+            dtAll=getDt([PD.x[-1]-PD.x[0]])
+            return '',pretty_time(dtAll)
+        else:
+            v=np.nanmax(PD.y)-np.nanmin(PD.y)
+            s=pretty_num(v)
+        return v,s
+
+    def xRange(PD):
+        if PD.xIsString:
+            return 'NA','NA'
+        elif PD.xIsDate:
+            dtAll=getDt([PD.x[-1]-PD.x[0]])
+            return '',pretty_time(dtAll)
+        else:
+            v=np.nanmax(PD.x)-np.nanmin(PD.x)
+            s=pretty_num(v)
+        return v,s
+
+
+    def inty(PD):
+        if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
+            return None,'NA'
+        else:
+            v=np.trapz(y=PD.y,x=PD.x)
+            s=pretty_num(v)
+        return v,s
+
+    def intyintdx(PD):
+        if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
+            return None,'NA'
+        else:
+            v=np.trapz(y=PD.y,x=PD.x)/np.trapz(y=PD.x*0+1,x=PD.x)
+            s=pretty_num(v)
+        return v,s
+
+    def intyx1(PD):
+        if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
+            return None,'NA'
+        else:
+            v=np.trapz(y=PD.y*PD.x,x=PD.x)
+            s=pretty_num(v)
+        return v,s
+
+    def intyx1_scaled(PD):
+        if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
+            return None,'NA'
+        else:
+            v=np.trapz(y=PD.y*PD.x,x=PD.x)
+            v=v/np.trapz(y=PD.y,x=PD.x)
+            s=pretty_num(v)
+        return v,s
+
+    def intyx2(PD):
+        if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
+            return None,'NA'
+        else:
+            v=np.trapz(y=PD.y*PD.x**2,x=PD.x)
+            s=pretty_num(v)
+        return v,s
+
+    def meas(PD, xymeas):
+        try:
+            v='NA'
+            xy = np.array([PD.x, PD.y]).transpose()
+            points = find_closest(xy, [xymeas[0], xymeas[1]], False)
+            if points.ndim == 1:
+                v = points[1]
+                s=pretty_num(v)
+            else:
+                v = points[0, 1]
+                s = ' / '.join([str(p) for p in points[:, 1]])
+        except (IndexError, TypeError):
+            v='NA'
+            s='NA'
+        return v,s
+
+
+    def dx(PD):
+        if len(PD.x)<=1:
+            return 'NA','NA'
+        if PD.xIsString:
+            return None,'NA'
+        elif  PD.xIsDate:
+            dt=getDt(PD.x)
+            return dt,pretty_time(dt)
+        else:
+            v=PD.x[1]-PD.x[0]
+            s=pretty_num(v)
+            return v,s
+
+    def xMax(PD):
+        if PD.xIsString:
+            return PD.x[-1],PD.x[-1]
+        elif  PD.xIsDate:
+            return PD.x[-1],'{}'.format(PD.x[-1])
+        else:
+            v=np.nanmax(PD.x)
+            s=pretty_num(v)
+            return v,s
+    def xMin(PD):
+        if PD.xIsString:
+            return PD.x[0],PD.x[0]
+        elif  PD.xIsDate:
+            return PD.x[0],'{}'.format(PD.x[0])
+        else:
+            v=np.nanmin(PD.x)
+            s=pretty_num(v)
+            return v,s
+
+    def leq(PD,m):
+        if PD.yIsString or  PD.yIsDate:
+            return 'NA','NA'
+        else:
+            T,_=PD.xRange()
+            v=eq_load(PD.y, m=m, neq=T)[0][0]
+            return v,pretty_num(v)
+
+    def Info(PD,var):
+        if var=='LSeg':
+            return '','{:d}'.format(PD._Info.LSeg)
+        elif var=='LWin':
+            return '','{:d}'.format(PD._Info.LWin)
+        elif var=='LOvlp':
+            return '','{:d}'.format(PD._Info.LOvlp)
+        elif var=='nFFT':
+            return '','{:d}'.format(PD._Info.nFFT)
 
 
 # --------------------------------------------------------------------------------}
