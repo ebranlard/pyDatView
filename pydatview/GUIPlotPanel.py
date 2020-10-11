@@ -753,6 +753,16 @@ class PlotPanel(wx.Panel):
                 self._restore_limits()
 
             ax_left.grid(self.cbGrid.IsChecked())
+            if ax_right is not None:
+                l = ax_left.get_ylim()
+                l2 = ax_right.get_ylim()
+                f = lambda x : l2[0]+(x-l[0])/(l[1]-l[0])*(l2[1]-l2[0])
+                ticks = f(ax_left.get_yticks())
+                ax_right.yaxis.set_major_locator(matplotlib.ticker.FixedLocator(ticks))
+                if len(ax_left.lines) == 0:
+                    ax_left.set_yticks(ax_right.get_yticks())
+                    ax_left.yaxis.set_visible(False)
+                    ax_right.grid(self.cbGrid.IsChecked())
 
             # Special Grids
             if self.pltTypePanel.cbCompare.GetValue():
