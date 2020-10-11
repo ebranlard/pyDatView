@@ -43,7 +43,7 @@ class TestPlotData(unittest.TestCase):
         from pydatview.curve_fitting import model_fit
         mu=0
         sigma=1
-        x = np.linspace(-1,1,5000)
+        x = np.linspace(-1,1,15000)
         y = np.random.normal(mu,sigma,len(x))
         PD = PlotData(x,y)
         PD.toPDF()
