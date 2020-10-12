@@ -9,8 +9,6 @@ else
 endif
 
 testfile= weio/weio/tests/example_files/FASTIn_arf_coords.txt
-# testfile= _TestFiles/CSV_xIsString_Generic.csv 
-# testfile= _TestFiles/VTS.Farm.T3.outb
 all:
 ifeq ($(detected_OS),Darwin)        # Mac OS X
 	./pythonmac pyDatView.py $(testfile)
@@ -51,9 +49,9 @@ else
 endif
 
 prof:
-	python -m cProfile -o _tests/prof_all.prof  _tests/prof_all.py
-	python -m pyprof2calltree -i _tests/prof_all.prof -o _tests/callgrind.prof_all.prof
-	snakeviz _tests/prof_all.prof
+	python -m cProfile -o tests/prof_all.prof  tests/prof_all.py
+	python -m pyprof2calltree -i tests/prof_all.prof -o tests/callgrind.prof_all.prof
+	snakeviz tests/prof_all.prof
 
 
 exe:

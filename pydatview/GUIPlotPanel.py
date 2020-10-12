@@ -721,6 +721,59 @@ class PlotPanel(wx.Panel):
             btn.SetLabel('1')
         self.redraw_same_data()
 
+    def set_axes_lim(self, PDs, axis):
+        """ 
+        It's usually faster to set the axis limits first (before plotting) 
+        and disable autoscaling. This way the limits are not recomputed when plot data are added.
+        Also, we already have computed the min and max, so we leverage that. 
+        NOTE: 
+          doesnt not work with strings
+          doesnt not work for FFT and compare 
+
+        INPUTS:
+            PDs: list of plot data
+        """
+        # TODO option for tight axes
+        tight=False
+
+        plotType=self.pltTypePanel.plotType()
+        if plotType in ['FFT','Compare']:
+            axis.autoscale(True, axis='both', tight=tight)
+            return
+        vXString=[PDs[i].xIsString for i in axis.iPD]
+        vYString=[PDs[i].yIsString for i in axis.iPD]
+        if not any(vXString) and not self.cbLogX.IsChecked():
+            try:
+                xMin=np.min([PDs[i]._xMin[0] for i in axis.iPD])
+                xMax=np.max([PDs[i]._xMax[0] for i in axis.iPD])
+                if np.isclose(xMin,xMax): 
+                    delta=1 if np.isclose(xMax,0) else 0.1*xMax
+                else:
+                    if tight:
+                        delta=0
+                    else:
+                        delta = (xMax-xMin)*pyplot_rc['axes.xmargin']
+                axis.set_xlim(xMin-delta,xMax+delta)
+                axis.autoscale(False, axis='x', tight=False)
+            except:
+                pass
+        if not any(vYString) and not self.cbLogY.IsChecked(): 
+            try:
+                yMin=np.min([PDs[i]._yMin[0] for i in axis.iPD])
+                yMax=np.max([PDs[i]._yMax[0] for i in axis.iPD])
+                delta = (yMax-yMin)*pyplot_rc['axes.ymargin'] 
+                if np.isclose(yMin,yMax): 
+                    delta=1 if np.isclose(yMax,0) else 0.1*yMax
+                else:
+                    if tight:
+                        delta=0
+                    else:
+                        delta = (yMax-yMin)*pyplot_rc['axes.xmargin']
+                axis.set_ylim(yMin-delta,yMax+delta)
+                axis.autoscale(False, axis='y', tight=False)
+            except:
+                pass
+
     def plot_all(self, keep_limits=True):
         self.multiCursors=[]
 
@@ -748,28 +801,17 @@ class PlotPanel(wx.Panel):
 
         for ax_left, axis_idx in zip(axes, range(len(axes))):
             ax_right = None
-            # Plot data
+            # Checks
             vDate=[PD[i].yIsDate for i in ax_left.iPD]
             if any(vDate) and len(vDate)>1:
                 Error(self,'Cannot plot date and other value on the same axis')
                 return
 
-            #Keep me - tight axis, attempt to optimize
-            #try:
-            #    xMin=np.min([PD[i].x0Min[0] for i in ax_left.iPD])
-            #    xMax=np.max([PD[i].x0Max[0] for i in ax_left.iPD])
-            #    ax_left.set_xlim(xMin,xMax)
-            #    ax_left.autoscale(False)
-            #except:
-            #    pass
-            #try:
-            #    yMin=np.min([PD[i].y0Min[0] for i in ax_left.iPD])
-            #    yMax=np.max([PD[i].y0Max[0] for i in ax_left.iPD])
-            #    ax_left.set_ylim(yMin,yMax)
-            #    ax_left.autoscale(False)
-            #except:
-            #    pass
 
+            # Set limit before plot when possible, for optimization
+            self.set_axes_lim(PD, ax_left)
+
+            # Actually plot
             pm = self.infoPanel.getPlotMatrix(PD, self.cbSub.IsChecked())
             __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bScatter, bStep)
             ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bScatter, bStep)
