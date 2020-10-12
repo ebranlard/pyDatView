@@ -526,6 +526,8 @@ class PlotPanel(wx.Panel):
             x, y = event.xdata, event.ydata
             self.lbCrossHairX.SetLabel('x =' + self.formatLabelValue(x))
             self.lbCrossHairY.SetLabel('y =' + self.formatLabelValue(y)) 
+        # TODO: this storage will occur quite often. 
+        # Can we maybe use the Navigation Toolbar to store limits?
         self._store_limits()
 
     def onMouseClick(self, event):
