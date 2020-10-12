@@ -609,6 +609,10 @@ class MainFrame(wx.Frame):
             self.Layout()
         except:
             pass
+        # NOTE: doesn't work...
+        #if hasattr(self,'plotPanel'):
+        #    # Subplot spacing changes based on figure size
+        #    self.plotPanel.set_subplot_spacing()  
 
     # --- Side column
     def resizeSideColumn(self,width):

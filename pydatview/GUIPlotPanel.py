@@ -305,8 +305,6 @@ class PlotPanel(wx.Panel):
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         register_matplotlib_converters()
-        #self.fig.set_tight_layout(True) 
-        self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.88)
         self.canvas = FigureCanvas(self, -1, self.fig)
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
         self.canvas.mpl_connect('button_press_event', self.onMouseClick)
@@ -426,6 +424,42 @@ class PlotPanel(wx.Panel):
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
+        self.set_subplot_spacing(init=True)
+
+    def set_subplot_spacing(self, init=False):
+        """ 
+        Handle default subplot spacing
+
+        NOTE:
+           - Tight fails when the ylabel is too long, especially for fft with multiplt signals
+           - might need to change depending on window size/resizing
+           - need to change if right axis needed 
+           - this will override the user settings
+        """
+        #self.fig.set_tight_layout(True)  # NOTE: works almost fine, but problem with FFT multiple
+        # TODO this is definitely not generic, but tight fails..
+        if init: 
+            # NOTE: at init size is (20,20) because sizer is not initialized yet
+            bottom = 0.12
+            left   = 0.12
+        else:
+            if self.Size[1]<300:
+                bottom=0.18
+            elif self.Size[1]<800:
+                bottom=0.13
+            else:
+                bottom=0.07
+            if self.Size[0]<300:
+                left=0.18
+            elif self.Size[0]<750:
+                left=0.12
+            else:
+                left=0.06
+        #print(self.Size,'bottom', bottom, 'left',left)
+        if self.cbPlotMatrix.GetValue(): # TODO detect it
+            self.fig.subplots_adjust(top=0.97,bottom=bottom,left=left,right=0.98-left)
+        else:
+            self.fig.subplots_adjust(top=0.97,bottom=bottom,left=left,right=0.98)
 
     def plot_matrix_select(self, event):
         self.infoPanel.togglePlotMatrix(self.cbPlotMatrix.GetValue())
@@ -471,6 +505,7 @@ class PlotPanel(wx.Panel):
         return self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.GetValue())
 
     def set_subplots(self,nPlots):
+        self.set_subplot_spacing()
         # Creating subplots
         for ax in self.fig.axes:
             self.fig.delaxes(ax)
