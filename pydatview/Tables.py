@@ -396,8 +396,12 @@ class Table(object):
                             else:
                                 isDate=False
                         if isDate:
-                            self.data[c]=pd.to_datetime(self.data[c].values).to_pydatetime()
-                            print('Column {} converted to datetime'.format(c))
+                            try:
+                                self.data[c]=pd.to_datetime(self.data[c].values).to_pydatetime()
+                                print('Column {} converted to datetime'.format(c))
+                            except:
+                                # Happens if values are e.g. "Monday, Tuesday"
+                                print('Conversion to datetime failed, column {} inferred as string'.format(c))
                         else:
                             print('Column {} inferred as string'.format(c))
                     elif isinstance(y.values[0], (float, int)):

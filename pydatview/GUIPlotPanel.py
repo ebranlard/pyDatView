@@ -31,6 +31,8 @@ except Exception as e:
 from matplotlib.figure import Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
 from matplotlib import font_manager
+from pandas.plotting import register_matplotlib_converters
+
 import gc
 
 from .common import * # unique
@@ -206,9 +208,8 @@ class PlotTypePanel(wx.Panel):
             plotType='Compare'
         return plotType
 
-
-
     def regular_select(self, event=None):
+        self.clear_measures()
         self.parent.cbLogY.SetValue(False)
         # 
         self.parent.spcPanel.Hide();
@@ -221,6 +222,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.redraw() # Data changes
 
     def compare_select(self, event=None):
+        self.clear_measures()
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.cmpPanel, self.cbCompare.GetValue())
         self.parent.spcPanel.Hide();
@@ -229,8 +231,8 @@ class PlotTypePanel(wx.Panel):
         self.parent.plotsizer.Layout()
         self.parent.redraw() # Data changes
 
-
     def fft_select(self, event=None):
+        self.clear_measures()
         self.parent.show_hide(self.parent.spcPanel, self.cbFFT.GetValue())
         self.parent.cbLogY.SetValue(self.cbFFT.GetValue())
         self.parent.pdfPanel.Hide();
@@ -239,6 +241,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.redraw() # Data changes
 
     def pdf_select(self, event=None):
+        self.clear_measures()
         self.parent.cbLogX.SetValue(False)
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.pdfPanel, self.cbPDF.GetValue())
@@ -249,6 +252,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.redraw() # Data changes
 
     def minmax_select(self, event):
+        self.clear_measures()
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.mmxPanel, self.cbMinMax.GetValue())
         self.parent.spcPanel.Hide();
@@ -256,6 +260,12 @@ class PlotTypePanel(wx.Panel):
         self.parent.cmpPanel.Hide();
         self.parent.plotsizer.Layout()
         self.parent.redraw() # Data changes
+
+    def clear_measures(self):
+        self.parent.rightMeasure.clear()
+        self.parent.leftMeasure.clear()
+        self.parent.lbDeltaX.SetLabel('')
+        self.parent.lbDeltaY.SetLabel('')
 
 class PlotPanel(wx.Panel):
     def __init__(self, parent, selPanel,infoPanel=None, mainframe=None):
@@ -294,6 +304,7 @@ class PlotPanel(wx.Panel):
         self.ylim_prev = [[0, 1]]
         # GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
+        register_matplotlib_converters()
         #self.fig.set_tight_layout(True) 
         self.fig.subplots_adjust(top=0.98,bottom=0.12,left=0.12,right=0.88)
         self.canvas = FigureCanvas(self, -1, self.fig)
@@ -566,7 +577,8 @@ class PlotPanel(wx.Panel):
             if nBins_out!=nBins:
                 self.pdfPanel.scBins.SetValue(nBins)
         except Exception as e:
-            self.removeTools(Layout=True) # <<< TODO does not work
+            self.pdfPanel.Hide();
+            self.plotsizer.Layout()
             self.pltTypePanel.cbRegular.SetValue(True)
             raise e # Used to be Warn
 
@@ -589,11 +601,16 @@ class PlotPanel(wx.Panel):
         bDetrend   = self.spcPanel.cbDetrend.IsChecked()
         nExp       = self.spcPanel.scP2.GetValue()
         # Convert plotdata to FFT data
-        Info = pd.toFFT(yType=yType, xType=xType, avgMethod=avgMethod, avgWindow=avgWindow, bDetrend=bDetrend, nExp=nExp) 
-        # Trigger
-        if hasattr(Info,'nExp') and Info.nExp!=nExp:
-            self.spcPanel.scP2.SetValue(Info.nExp)
-            self.spcPanel.updateP2(Info.nExp)
+        try:
+            Info = pd.toFFT(yType=yType, xType=xType, avgMethod=avgMethod, avgWindow=avgWindow, bDetrend=bDetrend, nExp=nExp) 
+            # Trigger
+            if hasattr(Info,'nExp') and Info.nExp!=nExp:
+                self.spcPanel.scP2.SetValue(Info.nExp)
+                self.spcPanel.updateP2(Info.nExp)
+        except Exception as e:
+            self.spcPanel.Hide();
+            self.plotsizer.Layout()
+            raise e
 
 
     def getPlotData(self,plotType):
@@ -860,7 +877,10 @@ class PlotPanel(wx.Panel):
                 else:
                     plot = axis.plot
                 plot(pd.x,pd.y,sty,label=pd.syl,markersize=1)
-                bAllNeg = bAllNeg and all(pd.y<=0)
+                try:
+                    bAllNeg = bAllNeg and all(pd.y<=0)
+                except:
+                    pass # Dates or strings
         return axis, bAllNeg
             
     def findPlotMode(self,PD):
@@ -1035,11 +1055,13 @@ class PlotPanel(wx.Panel):
             if self.plotData[0].xIsString or self.plotData[0].yIsString or self.plotData[0].xIsDate or self.plotData[0].yIsDate:
                 self.cbAutoScale.SetValue(True)
             else:
-                if rectangleOverlap(self.plotData[0]._xMin[0], self.plotData[0]._yMin[0], 
-                        self.plotData[0]._xMax[0], self.plotData[0]._yMax[0],
-                        self.xlim_prev[0][0], self.ylim_prev[0][0], 
-                        self.xlim_prev[0][1], self.ylim_prev[0][1]):
-                    pass
+                if len(self.xlim_prev)==0: # Might occur if some date didn't plot before (e.g. strings)
+                    self.cbAutoScale.SetValue(True)
+                elif rectangleOverlap(self.plotData[0]._xMin[0], self.plotData[0]._yMin[0], 
+                            self.plotData[0]._xMax[0], self.plotData[0]._yMax[0],
+                            self.xlim_prev[0][0], self.ylim_prev[0][0], 
+                            self.xlim_prev[0][1], self.ylim_prev[0][1]):
+                        pass
                 else:
                     self.cbAutoScale.SetValue(True)
 

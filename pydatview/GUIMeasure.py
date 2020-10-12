@@ -14,15 +14,18 @@ class GUIMeasure:
         self.axis_idx = -1
         self.x = None
         self.y = None
-        if self.point is not None:
-            self.point.remove()
-        self.point = None
-        if self.line is not None:
-            self.line.remove()
-        self.line = None
-        if self.annotation is not None:
-            self.annotation.remove()
+        try:
+            if self.point is not None:
+                self.point.remove()
+            if self.line is not None:
+                self.line.remove()
+            if self.annotation is not None:
+                self.annotation.remove()
+        except ValueError:
+            pass
         self.annotation = None
+        self.point = None
+        self.line = None
 
     def get_xydata(self):
         if self.x is None or self.y is None:
@@ -42,7 +45,7 @@ class GUIMeasure:
             self.point.remove()
             self.line.remove()
             self.annotation.remove()
-        except AttributeError:
+        except (AttributeError, ValueError):
             pass
 
         # Hook annotation to closest on signal
@@ -53,12 +56,16 @@ class GUIMeasure:
             # TODO: check if 'if'can be avoided by using len(PD):
             if str(line).startswith('Line2D(_line') is False:
                 xy = np.array([line.get_xdata(), line.get_ydata()]).transpose()
-                x, y = find_closest(xy, [self.x, self.y])
-                rdist = abs(x - self.x) + abs(y - self.y)
-                if rdist < rdist_min:
-                    rdist_min = rdist
-                    x_closest = x
-                    y_closest = y
+                try:
+                    x, y = find_closest(xy, [self.x, self.y])
+                    rdist = abs(x - self.x) + abs(y - self.y)
+                    if rdist < rdist_min:
+                        rdist_min = rdist
+                        x_closest = x
+                        y_closest = y
+                except (TypeError,ValueError):
+                    # Fails when x/y data are dates or strings 
+                    pass
         self.x = x_closest
         self.y = y_closest
 
@@ -96,7 +103,8 @@ def find_closest(matrix, vector, single=True):
     min. discontinuity of 1% of number of samples
     and y-values need to differ at least by 5% of FS.
     """
-    ind = np.argsort(abs(matrix - vector), axis=0)
+    # NOTE: this will fail for datetime
+    ind = np.argsort(np.abs(matrix - vector), axis=0)
     closest = matrix[ind[0, 0]]
     N = 5
     closest_Nind = ind[0:N-1]

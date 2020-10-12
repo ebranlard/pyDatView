@@ -106,7 +106,7 @@ class PlotData():
         if PD.yIsString:
             if n>100:
                 raise Exception('Warn: Dataset has string format and is too large to display')
-            vc = c.value_counts().sort_index()
+            vc = PD.c.value_counts().sort_index()
             PD.x = vc.keys().tolist()
             PD.y = vc/n # TODO counts/PDF option
             PD.yIsString=False
@@ -120,6 +120,8 @@ class PlotData():
                 PD.x, PD.y = pdf_gaussian_kde(PD.y, nOut=nBins)
             else:
                 PD.x, PD.y = pdf_histogram(PD.y, nBins=nBins, norm=True, count=False)
+            PD.xIsString=False
+            PD.yIsString=False
 
         PD.sx = PD.sy;
         PD.sy = 'PDF('+no_unit(PD.sy)+')'
@@ -146,6 +148,8 @@ class PlotData():
                 PD.y=PD.y*0
             else:
                 PD.y = (PD.y-mi)/(mx-mi)
+            PD._yMin=0
+            PD._yMax=1
         if xScale:
             if PD.xIsString:
                 raise Exception('Warn: Cannot compute min-max for strings')
@@ -155,9 +159,11 @@ class PlotData():
                 PD.x=PD.x*0
             else:
                 PD.x = (PD.x-mi)/(mx-mi)
+            PD._xMin=0
+            PD._xMax=1
 
         # Compute min max once and for all
-        PD.computeRange()
+        #PD.computeRange()
 
         return None
 
