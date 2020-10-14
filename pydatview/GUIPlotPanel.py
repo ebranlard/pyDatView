@@ -309,6 +309,7 @@ class PlotPanel(wx.Panel):
         self.canvas.mpl_connect('motion_notify_event', self.onMouseMove)
         self.canvas.mpl_connect('button_press_event', self.onMouseClick)
         self.canvas.mpl_connect('button_release_event', self.onMouseRelease)
+        self.canvas.mpl_connect('draw_event', self.onDraw)
         self.clickLocation = (None, 0, 0)
 
         self.navTBTop = MyNavigationToolbar2Wx(self.canvas, ['Home', 'Pan'])
@@ -525,10 +526,7 @@ class PlotPanel(wx.Panel):
         if event.inaxes:
             x, y = event.xdata, event.ydata
             self.lbCrossHairX.SetLabel('x =' + self.formatLabelValue(x))
-            self.lbCrossHairY.SetLabel('y =' + self.formatLabelValue(y)) 
-        # TODO: this storage will occur quite often. 
-        # Can we maybe use the Navigation Toolbar to store limits?
-        self._store_limits()
+            self.lbCrossHairY.SetLabel('y =' + self.formatLabelValue(y))
 
     def onMouseClick(self, event):
         self.clickLocation = (event.inaxes, event.xdata, event.ydata)
@@ -563,6 +561,9 @@ class PlotPanel(wx.Panel):
                         self.lbDeltaX.SetLabel('')
                         self.lbDeltaY.SetLabel('')
                     return
+
+    def onDraw(self, event):
+        self._store_limits()
 
     def formatLabelValue(self, value):
         try:
@@ -1156,7 +1157,6 @@ class PlotPanel(wx.Panel):
 
         self.plot_all(keep_limits)
         self.canvas.draw()
-        self._store_limits()
 
     def _redraw(self):
         self.clean_memory()
