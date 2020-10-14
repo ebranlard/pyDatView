@@ -42,7 +42,7 @@ from .GUICommon import *
 # --- GLOBAL 
 # --------------------------------------------------------------------------------{
 PROG_NAME='pyDatView'
-PROG_VERSION='v0.1-local'
+PROG_VERSION='v0.2-local'
 try:
     import weio # File Formats and File Readers
     FILE_FORMATS= weio.fileFormats()
@@ -519,7 +519,7 @@ class MainFrame(wx.Frame):
         self.plotPanel.navTB.save_figure()
 
     def onAbout(self, event=None):
-        Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nWritten by E. Branlard. \n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
+        Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReload(self, event=None):
         filenames = self.tabList.unique_filenames
