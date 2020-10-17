@@ -285,10 +285,13 @@ class MainFrame(wx.Frame):
         if not bAdd:
             self.clean_memory(bReload=bReload)
 
+        base_filenames = [os.path.basename(f) for f in filenames]
+        filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
         warn = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bAdd=bAdd)
         if bReload:
             # Restore formulas that were previously added
-            ITab, __ = self.selPanel.getAllTables()
+            _ITab, _STab = self.selPanel.getAllTables()
+            ITab = [iTab for __, iTab in sorted(zip(_STab, _ITab))]
             if len(ITab) != len(self.restore_formulas):
                 raise ValueError('Invalid length of tabs and formulas!')
             for iTab, f_list in zip(ITab, self.restore_formulas):

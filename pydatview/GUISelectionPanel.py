@@ -1192,13 +1192,13 @@ class SelectionPanel(wx.Panel):
                 ISel=self.tabPanel.lbTab.GetSelections()
                 if self.tabList.haveSameColumns(ISel):
                     pass # TODO: this test is identical to onTabSelectionChange. Unification.
-                elif len(ISel)==2:
-                    self.colPanel1.forceOneSelection()
-                    self.colPanel2.forceOneSelection()
-                elif len(ISel)==3:
-                    self.colPanel1.forceOneSelection()
-                    self.colPanel2.forceOneSelection()
-                    self.colPanel3.forceOneSelection()
+                # elif len(ISel)==2:
+                #     self.colPanel1.forceOneSelection()
+                #     self.colPanel2.forceOneSelection()
+                # elif len(ISel)==3:
+                #     self.colPanel1.forceOneSelection()
+                #     self.colPanel2.forceOneSelection()
+                #     self.colPanel3.forceOneSelection()
 
     def update_tabs(self, tabList):
         self.setTables(tabList, update=True)

@@ -992,7 +992,7 @@ class PlotPanel(wx.Panel):
         if mode=='1Tab_nCols':
             if bSubPlots:
                 if bCompare or len(uTabs)==1:
-                    nSubPlots = self.infoPanel.getNumberOfSubplots(PD, self.cbSub.IsChecked())
+                    nSubPlots = self.infoPanel.getNumberOfSubplots(PD, bSubPlots)
                 else:
                     nSubPlots=len(usy)
                 spreadBy='iy'
@@ -1013,7 +1013,11 @@ class PlotPanel(wx.Panel):
                 if bCompare:
                     print('>>>TODO ',mode,len(usy),len(uTabs))
                 else:
-                    nSubPlots=int(len(PD)/len(uTabs))
+                    # nSubPlots=int(len(PD)/len(uTabs))
+                    if bCompare or len(uTabs)==1:
+                        nSubPlots = self.infoPanel.getNumberOfSubplots(PD, bSubPlots)
+                    else:
+                        nSubPlots=len(PD)
                     spreadBy='mod-ip'
         elif mode=='nTabs_1Col':
             if bSubPlots:
@@ -1080,8 +1084,9 @@ class PlotPanel(wx.Panel):
                     else:
                         pd.syl=pd.sy #pd.syl=pd.st + ' - '+pd.sy
         elif mode=='nTabs_SimCols':
+            usy=unique([pd.sy for pd in self.plotData])
             bSubPlots = self.cbSub.IsChecked()
-            if bSubPlots: # spread by table name
+            if bSubPlots and len(usy)==1: # spread by table name
                 for pd in self.plotData:
                     pd.syl=pd.st
             else:
