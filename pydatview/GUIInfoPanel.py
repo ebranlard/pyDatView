@@ -388,29 +388,23 @@ class InfoPanel(wx.Panel):
          Each column represents one subplot and each
          row/pair value represents signal-index that
          needs to be plotted: 1 -> left, 2 -> right, 0 -> not.
-         This is only valid in tab-mode == '1Tab_nCols'.
         """
-        if self.tab_mode == '1Tab_nCols':
-            if not self.plotMatrixPanel.IsShown():
-                # keep panel, display plots normally
-                plot_matrix = None
-            else:
-                nr_signals = len(PD)
-                nr_subplots = self.getNumberOfSubplots(PD, sub)
-                plot_matrix  = [[0 for x in range(nr_subplots)] for y in range(nr_signals)]
-                for i in range(nr_signals ** 2):
-                    # iterate over rows where each corresponds to one signal
-                    subplot = i % nr_signals
-                    signal = int(i / nr_signals)
-                    selection = self.plotMatrixPanel.Children[i].GetLabelText()
-                    if selection == '1':
-                        plot_matrix[signal][subplot] = 1
-                    elif selection == '2':
-                        plot_matrix[signal][subplot] = 2
-        else:
-            # Destroy plot matrix panel
-            self.getNumberOfSubplots([], sub)
+        if not self.plotMatrixPanel.IsShown():
+            # keep panel, display plots normally
             plot_matrix = None
+        else:
+            nr_signals = len(PD)
+            nr_subplots = self.getNumberOfSubplots(PD, sub)
+            plot_matrix  = [[0 for x in range(nr_subplots)] for y in range(nr_signals)]
+            for i in range(nr_signals ** 2):
+                # iterate over rows where each corresponds to one signal
+                subplot = i % nr_signals
+                signal = int(i / nr_signals)
+                selection = self.plotMatrixPanel.Children[i].GetLabelText()
+                if selection == '1':
+                    plot_matrix[signal][subplot] = 1
+                elif selection == '2':
+                    plot_matrix[signal][subplot] = 2
         return plot_matrix
     
     def setCol(self, name, value):
