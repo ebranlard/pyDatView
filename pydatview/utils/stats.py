@@ -79,6 +79,7 @@ def pdf_gaussian_kde(data, bw='scott', nOut=100, cut=3, clip=(-np.inf,np.inf)):
     from six import string_types
 
     data = np.asarray(data)
+    data = data[~np.isnan(data)]
     # Gaussian kde
     kde  = stats.gaussian_kde(data, bw_method = bw)
     # Finding a relevant support (i.e. x values)

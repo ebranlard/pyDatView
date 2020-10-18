@@ -611,15 +611,9 @@ class PlotPanel(wx.Panel):
         # ---PDF
         nBins   = self.pdfPanel.scBins.GetValue()
         bSmooth = self.pdfPanel.cbSmooth.GetValue()
-        try:
-            nBins_out= PD.toPDF(nBins,bSmooth)
-            if nBins_out!=nBins:
-                self.pdfPanel.scBins.SetValue(nBins)
-        except Exception as e:
-            self.pdfPanel.Hide();
-            self.plotsizer.Layout()
-            self.pltTypePanel.cbRegular.SetValue(True)
-            raise e # Used to be Warn
+        nBins_out= PD.toPDF(nBins,bSmooth)
+        if nBins_out!=nBins:
+            self.pdfPanel.scBins.SetValue(nBins)
 
     def setPD_MinMax(self,PD):
         """ Convert plot data to MinMax data based on GUI options"""

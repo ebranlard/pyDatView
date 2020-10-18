@@ -117,7 +117,10 @@ class PlotData():
             if nBins>=n:
                 nBins=n
             if smooth:
-                PD.x, PD.y = pdf_gaussian_kde(PD.y, nOut=nBins)
+                try:
+                    PD.x, PD.y = pdf_gaussian_kde(PD.y, nOut=nBins)
+                except np.linalg.LinAlgError as e:
+                    PD.x, PD.y = pdf_histogram(PD.y, nBins=nBins, norm=True, count=False)
             else:
                 PD.x, PD.y = pdf_histogram(PD.y, nBins=nBins, norm=True, count=False)
             PD.xIsString=False
