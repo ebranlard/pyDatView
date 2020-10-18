@@ -289,7 +289,8 @@ class PlotPanel(wx.Panel):
                 self.specialFont=fontP
                 break
         # data
-        self.selPanel = selPanel
+        self.selPanel = selPanel # <<< dependency with selPanel should be minimum
+        self.selMode  = '' 
         self.infoPanel=infoPanel
         self.infoPanel.setPlotMatrixCallbacks(self._onPlotMatrixLeftClick, self._onPlotMatrixRightClick)
         self.parent   = parent
@@ -652,7 +653,8 @@ class PlotPanel(wx.Panel):
 
 
     def getPlotData(self,plotType):
-        ID,SameCol=self.selPanel.getPlotDataSelection()
+        ID,SameCol,selMode=self.selPanel.getPlotDataSelection()
+        self.selMode=selMode # we store the selection mode
         del self.plotData
         self.plotData=[]
         tabs=self.selPanel.tabList.getTabs() # TODO, selPanel should just return the PlotData...
@@ -969,16 +971,19 @@ class PlotPanel(wx.Panel):
         uiy   = unique([pd.iy for pd in PD])
         if len(uTabs)<=0:
             raise Exception('No Table. Contact developer')
-        elif len(uTabs)==1:
+        if len(uTabs)==1:
             mode='1Tab_nCols'
         else:
             if PD[0].SameCol:
                 mode='nTabs_SameCols'
             else:
+                # Now that we allow multiple selections detecting "simColumns" is more difficult 
                 if len(uTabs) == len(PD):
                     mode='nTabs_1Col'
-                else:
+                elif self.selMode=='simColumnsMode':
                     mode='nTabs_SimCols'
+                else:
+                    mode='nTabs_mCols'
         return mode
 
     def findSubPlots(self,PD,mode):
@@ -1013,7 +1018,13 @@ class PlotPanel(wx.Panel):
                 if bCompare:
                     print('>>>TODO ',mode,len(usy),len(uTabs))
                 else:
-                    # nSubPlots=int(len(PD)/len(uTabs))
+                    nSubPlots=int(len(PD)/len(uTabs))
+                    spreadBy='mod-ip'
+        elif mode=='nTabs_mCols':
+            if bSubPlots:
+                if bCompare:
+                    print('>>>TODO ',mode,len(usy),len(uTabs))
+                else:
                     if bCompare or len(uTabs)==1:
                         nSubPlots = self.infoPanel.getNumberOfSubplots(PD, bSubPlots)
                     else:
@@ -1084,6 +1095,14 @@ class PlotPanel(wx.Panel):
                     else:
                         pd.syl=pd.sy #pd.syl=pd.st + ' - '+pd.sy
         elif mode=='nTabs_SimCols':
+            bSubPlots = self.cbSub.IsChecked()
+            if bSubPlots: # spread by table name
+                for pd in self.plotData:
+                    pd.syl=pd.st
+            else:
+                for pd in self.plotData:
+                    pd.syl=pd.st + ' - '+pd.sy
+        elif mode=='nTabs_mCols':
             usy=unique([pd.sy for pd in self.plotData])
             bSubPlots = self.cbSub.IsChecked()
             if bSubPlots and len(usy)==1: # spread by table name

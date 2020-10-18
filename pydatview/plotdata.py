@@ -90,7 +90,7 @@ class PlotData():
         PD._n0     = (n,'{:d}'.format(n))
 
     def __repr__(s):
-        s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
+        s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}\n'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
         return s1
 
     def toPDF(PD, nBins=30, smooth=False):

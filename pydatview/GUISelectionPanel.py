@@ -1286,7 +1286,7 @@ class SelectionPanel(wx.Panel):
                             ID.append([ITab[2],iX2,iy,sX2,sy,STab[2]])
                 else:
                     raise Exception('Wrong number of splits {}'.format(self.nSplits))
-        return ID,SameCol
+        return ID,SameCol,self.currentMode
 
     def getSelectedTables(self):
         I=self.tabPanel.lbTab.GetSelections()
