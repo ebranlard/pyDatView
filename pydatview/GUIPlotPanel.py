@@ -172,7 +172,7 @@ class PlotTypePanel(wx.Panel):
     def __init__(self, parent):
         # Superclass constructor
         super(PlotTypePanel,self).__init__(parent)
-        #self.SetBackgroundColour('gray')
+        #self.SetBackgroundColour('yellow')
         # data
         self.parent   = parent
         # --- Ctrl Panel
@@ -188,7 +188,7 @@ class PlotTypePanel(wx.Panel):
         self.Bind(wx.EVT_RADIOBUTTON, self.compare_select, self.cbCompare)
         self.Bind(wx.EVT_RADIOBUTTON, self.regular_select, self.cbRegular)
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
+        cb_sizer  = wx.FlexGridSizer(rows=5, cols=1, hgap=0, vgap=0)
         cb_sizer.Add(self.cbRegular , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbPDF     , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbFFT     , 0, flag=wx.ALL, border=1)
@@ -267,6 +267,17 @@ class PlotTypePanel(wx.Panel):
         self.parent.lbDeltaX.SetLabel('')
         self.parent.lbDeltaY.SetLabel('')
 
+
+class EstheticsPanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        self.SetBackgroundColour('red')
+
+class PanelY(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        self.y = 4
+
 class PlotPanel(wx.Panel):
     def __init__(self, parent, selPanel,infoPanel=None, mainframe=None):
 
@@ -299,6 +310,7 @@ class PlotPanel(wx.Panel):
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
+        #self.SetBackgroundColour('red')
         self.leftMeasure = GUIMeasure(1, 'firebrick')
         self.rightMeasure = GUIMeasure(2, 'darkgreen')
         self.xlim_prev = [[0, 1]]
@@ -331,8 +343,17 @@ class PlotPanel(wx.Panel):
         self.cmpPanel = CompCtrlPanel(self)
         self.mmxPanel = MinMaxPanel(self)
 
+
+        # --- Note book to swith between options
+        nb = wx.Notebook(self, style=wx.NB_TOP|wx.NB_NOPAGETHEME) #, size=(10,55))
+        if self.selPanel is not None:
+            bg=self.selPanel.BackgroundColour
+            nb.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
+        nb.SetBackgroundColour('red')
+
         # --- Ctrl Panel
-        self.ctrlPanel= wx.Panel(self)
+        self.ctrlPanel= wx.Panel(nb)
+        self.ctrlPanel.SetBackgroundColour('blue')
         # Check Boxes
         self.cbScatter    = wx.CheckBox(self.ctrlPanel, -1, 'Scatter',(10,10))
         self.cbSub        = wx.CheckBox(self.ctrlPanel, -1, 'Subplot',(10,10))
@@ -361,7 +382,7 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbStepPlot )
         self.Bind(wx.EVT_CHECKBOX, self.measure_select   , self.cbMeasure )
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=2, vgap=0)
+        cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=0, vgap=0)
         cb_sizer.Add(self.cbScatter   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub       , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbAutoScale , 0, flag=wx.ALL, border=1)
@@ -375,7 +396,13 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbMeasure   , 0, flag=wx.ALL, border=1)
 
         self.ctrlPanel.SetSizer(cb_sizer)
-        # --- Ctrl Panel
+
+        # --- Esthetics panel
+        self.esthPanel = EstheticsPanel(nb)
+        nb.AddPage(self.ctrlPanel, "Main")
+        nb.AddPage(self.esthPanel, "Advanced")
+
+        # --- Crosshair Panel
         crossHairPanel= wx.Panel(self)
         self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x = ...       ')
         self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y = ...       ')
@@ -397,13 +424,14 @@ class PlotPanel(wx.Panel):
         sl2 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         sl3 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         sl4 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
-        row_sizer.Add(self.pltTypePanel , 0 , flag=wx.ALL|wx.CENTER           , border=2)
-        row_sizer.Add(sl2               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(self.toolbar_sizer, 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER , border=2)
-        row_sizer.Add(sl3               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.ALL|wx.EXPAND|wx.CENTER , border=2)
-        row_sizer.Add(sl4               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(crossHairPanel    , 0 , flag=wx.EXPAND|wx.CENTER|wx.LEFT, border=2)
+        row_sizer.Add(self.pltTypePanel , 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER          , border=1)
+        row_sizer.Add(sl2               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(self.toolbar_sizer, 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER          , border=1)
+        row_sizer.Add(sl3               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        #row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(nb                , 1 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(sl4               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(crossHairPanel    , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=1)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
         self.slCtrl = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
@@ -417,7 +445,7 @@ class PlotPanel(wx.Panel):
         plotsizer.Add(self.cmpPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.mmxPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.slCtrl   ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(row_sizer     ,0,flag = wx.EXPAND|wx.NORTH ,border = 5)
+        plotsizer.Add(row_sizer     ,0,flag = wx.EXPAND|wx.NORTH ,border = 2)
 
         self.show_hide(self.spcPanel, self.pltTypePanel.cbFFT.GetValue())
         self.show_hide(self.cmpPanel, self.pltTypePanel.cbCompare.GetValue())
