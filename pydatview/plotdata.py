@@ -148,8 +148,8 @@ class PlotData():
                 PD.y=PD.y*0
             else:
                 PD.y = (PD.y-mi)/(mx-mi)
-            PD._yMin=0
-            PD._yMax=1
+            PD._yMin=0,'0'
+            PD._yMax=1,'1'
         if xScale:
             if PD.xIsString:
                 raise Exception('Warn: Cannot compute min-max for strings')
@@ -159,8 +159,8 @@ class PlotData():
                 PD.x=PD.x*0
             else:
                 PD.x = (PD.x-mi)/(mx-mi)
-            PD._xMin=0
-            PD._xMax=1
+            PD._xMin=0,'0'
+            PD._xMax=1,'1'
 
         # Compute min max once and for all
         #PD.computeRange()
