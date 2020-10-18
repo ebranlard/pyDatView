@@ -250,6 +250,8 @@ class MainFrame(wx.Frame):
             try:
                 bt=wx.Button(tb,wx.ID_ANY, " "+label+" ", style=wx.BU_EXACTFIT)
                 bt.SetBitmapLabel(bitmap)
+                #b.SetBitmapMargins((2,2)) # default is 4 but that seems too big to me.
+                #b.SetInitialSize()
                 tl=tb.AddControl(bt)
                 if callback is not None:
                     tb.Bind(wx.EVT_BUTTON, callback, bt)

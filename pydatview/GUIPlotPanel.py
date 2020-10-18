@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import wx
+import wx.lib.buttons  as  buttons
 import dateutil # required by matplotlib
 #from matplotlib import pyplot as plt
 import matplotlib
@@ -35,7 +36,7 @@ from pandas.plotting import register_matplotlib_converters
 
 import gc
 
-from .common import * # unique
+from .common import * # unique, CHAR
 from .plotdata import PlotData, compareMultiplePD
 from .GUICommon import * 
 from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
@@ -325,12 +326,57 @@ class PlotPanel(wx.Panel):
         self.canvas.mpl_connect('draw_event', self.onDraw)
         self.clickLocation = (None, 0, 0)
 
-        self.navTBTop = MyNavigationToolbar2Wx(self.canvas, ['Home', 'Pan'])
+        self.navTBTop    = MyNavigationToolbar2Wx(self.canvas, ['Home', 'Pan'])
         self.navTBBottom = MyNavigationToolbar2Wx(self.canvas, ['Subplots', 'Save'])
 
+        self.navToolBar = wx.ToolBar(self, style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER|wx.TB_NOICONS)
+
+        font = self.GetFont()
+        font.SetPointSize(font.GetPointSize()+3)
+        #self.esthToggle  = wx.ToggleButton(self, -1, CHAR['chart'] , style=wx.BORDER_NONE|wx.BU_EXACTFIT)
+        self.esthToggle = buttons.GenToggleButton(self.navToolBar, -1, CHAR['chart'], style=wx.BORDER_NONE|wx.BU_EXACTFIT)
+        self.esthToggle.SetFont(font)
+        self.esthToggle2 = buttons.GenToggleButton(self, -1, CHAR['chart'], style=wx.BORDER_NONE|wx.BU_EXACTFIT)
+        self.esthToggle2.SetFont(font)
+        #self.esthToggle.SetBitmap(self.save_ico)
+        #self.esthToggle.Bind(wx.EVT_TOGGLEBUTTON, self.onEsthToggle)
+        self.navToolBar.AddControl(self.esthToggle)
+        
+        bmp=wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN)
+        self.navToolBar.AddTool(-1, label='', bitmap=bmp)
+        #AddCheckTool(self, toolId, label, bitmap1, bmpDisabled=NullBitmap, shortHelp="", longHelp="", clientData=None)
+        self.navToolBar.AddCheckTool(-1, label=CHAR['pencil'], bitmap1=bmp)
+#         self.navToolBar.AddLabelTool( -1, label='Hello', bitmap=wx.NullBitmap )
+        self.navToolBar.AddControl( wx.StaticText(self.navToolBar, -1, 'Mode: ' ) )
+        mybt=wx.ToggleButton(self.navToolBar, -1, CHAR['chart'], style=wx.BORDER_NONE|wx.BU_EXACTFIT)
+        mybt.SetFont(font)
+        self.navToolBar.AddControl(mybt  )
+
+#         kwargs = dict(label=text,
+#                       bitmap=bmp,
+#                       bmpDisabled=wx.NullBitmap,
+#                       shortHelp=text,
+#                       longHelp=tooltip_text,
+#                       kind=kind)
+#     else:
+#         kwargs = dict(label=text,
+#                       bitmap=bmp,
+#                       bmpDisabled=wx.NullBitmap,
+#                       shortHelpString=text,
+#                       longHelpString=tooltip_text,
+#                       kind=kind)
+# 
+#     return add_tool(wx_ids[text], **kwargs)
+
+
+        self.navToolBar.Realize()
+
+
         self.toolbar_sizer  = wx.BoxSizer(wx.VERTICAL)
+        self.toolbar_sizer.Add(self.navToolBar)
         self.toolbar_sizer.Add(self.navTBTop)
         self.toolbar_sizer.Add(self.navTBBottom)
+        self.toolbar_sizer.Add(self.esthToggle2)
 
 
         # --- Tool Panel
@@ -343,17 +389,9 @@ class PlotPanel(wx.Panel):
         self.cmpPanel = CompCtrlPanel(self)
         self.mmxPanel = MinMaxPanel(self)
 
-
-        # --- Note book to swith between options
-        nb = wx.Notebook(self, style=wx.NB_TOP|wx.NB_NOPAGETHEME) #, size=(10,55))
-        if self.selPanel is not None:
-            bg=self.selPanel.BackgroundColour
-            nb.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
-        nb.SetBackgroundColour('red')
-
         # --- Ctrl Panel
-        self.ctrlPanel= wx.Panel(nb)
-        self.ctrlPanel.SetBackgroundColour('blue')
+        self.ctrlPanel= wx.Panel(self)
+        #self.ctrlPanel.SetBackgroundColour('blue')
         # Check Boxes
         self.cbScatter    = wx.CheckBox(self.ctrlPanel, -1, 'Scatter',(10,10))
         self.cbSub        = wx.CheckBox(self.ctrlPanel, -1, 'Subplot',(10,10))
@@ -398,9 +436,7 @@ class PlotPanel(wx.Panel):
         self.ctrlPanel.SetSizer(cb_sizer)
 
         # --- Esthetics panel
-        self.esthPanel = EstheticsPanel(nb)
-        nb.AddPage(self.ctrlPanel, "Main")
-        nb.AddPage(self.esthPanel, "Advanced")
+        self.esthPanel = EstheticsPanel(self)
 
         # --- Crosshair Panel
         crossHairPanel= wx.Panel(self)
@@ -428,8 +464,7 @@ class PlotPanel(wx.Panel):
         row_sizer.Add(sl2               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
         row_sizer.Add(self.toolbar_sizer, 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER          , border=1)
         row_sizer.Add(sl3               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
-        #row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
-        row_sizer.Add(nb                , 1 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
         row_sizer.Add(sl4               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
         row_sizer.Add(crossHairPanel    , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=1)
 
