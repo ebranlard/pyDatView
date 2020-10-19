@@ -9,7 +9,7 @@ CHAR={
 'menu'     : u'\u2630',
 'tridot'   : u'\u26EC',
 'apply'    : u'\u1809',
-'compute'  : u'\u2699',
+'compute'  : u'\u2699', # gear
 'close'    : u'\u274C',
 'add'      : u'\u2795',
 'add_small': u'\ufe62',
@@ -18,7 +18,16 @@ CHAR={
 'suncloud' : u'\u26C5',
 'cloud'    : u'\u2601',
 'check'    : u'\u2714',
-'help'     : u'\u2753'
+'help'     : u'\u2753',
+'pencil'   : u'\u270f', # draw
+'pick'     : u'\u26cf',
+'hammer'   : u'\U0001f528',
+'wrench'   : u'\U0001f527',
+'ruler'    : u'\U0001F4CF', # measure
+'control_knobs'    : u'\U0001F39b', 
+'python'   : u'\U0001F40D',
+'chart'    : u'\U0001F4c8',
+'chart_small': u'\U0001F5e0',
 }
 # --------------------------------------------------------------------------------}
 # --- ellude

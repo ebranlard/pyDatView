@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import wx
+import wx.lib.buttons  as  buttons
 import dateutil # required by matplotlib
 #from matplotlib import pyplot as plt
 import matplotlib
@@ -35,12 +36,13 @@ from pandas.plotting import register_matplotlib_converters
 
 import gc
 
-from .common import * # unique
+from .common import * # unique, CHAR
 from .plotdata import PlotData, compareMultiplePD
 from .GUICommon import * 
-from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx
+from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx, TBAddTool, TBAddCheckTool
 from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel, CurveFitToolPanel
 from .GUIMeasure import GUIMeasure
+from . import icons
 #     from spectral import fft_wrap
 
 font = {'size'   : 8}
@@ -168,11 +170,13 @@ class SpectralCtrlPanel(wx.Panel):
         self.lbWinLength.SetLabel("({})".format(2**P2))
 
 
+
+
 class PlotTypePanel(wx.Panel):
     def __init__(self, parent):
         # Superclass constructor
         super(PlotTypePanel,self).__init__(parent)
-        #self.SetBackgroundColour('gray')
+        #self.SetBackgroundColour('yellow')
         # data
         self.parent   = parent
         # --- Ctrl Panel
@@ -188,7 +192,7 @@ class PlotTypePanel(wx.Panel):
         self.Bind(wx.EVT_RADIOBUTTON, self.compare_select, self.cbCompare)
         self.Bind(wx.EVT_RADIOBUTTON, self.regular_select, self.cbRegular)
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
+        cb_sizer  = wx.FlexGridSizer(rows=5, cols=1, hgap=0, vgap=0)
         cb_sizer.Add(self.cbRegular , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbPDF     , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbFFT     , 0, flag=wx.ALL, border=1)
@@ -216,7 +220,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.pdfPanel.Hide();
         self.parent.cmpPanel.Hide();
         self.parent.mmxPanel.Hide();
-        self.parent.slCtrl.Hide();
+        self.parent.slEsth.Hide();
         self.parent.plotsizer.Layout()
         #
         self.parent.redraw() # Data changes
@@ -267,6 +271,56 @@ class PlotTypePanel(wx.Panel):
         self.parent.lbDeltaX.SetLabel('')
         self.parent.lbDeltaY.SetLabel('')
 
+class EstheticsPanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        self.parent=parent
+        #self.SetBackgroundColour('red')
+
+        lbFont = wx.StaticText( self, -1, 'Font:')
+        self.cbFont = wx.ComboBox(self, choices=['6','7','8','9','10','11','12','13','14','15','16','17','18'] , style=wx.CB_READONLY)
+        self.cbFont.SetSelection(2)
+        # NOTE: we don't offer "best" since best is slow
+        lbLegend = wx.StaticText( self, -1, 'Legend:')
+        self.cbLegend = wx.ComboBox(self, choices=['None','Upper right','Upper left','Lower left','Lower right','Right','Center left','Center right','Lower center','Upper center','Center'] , style=wx.CB_READONLY)
+        self.cbLegend.SetSelection(1)
+        lbLgdFont = wx.StaticText( self, -1, 'Legend font:')
+        self.cbLgdFont = wx.ComboBox(self, choices=['6','7','8','9','10','11','12','13','14','15','16','17','18'] , style=wx.CB_READONLY)
+        self.cbLgdFont.SetSelection(2)
+        lbLW = wx.StaticText( self, -1, 'Line width:')
+        self.cbLW = wx.ComboBox(self, choices=['0.5','1.0','1.5','2.0','2.5','3.0'] , style=wx.CB_READONLY)
+        self.cbLW.SetSelection(2)
+        lbMS = wx.StaticText( self, -1, 'Marker size:')
+        self.cbMS= wx.ComboBox(self, choices=['0.5','1','2','3','4','5','6','7','8'] , style=wx.CB_READONLY)
+        self.cbMS.SetSelection(2)
+
+        # Layout
+        #dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        dummy_sizer = wx.WrapSizer(orient=wx.HORIZONTAL)
+        dummy_sizer.Add(lbFont                ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(self.cbFont           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(lbLW                  ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        dummy_sizer.Add(self.cbLW             ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(lbMS                  ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        dummy_sizer.Add(self.cbMS             ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(lbLegend              ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        dummy_sizer.Add(self.cbLegend         ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        dummy_sizer.Add(lbLgdFont             ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        dummy_sizer.Add(self.cbLgdFont        ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        self.SetSizer(dummy_sizer)
+        self.Hide()
+        # Callbacks
+        self.Bind(wx.EVT_COMBOBOX  ,self.onAnyEsthOptionChange)
+        self.cbFont.Bind(wx.EVT_COMBOBOX  ,self.onFontOptionChange)
+
+    def onAnyEsthOptionChange(self,event=None):
+        self.parent.redraw()
+
+    def onFontOptionChange(self,event=None):
+        matplotlib_rc('font', **{'size':int(self.cbFont.Value) }) # affect all (including ticks)
+        self.onAnyEsthOptionChange()
+
+
 class PlotPanel(wx.Panel):
     def __init__(self, parent, selPanel,infoPanel=None, mainframe=None):
 
@@ -299,6 +353,7 @@ class PlotPanel(wx.Panel):
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
+        #self.SetBackgroundColour('red')
         self.leftMeasure = GUIMeasure(1, 'firebrick')
         self.rightMeasure = GUIMeasure(2, 'darkgreen')
         self.xlim_prev = [[0, 1]]
@@ -313,8 +368,18 @@ class PlotPanel(wx.Panel):
         self.canvas.mpl_connect('draw_event', self.onDraw)
         self.clickLocation = (None, 0, 0)
 
-        self.navTBTop = MyNavigationToolbar2Wx(self.canvas, ['Home', 'Pan'])
+        self.navTBTop    = MyNavigationToolbar2Wx(self.canvas, ['Home', 'Pan'])
         self.navTBBottom = MyNavigationToolbar2Wx(self.canvas, ['Subplots', 'Save'])
+        TBAddCheckTool(self.navTBBottom,'', icons.chart.GetBitmap(), self.onEsthToggle)
+        self.esthToggle=False
+
+        self.navTBBottom.Realize()
+
+        #self.navTB = wx.ToolBar(self, style=wx.TB_HORIZONTAL|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER|wx.TB_FLAT)
+        #self.navTB.SetMargins(0,0)
+        #self.navTB.SetToolPacking(0)
+        #self.navTB.AddCheckTool(-1, label='', bitmap1=icons.chart.GetBitmap())
+        #self.navTB.Realize()
 
         self.toolbar_sizer  = wx.BoxSizer(wx.VERTICAL)
         self.toolbar_sizer.Add(self.navTBTop)
@@ -330,11 +395,16 @@ class PlotPanel(wx.Panel):
         self.pdfPanel = PDFCtrlPanel(self)
         self.cmpPanel = CompCtrlPanel(self)
         self.mmxPanel = MinMaxPanel(self)
+        # --- Esthetics panel
+        self.esthPanel = EstheticsPanel(self)
+
 
         # --- Ctrl Panel
         self.ctrlPanel= wx.Panel(self)
+        #self.ctrlPanel.SetBackgroundColour('blue')
         # Check Boxes
-        self.cbScatter    = wx.CheckBox(self.ctrlPanel, -1, 'Scatter',(10,10))
+        self.cbCurveType = wx.ComboBox(self.ctrlPanel, choices=['Plain','LS','Markers','Mix'] , style=wx.CB_READONLY)
+        self.cbCurveType.SetSelection(1)
         self.cbSub        = wx.CheckBox(self.ctrlPanel, -1, 'Subplot',(10,10))
         self.cbLogX       = wx.CheckBox(self.ctrlPanel, -1, 'Log-x',(10,10))
         self.cbLogY       = wx.CheckBox(self.ctrlPanel, -1, 'Log-y',(10,10))
@@ -349,8 +419,9 @@ class PlotPanel(wx.Panel):
         self.cbSync.SetValue(True)
         self.cbXHair.SetValue(True) # Have cross hair by default
         self.cbAutoScale.SetValue(True)
-        self.Bind(wx.EVT_CHECKBOX, self.scatter_select   , self.cbScatter)
+        # Callbacks
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbSub    )
+        self.Bind(wx.EVT_COMBOBOX, self.redraw_event     , self.cbCurveType)
         self.Bind(wx.EVT_CHECKBOX, self.log_select       , self.cbLogX   )
         self.Bind(wx.EVT_CHECKBOX, self.log_select       , self.cbLogY   )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbSync )
@@ -360,9 +431,10 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbGrid )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbStepPlot )
         self.Bind(wx.EVT_CHECKBOX, self.measure_select   , self.cbMeasure )
+        self.Bind(wx.EVT_CHECKBOX, self.measure_select   , self.cbMeasure )
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=2, vgap=0)
-        cb_sizer.Add(self.cbScatter   , 0, flag=wx.ALL, border=1)
+        cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=0, vgap=0)
+        cb_sizer.Add(self.cbCurveType , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub       , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbAutoScale , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogX      , 0, flag=wx.ALL, border=1)
@@ -375,7 +447,8 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbMeasure   , 0, flag=wx.ALL, border=1)
 
         self.ctrlPanel.SetSizer(cb_sizer)
-        # --- Ctrl Panel
+
+        # --- Crosshair Panel
         crossHairPanel= wx.Panel(self)
         self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x = ...       ')
         self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y = ...       ')
@@ -397,17 +470,19 @@ class PlotPanel(wx.Panel):
         sl2 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         sl3 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
         sl4 = wx.StaticLine(self, -1, size=wx.Size(1,-1), style=wx.LI_VERTICAL)
-        row_sizer.Add(self.pltTypePanel , 0 , flag=wx.ALL|wx.CENTER           , border=2)
-        row_sizer.Add(sl2               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(self.toolbar_sizer, 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER , border=2)
-        row_sizer.Add(sl3               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.ALL|wx.EXPAND|wx.CENTER , border=2)
-        row_sizer.Add(sl4               , 0 , flag=wx.EXPAND|wx.CENTER        , border=0)
-        row_sizer.Add(crossHairPanel    , 0 , flag=wx.EXPAND|wx.CENTER|wx.LEFT, border=2)
+        row_sizer.Add(self.pltTypePanel , 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER          , border=1)
+        row_sizer.Add(sl2               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(self.toolbar_sizer, 0 , flag=wx.LEFT|wx.RIGHT|wx.CENTER          , border=1)
+        row_sizer.Add(sl3               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(self.ctrlPanel    , 1 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(sl4               , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=0)
+        row_sizer.Add(crossHairPanel    , 0 , flag=wx.LEFT|wx.RIGHT|wx.EXPAND|wx.CENTER, border=1)
 
         plotsizer = wx.BoxSizer(wx.VERTICAL)
         self.slCtrl = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         self.slCtrl.Hide()
+        self.slEsth = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
+        self.slEsth.Hide()
         sl1 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         plotsizer.Add(self.toolSizer,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.canvas   ,1,flag = wx.EXPAND,border = 5 )
@@ -416,8 +491,10 @@ class PlotPanel(wx.Panel):
         plotsizer.Add(self.pdfPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.cmpPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.mmxPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.slEsth   ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(self.esthPanel,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.slCtrl   ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(row_sizer     ,0,flag = wx.EXPAND|wx.NORTH ,border = 5)
+        plotsizer.Add(row_sizer     ,0,flag = wx.EXPAND|wx.NORTH ,border = 2)
 
         self.show_hide(self.spcPanel, self.pltTypePanel.cbFFT.GetValue())
         self.show_hide(self.cmpPanel, self.pltTypePanel.cbCompare.GetValue())
@@ -427,6 +504,17 @@ class PlotPanel(wx.Panel):
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
         self.set_subplot_spacing(init=True)
+
+    def onEsthToggle(self,event):
+        self.esthToggle=not self.esthToggle
+        if self.esthToggle:
+            self.slCtrl.Show()
+            self.esthPanel.Show()
+        else:
+            self.slCtrl.Hide()
+            self.esthPanel.Hide()
+        self.plotsizer.Layout()
+        event.Skip()
 
     def set_subplot_spacing(self, init=False):
         """ 
@@ -446,14 +534,22 @@ class PlotPanel(wx.Panel):
             left   = 0.12
         else:
             if self.Size[1]<300:
+                bottom=0.20
+            elif self.Size[1]<350:
                 bottom=0.18
-            elif self.Size[1]<800:
+            elif self.Size[1]<430:
+                bottom=0.16
+            elif self.Size[1]<600:
                 bottom=0.13
+            elif self.Size[1]<800:
+                bottom=0.09
             else:
                 bottom=0.07
             if self.Size[0]<300:
-                left=0.18
-            elif self.Size[0]<750:
+                left=0.22
+            elif self.Size[0]<450:
+                left=0.20
+            elif self.Size[0]<950:
                 left=0.12
             else:
                 left=0.06
@@ -491,16 +587,15 @@ class PlotPanel(wx.Panel):
             pass
 
     def scatter_select(self, event):
-        self.cbScatter.SetValue(self.cbScatter.GetValue())
         self.redraw_same_data()
 
     def show_hide(self,panel,bShow):
         if bShow:
             panel.Show()
-            self.slCtrl.Show()
+            self.slEsth.Show()
         else:
+            self.slEsth.Hide()
             panel.Hide()
-            self.slCtrl.Hide()
 
     @property
     def sharex(self):
@@ -784,19 +879,42 @@ class PlotPanel(wx.Panel):
                 self.lbDeltaY.SetLabel('')
 
         axes=self.fig.axes
-
-        bScatter=self.cbScatter.IsChecked()
-        bStep=self.cbStepPlot.IsChecked()
-
         PD=self.plotData
 
+
+        # --- Plot options
+        bStep    = self.cbStepPlot.IsChecked()
+        plot_options = dict()
+        plot_options['lw']=float(self.esthPanel.cbLW.Value)
+        plot_options['ms']=float(self.esthPanel.cbMS.Value)
+        if self.cbCurveType.Value=='Plain':
+            plot_options['LineStyles'] = ['-']
+            plot_options['Markers']    = ['']
+        elif self.cbCurveType.Value=='LS':
+            plot_options['LineStyles'] = ['-','--','-.',':']
+            plot_options['Markers']    = ['']
+        elif self.cbCurveType.Value=='Markers':
+            plot_options['LineStyles'] = ['']
+            plot_options['Markers']    = ['o','d','v','^','s']
+        elif self.cbCurveType.Value=='Mix': # NOTE, can be improved
+            plot_options['LineStyles'] = ['-','--', '-','-','-']
+            plot_options['Markers']    = ['' ,''   ,'o','^','s']
+        else:
+            # Combination of linestyles markers, colors, etc.
+            # But at that stage, if the user really want this, then we can implement an option to set styles per plot. Not high priority.
+            raise Exception('Not implemented')
+
+
+
+        # --- Font options
+        font_options      = dict()
+        font_options_legd = dict()
+        font_options['size']          = int(self.esthPanel.cbFont.Value)  # affect labels
+        font_options_legd['fontsize'] = int(self.esthPanel.cbLgdFont.Value)
         needChineseFont = any([pd.needChineseFont for pd in PD])
         if needChineseFont and self.specialFont is not None:
-            font_options      = {'fontproperties': self.specialFont}
-            font_options_legd = {'prop': self.specialFont}
-        else:
-            font_options      = {}
-            font_options_legd = {}
+            font_options['fontproperties']=  self.specialFont
+            font_options_legd['prop']     =  self.specialFont 
 
         for ax_left, axis_idx in zip(axes, range(len(axes))):
             ax_right = None
@@ -812,8 +930,8 @@ class PlotPanel(wx.Panel):
 
             # Actually plot
             pm = self.infoPanel.getPlotMatrix(PD, self.cbSub.IsChecked())
-            __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bScatter, bStep)
-            ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bScatter, bStep)
+            __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bStep, plot_options)
+            ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bStep, plot_options)
 
             self.infoPanel.setMeasurements(self.leftMeasure.get_xydata(), self.rightMeasure.get_xydata())
             for measure in [self.leftMeasure, self.rightMeasure]:
@@ -895,20 +1013,23 @@ class PlotPanel(wx.Panel):
                 ax_right.set_ylabel('')
 
             # Legends
+            lgdLoc = self.esthPanel.cbLegend.Value.lower()
             if (self.pltTypePanel.cbCompare.GetValue() or 
                 ((len(yleft_legends) + len(yright_legends)) > 1)):
-                if len(yleft_legends) > 0:
-                    ax_left.legend(fancybox=False, loc=1, **font_options_legd)
+                if lgdLoc !='none':
+                    if len(yleft_legends) > 0:
+                        ax_left.legend(fancybox=False, loc=lgdLoc, **font_options_legd)
                 if ax_right is not None and len(yright_legends) > 0:
                     ax_right.legend(fancybox=False, loc=4, **font_options_legd)
             elif len(axes)>1 and len(axes)==len(PD):
                 # TODO: can this be removed? If there is only one unique signal
                 # per subplot, normally only ylabel is displayed and no legend.
                 # Special case when we have subplots and all plots have the same label
-                usy = unique([pd.sy for pd in PD])
-                if len(usy)==1:
-                    for ax in axes:
-                        ax.legend(fancybox=False, loc=1, **font_options_legd)
+                if lgdLoc !='none':
+                    usy = unique([pd.sy for pd in PD])
+                    if len(usy)==1:
+                        for ax in axes:
+                            ax.legend(fancybox=False, loc=lgdLoc, **font_options_legd)
 
         axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx, **font_options)
 
@@ -923,13 +1044,15 @@ class PlotPanel(wx.Panel):
         bXHair = self.cbXHair.GetValue()
         self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn=bXHair, vertOn=bXHair, color='gray', linewidth=0.5, linestyle=':')
 
-    def plotSignals(self, ax, axis_idx, PD, pm, left_right, is_scatter, is_step):
+    def plotSignals(self, ax, axis_idx, PD, pm, left_right, is_step, opts):
         axis = None
         bAllNeg = True
         if pm is None:
             loop_range = ax.iPD
         else:
             loop_range = range(len(PD))
+
+        iPlot=-1
         for signal_idx in loop_range:
             do_plot = False
             if left_right == 1 and (pm is None or pm[signal_idx][axis_idx] == left_right):
@@ -943,16 +1066,20 @@ class PlotPanel(wx.Panel):
                     ax.patch.set_visible(False)
                     axis._get_lines.prop_cycler = ax._get_lines.prop_cycler
             pd=PD[signal_idx]
-            if is_scatter or len(pd.x)==1:
-                sty='o'
-            else:
-                sty='-'
             if do_plot:
+                iPlot+=1 
+                # --- styling per plot 
+                if len(pd.x)==1:
+                    marker='o'; ls=''
+                else:
+                    # TODO allow PlotData to override for "per plot" options in the future
+                    marker = opts['Markers'][np.mod(iPlot,len(opts['Markers']))]
+                    ls     = opts['LineStyles'][np.mod(iPlot,len(opts['LineStyles']))]
                 if is_step:
                     plot = axis.step
                 else:
                     plot = axis.plot
-                plot(pd.x,pd.y,sty,label=pd.syl,markersize=1)
+                plot(pd.x,pd.y,label=pd.syl,ms=opts['ms'], lw=opts['lw'], marker=marker, ls=ls)
                 try:
                     bAllNeg = bAllNeg and all(pd.y<=0)
                 except:

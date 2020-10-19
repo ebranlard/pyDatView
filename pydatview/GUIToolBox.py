@@ -29,6 +29,71 @@ def GetKeyString(evt):
         else:
             keyname = str(keycode)
     return modifiers + keyname
+
+# --------------------------------------------------------------------------------}
+# --- Toolbar utils for backwards compatibilty 
+# --------------------------------------------------------------------------------{
+    """ """
+
+
+def TBAddCheckTool(tb,label,bitmap,callback=None,bitmap2=None):
+    try:
+        tl = tb.AddCheckTool( -1, bitmap1=bitmap, label=label )
+        if callback is not None:
+            tb.Bind(wx.EVT_TOOL, callback, tl)
+        return tl
+    except:
+        pass
+
+    tl = tb.AddLabelTool( -1, bitmap=bitmap, label=label )
+    if callback is not None:
+        tb.Bind(wx.EVT_TOOL, callback, tl)
+    return tl
+
+def TBAddTool(tb,label,bitmap,callback=None,Type=None):
+    """ Adding a toolbar tool, safe depending on interface and compatibility
+    see also wx_compat AddTool in wx backends 
+    """
+    # Modern API
+    if Type is None or Type==0:
+        try:
+            tl = tb.AddTool( -1, bitmap=bitmap, label=label )
+            if callback is not None:
+                tb.Bind(wx.EVT_TOOL, callback, tl)
+            return tl
+        except:
+            Type=None
+    # Old fashion API
+    if Type is None or Type==1:
+        try:
+            tl = tb.AddLabelTool( -1, bitmap=bitmap, label=label )
+            if callback is not None:
+                tb.Bind(wx.EVT_TOOL, callback, tl)
+            return tl
+        except:
+            Type=None
+    # Using a Bitmap 
+    if Type is None or Type==2:
+        try:
+            bt=wx.Button(tb,wx.ID_ANY, " "+label+" ", style=wx.BU_EXACTFIT)
+            bt.SetBitmapLabel(bitmap)
+            #b.SetBitmapMargins((2,2)) # default is 4 but that seems too big to me.
+            #b.SetInitialSize()
+            tl=tb.AddControl(bt)
+            if callback is not None:
+                tb.Bind(wx.EVT_BUTTON, callback, bt)
+            return tl
+        except:
+            Type=None
+    # Last resort, we add a button only
+    bt=wx.Button(tb,wx.ID_ANY, label)
+    tl=tb.AddControl(bt)
+    if callback is not None:
+        tb.Bind(wx.EVT_BUTTON, callback, bt)
+    return tl
+
+
+
 # --------------------------------------------------------------------------------}
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
