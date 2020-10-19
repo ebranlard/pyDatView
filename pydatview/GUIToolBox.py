@@ -43,8 +43,12 @@ def TBAddCheckTool(tb,label,bitmap,callback=None,bitmap2=None):
             tb.Bind(wx.EVT_TOOL, callback, tl)
         return tl
     except:
-        Type=None
-        print('TODO handle check tool')
+        pass
+
+    tl = tb.AddLabelTool( -1, bitmap=bitmap, label=label )
+    if callback is not None:
+        tb.Bind(wx.EVT_TOOL, callback, tl)
+    return tl
 
 def TBAddTool(tb,label,bitmap,callback=None,Type=None):
     """ Adding a toolbar tool, safe depending on interface and compatibility
