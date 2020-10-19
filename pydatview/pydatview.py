@@ -30,7 +30,7 @@ from .GUIPlotPanel import PlotPanel
 from .GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
 from .GUISelectionPanel import ColumnPopup,TablePopup
 from .GUIInfoPanel import InfoPanel
-from .GUIToolBox import GetKeyString
+from .GUIToolBox import GetKeyString, TBAddTool
 from .Tables import TableList, Table
 # Helper
 from .common import *
@@ -166,12 +166,12 @@ class MainFrame(wx.Frame):
         tb.AddControl(self.comboFormats ) 
         tb.AddSeparator()
         #bmp = wx.Bitmap('help.png') #wx.Bitmap("NEW.BMP", wx.BITMAP_TYPE_BMP) 
-        self.AddTBBitmapTool(tb,"Open"  ,wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN),self.onLoad)
-        self.AddTBBitmapTool(tb,"Reload",wx.ArtProvider.GetBitmap(wx.ART_REDO),self.onReload)
+        TBAddTool(tb,"Open"  ,wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN),self.onLoad)
+        TBAddTool(tb,"Reload",wx.ArtProvider.GetBitmap(wx.ART_REDO),self.onReload)
         try:
-            self.AddTBBitmapTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.ART_PLUS),self.onAdd)
+            TBAddTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.ART_PLUS),self.onAdd)
         except:
-            self.AddTBBitmapTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.FILE_OPEN),self.onAdd)
+            TBAddTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.FILE_OPEN),self.onAdd)
         #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onDEBUG)
         tb.AddStretchableSpace()
         tb.Realize() 
@@ -225,45 +225,6 @@ class MainFrame(wx.Frame):
         event.Skip()
 
 
-    def AddTBBitmapTool(self,tb,label,bitmap,callback=None,Type=None):
-        """ Adding a toolbar tool, safe depending on interface"""
-        # Modern API
-        if Type is None or Type==0:
-            try:
-                tl = tb.AddTool( -1, bitmap=bitmap, label=label )
-                if callback is not None:
-                    tb.Bind(wx.EVT_TOOL, callback, tl)
-                return tl
-            except:
-                Type=None
-        # Old fashion API
-        if Type is None or Type==1:
-            try:
-                tl = tb.AddLabelTool( -1, bitmap=bitmap, label=label )
-                if callback is not None:
-                    tb.Bind(wx.EVT_TOOL, callback, tl)
-                return tl
-            except:
-                Type=None
-        # Using a Bitmap 
-        if Type is None or Type==2:
-            try:
-                bt=wx.Button(tb,wx.ID_ANY, " "+label+" ", style=wx.BU_EXACTFIT)
-                bt.SetBitmapLabel(bitmap)
-                #b.SetBitmapMargins((2,2)) # default is 4 but that seems too big to me.
-                #b.SetInitialSize()
-                tl=tb.AddControl(bt)
-                if callback is not None:
-                    tb.Bind(wx.EVT_BUTTON, callback, bt)
-                return tl
-            except:
-                Type=None
-        # Last resort, we add a button only
-        bt=wx.Button(tb,wx.ID_ANY, label)
-        tl=tb.AddControl(bt)
-        if callback is not None:
-            tb.Bind(wx.EVT_BUTTON, callback, bt)
-        return tl
 
     def clean_memory(self,bReload=False):
         #print('Clean memory')
@@ -616,8 +577,9 @@ class MainFrame(wx.Frame):
             pass
         # NOTE: doesn't work...
         #if hasattr(self,'plotPanel'):
-        #    # Subplot spacing changes based on figure size
-        #    self.plotPanel.set_subplot_spacing()  
+            # Subplot spacing changes based on figure size
+            #print('>>> RESIZE WINDOW')
+            #self.redraw()  
 
     # --- Side column
     def resizeSideColumn(self,width):

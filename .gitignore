@@ -17,3 +17,4 @@ _tools/*
 _*.bat
 _*
 !__init__.py
+*.png
