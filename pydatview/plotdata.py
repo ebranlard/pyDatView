@@ -7,7 +7,6 @@ from .common import unique, pretty_num, pretty_time
 from .GUIMeasure import find_closest # Should not depend on wx 
 from .fatigue import eq_load
 
-
 class PlotData():
     """ 
     Class for plot data
@@ -37,7 +36,7 @@ class PlotData():
         if x is not None and y is not None:
             PD.fromXY(x,y,sx,sy)
 
-    def fromIDs(PD, tabs, i, idx, SameCol):
+    def fromIDs(PD, tabs, i, idx, SameCol, Options={}):
         """ Nasty initialization of plot data from "IDs" """
         PD.id = i
         PD.it = idx[0] # table index
@@ -54,7 +53,7 @@ class PlotData():
         PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
         PD.c =c  # raw values, used by PDF
 
-        PD._post_init()
+        PD._post_init(Options=Options)
 
 
     def fromXY(PD, x, y, sx='', sy=''):
@@ -70,7 +69,19 @@ class PlotData():
         PD._post_init()
 
 
-    def _post_init(PD):
+    def _post_init(PD, Options={}):
+        # --- Perform data manipulation on the fly
+        if 'RemoveOutliers' in Options.keys():
+            if Options['RemoveOutliers']:
+                from pydatview.utils.signal import reject_outliers
+                #print('>>> remoeing outliers with ',Options['OutliersMedianDeviation'])
+                try:
+                    PD.x, PD.y = reject_outliers(PD.y, PD.x, m=Options['OutliersMedianDeviation'])
+                except:
+                    raise Exception('Warn: Outlier removal failed. Desactivate it or use a different signal. ')
+
+
+        # --- Store stats
         n=len(PD.y)
         if n>1000:
             if (PD.xIsString):
@@ -323,6 +334,14 @@ class PlotData():
             return None,'NA'
         else:
             v=np.nanmean(PD.y)
+            s=pretty_num(v)
+        return (v,s)
+
+    def yMedian(PD):
+        if PD.yIsString or  PD.yIsDate:
+            return None,'NA'
+        else:
+            v=np.nanmedian(PD.y)
             s=pretty_num(v)
         return (v,s)
 

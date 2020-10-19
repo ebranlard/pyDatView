@@ -2,6 +2,7 @@ import wx
 import numpy as np
 import pandas as pd
 import copy
+import platform
 
 # For log dec tool
 from .damping import logDecFromDecay
@@ -27,7 +28,7 @@ class GUIToolPanel(wx.Panel):
         if Type is not None:
             label=CHAR[Type]+' '+label
 
-        bt=wx.Button(par,wx.ID_ANY,label, style=wx.BU_EXACTFIT)
+        bt=wx.Button(par,wx.ID_ANY, label, style=wx.BU_EXACTFIT)
         #try:
         #    if bitmap is not None:    
         #            bt.SetBitmapLabel(wx.ArtProvider.GetBitmap(bitmap)) #,size=(12,12)))
@@ -37,6 +38,15 @@ class GUIToolPanel(wx.Panel):
         if callback is not None:
             par.Bind(wx.EVT_BUTTON, callback, bt)
         return bt
+
+    def getToggleBtBitmap(self,par,label,Type=None,callback=None,bitmap=False):
+        if Type is not None:
+            label=CHAR[Type]+' '+label
+        bt=wx.ToggleButton(par,wx.ID_ANY, label, style=wx.BU_EXACTFIT)
+        if callback is not None:
+            par.Bind(wx.EVT_TOGGLEBUTTON, callback, bt)
+        return bt
+
 
 
 # --------------------------------------------------------------------------------}
@@ -72,7 +82,100 @@ class LogDecToolPanel(GUIToolPanel):
             self.parent.canvas.draw()
         except:
             self.lb.SetLabel('Failed. The signal needs to look like the decay of a first order system.')
-        #self.parent.redraw(); # DATA HAS CHANGED
+        #self.parent.load_and_draw(); # DATA HAS CHANGED
+
+# --------------------------------------------------------------------------------}
+# --- Outliers 
+# --------------------------------------------------------------------------------{
+class OutlierToolPanel(GUIToolPanel):
+    """
+    A quick and dirty solution to manipulate plotData
+    I need to think of a better way to do that
+    """
+    def __init__(self, parent):
+        super(OutlierToolPanel,self).__init__(parent)
+        self.parent = parent # parent is GUIPlotPanel
+
+        # Setting default states to parent
+        if 'RemoveOutliers' not in self.parent.plotDataOptions.keys():
+            self.parent.plotDataOptions['RemoveOutliers']=False
+        if 'OutliersMedianDeviation' not in self.parent.plotDataOptions.keys():
+            self.parent.plotDataOptions['OutliersMedianDeviation']=5
+
+        btClose = self.getBtBitmap(self,'Close','close',self.destroy)
+        self.btComp  = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleCompute)
+
+        lb1 = wx.StaticText(self, -1, 'Median deviation:')
+#         self.tMD = wx.TextCtrl(self, wx.ID_ANY,, size = (30,-1), style=wx.TE_PROCESS_ENTER)
+        self.tMD = wx.SpinCtrlDouble(self, value='11', size=wx.Size(60,-1))
+        self.tMD.SetValue(self.parent.plotDataOptions['OutliersMedianDeviation'])
+        self.tMD.SetRange(0.0, 1000)
+        self.tMD.SetIncrement(0.5)
+
+        self.lb = wx.StaticText( self, -1, '')
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer.Add(btClose    ,0,flag = wx.LEFT|wx.CENTER,border = 1)
+        self.sizer.Add(self.btComp,0,flag = wx.LEFT|wx.CENTER,border = 5)
+        self.sizer.Add(lb1        ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+        self.sizer.Add(self.tMD   ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+        self.sizer.Add(self.lb    ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+        self.SetSizer(self.sizer)
+
+        self.Bind(wx.EVT_SPINCTRLDOUBLE, self.onMDChangeArrow, self.tMD)
+        self.Bind(wx.EVT_TEXT_ENTER,     self.onMDChangeEnter, self.tMD)
+
+        if platform.system()=='Windows':
+            # See issue https://github.com/wxWidgets/Phoenix/issues/1762
+            self.spintxt = self.tMD.Children[0]
+            assert isinstance(self.spintxt, wx.TextCtrl)
+            self.spintxt.Bind(wx.EVT_CHAR_HOOK, self.onMDChangeChar)
+
+        self.onToggleCompute(init=True)
+
+    def destroy(self,event=None):
+        self.parent.plotDataOptions['RemoveOutliers']=False
+        super(OutlierToolPanel,self).destroy()
+
+    def onToggleCompute(self,event=None, init=False):
+        self.parent.plotDataOptions['OutliersMedianDeviation'] = float(self.tMD.Value)
+
+        if not init:
+            self.parent.plotDataOptions['RemoveOutliers']= not self.parent.plotDataOptions['RemoveOutliers']
+
+        if self.parent.plotDataOptions['RemoveOutliers']:
+            self.lb.SetLabel('Outliers are now removed on the fly. Click "Clear" to stop.')
+            self.btComp.SetLabel(CHAR['sun']+' Clear')
+        else:
+            self.lb.SetLabel('Click on "Apply" to remove outliers on the fly for all new plot.')
+            self.btComp.SetLabel(CHAR['cloud']+' Apply')
+
+        if not init:
+            self.parent.load_and_draw() # Data will change
+
+    def onMDChange(self, event=None):
+        #print(self.tMD.Value)
+        self.parent.plotDataOptions['OutliersMedianDeviation'] = float(self.tMD.Value)
+        if self.parent.plotDataOptions['RemoveOutliers']:
+            self.parent.load_and_draw() # Data will change
+
+    def onMDChangeArrow(self, event):
+        self.onMDChange()
+        event.Skip()
+
+    def onMDChangeEnter(self, event):
+        self.onMDChange()
+        event.Skip()
+
+    def onMDChangeChar(self, event):
+        event.Skip()  
+        code = event.GetKeyCode()
+        if code in [wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER]:
+            #print(self.spintxt.Value)
+            self.tMD.SetValue(self.spintxt.Value)
+            self.onMDChangeEnter(event)
+
+
+
 
 # --------------------------------------------------------------------------------}
 # --- Mask
@@ -87,11 +190,17 @@ class MaskToolPanel(GUIToolPanel):
         allMask = tabList.commonMaskString
         if len(allMask)==0:
             allMask=self.guessMask(tabList) # no known mask, we guess one to help the user
+            self.applied=False
+        else:
+            self.applied=True
 
-        btClose    = self.getBtBitmap(self, 'Close','close', self.destroy)
-        btClear    = self.getBtBitmap(self, 'Clear','sun', self.onClear) # DELETE
-        btComp     = self.getBtBitmap(self, u'Mask (add)','add'  , self.onApply)
-        btCompMask = self.getBtBitmap(self, 'Mask','cloud', self.onApplyMask)
+        btClose         = self.getBtBitmap(self, 'Close','close', self.destroy)
+        btComp          = self.getBtBitmap(self, u'Mask (add)','add'  , self.onApply)
+        if self.applied:
+            self.btCompMask = self.getToggleBtBitmap(self, 'Clear','sun', self.onToggleApplyMask)
+            self.btCompMask.SetValue(True)
+        else:
+            self.btCompMask = self.getToggleBtBitmap(self, 'Mask','cloud', self.onToggleApplyMask)
 
         self.lb         = wx.StaticText( self, -1, """(Example of mask: "({Time}>100) && ({Time}<50) && ({WS}==5)"    or    "{Date} > '2018-10-01'")""")
         self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
@@ -102,10 +211,10 @@ class MaskToolPanel(GUIToolPanel):
         #self.textMask.SetValue("{Date} > '2018-10-01'")
 
         btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
-        btSizer.Add(btClose   ,0,flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(btClear   ,0,flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(btComp    ,0,flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(btCompMask,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(btClose                     ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(wx.StaticText(self, -1, '') ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(btComp                      ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btCompMask             ,0,flag = wx.ALL|wx.EXPAND, border = 1)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
         row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
@@ -132,9 +241,10 @@ class MaskToolPanel(GUIToolPanel):
             maskString= tabList.get(iSel-1).maskString
         if len(maskString)>0:
             self.textMask.SetValue(maskString)
-        else:
-            self.textMask.SetValue('') # no known mask
-
+        #else:
+        #    self.textMask.SetValue('') # no known mask
+        #    self.textMask.SetValue(self.guessMask) # no known mask
+          
     def guessMask(self,tabList):
         cols=[c.lower() for c in tabList.get(0).columns_clean]
         if 'time' in cols:
@@ -156,8 +266,17 @@ class MaskToolPanel(GUIToolPanel):
         mainframe.redraw()
         self.onTabChange()
 
-    def onApplyMask(self,event=None):
-        self.onApply(event,bAdd=False)
+    def onToggleApplyMask(self,event=None):
+        self.applied = not self.applied
+        if self.applied:
+            self.btCompMask.SetLabel(CHAR['sun']+' Clear')
+        else:
+            self.btCompMask.SetLabel(CHAR['cloud']+' Mask')
+
+        if self.applied:
+            self.onApply(event,bAdd=False)
+        else:
+            self.onClear()
 
     def onApply(self,event=None,bAdd=True):
         maskString = self.textMask.GetLineText(0)
@@ -487,7 +606,7 @@ class CurveFitToolPanel(GUIToolPanel):
         self.sy=PD.sy
 
     def onClear(self,event=None):
-        self.parent.redraw() # DATA HAS CHANGED
+        self.parent.load_and_draw() # DATA HAS CHANGED
         self.onModelChange()
 
     def onAdd(self,event=None):

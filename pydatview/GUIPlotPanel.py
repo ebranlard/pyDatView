@@ -40,10 +40,9 @@ from .common import * # unique, CHAR
 from .plotdata import PlotData, compareMultiplePD
 from .GUICommon import * 
 from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx, TBAddTool, TBAddCheckTool
-from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel, CurveFitToolPanel
+from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel, CurveFitToolPanel, OutlierToolPanel
 from .GUIMeasure import GUIMeasure
 from . import icons
-#     from spectral import fft_wrap
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -69,7 +68,7 @@ class PDFCtrlPanel(wx.Panel):
         self.Hide() 
 
     def onPDFOptionChange(self,event=None):
-        self.parent.redraw(); # DATA HAS CHANGED
+        self.parent.load_and_draw(); # DATA HAS CHANGED
 
 class MinMaxPanel(wx.Panel):
     def __init__(self, parent):
@@ -87,7 +86,7 @@ class MinMaxPanel(wx.Panel):
         self.Hide() 
 
     def onMinMaxChange(self,event=None):
-        self.parent.redraw(); # DATA HAS CHANGED
+        self.parent.load_and_draw(); # DATA HAS CHANGED
 
 class CompCtrlPanel(wx.Panel):
     def __init__(self, parent):
@@ -103,7 +102,7 @@ class CompCtrlPanel(wx.Panel):
         self.Hide() 
 
     def onTypeChange(self,e): 
-        self.parent.redraw(); # DATA HAS CHANGED
+        self.parent.load_and_draw(); # DATA HAS CHANGED
 
 
 class SpectralCtrlPanel(wx.Panel):
@@ -157,14 +156,14 @@ class SpectralCtrlPanel(wx.Panel):
     def onXlimChange(self,event=None):
         self.parent.redraw_same_data();
     def onSpecCtrlChange(self,event=None):
-        self.parent.redraw() # Data changes
+        self.parent.load_and_draw() # Data changes
     def onDetrendChange(self,event=None):
-        self.parent.redraw() # Data changes
+        self.parent.load_and_draw() # Data changes
 
     def onP2ChangeText(self,event=None):
         nExp=self.scP2.GetValue()
         self.updateP2(nExp)
-        self.parent.redraw() # Data changes
+        self.parent.load_and_draw() # Data changes
 
     def updateP2(self,P2):
         self.lbWinLength.SetLabel("({})".format(2**P2))
@@ -223,7 +222,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.slEsth.Hide();
         self.parent.plotsizer.Layout()
         #
-        self.parent.redraw() # Data changes
+        self.parent.load_and_draw() # Data changes
 
     def compare_select(self, event=None):
         self.clear_measures()
@@ -233,7 +232,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.pdfPanel.Hide();
         self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
-        self.parent.redraw() # Data changes
+        self.parent.load_and_draw() # Data changes
 
     def fft_select(self, event=None):
         self.clear_measures()
@@ -242,7 +241,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.pdfPanel.Hide();
         self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
-        self.parent.redraw() # Data changes
+        self.parent.load_and_draw() # Data changes
 
     def pdf_select(self, event=None):
         self.clear_measures()
@@ -253,7 +252,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.cmpPanel.Hide();
         self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
-        self.parent.redraw() # Data changes
+        self.parent.load_and_draw() # Data changes
 
     def minmax_select(self, event):
         self.clear_measures()
@@ -263,7 +262,7 @@ class PlotTypePanel(wx.Panel):
         self.parent.pdfPanel.Hide();
         self.parent.cmpPanel.Hide();
         self.parent.plotsizer.Layout()
-        self.parent.redraw() # Data changes
+        self.parent.load_and_draw() # Data changes
 
     def clear_measures(self):
         self.parent.rightMeasure.clear()
@@ -314,7 +313,7 @@ class EstheticsPanel(wx.Panel):
         self.cbFont.Bind(wx.EVT_COMBOBOX  ,self.onFontOptionChange)
 
     def onAnyEsthOptionChange(self,event=None):
-        self.parent.redraw()
+        self.parent.redraw_same_data()
 
     def onFontOptionChange(self,event=None):
         matplotlib_rc('font', **{'size':int(self.cbFont.Value) }) # affect all (including ticks)
@@ -350,6 +349,7 @@ class PlotPanel(wx.Panel):
         self.parent   = parent
         self.mainframe= mainframe
         self.plotData = []
+        self.plotDataOptions=dict()
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
@@ -440,9 +440,9 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbLogX      , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbLogY      , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbStepPlot  , 0, flag=wx.ALL, border=1)
-        cb_sizer.Add(self.cbSync      , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbXHair     , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbGrid      , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbSync      , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbPlotMatrix, 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbMeasure   , 0, flag=wx.ALL, border=1)
 
@@ -586,9 +586,6 @@ class PlotPanel(wx.Panel):
         except:
             pass
 
-    def scatter_select(self, event):
-        self.redraw_same_data()
-
     def show_hide(self,panel,bShow):
         if bShow:
             panel.Show()
@@ -673,6 +670,10 @@ class PlotPanel(wx.Panel):
 
     def removeTools(self,event=None,Layout=True):
         try:
+            self.toolPanel.destroy() # call the "destroy" function which might clean up data
+        except:
+            pass
+        try:
             # Python3
             self.toolSizer.Clear(delete_windows=True) # Delete Windows
         except:
@@ -686,10 +687,13 @@ class PlotPanel(wx.Panel):
             self.plotsizer.Layout()
 
     def showTool(self,toolName=''):
+        self.Freeze()
         self.removeTools(Layout=False)
         # TODO dictionary
         if toolName=='LogDec':
             self.toolPanel=LogDecToolPanel(self)
+        elif toolName=='Outlier':
+            self.toolPanel=OutlierToolPanel(self)
         elif toolName=='Mask':
             self.toolPanel=MaskToolPanel(self)
         elif toolName=='FASTRadialAverage':
@@ -700,6 +704,7 @@ class PlotPanel(wx.Panel):
             raise Exception('Unknown tool {}'.format(toolName))
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
+        self.Thaw()
 
     def setPD_PDF(self,PD,c):
         """ Convert plot data to PDF data based on GUI options"""
@@ -751,7 +756,7 @@ class PlotPanel(wx.Panel):
             for i,idx in enumerate(ID):
                 # Initialize each plotdata based on selected table and selected id channels
                 pd=PlotData();
-                pd.fromIDs(tabs,i,idx,SameCol) 
+                pd.fromIDs(tabs,i,idx,SameCol, self.plotDataOptions) 
                 # Possible change of data
                 if plotType=='MinMax':
                     self.setPD_MinMax(pd) 
@@ -916,14 +921,14 @@ class PlotPanel(wx.Panel):
             font_options['fontproperties']=  self.specialFont
             font_options_legd['prop']     =  self.specialFont 
 
-        for ax_left, axis_idx in zip(axes, range(len(axes))):
+        # --- Loop on axes. Either use ax.iPD to chose the plot data, or rely on plotmatrix
+        for axis_idx, ax_left in enumerate(axes):
             ax_right = None
             # Checks
             vDate=[PD[i].yIsDate for i in ax_left.iPD]
             if any(vDate) and len(vDate)>1:
                 Error(self,'Cannot plot date and other value on the same axis')
                 return
-
 
             # Set limit before plot when possible, for optimization
             self.set_axes_lim(PD, ax_left)
@@ -1264,15 +1269,29 @@ class PlotPanel(wx.Panel):
         self.canvas.draw()
         gc.collect()
 
-    def redraw(self):
-        self._redraw()
+    def load_and_draw(self):
+        """ Full draw event: 
+          - Get plot data based on selection
+          - Plot them
+          - Trigger changes to infoPanel
+            
+        """
+        self.clean_memory()
+        self.getPlotData(self.pltTypePanel.plotType())
+        if len(self.plotData)==0: 
+            self.cleanPlot();
+            return
+        mode=self.findPlotMode(self.plotData)
+        if self.pltTypePanel.cbCompare.GetValue():
+            self.PD_Compare(mode)
+            if len(self.plotData)==0: 
+                self.cleanPlot();
+                return
+        self.redraw_same_data()
         if self.infoPanel is not None:
             self.infoPanel.showStats(self.plotData,self.pltTypePanel.plotType())
 
     def redraw_same_data(self, keep_limits=True):
-        self._redraw_same_data(keep_limits)
-
-    def _redraw_same_data(self, keep_limits=True):
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
@@ -1303,20 +1322,6 @@ class PlotPanel(wx.Panel):
         self.plot_all(keep_limits)
         self.canvas.draw()
 
-    def _redraw(self):
-        self.clean_memory()
-        self.getPlotData(self.pltTypePanel.plotType())
-        if len(self.plotData)==0: 
-            self.cleanPlot();
-            return
-
-        mode=self.findPlotMode(self.plotData)
-        if self.pltTypePanel.cbCompare.GetValue():
-            self.PD_Compare(mode)
-            if len(self.plotData)==0: 
-                self.cleanPlot();
-                return
-        self._redraw_same_data()
 
     def _store_limits(self):
         self.xlim_prev = []
@@ -1355,7 +1360,7 @@ if __name__ == '__main__':
     selpanel=FakeSelPanel(self)
     #     selpanel.SetBackgroundColour('blue')
     p1=PlotPanel(self,selpanel)
-    p1.redraw()
+    p1.load_and_draw()
     #p1=SpectralCtrlPanel(self)
     sizer = wx.BoxSizer(wx.VERTICAL)
     sizer.Add(selpanel,0, flag = wx.EXPAND|wx.ALL,border = 10)

@@ -49,8 +49,6 @@ def rsquare(y,f, c = True):
     return r2,rmse
 
 
-
-
 def pdf_histogram(y,nBins=50, norm=True, count=False):
     yh, xh = np.histogram(y[~np.isnan(y)], bins=nBins)
     dx   = xh[1] - xh[0]

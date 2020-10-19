@@ -76,6 +76,7 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'Filename'     , 'al':'L' , 'm':'fileName', 's':False})
         self.ColsReg.append({'name':'Table'        , 'al':'L' , 'm':'tabName' , 's':False})
         self.ColsReg.append({'name':'Column'       , 'al':'L' , 'm':'yName'  , 's':True})
+        self.ColsReg.append({'name':'Median'       , 'al':'R' , 'm':'yMedian' , 's' :False})
         self.ColsReg.append({'name':'Mean'         , 'al':'R' , 'm':'y0Mean'  , 's' :True})
         self.ColsReg.append({'name':'Std'          , 'al':'R' , 'm':'y0Std'   , 's' :True})
         self.ColsReg.append({'name':'Var'          , 'al':'R' , 'm':'y0Var' , 's' :False})

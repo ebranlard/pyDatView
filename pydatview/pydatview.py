@@ -137,6 +137,7 @@ class MainFrame(wx.Frame):
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
         self.Bind(wx.EVT_MENU, self.onMask   , dataMenu.Append(wx.ID_ANY, 'Mask'))
+        self.Bind(wx.EVT_MENU, self.onOutlier, dataMenu.Append(wx.ID_ANY, 'Outliers removal'))
         self.Bind(wx.EVT_MENU, self.onRadialAverage, dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
         toolMenu = wx.Menu()
@@ -400,6 +401,12 @@ class MainFrame(wx.Frame):
                 return     # the user changed their mind
             tab.export(dlg.GetPath())
 
+    def onOutlier(self, event=None):
+        if not hasattr(self,'plotPanel'):
+            Error(self,'Plot some data first')
+            return
+        self.plotPanel.showTool('Outlier')
+
     def onDamping(self, event=None):
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
@@ -452,13 +459,13 @@ class MainFrame(wx.Frame):
             # Letting selection panel handle the change
             self.selPanel.colSelectionChanged()
             # Redrawing
-            self.plotPanel.redraw()
+            self.plotPanel.load_and_draw()
             # --- Stats trigger
             #self.showStats()
 
     def redraw(self):
         if hasattr(self,'plotPanel'):
-            self.plotPanel.redraw()
+            self.plotPanel.load_and_draw()
 #     def showStats(self):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
 
