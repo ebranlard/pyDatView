@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import wx
 import numpy as np
 import pandas as pd
