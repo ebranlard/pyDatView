@@ -5,10 +5,10 @@ import copy
 import platform
 
 # For log dec tool
-from .damping import logDecFromDecay
 from .common import CHAR, Error, pretty_num_short, Info
 from collections import OrderedDict
-from .curve_fitting import model_fit, extract_key_miscnum, extract_key_num, MODELS, FITTERS, set_common_keys
+from pydatview.tools.damping import logDecFromDecay
+from pydatview.tools.curve_fitting import model_fit, extract_key_miscnum, extract_key_num, MODELS, FITTERS, set_common_keys
 
 
 TOOL_BORDER=15

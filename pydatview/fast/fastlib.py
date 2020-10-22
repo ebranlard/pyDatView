@@ -26,12 +26,15 @@ except:
 # --- Allowing FASTInputFile to be shipped separately..
 try:
     from weio.fast_input_file import *
+    from weio.fast_output_file import *
 except:
     try:
         from weio.weio.fast_input_file import *
+        from weio.weio.fast_output_file import *
     except:
         try:
             from fast_input_file import * 
+            from fast_output_file import * 
         except:
             pass
 
@@ -674,7 +677,7 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     """
     # --- Opens Fast output  and performs averaging
     if df is None:
-        df = FASTInputFile(FST_In.replace('.fst',out_ext)).toDataFrame()
+        df = FASTOutputFile(FST_In.replace('.fst',out_ext)).toDataFrame()
         returnDF=True
     else:
         returnDF=False
@@ -894,6 +897,19 @@ def addToOutlist(OutList, Signals):
 # --------------------------------------------------------------------------------{
 def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False):
     """ Add/rename columns of a dataframe, potentially perform operations between columns
+
+    Example:
+
+        ColumnMap={
+          'WS_[m/s]'         : '{Wind1VelX_[m/s]}'             , # create a new column from existing one
+          'RtTSR_[-]'        : '{RtTSR_[-]} * 2  +  {RtAeroCt_[-]}'    , # change value of column
+          'RotSpeed_[rad/s]' : '{RotSpeed_[rpm]} * 2*np.pi/60 ', # new column [rpm] -> [rad/s]
+        }
+        # Read
+        df = weio.read('FASTOutBin.outb').toDataFrame()
+        # Change columns based on formulae, potentially adding new columns
+        df = fastlib.remap_df(df, ColumnMap, inplace=True)
+
     """
     if not inPlace:
         df=df.copy()
@@ -1369,7 +1385,10 @@ def find_matching_pattern(List, pattern):
         match=reg_pattern.search(l)
         if match:
             MatchedElements.append(l)
-            MatchedStrings.append(match.groups(1)[0])
+            if len(match.groups(1))>0:
+                MatchedStrings.append(match.groups(1)[0])
+            else:
+                MatchedStrings.append('')
     return MatchedElements, MatchedStrings
 
         
@@ -1603,7 +1622,7 @@ def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKee
     # Loop trough files and populate result
     for i,f in enumerate(outFiles):
         try:
-            df=weio.FASTOutFile(f).toDataFrame()
+            df=FASTOutputFile(f).toDataFrame()
         except:
             invalidFiles.append(f)
             continue
@@ -1693,7 +1712,7 @@ def CPCT_LambdaPitch(refdir,main_fastfile,Lambda=None,Pitch=np.linspace(-10,40,5
     workdir = refdir.strip('/').strip('\\')+'_CPLambdaPitch'
     print('>>> Generating inputs files in {}'.format(workdir))
     RemoveAllowed=ReRun # If the user want to rerun, we can remove, otherwise we keep existing simulations
-    fastFiles=templateReplace(PARAMS, refdir, workdir=workdir,RemoveRefSubFiles=True,RemoveAllowed=RemoveAllowed,main_file=main_fastfile)
+    fastFiles=templateReplace(PARAMS, refdir, outputDir=workDir,removeRefSubFiles=True,removeAllowed=RemoveAllowed,main_file=main_fastfile)
 
     # --- Running fast simulations
     print('>>> Running {} simulations...'.format(len(fastFiles)))

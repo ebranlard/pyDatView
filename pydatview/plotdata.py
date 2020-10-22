@@ -5,7 +5,6 @@ from .common import no_unit, unit, inverse_unit, has_chinese_char
 from .common import isString, isDate, getDt
 from .common import unique, pretty_num, pretty_time
 from .GUIMeasure import find_closest # Should not depend on wx 
-from .fatigue import eq_load
 
 class PlotData():
     """ 
@@ -73,7 +72,7 @@ class PlotData():
         # --- Perform data manipulation on the fly
         if 'RemoveOutliers' in Options.keys():
             if Options['RemoveOutliers']:
-                from pydatview.utils.signal import reject_outliers
+                from pydatview.tools.signal import reject_outliers
                 #print('>>> remoeing outliers with ',Options['OutliersMedianDeviation'])
                 try:
                     PD.x, PD.y = reject_outliers(PD.y, PD.x, m=Options['OutliersMedianDeviation'])
@@ -109,9 +108,7 @@ class PlotData():
         Uses "stats" library  (from welib/pybra)
         NOTE: inPlace
         """
-        from pydatview.utils.stats import pdf_gaussian_kde, pdf_histogram
-        #except:
-        #    from utils.stats import pdf_gaussian_kde, pdf_histogram
+        from pydatview.tools.stats import pdf_gaussian_kde, pdf_histogram
 
         n=len(PD.y)
         if PD.yIsString:
@@ -193,7 +190,7 @@ class PlotData():
 
         NOTE: inplace (modifies itself), does not return a new instance
         """
-        from .spectral import fft_wrap
+        from pydatview.tools.spectral import fft_wrap
 
         # --- TODO, make this independent of GUI
         if PD.yIsString or PD.yIsDate:
@@ -500,6 +497,7 @@ class PlotData():
             return v,s
 
     def leq(PD,m):
+        from pydatview.tools.fatigue import eq_load
         if PD.yIsString or  PD.yIsDate:
             return 'NA','NA'
         else:

@@ -2,8 +2,8 @@ import numpy as np
 import os.path
 from dateutil import parser
 import pandas as pd
-from . import fastlib
-from . import fastfarm
+from pydatview.fast import fastlib
+from pydatview.fast import fastfarm
 try:
     from .common import no_unit, ellude_common, getDt
 except:

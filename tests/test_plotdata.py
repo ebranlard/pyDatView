@@ -40,7 +40,7 @@ class TestPlotData(unittest.TestCase):
     def test_PDF(self):
         # --- Test the PDF conversion of plotdata
         # Check that the PDF of random normal noise is a Gaussian
-        from pydatview.curve_fitting import model_fit
+        from pydatview.tools.curve_fitting import model_fit
         mu=0
         sigma=1
         x = np.linspace(-1,1,10000)

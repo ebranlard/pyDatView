@@ -1,6 +1,6 @@
 
 # Forcing the import of some tests
-from pydatview.spectral import TestSpectral
-from pydatview.damping import TestDamping
-from pydatview.fatigue import TestFatigue
-from pydatview.curve_fitting import TestFitting
+from pydatview.tools.spectral import TestSpectral
+from pydatview.tools.damping import TestDamping
+from pydatview.tools.fatigue import TestFatigue
+from pydatview.tools.curve_fitting import TestFitting
