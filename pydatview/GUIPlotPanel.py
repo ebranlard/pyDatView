@@ -40,7 +40,6 @@ from .common import * # unique, CHAR
 from .plotdata import PlotData, compareMultiplePD
 from .GUICommon import * 
 from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx, TBAddTool, TBAddCheckTool
-from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel, CurveFitToolPanel, OutlierToolPanel
 from .GUIMeasure import GUIMeasure
 from . import icons
 
@@ -687,6 +686,7 @@ class PlotPanel(wx.Panel):
             self.plotsizer.Layout()
 
     def showTool(self,toolName=''):
+        from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel, CurveFitToolPanel, OutlierToolPanel, FilterToolPanel
         self.Freeze()
         self.removeTools(Layout=False)
         # TODO dictionary
@@ -694,6 +694,8 @@ class PlotPanel(wx.Panel):
             self.toolPanel=LogDecToolPanel(self)
         elif toolName=='Outlier':
             self.toolPanel=OutlierToolPanel(self)
+        elif toolName=='Filter':
+            self.toolPanel=FilterToolPanel(self)
         elif toolName=='Mask':
             self.toolPanel=MaskToolPanel(self)
         elif toolName=='FASTRadialAverage':

@@ -136,14 +136,15 @@ class MainFrame(wx.Frame):
 
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
-        self.Bind(wx.EVT_MENU, self.onMask   , dataMenu.Append(wx.ID_ANY, 'Mask'))
-        self.Bind(wx.EVT_MENU, self.onOutlier, dataMenu.Append(wx.ID_ANY, 'Outliers removal'))
-        self.Bind(wx.EVT_MENU, self.onRadialAverage, dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
+        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e, 'Mask')  , dataMenu.Append(wx.ID_ANY, 'Mask'))
+        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Outlier'), dataMenu.Append(wx.ID_ANY, 'Outliers removal'))
+        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Filter') , dataMenu.Append(wx.ID_ANY, 'Filter'))
+        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
-        self.Bind(wx.EVT_MENU,self.onCurveFit, toolMenu.Append(wx.ID_ANY, 'Curve fitting'))
-        self.Bind(wx.EVT_MENU,self.onDamping,  toolMenu.Append(wx.ID_ANY, 'Damping from decay'))
+        self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'CurveFitting'), toolMenu.Append(wx.ID_ANY, 'Curve fitting'))
+        self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'LogDec')      , toolMenu.Append(wx.ID_ANY, 'Damping from decay'))
 
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
@@ -342,6 +343,8 @@ class MainFrame(wx.Frame):
             self.Thaw()
         except:
             pass
+        # Hack
+        #self.onShowTool(tool='Filter')
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
@@ -401,35 +404,14 @@ class MainFrame(wx.Frame):
                 return     # the user changed their mind
             tab.export(dlg.GetPath())
 
-    def onOutlier(self, event=None):
+    def onShowTool(self, event=None, tool=''):
+        """ 
+        tool in 'Outlier', 'Filter', 'LogDec','FASTRadialAverage', 'Mask', 'CurveFitting'
+        """
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
             return
-        self.plotPanel.showTool('Outlier')
-
-    def onDamping(self, event=None):
-        if not hasattr(self,'plotPanel'):
-            Error(self,'Plot some data first')
-            return
-        self.plotPanel.showTool('LogDec')
-
-    def onCurveFit(self, event=None):
-        if not hasattr(self,'plotPanel'):
-            Error(self,'Plot some data first')
-            return
-        self.plotPanel.showTool('CurveFitting')
-
-    def onMask(self, event=None):
-        if not hasattr(self,'plotPanel'):
-            Error(self,'Load some data first')
-            return
-        self.plotPanel.showTool('Mask')
-
-    def onRadialAverage(self, event=None):
-        if not hasattr(self,'plotPanel'):
-            Error(self,'Load some data first')
-            return
-        self.plotPanel.showTool('FASTRadialAverage')
+        self.plotPanel.showTool(tool)
 
     def onSashChangeMain(self,event=None):
         pass

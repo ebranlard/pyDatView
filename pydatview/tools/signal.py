@@ -2,6 +2,14 @@ from __future__ import division
 import numpy as np
 from numpy.random import rand
 
+
+# --- List of available filters
+FILTERS=[
+    {'name':'Moving average','param':100,'paramName':'Window Size','paramRange':[0,100000],'increment':1},
+]
+
+
+
 def reject_outliers(y, x=None, m = 2., replaceNaN=True):
     """ Reject outliers:
         If replaceNaN is true: they are replaced by NaN 
@@ -27,6 +35,39 @@ def reject_outliers(y, x=None, m = 2., replaceNaN=True):
         return y
     else:
         return x, y
+
+
+
+# --------------------------------------------------------------------------------}
+# ---  
+# --------------------------------------------------------------------------------{
+#     def moving_average(x, w):
+#         #t_new    = np.arange(0,Tmax,dt)
+#         #nt      = len(t_new)
+#         #nw=400
+#         #u_new = moving_average(np.floor(np.linspace(0,3,nt+nw-1))*3+3.5, nw)
+#         return np.convolve(x, np.ones(w), 'valid') / w
+#     def moving_average(x,N,mode='same'):
+#        y=np.convolve(x, np.ones((N,))/N, mode=mode)
+#        return y
+def moving_average(a, n=3) :
+    """ 
+    perform moving average, return a vector of same length as input
+
+    NOTE: also in kalman.filters
+    """
+    a   = a.ravel()
+    a   = np.concatenate(([a[0]]*(n-1),a)) # repeating first values
+    ret = np.cumsum(a, dtype = float)
+    ret[n:] = ret[n:] - ret[:-n]
+    ret=ret[n - 1:] / n
+    return ret
+
+def applyFilter(y, filtDict):
+    if filtDict['name']=='Moving average':
+        return moving_average(y, n=np.round(filtDict['param']).astype(int))
+    else:
+        raise NotImplementedError('{}'.format(filtDict))
 
 # --------------------------------------------------------------------------------}
 # ---  

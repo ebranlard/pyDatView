@@ -177,6 +177,198 @@ class OutlierToolPanel(GUIToolPanel):
 
 
 
+# --------------------------------------------------------------------------------}
+# --- Moving Average
+# --------------------------------------------------------------------------------{
+class FilterToolPanel(GUIToolPanel):
+    """
+    Moving average/Filters
+    A quick and dirty solution to manipulate plotData
+    I need to think of a better way to do that
+    """
+    def __init__(self, parent):
+        from pydatview.tools.signal import FILTERS
+        super(FilterToolPanel,self).__init__(parent)
+        self.parent = parent # parent is GUIPlotPanel
+
+        self._DEFAULT_FILTERS=FILTERS 
+
+        # Setting default states to parent
+        if 'Filter' not in self.parent.plotDataOptions.keys():
+            self.parent.plotDataOptions['Filter']=None
+        self._filterApplied = type(self.parent.plotDataOptions['Filter'])==dict
+
+
+        btClose     = self.getBtBitmap(self,'Close','close',self.destroy)
+        self.btClear     = self.getBtBitmap(self, 'Clear Plot','sun'   , self.onClear)
+        self.btComp = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleCompute)
+        self.btPlot      = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
+
+        lb1 = wx.StaticText(self, -1, 'Filter:')
+        self.cbFilters = wx.ComboBox(self, choices=[filt['name'] for filt in self._DEFAULT_FILTERS], style=wx.CB_READONLY)
+        self.lbParamName = wx.StaticText(self, -1, '            :')
+        self.cbFilters.SetSelection(0)
+        #self.tParam = wx.TextCtrl(self, wx.ID_ANY,, size = (30,-1), style=wx.TE_PROCESS_ENTER)
+        self.tParam = wx.SpinCtrlDouble(self, value='11', size=wx.Size(60,-1))
+        self.lbInfo = wx.StaticText( self, -1, '')
+
+
+        # --- Layout
+        btSizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
+        btSizer.Add(btClose    ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btClear    ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btComp,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btPlot     ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        #btSizer.Add(btHelp     ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+
+
+        horzSizer = wx.BoxSizer(wx.HORIZONTAL)
+        #horzSizer.Add(btClose          ,0,flag = wx.LEFT|wx.CENTER,border = 1)
+        #horzSizer.Add(self.btComp      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+        #horzSizer.Add(self.btPlot      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+        horzSizer.Add(lb1              ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+        horzSizer.Add(self.cbFilters   ,0,flag = wx.LEFT|wx.CENTER,border = 1)
+        horzSizer.Add(self.lbParamName ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+        horzSizer.Add(self.tParam      ,0,flag = wx.LEFT|wx.CENTER,border = 1)
+        #horzSizer.Add(self.lbInfo      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+
+        vertSizer = wx.BoxSizer(wx.VERTICAL)
+        vertSizer.Add(self.lbInfo  ,0, flag = wx.LEFT          ,border = 5)
+        vertSizer.Add(horzSizer    ,1, flag = wx.LEFT|wx.EXPAND,border = 1)
+
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 1)
+        self.sizer.Add(vertSizer    ,1, flag = wx.EXPAND|wx.LEFT          ,border = 1)
+        self.SetSizer(self.sizer)
+
+#         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+#         self.sizer.Add(btClose          ,0,flag = wx.LEFT|wx.CENTER,border = 1)
+#         self.sizer.Add(self.btComp      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+#         self.sizer.Add(self.btPlot      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+#         self.sizer.Add(lb1              ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+#         self.sizer.Add(self.cbFilters   ,0,flag = wx.LEFT|wx.CENTER,border = 1)
+#         self.sizer.Add(self.lbParamName ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+#         self.sizer.Add(self.tParam      ,0,flag = wx.LEFT|wx.CENTER,border = 1)
+#         self.sizer.Add(self.lbInfo      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
+#         self.SetSizer(self.sizer)
+
+
+        # --- Events
+        self.Bind(wx.EVT_SPINCTRLDOUBLE, self.onParamChangeArrow, self.tParam)
+        self.Bind(wx.EVT_TEXT_ENTER,     self.onParamChangeEnter, self.tParam)
+        if platform.system()=='Windows':
+            # See issue https://github.com/wxWidgets/Phoenix/issues/1762
+            self.spintxt = self.tParam.Children[0]
+            assert isinstance(self.spintxt, wx.TextCtrl)
+            self.spintxt.Bind(wx.EVT_CHAR_HOOK, self.onParamChangeChar)
+
+        self.onSelectFilt()
+        self.onToggleCompute(init=True)
+
+    def destroy(self,event=None):
+        self.parent.plotDataOptions['Filter']=None
+        super(FilterToolPanel,self).destroy()
+
+
+    def onSelectFilt(self, event=None):
+        """ Select the filter, but does not applied it to the plotData 
+            parentFilt is unchanged
+            But if the parent already has 
+        """
+        iFilt = self.cbFilters.GetSelection()
+        filt = self._DEFAULT_FILTERS[iFilt]
+        self.lbParamName.SetLabel(filt['paramName']+':')
+        self.tParam.SetRange(filt['paramRange'][0], filt['paramRange'][1])
+        self.tParam.SetIncrement(filt['increment'])
+
+        parentFilt=self.parent.plotDataOptions['Filter']
+        # Value
+        if type(parentFilt)==dict and parentFilt['name']==filt['name']:
+            self.tParam.SetValue(parentFilt['param'])
+        else:
+            self.tParam.SetValue(filt['param'])
+
+    def onToggleCompute(self, event=None, init=False):
+        """
+        apply Filter based on GUI Data
+        """
+        parentFilt=self.parent.plotDataOptions['Filter']
+        if not init:
+            self._filterApplied = not self._filterApplied
+
+        if self._filterApplied:
+            self.parent.plotDataOptions['Filter'] =self._GUI2Filt()
+            #print('Apply', self.parent.plotDataOptions['Filter'])
+            self.lbInfo.SetLabel(
+                    'Filter is now applied on the fly. Change parameter live. Click "Clear" to stop. '
+                    )
+            self.btPlot.Enable(False)
+            self.btClear.Enable(False)
+            self.btComp.SetLabel(CHAR['sun']+' Clear')
+        else:
+            self.parent.plotDataOptions['Filter'] = None
+            self.lbInfo.SetLabel(
+                    'Click on "Apply" to set filter on the fly for all plots. '+
+                    'Click on "Plot" to try a filter on the current plot.'
+                    )
+            self.btPlot.Enable(True)
+            self.btClear.Enable(True)
+            self.btComp.SetLabel(CHAR['cloud']+' Apply')
+
+        if not init:
+            self.parent.load_and_draw() # Data will change
+
+        pass
+
+    def _GUI2Filt(self):
+        iFilt = self.cbFilters.GetSelection()
+        filt = self._DEFAULT_FILTERS[iFilt].copy()
+        filt['param']=np.float(self.spintxt.Value)
+        return filt
+
+    def onPlot(self, event=None):
+        """ 
+        Overlay on current axis the filter
+        """
+        from pydatview.tools.signal import applyFilter
+        if len(self.parent.plotData)!=1:
+            Error(self,'Plotting only works for a single plot. Plot less data.')
+            return
+        filt=self._GUI2Filt()
+
+        PD = self.parent.plotData[0]
+        y_filt = applyFilter(PD.y, filt)
+        ax = self.parent.fig.axes[0]
+        ax.plot(PD.x, y_filt, '-')
+        self.parent.canvas.draw()
+
+    def onClear(self, event):
+        self.parent.load_and_draw() # Data will change
+
+    def onParamChange(self, event=None):
+        if self._filterApplied:
+            self.parent.plotDataOptions['Filter'] =self._GUI2Filt()
+            #print('OnParamChange', self.parent.plotDataOptions['Filter'])
+            self.parent.load_and_draw() # Data will change
+
+    def onParamChangeArrow(self, event):
+        self.onParamChange()
+        event.Skip()
+
+    def onParamChangeEnter(self, event):
+        self.onParamChange()
+        event.Skip()
+
+    def onParamChangeChar(self, event):
+        event.Skip()  
+        code = event.GetKeyCode()
+        if code in [wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER]:
+            #print(self.spintxt.Value)
+            self.tParam.SetValue(self.spintxt.Value)
+            self.onParamChangeEnter(event)
+
+
+
 
 # --------------------------------------------------------------------------------}
 # --- Mask

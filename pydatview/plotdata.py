@@ -70,15 +70,18 @@ class PlotData():
 
     def _post_init(PD, Options={}):
         # --- Perform data manipulation on the fly
+        #print(Options)
         if 'RemoveOutliers' in Options.keys():
             if Options['RemoveOutliers']:
                 from pydatview.tools.signal import reject_outliers
-                #print('>>> remoeing outliers with ',Options['OutliersMedianDeviation'])
                 try:
                     PD.x, PD.y = reject_outliers(PD.y, PD.x, m=Options['OutliersMedianDeviation'])
                 except:
                     raise Exception('Warn: Outlier removal failed. Desactivate it or use a different signal. ')
-
+        if 'Filter' in Options.keys():
+            if Options['Filter']:
+                from pydatview.tools.signal import applyFilter
+                PD.y = applyFilter(PD.y, Options['Filter'])
 
         # --- Store stats
         n=len(PD.y)
