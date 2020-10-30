@@ -139,6 +139,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e, 'Mask')  , dataMenu.Append(wx.ID_ANY, 'Mask'))
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Outlier'), dataMenu.Append(wx.ID_ANY, 'Outliers removal'))
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Filter') , dataMenu.Append(wx.ID_ANY, 'Filter'))
+        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Resample') , dataMenu.Append(wx.ID_ANY, 'Resample'))
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
         toolMenu = wx.Menu()
@@ -344,7 +345,7 @@ class MainFrame(wx.Frame):
         except:
             pass
         # Hack
-        #self.onShowTool(tool='Filter')
+        #self.onShowTool(tool='Resample')
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()

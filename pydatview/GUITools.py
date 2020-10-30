@@ -221,16 +221,11 @@ class FilterToolPanel(GUIToolPanel):
         btSizer.Add(self.btPlot     ,0,flag = wx.ALL|wx.EXPAND, border = 1)
         #btSizer.Add(btHelp     ,0,flag = wx.ALL|wx.EXPAND, border = 1)
 
-
         horzSizer = wx.BoxSizer(wx.HORIZONTAL)
-        #horzSizer.Add(btClose          ,0,flag = wx.LEFT|wx.CENTER,border = 1)
-        #horzSizer.Add(self.btComp      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-        #horzSizer.Add(self.btPlot      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
         horzSizer.Add(lb1              ,0,flag = wx.LEFT|wx.CENTER,border = 5)
         horzSizer.Add(self.cbFilters   ,0,flag = wx.LEFT|wx.CENTER,border = 1)
         horzSizer.Add(self.lbParamName ,0,flag = wx.LEFT|wx.CENTER,border = 5)
         horzSizer.Add(self.tParam      ,0,flag = wx.LEFT|wx.CENTER,border = 1)
-        #horzSizer.Add(self.lbInfo      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
 
         vertSizer = wx.BoxSizer(wx.VERTICAL)
         vertSizer.Add(self.lbInfo  ,0, flag = wx.LEFT          ,border = 5)
@@ -240,18 +235,6 @@ class FilterToolPanel(GUIToolPanel):
         self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 1)
         self.sizer.Add(vertSizer    ,1, flag = wx.EXPAND|wx.LEFT          ,border = 1)
         self.SetSizer(self.sizer)
-
-#         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
-#         self.sizer.Add(btClose          ,0,flag = wx.LEFT|wx.CENTER,border = 1)
-#         self.sizer.Add(self.btComp      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-#         self.sizer.Add(self.btPlot      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-#         self.sizer.Add(lb1              ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-#         self.sizer.Add(self.cbFilters   ,0,flag = wx.LEFT|wx.CENTER,border = 1)
-#         self.sizer.Add(self.lbParamName ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-#         self.sizer.Add(self.tParam      ,0,flag = wx.LEFT|wx.CENTER,border = 1)
-#         self.sizer.Add(self.lbInfo      ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-#         self.SetSizer(self.sizer)
-
 
         # --- Events
         self.Bind(wx.EVT_SPINCTRLDOUBLE, self.onParamChangeArrow, self.tParam)
@@ -367,6 +350,239 @@ class FilterToolPanel(GUIToolPanel):
             self.tParam.SetValue(self.spintxt.Value)
             self.onParamChangeEnter(event)
 
+
+# --------------------------------------------------------------------------------}
+# --- Resample
+# --------------------------------------------------------------------------------{
+class ResampleToolPanel(GUIToolPanel):
+    def __init__(self, parent):
+        super(ResampleToolPanel,self).__init__(parent)
+
+        # --- Data from other modules
+        from pydatview.tools.signal import SAMPLERS
+        self.parent = parent # parent is GUIPlotPanel
+        self._SAMPLERS=SAMPLERS 
+        # Setting default states to parent
+        if 'Sampler' not in self.parent.plotDataOptions.keys():
+            self.parent.plotDataOptions['Sampler']=None
+        self._applied = type(self.parent.plotDataOptions['Sampler'])==dict
+
+
+        # --- GUI elements
+        self.btClose    = self.getBtBitmap(self, 'Close','close', self.destroy)
+        self.btAdd      = self.getBtBitmap(self, 'Add','add'  , self.onAdd)
+        self.btPlot     = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
+        self.btClear    = self.getBtBitmap(self, 'Clear Plot','sun', self.onClear)
+        self.btApply    = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
+        self.btHelp     = self.getBtBitmap(self, 'Help','help', self.onHelp)
+
+        #self.lb         = wx.StaticText( self, -1, """ Click help """)
+        self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
+        self.cbMethods  = wx.ComboBox(self, -1, choices=[s['name'] for s in self._SAMPLERS], style=wx.CB_READONLY)
+
+        self.lbNewX   = wx.StaticText(self, -1, 'New x:  ')
+        self.textNewX = wx.TextCtrl(self, wx.ID_ANY, '', style      = wx.TE_PROCESS_ENTER)
+        self.textOldX = wx.TextCtrl(self, wx.ID_ANY|wx.TE_READONLY)
+        self.textOldX.Enable(False)
+
+        # --- Layout
+        btSizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
+        btSizer.Add(self.btClose                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btClear                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btAdd                  , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btPlot                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btHelp                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btApply                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+
+        msizer  = wx.FlexGridSizer(rows=2, cols=4, hgap=2, vgap=0)
+        msizer.Add(wx.StaticText(self, -1, 'Table:')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(self.cbTabs                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(wx.StaticText(self, -1, 'Current x:'), 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(self.textOldX                        , 1, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND, 1)
+        msizer.Add(wx.StaticText(self, -1, 'Method:')   , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(self.cbMethods                       , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(self.lbNewX                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(self.textNewX                        , 1, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND, 1)
+        msizer.AddGrowableCol(3,1)
+
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer.Add(btSizer  ,0, flag = wx.LEFT           ,border = 5)
+        self.sizer.Add(msizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = TOOL_BORDER)
+        self.SetSizer(self.sizer)
+
+        # --- Events
+        self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
+        self.cbMethods.Bind(wx.EVT_COMBOBOX, self.onMethodChange)
+        self.textNewX.Bind(wx.EVT_TEXT_ENTER,self.onParamChange)
+
+        # --- Init triggers
+        self.cbMethods.SetSelection(3)
+        self.onMethodChange(init=True)
+        self.onToggleApply(init=True)
+        self.updateTabList()
+        self.textNewX.SetValue('2')
+
+    def setCurrentX(self, x=None):
+        if x is None:
+            x= self.parent.plotData[0].x
+        if len(x)<50:
+            s=np.array2string(x, separator=', ')
+        else:
+            s =np.array2string(x[[0,1,2,3]], separator=', ') 
+            s+=', ...,  '
+            s+=np.array2string(x[[-3,-2,-1]], separator=', ') 
+        s=s.replace('[','').replace(']','').replace(' ','').replace(',',', ')
+
+        self.textOldX.SetValue(s)
+
+    def onMethodChange(self, event=None, init=True):
+        """ Select the method, but does not applied it to the plotData 
+            User data and option is unchanged
+            But if the user already has some options, they are used
+        """
+        iOpt = self.cbMethods.GetSelection()
+        opt = self._SAMPLERS[iOpt]
+        self.lbNewX.SetLabel(opt['paramName']+':')
+
+        parentOpt=self.parent.plotDataOptions['Sampler']
+        # Value
+        if len(self.textNewX.Value)==0:
+            if type(parentOpt)==dict:
+                self.textNewX.SetValue(str(parentOpt['param'])[1:-1])
+            else:
+                self.textNewX.SetValue(str(opt['param'])[2:-2])
+        self.onParamChange()
+
+    def onParamChange(self, event=None):
+        if self._applied:
+            self.parent.plotDataOptions['Sampler'] =self._GUI2Data()
+            self.parent.load_and_draw() # Data will change
+            self.setCurrentX()
+
+    def _GUI2Data(self):
+        iOpt = self.cbMethods.GetSelection()
+        opt = self._SAMPLERS[iOpt].copy()
+        s= self.textNewX.Value.strip().replace('[','').replace(']','')
+        if len(s)>0:
+            if s.find(','):
+                opt['param']=np.array(s.split(',')).astype(float)
+            else:
+                opt['param']=np.array(s.split('')).astype(float)
+        return opt
+
+    def onToggleApply(self, event=None, init=False):
+        """
+        apply sampler based on GUI Data
+        """
+        parentFilt=self.parent.plotDataOptions['Sampler']
+        if not init:
+            self._applied = not self._applied
+
+        if self._applied:
+            self.parent.plotDataOptions['Sampler'] =self._GUI2Data()
+            #print('Apply', self.parent.plotDataOptions['Sampler'])
+            #self.lbInfo.SetLabel(
+            #        'Sampler is now applied on the fly. Change parameter live. Click "Clear" to stop. '
+            #        )
+            self.btPlot.Enable(False)
+            self.btClear.Enable(False)
+            self.btApply.SetLabel(CHAR['sun']+' Clear')
+        else:
+            self.parent.plotDataOptions['Sampler'] = None
+            #self.lbInfo.SetLabel(
+            #        'Click on "Apply" to set filter on the fly for all plots. '+
+            #        'Click on "Plot" to try a filter on the current plot.'
+            #        )
+            self.btPlot.Enable(True)
+            self.btClear.Enable(True)
+            self.btApply.SetLabel(CHAR['cloud']+' Apply')
+
+        if not init:
+            self.parent.load_and_draw() # Data will change
+        self.setCurrentX()
+
+
+    def onAdd(self,event=None):
+        iSel         = self.cbTabs.GetSelection()
+        tabList      = self.parent.selPanel.tabList
+        mainframe    = self.parent.mainframe
+        icol, colname = self.parent.selPanel.xCol
+        print(icol,colname)
+        opt = self._GUI2Data()
+        errors=[]
+        if iSel==0:
+            dfs, names, errors = tabList.applyResampling(icol, opt, bAdd=True)
+            mainframe.load_dfs(dfs,names,bAdd=True)
+        else:
+            df, name = tabList.get(iSel-1).applyResampling(icol, opt, bAdd=True)
+            mainframe.load_df(df,name,bAdd=True)
+        self.updateTabList()
+
+        if len(errors)>0:
+            raise Exception('Error: The resampling failed on some tables:\n\n'+'\n'.join(errors))
+
+    def onPlot(self,event=None):
+        from pydatview.tools.signal import applySampler
+        if len(self.parent.plotData)!=1:
+            Error(self,'Plotting only works for a single plot. Plot less data.')
+            return
+        opts=self._GUI2Data()
+        PD = self.parent.plotData[0]
+        x_new, y_new = applySampler(PD.x, PD.y, opts)
+        ax = self.parent.fig.axes[0]
+        ax.plot(x_new, y_new, '-')
+        self.setCurrentX(x_new)
+
+        self.parent.canvas.draw()
+
+    def onClear(self,event=None):
+        self.parent.load_and_draw() # Data will change
+        # Update Current X
+        self.setCurrentX()
+        # Update Table list
+        self.updateTabList()
+
+
+    def onTabChange(self,event=None):
+        #tabList = self.parent.selPanel.tabList
+        #iSel=self.cbTabs.GetSelection()
+        pass
+
+    def updateTabList(self,event=None):
+        tabList = self.parent.selPanel.tabList
+        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+        try:
+            iSel=np.max([np.min([self.cbTabs.GetSelection(),len(tabListNames)]),0])
+            self.cbTabs.Clear()
+            [self.cbTabs.Append(tn) for tn in tabListNames]
+            self.cbTabs.SetSelection(iSel)
+        except RuntimeError:
+            pass
+
+    def onHelp(self,event=None):
+        Info(self,"""Resampling.
+
+The resampling operation changes the "x" values of a table/plot and 
+adapt the "y" values accordingly.
+
+To resample perform the following step:
+
+- Chose a resampling method:
+   - replace: specify all the new x-values
+   - insert : insert a list of x values to the existing ones
+   - delete : delete a list of x values from the existing ones
+   - every-n : use every n values 
+   - delta x : specify a delta for uniform spacing of x values
+
+- Specify the x values as a space or comma separated list
+
+- Click on one of the following buttons:
+   - Plot: will display the resampled data on the figure
+   - Apply: will perform the resampling on the fly for all new plots
+   - Add: will create new table(s) with resampled values for all 
+          signals. This process might take some time.
+          Select a table or choose all (default)
+""")
 
 
 
@@ -496,10 +712,13 @@ class MaskToolPanel(GUIToolPanel):
     def updateTabList(self,event=None):
         tabList = self.parent.selPanel.tabList
         tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
-        iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
-        self.cbTabs.Clear()
-        [self.cbTabs.Append(tn) for tn in tabListNames]
-        self.cbTabs.SetSelection(iSel)
+        try:
+            iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
+            self.cbTabs.Clear()
+            [self.cbTabs.Append(tn) for tn in tabListNames]
+            self.cbTabs.SetSelection(iSel)
+        except RuntimeError:
+            pass
 
 # --------------------------------------------------------------------------------}
 # --- Radial
@@ -826,3 +1045,15 @@ Buttons:
 - Add: add the fit data to the list of tables (can then be exported)
                 
 """)
+
+
+
+TOOLS={
+ 'LogDec':    LogDecToolPanel,
+ 'Outlier':   OutlierToolPanel,
+ 'Filter':    FilterToolPanel,
+ 'Resample':  ResampleToolPanel,
+ 'Mask':      MaskToolPanel, 
+ 'FASTRadialAverage': RadialToolPanel,
+ 'CurveFitting': CurveFitToolPanel,
+}

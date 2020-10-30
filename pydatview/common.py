@@ -257,6 +257,7 @@ def cleanCol(s):
     return s
 
 def no_unit(s):
+    s=s.replace('_[',' [')
     iu=s.rfind(' [')
     if iu>1:
         return s[:iu]

@@ -1306,6 +1306,11 @@ class SelectionPanel(wx.Panel):
         del self.tabList
         self.tabList=None
 
+    @property
+    def xCol(self):
+        iX, _, sX, _ = self.colPanel1.getColumnSelection()
+        return iX,sX
+
 
 if __name__ == '__main__':
     import pandas as pd;

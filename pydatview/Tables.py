@@ -212,6 +212,25 @@ class TableList(object): # todo inherit list
 
         return dfs_new, names_new, errors
 
+    def applyResampling(self,iCol,sampDict,bAdd=True):
+        dfs_new   = []
+        names_new = []
+        errors=[]
+        for i,t in enumerate(self._tabs):
+#             try:
+            df_new, name_new = t.applyResampling(iCol,sampDict, bAdd=bAdd)
+            if df_new is not None: 
+                # we don't append when string is empty
+                dfs_new.append(df_new)
+                names_new.append(name_new)
+#             except:
+#                 errors.append('Resampling failed for table: '+t.active_name) # TODO
+
+        return dfs_new, names_new, errors
+
+
+
+
     # --- Radial average related
     def radialAvg(self,avgMethod,avgParam):
         dfs_new   = []
@@ -338,6 +357,20 @@ class Table(object):
                     self.maskString=maskString
             except:
                 raise Exception('Error: The mask failed for table: '+self.name)
+        return df_new, name_new
+
+    def applyResampling(self,iCol,sampDict,bAdd=True):
+        from pydatview.tools.signal import applySamplerDF
+        if iCol==0:
+            raise Exception('Cannot resample based on index')
+        colName=self.data.columns[iCol-1]
+        df_new =applySamplerDF(self.data, colName, sampDict=sampDict)
+        df_new
+        if bAdd:
+            name_new=self.raw_name+'_resampled'
+        else:
+            name_new=None
+            self.data=df_new
         return df_new, name_new
 
 

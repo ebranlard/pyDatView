@@ -1,11 +1,20 @@
 from __future__ import division
 import numpy as np
 from numpy.random import rand
+import pandas as pd
 
 
 # --- List of available filters
 FILTERS=[
     {'name':'Moving average','param':100,'paramName':'Window Size','paramRange':[0,100000],'increment':1},
+]
+
+SAMPLERS=[
+    {'name':'Replace', 'param':[], 'paramName':'New x'},
+    {'name':'Insert',  'param':[], 'paramName':'Insert list'},
+    {'name':'Remove',  'param':[], 'paramName':'Remove list'},
+    {'name':'Every n', 'param':2  , 'paramName':'n'},
+    {'name':'Delta x', 'param':0.1, 'paramName':'dx'},
 ]
 
 
@@ -37,9 +46,114 @@ def reject_outliers(y, x=None, m = 2., replaceNaN=True):
         return x, y
 
 
+# --------------------------------------------------------------------------------}
+# --- Resampling 
+# --------------------------------------------------------------------------------{
+def multiInterp(x, xp, fp, extrap='bounded'):
+    j   = np.searchsorted(xp, x) - 1
+    dd  = np.zeros(len(x))
+    bOK = np.logical_and(j>=0, j< len(xp)-1)
+    bLower =j<0
+    bUpper =j>=len(xp)-1
+    jOK = j[bOK]
+    #import pdb; pdb.set_trace()
+    dd[bOK] = (x[bOK] - xp[jOK]) / (xp[jOK + 1] - xp[jOK])
+    jBef=j 
+    jAft=j+1
+    # 
+    # Use first and last values for anything beyond xp
+    jAft[bUpper] = len(xp)-1
+    jBef[bUpper] = len(xp)-1
+    jAft[bLower] = 0
+    jBef[bLower] = 0
+    if extrap=='bounded':
+        pass
+        # OK
+    elif extrap=='nan':
+        dd[~bOK] = np.nan
+    else:
+        raise NotImplementedError()
+
+    return (1 - dd) * fp[:,jBef] + fp[:,jAft] * dd
+
+def resample_interp(x_old, x_new, y_old=None, df_old=None):
+    #x_new=np.sort(x_new)
+    if df_old is not None:
+        # --- Method 1 (pandas)
+        #df_new = df_old.copy()
+        #df_new = df_new.set_index(x_old)
+        #df_new = df_new.reindex(df_new.index | x_new)
+        #df_new = df_new.interpolate().loc[x_new]
+        #df_new = df_new.reset_index()
+        # --- Method 2 interp storing dx
+        data_new=multiInterp(x_new, x_old, df_old.values.T)
+        df_new = pd.DataFrame(data=data_new.T, columns=df_old.columns.values)
+        return x_new, df_new
+
+    if y_old is not None:
+        return x_new, np.interp(x_new, x_old, y_old)
+
+
+def applySamplerDF(df_old, x_col, sampDict):
+    x_old=df_old[x_col].values
+    x_new, df_new =applySampler(x_old, y_old=None, sampDict=sampDict, df_old=df_old)
+    df_new[x_col]=x_new
+    return df_new
+
+
+def applySampler(x_old, y_old, sampDict, df_old=None):
+
+    param = np.asarray(sampDict['param']).ravel()
+
+    if sampDict['name']=='Replace':
+        if len(param)==0:
+            raise Exception('Error: At least one value is required to resample the x values with')
+        x_new = param
+        return resample_interp(x_old, x_new, y_old, df_old)
+
+    elif sampDict['name']=='Insert':
+        if len(param)==0:
+            raise Exception('Error: provide a list of values to insert')
+        x_new = np.sort(np.concatenate((x_old.ravel(),param)))
+        return resample_interp(x_old, x_new, y_old, df_old)
+
+    elif sampDict['name']=='Remove':
+        I=[]
+        if len(param)==0:
+            raise Exception('Error: provide a list of values to remove')
+        for d in param:
+            Ifound= np.where(np.abs(x_old-d)<1e-3)[0]
+            if len(Ifound)>0:
+                I+=list(Ifound.ravel())
+        x_new=np.delete(x_old,I)
+        return resample_interp(x_old, x_new, y_old, df_old)
+
+    elif sampDict['name']=='Delta x':
+        if len(param)==0:
+            raise Exception('Error: provide value for dx')
+        dx    = param[0]
+        x_new = np.arange(x_old[0], x_old[-1]+dx/2, dx)
+        return resample_interp(x_old, x_new, y_old, df_old)
+
+    elif sampDict['name']=='Every n':
+        if len(param)==0:
+            raise Exception('Error: provide value for n')
+        n = int(param[0])
+        if n==0:
+            raise Exception('Error: |n| should be at least 1')
+
+        x_new=x_old[::n]
+        if df_old is not None:
+            return x_new, (df_old.copy()).iloc[::n,:]
+        if y_old is not None:
+            return x_new, y_old[::n]
+
+    else:
+        raise NotImplementedError('{}'.format(sampDict))
+    pass
 
 # --------------------------------------------------------------------------------}
-# ---  
+# --- Filters
 # --------------------------------------------------------------------------------{
 #     def moving_average(x, w):
 #         #t_new    = np.arange(0,Tmax,dt)

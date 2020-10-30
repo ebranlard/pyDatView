@@ -686,22 +686,11 @@ class PlotPanel(wx.Panel):
             self.plotsizer.Layout()
 
     def showTool(self,toolName=''):
-        from .GUITools import LogDecToolPanel, MaskToolPanel, RadialToolPanel, CurveFitToolPanel, OutlierToolPanel, FilterToolPanel
+        from .GUITools import TOOLS
         self.Freeze()
         self.removeTools(Layout=False)
-        # TODO dictionary
-        if toolName=='LogDec':
-            self.toolPanel=LogDecToolPanel(self)
-        elif toolName=='Outlier':
-            self.toolPanel=OutlierToolPanel(self)
-        elif toolName=='Filter':
-            self.toolPanel=FilterToolPanel(self)
-        elif toolName=='Mask':
-            self.toolPanel=MaskToolPanel(self)
-        elif toolName=='FASTRadialAverage':
-            self.toolPanel=RadialToolPanel(self)
-        elif toolName=='CurveFitting':
-            self.toolPanel=CurveFitToolPanel(self)
+        if toolName in TOOLS.keys():
+            self.toolPanel=TOOLS[toolName](self) # calling the panel constructor
         else:
             raise Exception('Unknown tool {}'.format(toolName))
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
