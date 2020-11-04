@@ -629,7 +629,7 @@ class MaskToolPanel(GUIToolPanel):
         row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
         row_sizer.Add(self.cbTabs                       , 0, wx.CENTER|wx.LEFT, 2)
         row_sizer.Add(wx.StaticText(self, -1, 'Mask:'), 0, wx.CENTER|wx.LEFT, 5)
-        row_sizer.Add(self.textMask, 1, wx.CENTER|wx.LEFT| wx.EXPAND | wx.ALIGN_RIGHT, 5)
+        row_sizer.Add(self.textMask, 1, wx.CENTER|wx.LEFT|wx.EXPAND, 5)
 
         vert_sizer = wx.BoxSizer(wx.VERTICAL)
         vert_sizer.Add(self.lb     ,0, flag = wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM, border = 5)
@@ -755,7 +755,7 @@ class RadialToolPanel(GUIToolPanel):
         row_sizer.Add(wx.StaticText(self, -1, 'Method:'), 0, wx.CENTER|wx.LEFT, 5)
         row_sizer.Add(self.cbMethod                     , 0, wx.CENTER|wx.LEFT, 2)
         row_sizer.Add(wx.StaticText(self, -1, 'Param:') , 0, wx.CENTER|wx.LEFT, 5)
-        row_sizer.Add(self.textAverageParam             , 0, wx.CENTER|wx.LEFT|wx.RIGHT| wx.EXPAND | wx.ALIGN_RIGHT, 2)
+        row_sizer.Add(self.textAverageParam             , 0, wx.CENTER|wx.LEFT|wx.RIGHT| wx.EXPAND, 2)
 
         vert_sizer = wx.BoxSizer(wx.VERTICAL)
         vert_sizer.Add(self.lb     ,0, flag =wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM,border = 5)
