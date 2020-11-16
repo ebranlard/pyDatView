@@ -4,10 +4,11 @@ import numpy as np
 import pandas as pd
 import copy
 import platform
+from collections import OrderedDict
 
 # For log dec tool
 from .common import CHAR, Error, pretty_num_short, Info
-from collections import OrderedDict
+from .plotdata import PlotData
 from pydatview.tools.damping import logDecFromDecay
 from pydatview.tools.curve_fitting import model_fit, extract_key_miscnum, extract_key_num, MODELS, FITTERS, set_common_keys
 
@@ -237,6 +238,7 @@ class FilterToolPanel(GUIToolPanel):
         self.SetSizer(self.sizer)
 
         # --- Events
+        self.cbFilters.Bind(wx.EVT_COMBOBOX, self.onSelectFilt)
         self.Bind(wx.EVT_SPINCTRLDOUBLE, self.onParamChangeArrow, self.tParam)
         self.Bind(wx.EVT_TEXT_ENTER,     self.onParamChangeEnter, self.tParam)
         if platform.system()=='Windows':
@@ -320,9 +322,13 @@ class FilterToolPanel(GUIToolPanel):
         filt=self._GUI2Filt()
 
         PD = self.parent.plotData[0]
-        y_filt = applyFilter(PD.y, filt)
+        y_filt = applyFilter(PD.x0, PD.y0, filt)
         ax = self.parent.fig.axes[0]
-        ax.plot(PD.x, y_filt, '-')
+
+        PD_new = PlotData()
+        PD_new.fromXY(PD.x0, y_filt)
+        self.parent.transformPlotData(PD_new)
+        ax.plot(PD_new.x, PD_new.y, '-')
         self.parent.canvas.draw()
 
     def onClear(self, event):
@@ -528,9 +534,13 @@ class ResampleToolPanel(GUIToolPanel):
             return
         opts=self._GUI2Data()
         PD = self.parent.plotData[0]
-        x_new, y_new = applySampler(PD.x, PD.y, opts)
+        x_new, y_new = applySampler(PD.x0, PD.y0, opts)
         ax = self.parent.fig.axes[0]
-        ax.plot(x_new, y_new, '-')
+
+        PD_new = PlotData()
+        PD_new.fromXY(x_new, y_new)
+        self.parent.transformPlotData(PD_new)
+        ax.plot(PD_new.x, PD_new.y, '-')
         self.setCurrentX(x_new)
 
         self.parent.canvas.draw()

@@ -737,6 +737,18 @@ class PlotPanel(wx.Panel):
             raise e
 
 
+    def transformPlotData(self,PD):
+        """" 
+        Apply MinMax, PDF or FFT transform to plot based on GUI data
+        """
+        plotType=self.pltTypePanel.plotType()
+        if plotType=='MinMax':
+            self.setPD_MinMax(PD) 
+        elif plotType=='PDF':
+            self.setPD_PDF(PD,PD.c)  
+        elif plotType=='FFT':
+            self.setPD_FFT(PD) 
+
     def getPlotData(self,plotType):
         ID,SameCol,selMode=self.selPanel.getPlotDataSelection()
         self.selMode=selMode # we store the selection mode

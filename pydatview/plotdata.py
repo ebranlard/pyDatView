@@ -57,6 +57,7 @@ class PlotData():
     def fromXY(PD, x, y, sx='', sy=''):
         PD.x  = x
         PD.y  = y
+        PD.c  = y
         PD.sx = sx
         PD.sy = sy
         PD.xIsString = isString(x)
@@ -81,7 +82,7 @@ class PlotData():
         if 'Filter' in keys:
             if Options['Filter']:
                 from pydatview.tools.signal import applyFilter
-                PD.y = applyFilter(PD.y, Options['Filter'])
+                PD.y = applyFilter(PD.x, PD.y, Options['Filter'])
 
         if 'Sampler' in keys:
             if Options['Sampler']:
@@ -95,6 +96,7 @@ class PlotData():
                 raise Exception('Error: x values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sx))
             if (PD.yIsString):
                 raise Exception('Error: y values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sy))
+
         PD.needChineseFont = has_chinese_char(PD.sy) or has_chinese_char(PD.sx)
         # Stats of the raw data (computed once and for all, since it can be expensive for large dataset
         PD.computeRange()
@@ -106,6 +108,8 @@ class PlotData():
         PD._y0Std  = PD.yStd()
         PD._y0Mean = PD.yMean()
         PD._n0     = (n,'{:d}'.format(n))
+        PD.x0 =PD.x
+        PD.y0 =PD.y
 
     def __repr__(s):
         s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}\n'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)

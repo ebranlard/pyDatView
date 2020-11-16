@@ -7,6 +7,8 @@ import pandas as pd
 # --- List of available filters
 FILTERS=[
     {'name':'Moving average','param':100,'paramName':'Window Size','paramRange':[0,100000],'increment':1},
+    {'name':'Low pass 1st order','param':1.0,'paramName':'Cutoff Freq.','paramRange':[0.0001,100000],'increment':0.1},
+    {'name':'High pass 1st order','param':1.0,'paramName':'Cutoff Freq.','paramRange':[0.0001,100000],'increment':0.1},
 ]
 
 SAMPLERS=[
@@ -177,9 +179,43 @@ def moving_average(a, n=3) :
     ret=ret[n - 1:] / n
     return ret
 
-def applyFilter(y, filtDict):
+def lowpass1(y, dt, fc=3) :
+    """ 
+    1st order low pass filter
+    """
+    tau=1/(2*np.pi*fc)
+    alpha=dt/(tau+dt)
+    y_filt=np.zeros(y.shape)
+    y_filt[0]=y[0]
+    for i in np.arange(1,len(y)):
+        y_filt[i]=alpha*y[i] + (1-alpha)*y_filt[i-1]
+    return y_filt
+
+def highpass1(y, dt, fc=3) :
+    """ 
+    1st order high pass filter
+    """
+    tau=1/(2*np.pi*fc)
+    alpha=tau/(tau+dt)
+    y_filt=np.zeros(y.shape)
+    y_filt[0]=0
+    for i in np.arange(1,len(y)):
+        y_filt[i]=alpha*y_filt[i-1] + alpha*(y[i]-y[i-1])
+    m0=np.mean(y)
+    m1=np.mean(y_filt)
+    y_filt+=m0-m1
+    return y_filt
+
+
+def applyFilter(x, y,filtDict):
     if filtDict['name']=='Moving average':
         return moving_average(y, n=np.round(filtDict['param']).astype(int))
+    elif filtDict['name']=='Low pass 1st order':
+        dt = x[1]-x[0]
+        return lowpass1(y, dt=dt, fc=filtDict['param'])
+    elif filtDict['name']=='High pass 1st order':
+        dt = x[1]-x[0]
+        return highpass1(y, dt=dt, fc=filtDict['param'])
     else:
         raise NotImplementedError('{}'.format(filtDict))
 
