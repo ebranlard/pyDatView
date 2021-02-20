@@ -1,11 +1,16 @@
 """ 
 Set of tools for statistics 
-  - measures
+  - measures (R^2, RMSE)
   - pdf distributions
+  - Binning 
 
 """
 import numpy as np
+import pandas as pd
 
+# --------------------------------------------------------------------------------}
+# --- Stats measures 
+# --------------------------------------------------------------------------------{
 def rsquare(y,f, c = True): 
     """ Compute coefficient of determination of data fit model and RMSE
     [r2 rmse] = rsquare(y,f)
@@ -48,7 +53,37 @@ def rsquare(y,f, c = True):
     rmse = np.sqrt(np.mean((y - f) ** 2))
     return r2,rmse
 
+def mean_rel_err(t1, y1, t2, y2, method='mean'):
+    """ 
+    Methods: 
+      'mean'   : 100 * |y1-y2|/mean(y1)
+      'meanabs': 100 * |y1-y2|/mean(|y1|)
+      'minmax': y1 and y2 scaled between 0.001 and 1
+                |y1s-y2s|/|y1|
+    """
+    if len(y1)!=len(y2):
+        y2=np.interp(t1,t2,y2)
+    # Method 1 relative to mean
+    if method=='mean':
+        ref_val = np.mean(y1)
+        meanrelerr = np.mean(np.abs(y1-y2)/ref_val)*100 
+    elif method=='meanabs':
+        ref_val = np.mean(np.abs(y1))
+        meanrelerr = np.mean(np.abs(y1-y2)/ref_val)*100 
+    elif method=='minmax':
+        # Method 2 scaling signals
+        Min=min(np.min(y1), np.min(y2))
+        Max=max(np.max(y1), np.max(y2))
+        y1=(y1-Min)/(Max-Min)+0.001
+        y2=(y2-Min)/(Max-Min)+0.001
+        meanrelerr = np.mean(np.abs(y1-y2)/np.abs(y1))*100 
+    #print('Mean rel error {:7.2f} %'.format( meanrelerr))
+    return meanrelerr
 
+
+# --------------------------------------------------------------------------------}
+# --- PDF 
+# --------------------------------------------------------------------------------{
 def pdf_histogram(y,nBins=50, norm=True, count=False):
     yh, xh = np.histogram(y[~np.isnan(y)], bins=nBins)
     dx   = xh[1] - xh[0]
@@ -106,3 +141,55 @@ def pdf_sns(y,nBins=50):
     xh=hh[0]
     yh=hh[1]
     return xh,yh
+
+
+
+# --------------------------------------------------------------------------------}
+# --- Binning 
+# --------------------------------------------------------------------------------{
+def bin_DF(df, xbins, colBin):
+    """ 
+    Perform bin averaging of a dataframe
+    INPUTS:
+      - df   : pandas dataframe
+      - xBins: end points delimiting the bins, array of ascending x values)
+      - colBin: column name (string) of the dataframe, used for binning 
+    OUTPUTS:
+       binned dataframe, with additional columns 'Counts' for the number 
+
+    """
+    if colBin not in df.columns.values:
+        raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
+    xmid      = (xbins[:-1]+xbins[1:])/2
+    df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
+    df2       = df.groupby('Bin').mean()                     # Average by bin
+    # also counting
+    df['Counts'] = 1
+    dfCount=df[['Counts','Bin']].groupby('Bin').sum()
+    df2['Counts'] = dfCount['Counts']
+    # Just in case some bins are missing (will be nan)
+    df2       = df2.reindex(xmid)
+    return df2
+
+def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
+    """ 
+    Average a dataframe based on azimuthal value
+    Returns a dataframe with same amount of columns as input, and azimuthal values as index
+    """
+    if psiBin is None: 
+        psiBin = np.arange(0,360+1,10)
+
+    if tStart is not None:
+        if colTime not in df.columns.values:
+            raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
+        df=df[ df[colTime]>tStart].copy()
+
+    dfPsi= bin_DF(df, psiBin, colPsi)
+    if np.any(dfPsi['Counts']<1):
+        print('[WARN] some bins have no data! Increase the bin size.')
+
+    return dfPsi
+
+
+
+

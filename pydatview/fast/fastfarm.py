@@ -244,7 +244,7 @@ def writeFastFarm(outputFile, templateFile, xWT, yWT, zWT, FFTS=None, OutListT1=
     FFTS: FastFarm TurbSim parameters as returned by fastFarmTurbSimExtent
     """
     # --- Read template fast farm file
-    fst=weio.read(templateFile)
+    fst=weio.FASTInputFile(templateFile)
     # --- Replace box extent values
     if FFTS is not None:
         fst['Mod_AmbWind'] = 2
@@ -300,7 +300,7 @@ def setFastFarmOutputs(fastFarmFile, OutListT1):
 def plotFastFarmSetup(fastFarmFile):
     """ """
     import matplotlib.pyplot as plt
-    fst=weio.read(fastFarmFile)
+    fst=weio.FASTInputFile(fastFarmFile)
 
     fig = plt.figure(figsize=(13.5,10))
     ax  = fig.add_subplot(111,aspect="equal")

@@ -400,7 +400,7 @@ class Table(object):
             if iDotAD>1:
                 base=base[:iDotAD]
             #
-            Files=[base+ext for ext in ['.fst','.FST','.Fst'] if os.path.exists(base+ext)]
+            Files=[base+ext for ext in ['.fst','.FST','.Fst','.dvr','.Dvr','.DVR'] if os.path.exists(base+ext)]
             if len(Files)==0:
                 fst_in=None
                 #raise Exception('Error: No .fst file found with name: '+base+'.fst')
