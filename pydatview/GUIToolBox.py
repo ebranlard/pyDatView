@@ -236,19 +236,21 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         NavigationToolbar2Wx.zoom(self,*args)
 
     def pan(self, *args):
-        if self.VERSION[0]=='2' or self.VERSION[0]=='1': 
-            if self._active=='PAN':
-                NavigationToolbar2Wx.pan(self,*args)
-                self.zoom()
-            else:
-                NavigationToolbar2Wx.pan(self,*args)
-        else: # 3
-            from matplotlib.backend_bases import _Mode
-            if self.mode == _Mode.PAN:
-                NavigationToolbar2Wx.pan(self,*args)
-                self.zoom()
-            else:
-                NavigationToolbar2Wx.pan(self,*args)
+        try:
+            #if self.VERSION[0]=='2' or self.VERSION[0]=='1': 
+            isPan = self._active=='PAN'
+        except:
+            try:
+                from matplotlib.backend_bases import _Mode
+                isPan = self.mode == _Mode.PAN
+            except:
+                raise Exception('Pan not found, report a pyDatView bug, with matplotlib version.')
+        if isPan:
+            NavigationToolbar2Wx.pan(self,*args)
+            self.zoom()
+        else:
+            NavigationToolbar2Wx.pan(self,*args)
+
 
     def home(self, *args):
         """Restore the original view."""
