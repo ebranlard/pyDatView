@@ -579,10 +579,7 @@ class ColumnPanel(wx.Panel):
         self.tFilter.Bind(wx.EVT_KEY_DOWN, self.onFilterKey   , self.tFilter )
         self.Bind(wx.EVT_TEXT_ENTER, self.onFilterChange, self.tFilter )
         #
-        if platform.system()=='Darwin':
-            self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY, size=wx.Size(-1,35))
-        else:
-            self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
+        self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
         self.comboX.SetFont(getMonoFont(self))
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont(self))
