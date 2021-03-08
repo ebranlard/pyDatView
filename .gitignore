@@ -19,3 +19,4 @@ _*
 !__init__.py
 *.png
 tags
+*.DS_Store

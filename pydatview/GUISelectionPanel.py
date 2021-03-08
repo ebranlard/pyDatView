@@ -33,7 +33,6 @@ class FormulaDialog(wx.Dialog):
     def __init__(self, title='', name='', formula='',columns=[],unit='',xcol='',xunit=''):
         wx.Dialog.__init__(self, None, title=title)
         # --- Data
-        self.OK = False
         self.unit=unit.strip().replace(' ','')
         self.columns=['{'+c+'}' for c in columns]
         self.xcol='{'+xcol+'}'
@@ -87,12 +86,12 @@ class FormulaDialog(wx.Dialog):
 
 
  
-        btOK = wx.Button(self,label = "OK"    )
+        self.btOK = wx.Button(self, wx.ID_OK)#, label = "OK"    )
         btCL = wx.Button(self,label = "Cancel")
         bt_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        bt_sizer.Add(btOK, 0 ,wx.ALL,5)
+        bt_sizer.Add(self.btOK, 0 ,wx.ALL,5)
         bt_sizer.Add(btCL, 0 ,wx.ALL,5)
-        btOK.Bind(wx.EVT_BUTTON,self.onOK    )
+        #btOK.Bind(wx.EVT_BUTTON,self.onOK    )
         btCL.Bind(wx.EVT_BUTTON,self.onCancel)
 
 
@@ -252,14 +251,7 @@ class FormulaDialog(wx.Dialog):
         else:
             raise Exception('Unknown quick formula {}'.s)
 
-
-
-    def onOK(self, event):
-        self.OK = True
-        self.Destroy()
-
     def onCancel(self, event):
-        self.OK = False
         self.Destroy()
 # --------------------------------------------------------------------------------}
 # --- Popup menus
@@ -457,11 +449,10 @@ class ColumnPopup(wx.Menu):
         while (not bValid) and (not bCancelled):
             dlg = FormulaDialog(title=title,columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,name=sName,formula=sFormula)
             dlg.CentreOnParent()
-            dlg.ShowModal()
-            bCancelled = not dlg.OK
-            if not bCancelled:
+            if dlg.ShowModal()==wx.ID_OK:
                 sName    = dlg.name.GetValue()
                 sFormula = dlg.formula.GetValue()
+                dlg.Destroy()
                 if len(self.ISel)>0:
                     iFilt=self.ISel[-1]
                     iFull=self.parent.Filt2Full[iFilt]
@@ -487,6 +478,8 @@ class ColumnPopup(wx.Menu):
                     Error(self.parent,sError)
                 if nError<len(ITab):
                     bValid=True
+            else:
+                bCancelled=True
         if bCancelled:
             return
         if bValid:
