@@ -49,50 +49,56 @@ class TableList(object): # todo inherit list
         """ load multiple files, only trigger the plot at the end """
         if not bAdd:
             self.clean() # TODO figure it out
-        warn=''
+        warnList=[]
         for f in filenames:
             if f in self.unique_filenames:
-                warn+= 'Warn: Cannot add a file already opened ' + f +'\n'
+                warn.append('Warn: Cannot add a file already opened ' + f)
             elif len(f)==0:
                 pass
                 #    warn+= 'Warn: an empty filename was skipped' +'\n'
             else:
-                tabs = self._load_file_tabs(f,fileformat=fileformat) 
-                if len(tabs)<=0:
-                    warn+= 'Warn: No dataframe found in file: '+f+'\n'
+                tabs, warnloc = self._load_file_tabs(f,fileformat=fileformat) 
+                if len(warnloc)>0:
+                    warnList.append(warnloc)
                 self.append(tabs)
-        return warn
+        
+        return warnList
 
     def _load_file_tabs(self,filename,fileformat=None):
         """ load a single file, adds table, and potentially trigger plotting """
+        # Returning a list of tables 
+        tabs=[]
+        warn=''
         if not os.path.isfile(filename):
-            raise Exception('Error: File not found: `'+filename+'`')
+            warn = 'Error: File not found: `'+filename+'`\n'
+            return tabs, warn
         try:
             F = weio.read(filename,fileformat = fileformat)
             dfs = F.toDataFrame()
         except weio.FileNotFoundError as e:
-            raise Exception('Error: A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}'.format(filename, e.filename))
+            warn = 'Error: A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}\n'.format(filename, e.filename)
         except IOError:
-            raise Exception('Error: IO Error thrown while opening file: '+filename )
+            warn = 'Error: IO Error thrown while opening file: '+filename+'\n'
         except MemoryError:
-            raise Exception('Error: Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).')
+            warn='Error: Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).\n'
         except weio.EmptyFileError:
-            raise Exception('Error: File empty!\n\nFile is empty: '+filename+'\n\nOpen a different file.')
+            warn='Error: File empty!\n\nFile is empty: '+filename+'\n\nOpen a different file.\n'
         except weio.FormatNotDetectedError:
-            raise Exception('Error: File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list')
+            warn='Error: File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list\n'
         except weio.WrongFormatError as e:
-            raise Exception('Error: Wrong file format!\n\nFile: '+filename+'\n\n'   \
+            warn='Error: Wrong file format!\n\nFile: '+filename+'\n\n'   \
                     'The file parser for the selected format failed to open the file.\n\n'+   \
                     'The reported error was:\n'+e.args[0]+'\n\n' +   \
-                    'Double-check your file format and report this error if you think it''s a bug.')
+                    'Double-check your file format and report this error if you think it''s a bug.\n'
         except weio.BrokenFormatError as e:
-            raise Exception('Error: Inconsistency in the file format!\n\nFile: '+filename+'\n\n'   \
-                    'The reported error was:\n'+e.args[0]+'\n\n' +   \
-                    'Double-check your file format and report this error if you think it''s a bug.')
+            warn = 'Error: Inconsistency in the file format!\n\nFile: '+filename+'\n\n'   \
+                   'The reported error was:\n\n'+e.args[0]+'\n\n' +   \
+                   'Double-check your file format and report this error if you think it''s a bug.'
         except:
             raise
-        # Returning a list of tables 
-        tabs=[]
+        if len(warn)>0:
+            return tabs, warn
+
         if dfs is None:
             pass
         elif not isinstance(dfs,dict):
@@ -102,7 +108,9 @@ class TableList(object): # todo inherit list
             for k in list(dfs.keys()):
                 if len(dfs[k])>0:
                     tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=F.formatName()))
-        return tabs
+        if len(tabs)<=0:
+            warn='Warn: No dataframe found in file: '+f+'\n'
+        return tabs, warn
 
     def getTabs(self):
         # TODO remove me later

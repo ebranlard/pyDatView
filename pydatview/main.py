@@ -253,7 +253,8 @@ class MainFrame(wx.Frame):
 
         base_filenames = [os.path.basename(f) for f in filenames]
         filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
-        warn = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bAdd=bAdd)
+        # Load the tables
+        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bAdd=bAdd)
         if bReload:
             # Restore formulas that were previously added
             _ITab, _STab = self.selPanel.getAllTables()
@@ -264,8 +265,7 @@ class MainFrame(wx.Frame):
                 for f in f_list:
                     self.tabList.get(iTab).addColumnByFormula(f['name'], f['formula'])
             self.restore_formulas = []
-
-        if len(warn)>0:
+        for warn in warnList: 
             Warn(self,warn)
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=True)
