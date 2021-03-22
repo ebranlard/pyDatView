@@ -639,7 +639,7 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
     IR_BD       = None
     fst=None
     if FST_In is not None:
-        fst = FASTInputDeck(FST_In, readlist=['AD','ED','BD'])
+        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD'])
         # NOTE: all this below should be in FASTInputDeck
         if fst.version == 'F7':
             # --- FAST7
@@ -656,7 +656,7 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
             R = None
 
             # --- ElastoDyn
-            if  not hasattr(fst,'ED'):
+            if  fst.ED is None:
                 print('[WARN] The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
                 #raise Exception('The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
             else:
@@ -669,20 +669,19 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
                     r_ED, IR_ED = ED_BldGag(fst.ED)
 
             # --- BeamDyn
-            if  hasattr(fst,'BD'):
+            if  fst.BD is not None:
                 r_BD, IR_BD, r_BD_All = BD_BldGag(fst.BD)
                 r_BD= r_BD+r_hub
                 if R is None:
                     R = r_BD_All[-1] # just in case ED file missing
 
             # --- AeroDyn
-            if  not hasattr(fst,'AD'):
+            if  fst.AD is None:
                 print('[WARN] The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
                 #raise Exception('The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
             else:
-
                 if fst.ADversion == 'AD15':
-                    if  not hasattr(fst.AD,'Bld1'):
+                    if  fst.AD.Bld1 is None:
                         raise Exception('The AeroDyn blade file couldn''t be found or read, from main file: '+FST_In)
                     
                     if 'B1N001Cl_[-]' in OutputCols or np.any(np.char.find(list(OutputCols),'AB1N')==0):

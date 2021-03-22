@@ -109,7 +109,7 @@ class TableList(object): # todo inherit list
                 if len(dfs[k])>0:
                     tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=F.formatName()))
         if len(tabs)<=0:
-            warn='Warn: No dataframe found in file: '+f+'\n'
+            warn='Warn: No dataframe found in file: '+filename+'\n'
         return tabs, warn
 
     def getTabs(self):
