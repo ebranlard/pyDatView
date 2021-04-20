@@ -200,7 +200,11 @@ class InfoPanel(wx.Panel):
                          #|wx.LC_SORT_ASCENDING
         self.tbStats.SetFont(getMonoFont(self))
         # For sorting see wx/lib/mixins/listctrl.py listmix.ColumnSorterMixin
-        #self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.tbStats)
+        #self.tbStats.Bind(wx.EVT_LIST_COL_CLICK, self.CopyToClipBoard)
+        self.tbStats.Bind(wx.EVT_LIST_ITEM_SELECTED, self.CopyToClipBoard)
+        # self.tbStats.Bind(wx.EVT_RIGHT_UP, self.ShowPopup)
+
+
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         # sizer.Add(self.bt     , 0, wx.LEFT, border=0)
 
@@ -227,6 +231,21 @@ class InfoPanel(wx.Panel):
         self.SetSizer(sizer)
         self.SetMaxSize((-1, 50))
 
+    def CopyToClipBoard(self, event):
+        nCols=self.tbStats.GetColumnCount()
+        headerLine='\t'.join([self.tbStats.GetColumn(j).GetText() for j in np.arange(nCols)] )
+        lines=[headerLine]
+        # Loop on rows
+        for i in np.arange(self.tbStats.GetItemCount()):
+            if self.tbStats.IsSelected(i):
+                line='\t'.join([self.tbStats.GetItemText(i,j) for j in np.arange(nCols)] )
+                lines.append(line)
+        # Put in ClipBoard
+        clipdata = wx.TextDataObject()
+        clipdata.SetText("\n".join(lines))
+        wx.TheClipboard.Open()
+        wx.TheClipboard.SetData(clipdata)
+        wx.TheClipboard.Close()
 
     def showMenu(self,event=None):
         if self.menu.isClosed:
