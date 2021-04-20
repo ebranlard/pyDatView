@@ -332,7 +332,7 @@ class PlotPanel(wx.Panel):
         # Preparing a special font manager for chinese characters
         self.specialFont=None
         CH_F_PATHS = [
-                os.path.join(pyplot_rc['datapath'], 'fonts/ttf/SimHei.ttf'),
+                os.path.join(matplotlib.get_data_path(), 'fonts/ttf/SimHei.ttf'),
                 os.path.join(os.path.dirname(__file__),'../SimHei.ttf')]
         for fpath in CH_F_PATHS:
             if os.path.exists(fpath):
