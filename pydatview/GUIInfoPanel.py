@@ -83,6 +83,7 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'Std/Mean (TI)', 'al':'R' , 'm':'y0TI'  , 's' :False})
         self.ColsReg.append({'name':'Min'          , 'al':'R' , 'm':'y0Min'  , 's' :True})
         self.ColsReg.append({'name':'Max'          , 'al':'R' , 'm':'y0Max'  , 's' :True})
+        self.ColsReg.append({'name':'Abs. Max'     , 'al':'R' , 'm':'yAbsMax', 's' :False})
         self.ColsReg.append({'name':'Range'        , 'al':'R' , 'm':'yRange', 's' :True})
         self.ColsReg.append({'name':'dx'           , 'al':'R' , 'm':'dx'    , 's' :True})
         self.ColsReg.append({'name':'Meas 1'       , 'al':'R' , 'm':'meas'  , 's' :False})

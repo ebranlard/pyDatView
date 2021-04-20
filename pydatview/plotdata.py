@@ -406,6 +406,15 @@ class PlotData():
             s=pretty_num(v)
         return v,s
 
+    def yAbsMax(PD):
+        if PD.yIsString or PD.yIsDate:
+            return 'NA','NA'
+        else:
+            v=max(np.abs(PD._y0Min[0]),np.abs(PD._y0Max[0]))
+            s=pretty_num(v)
+        return v,s
+
+
     def xRange(PD):
         if PD.xIsString:
             return 'NA','NA'
