@@ -392,14 +392,15 @@ def paramsWS_RPM_Pitch(WS, RPM, Pitch, baseDict=None, flatInputs=False):
 def paramsLinearTrim(p=dict()):
 
     # Set a few DOFs, move this to main file
-    p['Linearize']              = 'True'
-    p['CalcSteady']             = 'True'
+    p['Linearize']              = True
+    p['CalcSteady']             = True
     p['TrimGain']               = 1e-4
     p['TrimTol']                = 1e-5
     p['CompMooring']            = 0
     p['CompHydro']              = 0
-    p['LinOutJac']              = 'False'
-    p['LinOutMod']              = 'False'
+    p['LinOutJac']              = False
+    p['LinOutMod']              = False
+    p['OutFmt']                 = '"ES20.12E3"'  # Important for decent resolution
 
     p['AeroFile|AFAeroMod']     = 1
     p['AeroFile|CavitCheck']    = 'False'

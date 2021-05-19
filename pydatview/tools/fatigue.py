@@ -789,9 +789,7 @@ class TestFatigue(unittest.TestCase):
             np.testing.assert_allclose(r_eq_1hz, r_eq_1hz2)
 
     def test_rainflow_combi(self):
-        """Signal with two frequencies and amplitudes
-        """
-
+        # Signal with two frequencies and amplitudes
         amplitude = 1
         # peak2peak = amplitude * 2
         m = 1
