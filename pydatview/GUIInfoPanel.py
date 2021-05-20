@@ -88,6 +88,7 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'dx'           , 'al':'R' , 'm':'dx'    , 's' :True})
         self.ColsReg.append({'name':'Meas 1'       , 'al':'R' , 'm':'meas'  , 's' :False})
         self.ColsReg.append({'name':'Meas 2'       , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsReg.append({'name':'Mean (Meas)'  , 'al':'R' , 'm':'yMeanMeas'  , 's' :False})
         self.ColsReg.append({'name':'xMin'         , 'al':'R' , 'm':'xMin'  , 's' :False})
         self.ColsReg.append({'name':'xMax'         , 'al':'R' , 'm':'xMax'  , 's' :False})
         self.ColsReg.append({'name':'xRange'       , 'al':'R' , 'm':'xRange', 's' :False})
@@ -302,6 +303,8 @@ class InfoPanel(wx.Panel):
                         v,sv=getattr(PD,c['m'])(self.meas_xy1)
                     elif c['name'] == 'Meas 2':
                         v,sv=getattr(PD,c['m'])(self.meas_xy2)
+                    elif c['name'] == 'Mean (Meas)':
+                        v, sv = getattr(PD, c['m'])(self.meas_xy1, self.meas_xy2)
                     else:
                         v,sv=getattr(PD,c['m'])()
                 else:
@@ -442,11 +445,15 @@ class InfoPanel(wx.Panel):
             self.meas_xy2 = xy2
             self.menu.setItem('Meas 2', True)
             self.setCol('Meas 2', True)
+            self.menu.setItem('Mean (Meas)', True)
+            self.setCol('Mean (Meas)', True)
         elif xy1 is None:
             self.menu.setItem('Meas 1', False)
             self.setCol('Meas 1', False)
             self.menu.setItem('Meas 1', False)
             self.setCol('Meas 2', False)
+            self.menu.setItem('Mean (Meas)', False)
+            self.setCol('Mean (Meas)', False)
         self._showStats()
 
     def clean(self):

@@ -484,6 +484,21 @@ class PlotData():
             s='NA'
         return v,s
 
+    def yMeanMeas(PD, xymeas1, xymeas2):
+        try:
+            xy = np.array([PD.x, PD.y]).transpose()
+            points_left = find_closest(xy, [xymeas1[0], xymeas1[1]], False)
+            points_right = find_closest(xy, [xymeas2[0], xymeas2[1]], False)
+            v = 'NA'
+            left_index = np.where(PD.x == points_left[0])[0][0]
+            right_index = np.where(PD.x == points_right[0])[0][0]
+            mean_y = np.mean(PD.y[left_index:right_index])
+            v = mean_y
+            s = pretty_num(v)
+        except (IndexError, TypeError):
+            v = 'NA'
+            s = 'NA'
+        return v, s
 
     def dx(PD):
         if len(PD.x)<=1:
