@@ -88,6 +88,9 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'dx'           , 'al':'R' , 'm':'dx'    , 's' :True})
         self.ColsReg.append({'name':'Meas 1'       , 'al':'R' , 'm':'meas'  , 's' :False})
         self.ColsReg.append({'name':'Meas 2'       , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsReg.append({'name':'Mean (Meas)'  , 'al':'R' , 'm':'yMeas'  , 's' :False})
+        self.ColsReg.append({'name':'Min (Meas)'   , 'al':'R' , 'm':'yMeas'  , 's' :False})
+        self.ColsReg.append({'name':'Max (Meas)'   , 'al':'R' , 'm':'yMeas'  , 's' :False})
         self.ColsReg.append({'name':'xMin'         , 'al':'R' , 'm':'xMin'  , 's' :False})
         self.ColsReg.append({'name':'xMax'         , 'al':'R' , 'm':'xMax'  , 's' :False})
         self.ColsReg.append({'name':'xRange'       , 'al':'R' , 'm':'xRange', 's' :False})
@@ -129,6 +132,9 @@ class InfoPanel(wx.Panel):
         self.ColsFFT.append({'name':'n(FFT)'        , 'al':'R' , 'm':'ylen'  , 's' :True})
         self.ColsFFT.append({'name':'Meas 1'        , 'al':'R' , 'm':'meas'  , 's' :False})
         self.ColsFFT.append({'name':'Meas 2'        , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsFFT.append({'name':'Mean (Meas)'   , 'al':'R' , 'm':'yMeas'  , 's' :False})
+        self.ColsFFT.append({'name':'Min (Meas)'    , 'al':'R' , 'm':'yMeas'  , 's' :False})
+        self.ColsFFT.append({'name':'Max (Meas)'    , 'al':'R' , 'm':'yMeas'  , 's' :False})
         self.ColsFFT.append({'name':'n     '        , 'al':'R' , 'm':'n0'    , 's' :True})
         self.ColsMinMax=[]
         self.ColsMinMax.append({'name':'Directory'                  , 'al':'L' , 'm':'baseDir', 's':False})
@@ -163,6 +169,9 @@ class InfoPanel(wx.Panel):
         self.ColsPDF.append({'name':u'\u222By(PDF)' , 'al':'R' , 'm':'inty'  , 's' :True})
         self.ColsPDF.append({'name':'Meas 1'        , 'al':'R' , 'm':'meas'  , 's' :False})
         self.ColsPDF.append({'name':'Meas 2'        , 'al':'R' , 'm':'meas'  , 's' :False})
+        self.ColsPDF.append({'name':'Mean (Meas)'   , 'al':'R' , 'm':'yMeas'  , 's' :False})
+        self.ColsPDF.append({'name':'Min (Meas)'    , 'al':'R' , 'm':'yMeas'  , 's' :False})
+        self.ColsPDF.append({'name':'Max (Meas)'    , 'al':'R' , 'm':'yMeas'  , 's' :False})
         self.ColsPDF.append({'name':'n(PDF)'        , 'al':'R' , 'm':'ylen'  , 's' :True})
         self.ColsCmp=[]
         self.ColsCmp.append({'name':'Directory' , 'al':'L' , 'm':'baseDir' , 's':False})
@@ -302,6 +311,12 @@ class InfoPanel(wx.Panel):
                         v,sv=getattr(PD,c['m'])(self.meas_xy1)
                     elif c['name'] == 'Meas 2':
                         v,sv=getattr(PD,c['m'])(self.meas_xy2)
+                    elif c['name'] == 'Mean (Meas)':
+                        v, sv = getattr(PD, c['m'])(self.meas_xy1, self.meas_xy2, 'mean')
+                    elif c['name'] == 'Max (Meas)':
+                        v, sv = getattr(PD, c['m'])(self.meas_xy1, self.meas_xy2, 'max')
+                    elif c['name'] == 'Min (Meas)':
+                        v, sv = getattr(PD, c['m'])(self.meas_xy1, self.meas_xy2, 'min')
                     else:
                         v,sv=getattr(PD,c['m'])()
                 else:
@@ -440,13 +455,13 @@ class InfoPanel(wx.Panel):
             self.setCol('Meas 1', True)
         if xy2 is not None:
             self.meas_xy2 = xy2
-            self.menu.setItem('Meas 2', True)
-            self.setCol('Meas 2', True)
+            for col in ['Meas 2', 'Mean (Meas)', 'Min (Meas)', 'Max (Meas)']:
+                self.menu.setItem(col, True)
+                self.setCol(col, True)
         elif xy1 is None:
-            self.menu.setItem('Meas 1', False)
-            self.setCol('Meas 1', False)
-            self.menu.setItem('Meas 1', False)
-            self.setCol('Meas 2', False)
+            for col in ['Meas 1', 'Meas 2', 'Mean (Meas)', 'Min (Meas)', 'Max (Meas)']:
+                self.menu.setItem(col, False)
+                self.setCol(col, False)
         self._showStats()
 
     def clean(self):

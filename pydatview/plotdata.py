@@ -484,6 +484,28 @@ class PlotData():
             s='NA'
         return v,s
 
+    def yMeas(PD, xymeas1, xymeas2, mode):
+        try:
+            xy = np.array([PD.x, PD.y]).transpose()
+            points_left = find_closest(xy, [xymeas1[0], xymeas1[1]], True)
+            points_right = find_closest(xy, [xymeas2[0], xymeas2[1]], True)
+            v = 'NA'
+            left_index = np.where(PD.x == points_left[0])[0][0]
+            right_index = np.where(PD.x == points_right[0])[0][0]
+            if mode == 'mean':
+                y_val = np.mean(PD.y[left_index:right_index])
+            elif mode == 'min':
+                y_val = np.min(PD.y[left_index:right_index])
+            elif mode == 'max':
+                y_val = np.max(PD.y[left_index:right_index])
+            else:
+                raise NotImplementedError('Error: Mode ' + mode + ' not implemented')
+            v = y_val
+            s = pretty_num(v)
+        except (IndexError, TypeError):
+            v = 'NA'
+            s = 'NA'
+        return v, s
 
     def dx(PD):
         if len(PD.x)<=1:
