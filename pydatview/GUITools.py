@@ -403,7 +403,7 @@ class ResampleToolPanel(GUIToolPanel):
         msizer  = wx.FlexGridSizer(rows=2, cols=4, hgap=2, vgap=0)
         msizer.Add(wx.StaticText(self, -1, 'Table:')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
         msizer.Add(self.cbTabs                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
-        msizer.Add(wx.StaticText(self, -1, 'Current x:'), 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(wx.StaticText(self, -1, 'Current x:          '), 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
         msizer.Add(self.textOldX                        , 1, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND, 1)
         msizer.Add(wx.StaticText(self, -1, 'Method:')   , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
         msizer.Add(self.cbMethods                       , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
@@ -582,6 +582,7 @@ To resample perform the following step:
    - insert : insert a list of x values to the existing ones
    - delete : delete a list of x values from the existing ones
    - every-n : use every n values 
+   - time-based up/downsample: upsample or downsample, x-axis unit must be seconds
    - delta x : specify a delta for uniform spacing of x values
 
 - Specify the x values as a space or comma separated list

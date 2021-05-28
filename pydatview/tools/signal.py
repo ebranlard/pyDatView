@@ -16,6 +16,7 @@ SAMPLERS=[
     {'name':'Insert',  'param':[], 'paramName':'Insert list'},
     {'name':'Remove',  'param':[], 'paramName':'Remove list'},
     {'name':'Every n', 'param':2  , 'paramName':'n'},
+    {'name':'Time-based up/downsample', 'param':0.01  , 'paramName':'Sample time (s)'},
     {'name':'Delta x', 'param':0.1, 'paramName':'dx'},
 ]
 
@@ -149,6 +150,25 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
             return x_new, (df_old.copy()).iloc[::n,:]
         if y_old is not None:
             return x_new, y_old[::n]
+
+    elif sampDict['name'] == 'Time-based up/downsample':
+        if len(param) == 0:
+            raise Exception('Error: provide value for sampling time')
+        sample_time = str(param[0])
+        if float(sample_time) <= 0:
+            raise Exception('Error: sample time must be positive')
+
+        time_index = pd.TimedeltaIndex(x_old, unit="S")
+        x_new = pd.Series(x_old, index=time_index).resample(sample_time + "S").min().reset_index()[0].values
+
+        if df_old is not None:
+            df_new = df_old.assign(time_index_for_resampling_only=pd.TimedeltaIndex(x_old, unit="S"))
+            df_new = df_new.resample(sample_time + "S", on="time_index_for_resampling_only").mean()
+            df_new = df_new.reset_index().drop(columns="time_index_for_resampling_only")
+            return x_new, df_new
+        if y_old is not None:
+            y_new = pd.Series(y_old, index=time_index).resample(sample_time + "S").mean().reset_index()[0].values
+            return x_new, y_new
 
     else:
         raise NotImplementedError('{}'.format(sampDict))
