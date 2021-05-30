@@ -170,8 +170,6 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
                 df_new = df_new.reset_index(drop=True)
             return x_new, df_new
         if y_old is not None:
-            #import pdb;
-            #pdb.set_trace()
             y_new = pd.Series(y_old, index=time_index).resample("{:f}S".format(sample_time)).mean()
             if do_upsample:
                 y_new = y_new.interpolate().values
