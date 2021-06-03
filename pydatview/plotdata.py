@@ -492,6 +492,8 @@ class PlotData():
             v = 'NA'
             left_index = np.where(PD.x == points_left[0])[0][0]
             right_index = np.where(PD.x == points_right[0])[0][0]
+            if left_index == right_index:
+                raise IndexError
             if left_index > right_index:
                 left_index, right_index = right_index, left_index
             if mode == 'mean':
