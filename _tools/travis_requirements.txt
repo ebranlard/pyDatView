@@ -4,6 +4,7 @@ numpy        ; python_version<"3.0"
 pandas>=1.0.1; python_version>"3.0"
 pandas; python_version<="3.0"
 xlrd==1.2.0; python_version<"3.0"
+pyarrow
 future
 chardet
 scipy
