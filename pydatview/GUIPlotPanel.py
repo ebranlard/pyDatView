@@ -5,7 +5,7 @@ import wx.lib.buttons  as  buttons
 import dateutil # required by matplotlib
 #from matplotlib import pyplot as plt
 import matplotlib
-matplotlib.use('Agg') # Important for Windows version of installer
+matplotlib.use('wxAgg') # Important for Windows version of installer. NOTE: changed from Agg to wxAgg
 from matplotlib import rc as matplotlib_rc
 try:
     from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
@@ -951,12 +951,22 @@ class PlotPanel(wx.Panel):
 
             # Log Axes
             if self.cbLogX.IsChecked():
-                ax_left.set_xscale("log", nonposx='clip')
+                try:
+                    ax_left.set_xscale("log", nonpositive='clip') # latest
+                except:
+                    ax_left.set_xscale("log", nonposx='clip') # legacy
+
             if self.cbLogY.IsChecked():
                 if bAllNegLeft is False:
-                    ax_left.set_yscale("log", nonposy='clip')
+                    try:
+                        ax_left.set_yscale("log", nonpositive='clip') # latest
+                    except:
+                        ax_left.set_yscale("log", nonposy='clip')
                 if bAllNegRight is False and ax_right is not None:
-                    ax_right.set_yscale("log", nonposy='clip')
+                    try:
+                        ax_right.set_yscale("log", nonpositive='clip') # latest
+                    except:
+                        ax_left.set_yscale("log", nonposy='clip') # legacy
 
             # XLIM - TODO FFT ONLY NASTY
             if self.pltTypePanel.cbFFT.GetValue():
