@@ -582,7 +582,8 @@ To resample perform the following step:
    - insert : insert a list of x values to the existing ones
    - delete : delete a list of x values from the existing ones
    - every-n : use every n values 
-   - time-based up/downsample: upsample or downsample, x-axis unit must be seconds
+   - time-based: downsample using sample averaging or upsample using
+                 linear interpolation, x-axis must already be in seconds
    - delta x : specify a delta for uniform spacing of x values
 
 - Specify the x values as a space or comma separated list
