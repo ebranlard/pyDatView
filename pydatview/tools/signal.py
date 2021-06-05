@@ -158,23 +158,16 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
         if sample_time <= 0:
             raise Exception('Error: sample time must be positive')
 
-        do_upsample = sample_time < x_old[1] - x_old[0]
         time_index = pd.TimedeltaIndex(x_old, unit="S")
         x_new = pd.Series(x_old, index=time_index).resample("{:f}S".format(sample_time)).mean().interpolate().values
 
         if df_old is not None:
             df_new = df_old.set_index(time_index, inplace=False).resample("{:f}S".format(sample_time)).mean()
-            if do_upsample:
-                df_new = df_new.interpolate().reset_index(drop=True)
-            else:
-                df_new = df_new.reset_index(drop=True)
+            df_new = df_new.interpolate().reset_index(drop=True)
             return x_new, df_new
         if y_old is not None:
             y_new = pd.Series(y_old, index=time_index).resample("{:f}S".format(sample_time)).mean()
-            if do_upsample:
-                y_new = y_new.interpolate().values
-            else:
-                y_new = y_new.values
+            y_new = y_new.interpolate().values
             return x_new, y_new
 
     else:
