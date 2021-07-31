@@ -105,11 +105,16 @@ class PlotData():
         PD._y0Max = PD._yMax
         PD._x0Min = PD._xMin
         PD._x0Max = PD._xMax
+        PD._x0AtYMin = PD._xAtYMin
+        PD._x0AtYMax = PD._xAtYMax
         PD._y0Std  = PD.yStd()
         PD._y0Mean = PD.yMean()
         PD._n0     = (n,'{:d}'.format(n))
         PD.x0 =PD.x
         PD.y0 =PD.y
+        # Store xyMeas input values so we don't need to recompute xyMeas in case they didn't change
+        PD.xyMeasInput1, PD.xyMeasInput2 = None, None
+        PD.xyMeas1, PD.xyMeas2 = None, None
 
     def __repr__(s):
         s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}\n'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
@@ -261,8 +266,10 @@ class PlotData():
         """
         PD._xMin  = PD._xMinCalc() 
         PD._xMax  = PD._xMaxCalc()
-        PD._yMin  = PD._yMinCalc() 
+        PD._yMin  = PD._yMinCalc()
         PD._yMax  = PD._yMaxCalc()
+        PD._xAtYMin  = PD._xAtYMinCalc(PD._yMin[0])
+        PD._xAtYMax  = PD._xAtYMaxCalc(PD._yMax[0])
 
 
     # --------------------------------------------------------------------------------}
@@ -285,6 +292,26 @@ class PlotData():
             return PD.y[-1],'{}'.format(PD.y[-1])
         else:
             v=np.nanmax(PD.y)
+            s=pretty_num(v)
+        return (v,s)
+
+    def _xAtYMinCalc(PD, yMin):
+        if PD.xIsString:
+            return PD.x[0],PD.x[0].strip()
+        elif PD.xIsDate:
+            return PD.x[0],'{}'.format(PD.x[0])
+        else:
+            v = PD.x[np.where(PD.y == yMin)[0][0]]
+            s=pretty_num(v)
+        return (v,s)
+
+    def _xAtYMaxCalc(PD, yMax):
+        if PD.xIsString:
+            return PD.x[-1],PD.x[-1].strip()
+        elif PD.xIsDate:
+            return PD.x[-1],'{}'.format(PD.x[-1])
+        else:
+            v = PD.x[np.where(PD.y == yMax)[0][0]]
             s=pretty_num(v)
         return (v,s)
 
@@ -313,6 +340,12 @@ class PlotData():
 
     def xMax(PD):
         return PD._xMax
+
+    def xAtYMin(PD):
+        return PD._xAtYMin
+
+    def xAtYMax(PD):
+        return PD._xAtYMax
 
     def yMin(PD):
         return PD._yMin
@@ -468,39 +501,80 @@ class PlotData():
             s=pretty_num(v)
         return v,s
 
-    def meas(PD, xymeas):
+    def meas1(PD, xymeas1, xymeas2):
+        if PD.xyMeasInput1 is not None and PD.xyMeasInput1 == xymeas1:
+            yv = PD.xyMeas1[1]
+            s = pretty_num(yv)
+        else:
+            xv, yv, s = PD._meas(xymeas1)
+            PD.xyMeas1 = [xv, yv]
+            PD.xyMeasInput1 = xymeas1
+        return yv, s
+
+    def meas2(PD, xymeas1, xymeas2):
+        if PD.xyMeasInput2 is not None and PD.xyMeasInput2 == xymeas2:
+            yv = PD.xyMeas2[1]
+            s = pretty_num(yv)
+        else:
+            xv, yv, s = PD._meas(xymeas2)
+            PD.xyMeas2 = [xv, yv]
+            PD.xyMeasInput2 = xymeas2
+        return yv, s
+
+    def yMeanMeas(PD):
+        return PD._measCalc('mean')
+
+    def yMinMeas(PD):
+        return PD._measCalc('min')
+
+    def yMaxMeas(PD):
+        return PD._measCalc('max')
+
+    def xAtYMinMeas(PD):
+        return PD._measCalc('xmin')
+
+    def xAtYMaxMeas(PD):
+        return PD._measCalc('xmax')
+
+    def _meas(PD, xymeas):
         try:
-            v='NA'
+            xv, yv = 'NA', 'NA'
             xy = np.array([PD.x, PD.y]).transpose()
             points = find_closest(xy, [xymeas[0], xymeas[1]], False)
             if points.ndim == 1:
-                v = points[1]
-                s=pretty_num(v)
+                xv, yv = points[0:2]
+                s = pretty_num(yv)
             else:
-                v = points[0, 1]
+                xv, yv = points[0, 0], points[0, 1]
                 s = ' / '.join([str(p) for p in points[:, 1]])
         except (IndexError, TypeError):
-            v='NA'
+            xv, yv = 'NA', 'NA'
             s='NA'
-        return v,s
+        return  xv, yv, s
 
-    def yMeas(PD, xymeas1, xymeas2, mode):
+    def _measCalc(PD, mode):
+        if PD.xyMeas1 is None or PD.xyMeas2 is None:
+            return 'NA', 'NA'
         try:
-            xy = np.array([PD.x, PD.y]).transpose()
-            points_left = find_closest(xy, [xymeas1[0], xymeas1[1]], True)
-            points_right = find_closest(xy, [xymeas2[0], xymeas2[1]], True)
             v = 'NA'
-            left_index = np.where(PD.x == points_left[0])[0][0]
-            right_index = np.where(PD.x == points_right[0])[0][0]
+            left_index = np.where(PD.x == PD.xyMeas1[0])[0][0]
+            right_index = np.where(PD.x == PD.xyMeas2[0])[0][0]
+            if left_index == right_index:
+                raise IndexError
+            if left_index > right_index:
+                left_index, right_index = right_index, left_index
             if mode == 'mean':
-                y_val = np.mean(PD.y[left_index:right_index])
+                v = np.nanmean(PD.y[left_index:right_index])
             elif mode == 'min':
-                y_val = np.min(PD.y[left_index:right_index])
+                v = np.nanmin(PD.y[left_index:right_index])
             elif mode == 'max':
-                y_val = np.max(PD.y[left_index:right_index])
+                v = np.nanmax(PD.y[left_index:right_index])
+            elif mode == 'xmin':
+                v = PD.x[left_index + np.where(PD.y[left_index:right_index] == np.nanmin(PD.y[left_index:right_index]))[0][0]]
+            elif mode == 'xmax':
+                v = PD.x[left_index + np.where(PD.y[left_index:right_index] == np.nanmax(PD.y[left_index:right_index]))[0][0]]
             else:
                 raise NotImplementedError('Error: Mode ' + mode + ' not implemented')
-            v = y_val
             s = pretty_num(v)
         except (IndexError, TypeError):
             v = 'NA'
