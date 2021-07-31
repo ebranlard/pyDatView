@@ -195,6 +195,11 @@ class MyMultiCursor(MultiCursor):
 
 
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
+    """
+    Wrapped version of the Navigation toolbar from WX with the following features:
+      - Tools can be removed, if not in `keep_tools`
+      - Zoom is set by default, and the toggling between zoom and pan is handled internally
+    """
     def __init__(self, canvas, keep_tools):
         # Taken from matplotlib/backend_wx.py but added style:
         self.VERSION = matplotlib.__version__
@@ -215,6 +220,8 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
         else:
             NavigationToolbar2Wx.__init__(self, canvas)
 
+        self.pan_on=False
+
         # Make sure we start in zoom mode
         if 'Pan' in keep_tools:
             self.zoom() # NOTE: #22 BREAK cursors #12!
@@ -225,32 +232,33 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
             if t.GetLabel() not in keep_tools:
                 self.DeleteToolByPos(i)
 
-    def press_zoom(self, event):
-        NavigationToolbar2Wx.press_zoom(self,event)
-        #self.SetToolBitmapSize((22,22))
-
-    def press_pan(self, event):
-        NavigationToolbar2Wx.press_pan(self,event)
-
     def zoom(self, *args):
-        NavigationToolbar2Wx.zoom(self,*args)
+        # NEW - MPL>=3.0.0
+        if self.pan_on:
+            pass
+        else:
+            NavigationToolbar2.zoom(self,*args) # We skip wx and use the parent
+        # BEFORE
+        #NavigationToolbar2Wx.zoom(self,*args)
 
     def pan(self, *args):
-        try:
-            #if self.VERSION[0]=='2' or self.VERSION[0]=='1': 
-            isPan = self._active=='PAN'
-        except:
-            try:
-                from matplotlib.backend_bases import _Mode
-                isPan = self.mode == _Mode.PAN
-            except:
-                raise Exception('Pan not found, report a pyDatView bug, with matplotlib version.')
-        if isPan:
-            NavigationToolbar2Wx.pan(self,*args)
+        self.pan_on=not self.pan_on
+        # NEW - MPL >= 3.0.0
+        NavigationToolbar2.pan(self, *args) # We skip wx and use to parent
+        if not self.pan_on:
             self.zoom()
-        else:
-            NavigationToolbar2Wx.pan(self,*args)
-
+        # BEFORE
+        #try:
+        #    isPan = self._active=='PAN'
+        #except:
+        #    try:
+        #        from matplotlib.backend_bases import _Mode
+        #        isPan = self.mode == _Mode.PAN
+        #    except:
+        #        raise Exception('Pan not found, report a pyDatView bug, with matplotlib version.')
+        #NavigationToolbar2Wx.pan(self,*args)
+        #if isPan:
+        #    self.zoom()
 
     def home(self, *args):
         """Restore the original view."""
