@@ -728,8 +728,10 @@ def addToOutlist(OutList, Signals):
 # --------------------------------------------------------------------------------}
 # --- Generic df 
 # --------------------------------------------------------------------------------{
-def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False):
+def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, verbose=False):
     """ Add/rename columns of a dataframe, potentially perform operations between columns
+
+    dataDict: dicitonary of data to be made available as "variable" in the column mapping
 
     Example:
 
@@ -744,17 +746,26 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False):
         df = fastlib.remap_df(df, ColumnMap, inplace=True)
 
     """
+    # Insert dataDict into namespace
+    if dataDict is not None:
+        for k,v in dataDict.items():
+            exec('{:s} = dataDict["{:s}"]'.format(k,k))
+
+
     if not inPlace:
         df=df.copy()
     ColMapMiss=[]
     ColNew=[]
     RenameMap=dict()
+    # Loop for expressions
     for k0,v in ColMap.items():
         k=k0.strip()
         v=v.strip()
         if v.find('{')>=0:
             search_results = re.finditer(r'\{.*?\}', v)
             expr=v
+            if verbose:
+                print('Attempt to insert column {:15s} with expr {}'.format(k,v))
             # For more advanced operations, we use an eval
             bFail=False
             for item in search_results:
@@ -779,6 +790,8 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False):
 
     # Applying renaming only now so that expressions may be applied in any order
     for k,v in RenameMap.items():
+        if verbose:
+            print('Renaming column {:15s} > {}'.format(v,k))
         k=k.strip()
         iCol = list(df.columns).index(v)
         df.columns.values[iCol]=k
@@ -870,11 +883,11 @@ def find_matching_pattern(List, pattern):
         
 
 def extractSpanTSReg(ts, col_pattern, colname, IR=None):
-    """ Helper function to extract spanwise results, like B1N1Cl B1N2Cl etc. 
+    r""" Helper function to extract spanwise results, like B1N1Cl B1N2Cl etc. 
 
     Example
-        col_pattern: 'B1N(\d*)Cl_\[-\]'
-        colname    : 'B1Cl_[-]'
+        col_pattern: r'B1N(\d*)Cl_\[-\]'
+        colname    : r'B1Cl_[-]'
     """
     # Extracting columns matching pattern
     cols, sIdx = find_matching_pattern(ts.keys(), col_pattern)
