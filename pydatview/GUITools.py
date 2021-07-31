@@ -974,6 +974,10 @@ class CurveFitToolPanel(GUIToolPanel):
             Error(self,'Curve fitting tool only works with a single curve. Plot less data.')
             return
         PD =self.parent.plotData[0]
+        ax =self.parent.fig.axes[0]
+        # Restricting data to axes visible bounds on the x axis
+        xlim= ax.get_xlim()
+        b=np.logical_and(PD.x>=xlim[0], PD.x<=xlim[1])
 
         iModel = self.cbModels.GetSelection()
         d = self.Models[iModel]
@@ -998,7 +1002,7 @@ class CurveFitToolPanel(GUIToolPanel):
         #print('>>> Model fit bounds:',bounds    )
         #print('>>> Model fit kwargs:',fun_kwargs)
         # Performing fit
-        y_fit, pfit, fitter = model_fit(sFunc, PD.x, PD.y, p0=p0, bounds=bounds,**fun_kwargs)
+        y_fit, pfit, fitter = model_fit(sFunc, PD.x[b], PD.y[b], p0=p0, bounds=bounds,**fun_kwargs)
             
         formatter = lambda x: pretty_num_short(x, digits=3)
         formula_num = fitter.formula_num(fmt=formatter)
@@ -1019,10 +1023,10 @@ class CurveFitToolPanel(GUIToolPanel):
 
         # Plot
         ax=self.parent.fig.axes[0]
-        ax.plot(PD.x,y_fit,'o', ms=4)
+        ax.plot(PD.x[b],y_fit,'o', ms=4)
         self.parent.canvas.draw()
 
-        self.x=PD.x
+        self.x=PD.x[b]
         self.y_fit=y_fit
         self.sx=PD.sx
         self.sy=PD.sy
