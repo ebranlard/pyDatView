@@ -1,0 +1,113 @@
+  
+name: 'Tests'
+
+on:
+  push:
+
+  pull_request:
+    types: [opened, synchronize] #labeled, assigned]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]  # 2.7, 
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies
+        run: sudo apt-get install nsis
+
+      - name: Install python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r _tools/travis_requirements.txt
+          pip install -r weio/requirements.txt
+
+      - name: Repo info
+        id: repo_info
+        run: |
+          echo ::set-output name=SOURCE_NAME::${GITHUB_REF#refs/*/}
+          echo ::set-output name=SOURCE_BRANCH::${GITHUB_REF#refs/heads/}
+          echo ::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}
+
+      - name: System info
+        run: |
+          echo "SOURCE_NAME:    $SOURCE_NAME"
+          echo "SOURCE_BRANCH:  $SOURCE_BRANCH"
+          echo "SOURCE TAG:     $SOURCE_TAG"
+          echo "Actor : $GITHUB_ACTOR"
+          echo "Branch: $GITHUB_REF"
+          pip list
+          ls
+        env:
+          SOURCE_NAME:   ${{ steps.rep_info.outputs.SOURCE_NAME }}
+          SOURCE_BRANCH: ${{ steps.rep_info.outputs.SOURCE_BRANCH }}
+          SOURCE_TAG:    ${{ steps.rep_info.outputs.SOURCE_TAG }}
+
+      - name: Tests
+        run: |
+          make test
+
+
+      - name: Before deploy
+        if:  ${{ matrix.python-version == '3.6'}}
+        run: |
+          git fetch --unshallow
+          export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
+          export FULL_VERSION_NAME="version $VERSION_NAME" 
+          echo "VERSION_NAME      $VERSION_NAME"
+          echo "FULL_VERSION_NAME $FULL_VERSION_NAME"
+          if [[ "$SOURCE_TAG" == "" ]]; then export SOURCE_TAG="vdev" ; fi
+          echo "SOURCE TAG:     $SOURCE_TAG"
+          if [[ "$SOURCE_TAG" == "vdev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
+          if [[ "$SOURCE_TAG" == "vdev" ]]; then export FULL_VERSION_NAME="latest dev. version $VERSION_NAME" ; fi
+          echo "VERSION_NAME      $VERSION_NAME"
+          echo "FULL_VERSION_NAME $FULL_VERSION_NAME"
+          pip install pynsist
+          pip install distlib
+          git clone https://github.com/takluyver/pynsist
+          mv pynsist/nsist nsist 
+          make installer
+          mv build/nsis/pyDatView.exe "pyDatView_"$VERSION_NAME"_setup.exe"
+          mv _tools/pyDatView.cmd build/nsis/
+          mv _tools/pyDatView.exe build/nsis/
+          mv build/nsis build/pyDatView_$VERSION_NAME
+          cd build && zip -r "../pyDatView_"$VERSION_NAME"_portable.zip" pyDatView_$VERSION_NAME
+          cd ..
+          ls
+        env:
+          SOURCE_NAME:   ${{ steps.rep_info.outputs.SOURCE_NAME }}
+          SOURCE_BRANCH: ${{ steps.rep_info.outputs.SOURCE_BRANCH }}
+          SOURCE_TAG:    ${{ steps.rep_info.outputs.SOURCE_TAG }}
+
+      - name: Before deploy
+        if:  ${{ matrix.python-version == '3.6'}}
+        run: |
+            ls
+# deploy:
+#   provider: releases
+#   api_key: $GITHUB_TOKEN
+#   file_glob: true
+#   overwrite:  true
+#   skip_cleanup: true
+#   file:
+#       - pyDatView*.exe
+#       - pyDatView*.zip
+#   name: $FULL_VERSION_NAME
+#   target_commitish: $TRAVIS_COMMIT 
+#   tag_name: $TRAVIS_TAG 
+#   on:
+#      tags: true
+#      branch: master
+#      condition: $TRAVIS_PYTHON_VERSION = 3.6
