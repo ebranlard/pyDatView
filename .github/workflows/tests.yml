@@ -34,22 +34,9 @@ jobs:
           pip install -r _tools/travis_requirements.txt
           pip install -r weio/requirements.txt
 
-      - name: Repo info
-        id: repo_info
-        run: |
-          echo ::set-output name=SOURCE_NAME::${GITHUB_REF#refs/*/}
-          echo ::set-output name=SOURCE_BRANCH::${GITHUB_REF#refs/heads/}
-          echo ::set-output name=SOURCE_TAG::${GITHUB_REF/refs\/tags\//}
 
       - name: System info
-        env:
-          SOURCE_NAME:   ${{ steps.repo_info.outputs.SOURCE_NAME }}
-          SOURCE_BRANCH: ${{ steps.repo_info.outputs.SOURCE_BRANCH }}
-          SOURCE_TAG:    ${{ steps.repo_info.outputs.SOURCE_TAG }}
         run: |
-          echo "SOURCE_NAME:    $SOURCE_NAME"
-          echo "SOURCE_BRANCH:  $SOURCE_BRANCH"
-          echo "SOURCE TAG:     $SOURCE_TAG"
           echo "Actor : $GITHUB_ACTOR"
           echo "Branch: $GITHUB_REF"
           pip list
@@ -65,47 +52,38 @@ jobs:
           git fetch --unshallow
           export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
           export FULL_VERSION_NAME="version $VERSION_NAME" 
-          echo "VERSION TAG attemps"
-          export VERSION_TAG=${GITHUB_REF/refs\/tags\//}
-          if [[ $GITHUB_REF != *"tags" ]]; then export VERSION_TAG="Yep it has tag" ; fi
-          if [[ $GITHUB_REF != *"tags" ]]; then export VERSION_TAG="" ; fi
+          echo "GITHUB_REF:        $GITHUB_REF"
           echo "VERSION_NAME      $VERSION_NAME"
           echo "FULL_VERSION_NAME $FULL_VERSION_NAME"
+          if [[ $GITHUB_REF == *"tags" ]]; then export VERSION_TAG=${GITHUB_REF/refs\/tags\//} ; fi
+          if [[ $GITHUB_REF != *"tags" ]]; then export VERSION_TAG="" ; fi
           echo "VERSION_TAG       $VERSION_TAG"
           if [[ "$VERSION_TAG" == ""     ]]; then export VERSION_TAG="vdev" ; fi
           if [[ "$VERSION_TAG" == "vdev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
           if [[ "$VERSION_TAG" == "vdev" ]]; then export FULL_VERSION_NAME="latest dev. version $VERSION_NAME" ; fi
-          echo "VERSION_NAME      $VERSION_NAME"
-          echo "FULL_VERSION_NAME $FULL_VERSION_NAME"
+          echo "VERSION_NAME:      $VERSION_NAME"
+          echo "FULL_VERSION_NAME: $FULL_VERSION_NAME"
           echo "::set-output name=FULL_VERSION_NAME::$FULL_VERSION_NAME"
           echo "::set-output name=VERSION_NAME::$VERSION_NAME"
-          echo "::set-output name=VERSION_BRANCH::$VERSION_BRANCH"
           echo "::set-output name=VERSION_TAG::$VERSION_TAG"
 
       - name: Test-Versioning
         env:
             FULL_VERSION_NAME:   ${{steps.versioning.outputs.FULL_VERSION_NAME}}
             VERSION_NAME:        ${{steps.versioning.outputs.VERSION_NAME}}
-            VERSION_BRANCH:      ${{steps.versioning.outputs.VERSION_BRANCH}}
             VERSION_TAG:         ${{steps.versioning.outputs.VERSION_TAG}}
         run: |
             echo "FULL_VERSION_NAME: $FULL_VERSION_NAME"
             echo "VERSION_NAME     : $VERSION_NAME"
-            echo "VERSION_BRANCH   : $VERSION_BRANCH"
             echo "VERSION_TAG      : $VERSION_TAG"
 
       - name: Before deploy
         if:  ${{ matrix.python-version == '3.6'}}
         env:
-            FULL_VERSION_NAME:   ${{steps.versioning.outputs.FULL_VERSION_NAME}}
-            VERSION_NAME:        ${{steps.versioning.outputs.VERSION_NAME}}
-            VERSION_BRANCH:      ${{steps.versioning.outputs.VERSION_BRANCH}}
-            VERSION_TAG:         ${{steps.versioning.outputs.VERSION_TAG}}
+            VERSION_NAME:       ${{steps.versioning.outputs.VERSION_NAME}}
         id: before_deploy
         run: |
           echo "VERSION_NAME      $VERSION_NAME"
-          echo "FULL_VERSION_NAME $FULL_VERSION_NAME"
-          echo "VERSION_TAG       $VERSION_TAG"
           pip install pynsist
           pip install distlib
           git clone https://github.com/takluyver/pynsist
@@ -122,10 +100,9 @@ jobs:
       - name: Deploy
         if:  ${{ matrix.python-version == '3.6'}}
         env:
-            FULL_VERSION_NAME:   ${{steps.versioning.outputs.FULL_VERSION_NAME}}
-            VERSION_NAME:   ${{steps.versioning.outputs.VERSION_NAME}}
-            VERSION_BRANCH: ${{steps.versioning.outputs.VERSION_BRANCH}}
-            VERSION_TAG:    ${{steps.versioning.outputs.VERSION_TAG}}
+            FULL_VERSION_NAME:  ${{steps.versioning.outputs.FULL_VERSION_NAME}}
+            VERSION_NAME:       ${{steps.versioning.outputs.VERSION_NAME}}
+            VERSION_TAG:        ${{steps.versioning.outputs.VERSION_TAG}}
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -134,20 +111,3 @@ jobs:
           tag: vdev
           overwrite: true
           file_glob: true
-
-# deploy:
-#   provider: releases
-#   api_key: $GITHUB_TOKEN
-#   file_glob: true
-#   overwrite:  true
-#   skip_cleanup: true
-#   file:
-#       - pyDatView*.exe
-#       - pyDatView*.zip
-#   name: $FULL_VERSION_NAME
-#   target_commitish: $TRAVIS_COMMIT 
-#   tag_name: $TRAVIS_TAG 
-#   on:
-#      tags: true
-#      branch: master
-#      condition: $TRAVIS_PYTHON_VERSION = 3.6
