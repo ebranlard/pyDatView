@@ -604,8 +604,13 @@ def MyExceptionHook(etype, value, trace):
     :param string `trace`: the traceback header, if any (otherwise, it prints the
      standard Python header: ``Traceback (most recent call last)``.
     """
+    from wx._core import wxAssertionError
     # Printing exception
     traceback.print_exception(etype, value, trace)
+    if etype==wxAssertionError:
+        if wx.Platform == '__WXMAC__':
+            # We skip these exceptions on macos (likely bitmap size 0)
+            return
     # Then showing to user the last error
     frame = wx.GetApp().GetTopWindow()
     tmp = traceback.format_exception(etype, value, trace)
