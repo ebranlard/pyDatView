@@ -234,6 +234,33 @@ def sinusoid_f(x, p):
     """ p = (A,f,phi_deg,B) """
     return p[0]*np.sin(2*pi*(p[1]*x+p[2]/360)) + p[3]
 
+
+
+def secondorder_impulse(t, p):
+    """ p = (A, omega0, zeta, B, t0) """
+    A, omega0, zeta, B, t0 = p
+    omegad = omega0 * sqrt(1-zeta**2)
+    phi    = np.arctan2(zeta, sqrt(1-zeta**2))
+    x  = np.zeros(t.shape)
+    bp = t>=t0
+    t  = t[bp]-t0
+    x[bp] += A * sin(omegad * t) * exp(-zeta * omega0 * t)
+    x+=B
+    return x
+
+def secondorder_step(t, p):
+    """ p = (A, omega0, zeta, B, t0) """
+    A, omega0, zeta, B, t0 = p
+    omegad = omega0 * sqrt(1-zeta**2)
+    phi    = np.arctan2(zeta, sqrt(1-zeta**2))
+    x  = np.zeros(t.shape)
+    bp = t>=t0
+    t  = t[bp]-t0
+    x[bp] += A * ( 1- exp(-zeta*omega0 *t)/sqrt(1-zeta**2) * cos(omegad*t - phi))
+    x+=B
+    return x
+
+
 def gentorque(x, p):
     """ 
     INPUTS:
@@ -300,6 +327,17 @@ MODELS =[
 'coeffs' :'a=1, b=0',  # Order Important
 'consts' :None,
 'bounds' :None},
+{'label':'2nd order impulse/decay (manual)', 'handle': secondorder_impulse, 'id':'predef: secondorder_impulse',
+'formula':'{A}*exp(-{zeta}*{omega}*(x-{x0})) * sin({omega}*sqrt(1-{zeta}**2))) +{B}',
+'coeffs' :'A=1, omega=1, zeta=0.001, B=0, x0=0',  # Order Important
+'consts' :None,
+'bounds' :'A=(-inf,inf), omega=(0,100), zeta=(0,1), B=(-inf,inf), x0=(-inf,inf)'},
+{'label':'2nd order step (manual)', 'handle': secondorder_step, 'id':'predef: secondorder_step',
+'formula':'{A}*(1-exp(-{zeta}*{omega}*(x-{x0}))/sqrt(1-{zeta}**2) * cos({omega}*sqrt(1-{zeta}**2)-arctan({zeta}/sqrt(1-{zeta}**2)))) +{B}',
+'coeffs' :'A=1, omega=1, zeta=0.001, B=0, x0=0',  # Order Important
+'consts' :None,
+'bounds' :'A=(-inf,inf), omega=(0,100), zeta=(0,1), B=(-inf,inf), x0=(-inf,inf)'},
+
 # --- Wind Energy
 {'label':'Power law (alpha)', 'handle':powerlaw_alpha, 'id':'predef: powerlaw_alpha',
 'formula':'{u_ref} * (z / {z_ref}) ** {alpha}',
@@ -729,6 +767,16 @@ class ModelFitter():
         #ax.set_ylabel('')
         return fig,ax
 
+    def print_guessbounds(self):
+        s=''
+        p0     = self.model['coeffs_init']
+        bounds = self.model['bounds']
+        for i,(k,v) in enumerate(self.model['coeffs'].items()):
+            print( (pretty_num(bounds[0][i]),pretty_num(p0[i]), pretty_num(bounds[1][i])) )
+            s+='{:15s}: {:10s} < {:10s} < {:10s}\n'.format(k, pretty_num(bounds[0][i]),pretty_num(p0[i]), pretty_num(bounds[1][i]))
+        print(s)
+            
+
     def __repr__(self):
         s='<{} object> with fields:\n'.format(type(self).__name__)
         s+=' - data, dictionary with keys: \n'
@@ -739,6 +787,146 @@ class ModelFitter():
             s=s+'   - {:15s}: {}\n'.format(k,v)
         return s
 
+
+# --------------------------------------------------------------------------------}
+# --- Wrapper for predefined fitters 
+# --------------------------------------------------------------------------------{
+class PredefinedModelFitter(ModelFitter):
+    def __init__(self, x=None, y=None, p0=None, bounds=None, **kwargs):
+        ModelFitter.__init__(self,x=None, y=None, p0=p0, bounds=bounds) # NOTE: not passing data
+
+        self.kwargs=kwargs
+
+        if x is not None and y is not None:
+            self.fit_data(x,y,p0,bounds)
+
+    def setup_model(self):
+        """
+        Setup model:
+         - guess/coeffs_init: return params in format needed for curve_fit (p0,p1,p2,p3)
+         - bound            :  bounds in format needed for curve_fit ((low0,low1,low2), (high0, high1))
+         - coeffs           :  OrderedDict, necessary for user print
+         - formula          :  necessary for user print
+        """
+        #self.model['coeffs']  = OrderedDict([(var,1) for i,var in enumerate(variables)])
+        #self.model['formula'] = ''
+        #self.model['coeffs_init']=p_guess
+        #self.model['bounds']=bounds_guess
+        raise NotImplementedError('To be implemented by child class')
+
+    def model_function(self, x, p):
+        raise NotImplementedError('To be implemented by child class')
+
+    def fit_data(self, x, y, p0=None, bounds=None):
+        # Cleaning data
+        x,y=self.clean_data(x,y)
+
+        # --- setup model
+        # guess initial parameters, potential bounds, and set necessary data
+        self.setup_model()
+
+        # --- Minimization
+        minimize_me = lambda x, *p : self.model_function(x, p)
+        if self.model['bounds'] is None:
+            pfit, pcov = so.curve_fit(minimize_me, x, y, p0=self.model['coeffs_init'])
+        else:
+            pfit, pcov = so.curve_fit(minimize_me, x, y, p0=self.model['coeffs_init'], bounds=self.model['bounds']) 
+        # --- Reporting information about the fit (after the fit)
+        # And Return a fitted function
+        y_fit = self.model_function(x,  pfit)
+        self.model['fitted_function']=lambda xx : self.model_function(xx, pfit)
+        self.store_fit_info(y_fit, pfit)
+
+    def plot_guess(self, x=None, fig=None, ax=None):
+        """ plotthe guess values"""
+        if x is None:
+            x=self.data['x']
+        import matplotlib.pyplot as plt
+        if fig is None:
+            fig,ax = plt.subplots(1, 1, sharey=False, figsize=(6.4,4.8)) # (6.4,4.8)
+            fig.subplots_adjust(left=0.12, right=0.95, top=0.95, bottom=0.11, hspace=0.20, wspace=0.20)
+
+        p_guess = self.model['coeffs_init']
+
+        ax.plot(self.data['x'], self.data['y']   , '.', label='Data')
+        ax.plot(x, self.model_function(x,p_guess), '-', label='Model at guessed parameters')
+        ax.legend()
+
+
+# --------------------------------------------------------------------------------}
+# --- Predefined fitters
+# --------------------------------------------------------------------------------{
+class SecondOrderFitterImpulse(PredefinedModelFitter):
+
+    def model_function(self, x, p):
+        return secondorder_impulse(x, p)
+
+    def setup_model(self):
+        """ p = (A, omega0, zeta, B, t0) """
+        self.model['coeffs'] = OrderedDict([('A',1),('omega',1),('zeta',0.01),('B',0),('t0',0)])
+        self.model['formula'] = '{A}*exp(-{zeta}*{omega}*(x-{x0}))*sin({omega}*sqrt(1-{zeta}**2)))+{B}'
+
+        # --- Guess Initial values
+        x, y = self.data['x'],self.data['y']
+        # TODO use signal
+        dt       = x[1]-x[0]
+        omega0   = main_frequency(x,y) 
+        A        = np.max(y) - np.min(y)
+        B        = np.mean(y)
+        zeta     = 0.1
+        y_start  = y[0]+0.01*A
+        bDeviate = np.argwhere(abs(y-y_start)>abs(y_start-y[0]))[0]
+        t0       = x[bDeviate[0]]
+        p_guess  = np.array([A, omega0, zeta, B, t0])
+        self.model['coeffs_init'] = p_guess
+        # --- Set Bounds
+        T  = x[-1]-x[0]
+        dt = x[1]-x[0]
+        om_min = 2*np.pi/T/2
+        om_max = 2*np.pi/dt/2
+        b_A    = (A*0.1,A*3)
+        b_om   = (om_min,om_max)
+        b_zeta = (0,1)
+        b_B    = (np.min(y),np.max(y))
+        b_x0   = (np.min(x),np.max(x))
+        self.model['bounds'] = ((b_A[0],b_om[0],b_zeta[0],b_B[0],b_x0[0]),(b_A[1],b_om[1],b_zeta[1],b_B[1],b_x0[1]))
+        #self.plot_guess(); import matplotlib.pyplot as plt; plt.show()
+        #self.print_guessbounds(); 
+
+class SecondOrderFitterStep(PredefinedModelFitter):
+
+    def model_function(self, x, p):
+        return secondorder_step(x, p)
+
+    def setup_model(self):
+        """ p = (A, omega0, zeta, B, t0) """
+        self.model['coeffs'] = OrderedDict([('A',1),('omega',1),('zeta',0.01),('B',0),('t0',0)])
+        self.model['formula'] ='{A}*(1-exp(-{zeta}*{omega}*(x-{x0}))/sqrt(1-{zeta}**2) * cos({omega}*sqrt(1-{zeta}**2)-arctan({zeta}/sqrt(1-{zeta}**2)))) +{B}'
+        # --- Guess Initial values
+        x, y = self.data['x'],self.data['y']
+        # TODO use signal
+        omega0   = main_frequency(x,y) 
+        A        = np.max(y) - np.min(y)
+        B        = y[0]
+        zeta     = 0.1
+        y_start  = y[0]+0.01*A
+        bDeviate = np.argwhere(abs(y-y_start)>abs(y_start-y[0]))[0]
+        t0       = x[bDeviate[0]]
+        p_guess  = np.array([A, omega0, zeta, B, t0])
+        self.model['coeffs_init'] = p_guess
+        # --- Set Bounds
+        T  = x[-1]-x[0]
+        dt = x[1]-x[0]
+        om_min = 2*np.pi/T/2
+        om_max = 2*np.pi/dt/2
+        b_A    = (A*0.1,A*3)
+        b_om   = (om_min,om_max)
+        b_zeta = (0,1)
+        b_B    = (np.min(y),np.max(y))
+        b_x0   = (np.min(x),np.max(x))
+        self.model['bounds'] = ((b_A[0],b_om[0],b_zeta[0],b_B[0],b_x0[0]),(b_A[1],b_om[1],b_zeta[1],b_B[1],b_x0[1]))
+        #self.plot_guess(); import matplotlib.pyplot as plt; plt.show()
+        #self.print_guessbounds(); 
 
 # --------------------------------------------------------------------------------}
 # --- Predefined fitter  
@@ -853,14 +1041,8 @@ class SinusoidFitter(ModelFitter):
         # Cleaning data
         x,y=self.clean_data(x,y)
 
-        nParams=4
-
         # TODO use signal
-        dt = x[1]-x[0]
-        ff = np.fft.fftfreq(len(x), (dt))   # assume uniform spacing
-        Fyy = abs(np.fft.fft(y))
-        guess_freq = abs(ff[np.argmax(Fyy[1:])+1]) # excluding the zero frequency "peak", which is related to offset
-
+        guess_freq= main_frequency(x,y)/(2*np.pi) # [Hz]
         guess_amp = np.std(y) * 2.**0.5
         guess_offset = np.mean(y)
         if self.physical:
@@ -882,6 +1064,7 @@ class SinusoidFitter(ModelFitter):
             y_fit = sinusoid(x,  pfit)
             self.model['fitted_function']=lambda xx : sinusoid(xx, pfit)
         self.store_fit_info(y_fit, pfit)
+
 
 
 class GeneratorTorqueFitter(ModelFitter):
@@ -982,6 +1165,7 @@ class GeneratorTorqueFitter(ModelFitter):
 
 
 
+# --- Registering FITTERS. The formula info is redundant, only used by pyDatView, should be removed
 FITTERS= [
 {'label':'Polynomial (full)'   ,'id':'fitter: polynomial_continuous', 'handle': ContinuousPolynomialFitter,
 'consts':{'order':3}, 'formula': '{a_i} x^i'},
@@ -989,6 +1173,10 @@ FITTERS= [
 'consts':{'exponents':[0,2,3]},'formula': '{a_i} x^j'},
 {'label':'Sinusoid','id':'fitter: sinusoid'  , 'handle': SinusoidFitter  ,
 'consts':{'physical':True},'formula': '{A}*sin({omega or 2 pi f}*x+{phi or phi_deg}) + {B} '},
+{'label':'2nd order impulse/decay (auto)','id':'fitter: secondorder_impulse', 'handle': SecondOrderFitterImpulse  ,
+'consts':{},'formula': '{A}*exp(-{zeta}*{omega}*(x-{x0}))*sin({omega}*sqrt(1-{zeta}**2)))+{B}'},
+{'label':'2nd order step (auto)','id':'fitter: secondorder_step', 'handle': SecondOrderFitterStep  ,
+'consts':{},'formula':'{A}*(1-exp(-{zeta}*{omega}*(x-{x0}))/sqrt(1-{zeta}**2)*cos({omega}*sqrt(1-{zeta}**2)-arctan({zeta}/sqrt(1-{zeta}**2))))+{B}'},
 # {'label':'Generator Torque','id':'fitter: gentorque'  , 'handle': GeneratorTorqueFitter  ,
 # 'consts':{},'formula': ''}
 ]
@@ -1092,6 +1280,7 @@ def _clean_formula(s, latex=False):
         s = s.replace('phi',r'\phi')
         s = s.replace('alpha',r'\alpha')
         s = s.replace('beta' ,r'\alpha')
+        s = s.replace('zeta' ,r'\zeta')
         s = s.replace('mu'   ,r'\mu'   )
         s = s.replace('pi'   ,r'\pi'   )
         s = s.replace('sigma',r'\sigma')
@@ -1108,6 +1297,18 @@ def _clean_formula(s, latex=False):
     else:
         s = s.replace('{','').replace('}','')
     return s
+
+
+def main_frequency(t,y):
+    """ 
+    Returns main frequency of a signal
+    NOTE: this tool below to welib.tools.signal, but put here for convenience
+    """
+    dt       = t[1]-t[0]  # assume uniform spacing of time and frequency
+    om       = np.fft.fftfreq(len(t), (dt))*2*np.pi 
+    Fyy      = abs(np.fft.fft(y))
+    omega    = abs(om[np.argmax(Fyy[1:])+1]) # exclude the zero frequency (mean)
+    return omega
 
 def rsquare(y, f): 
     """ Compute coefficient of determination of data fit model and RMSE
@@ -1131,7 +1332,7 @@ def rsquare(y, f):
     return R2
 
 def pretty_param(s):
-    if s in ['alpha','beta','delta','gamma','epsilon','lambda','mu','nu','pi','rho','sigma','phi','psi','omega']:
+    if s in ['alpha','beta','delta','gamma','epsilon','zeta','lambda','mu','nu','pi','rho','sigma','phi','psi','omega']:
         s = r'\{}'.format(s)
     s = s.replace('_ref',r'_{ref}') # make this general..
     return s
