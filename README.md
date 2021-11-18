@@ -21,6 +21,7 @@ git clone --recurse-submodules https://github.com/ebranlard/pyDatView
 cd pyDatView
 python -m pip install --user -r requirements.txt
 make     # executes: 'python pyDatView.py' (on linux) or './pythonmac pyDatView.py' (on Mac)
+echo "alias pydat='make -C `pwd`'" >> ~/.bashrc
 ```
 More information about the download, requirements and installation is provided [further down this page](#installation)
 
@@ -42,6 +43,47 @@ pydatview.show(filenames=['file.csv'])
 # OR
 pydatview.show('file.csv')
 ```
+
+### Quicklaunch/Shortcut
+**Windows** 
+ - If you used the `setup.exe`, you will find the `pyDatView` App in the windows menu, you can launch it from there, pin it to start, pin it to the startbar, open the file location to  
+ - If you used the portable version, you'll find `pyDatView.exe` at the root of the directory. You can launch it and pin it to your taskbar. You can also right click, and create a short cut to add to your desktop or start menu.
+ - If you clone the repository, you can create a shortcut at the root of the repository. In explorer, right click on an empty space, select New , Shortcut. Set the shortcut as follows:
+```
+    "C:\PYTHON_DIR\PythonXX\pythonw.exe" "C:\INSTALL_DIR\pyDatView\pyDatView.launch.pyw"
+```
+
+**Linux** 
+
+You can add an alias to your bashrc as follows. Navigate to the root of the pyDatView repository, and type:
+```
+    echo "alias pydat='python `pwd`/pyDatView.py'" >> ~/.bashrc
+```
+Next time you open a terminal, you can type `pydat` to launch pyDatView. 
+Adapt to another terminal like `.shrc`
+
+**MacOS** 
+
+The procedure is the same as for linux, the small issue is that you need to find the "proper" python to call. When you run `./pythonmac` from the root of the directory, the script tries to find the right version for you and finishes by showing a line of the form: `[INFO] Using: /PATH/TO/PYTHON  `. This line gives you the path to python. Add pydat as an alias by running the line below (after adapting the `PATH/TO/PYTHON`): 
+```
+    echo "alias pydat='PATH/TO/PYTHON  `pwd`/pyDatView.py'" >> ~/.zshrc
+```
+Next time you open a terminal, you can type `pydat` to launch pyDatView. 
+
+
+
+### File association
+**Windows** 
+
+To associate a given file type with pyDatView, follow the following steps:
+
+1. Locate `pyDatView.exe`.  If you installed using `setup.exe` or the portable `zip`, you'll find `pyDatView.exe` at the root of the installation folder (default is `C:\Users\%USERNAME%\AppData\Local\pyDatView\`).  If you cannot find the exe, download it from [the repository](/_tools/pyDatView.exe).  If you cloned the repository, you'll find the executable in the subfolder `_tools\` of the repository.
+
+2. Verify that the exe works. Double click on the executable to verify that it lauches pyDatView. If it doesnt, run it from a terminal and look at the outputs.
+
+3. Add the file association. Right click on a file you want to associate pyDatView with. Select "Open With" > "More Apps" > scroll to "Look for another App on my PC" > Navigate to the location of `pyDatView.exe` mentioned above.  If this works, repeat the operation and check the box "Always use this App for his filetype".
+ 
+
 ### Workflow
 Documentation is scarce for now, but here are some tips for using the program:
  - You can drag and drop files to the GUI directly to open them. Hold the Ctrl key to add.
