@@ -308,7 +308,10 @@ class FilterToolPanel(GUIToolPanel):
     def _GUI2Filt(self):
         iFilt = self.cbFilters.GetSelection()
         filt = self._DEFAULT_FILTERS[iFilt].copy()
-        filt['param']=np.float(self.spintxt.Value)
+        try:
+            filt['param']=np.float(self.spintxt.Value)
+        except:
+            print('[WARN] pyDatView: Issue on Mac: GUITools.py/_GUI2Filt. Help needed.')
         return filt
 
     def onPlot(self, event=None):

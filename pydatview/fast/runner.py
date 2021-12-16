@@ -141,7 +141,7 @@ def run_fast(input_file, fastExe=None, wait=True, showOutputs=False, showCommand
     return run_cmd(input_file, fastExe, wait=wait, showOutputs=showOutputs, showCommand=showCommand)
 
 
-def writeBatch(batchfile, fastfiles, fastExe=None):
+def writeBatch(batchfile, fastfiles, fastExe=None, nBatches=1):
     """ Write batch file, everything is written relative to the batch file"""
     if fastExe is None:
         fastExe=FAST_EXE
@@ -149,12 +149,24 @@ def writeBatch(batchfile, fastfiles, fastExe=None):
     batchfile_abs = os.path.abspath(batchfile)
     batchdir      = os.path.dirname(batchfile_abs)
     fastExe_rel   = os.path.relpath(fastExe_abs, batchdir)
-    with open(batchfile,'w') as f:
-        for ff in fastfiles:
-            ff_abs = os.path.abspath(ff)
-            ff_rel = os.path.relpath(ff_abs, batchdir)
-            l = fastExe_rel + ' '+ ff_rel
-            f.write("%s\n" % l)
+    def writeb(batchfile, fastfiles):
+        with open(batchfile,'w') as f:
+            for ff in fastfiles:
+                ff_abs = os.path.abspath(ff)
+                ff_rel = os.path.relpath(ff_abs, batchdir)
+                l = fastExe_rel + ' '+ ff_rel
+                f.write("%s\n" % l)
+    if nBatches==1:
+        writeb(batchfile, fastfiles)
+    else:
+        splits = np.array_split(fastfiles,nBatches)
+        base, ext = os.path.splitext(batchfile)
+        for i in np.arange(nBatches):
+            writeb(base+'_{:d}'.format(i+1) + ext, splits[i])
+
+
+
+
 
 
 def removeFASTOuputs(workDir):

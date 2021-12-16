@@ -147,7 +147,7 @@ def pdf_sns(y,nBins=50):
 # --------------------------------------------------------------------------------}
 # --- Binning 
 # --------------------------------------------------------------------------------{
-def bin_DF(df, xbins, colBin):
+def bin_DF(df, xbins, colBin, stats='mean'):
     """ 
     Perform bin averaging of a dataframe
     INPUTS:
@@ -162,7 +162,10 @@ def bin_DF(df, xbins, colBin):
         raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
     xmid      = (xbins[:-1]+xbins[1:])/2
     df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
-    df2       = df.groupby('Bin').mean()                     # Average by bin
+    if stats=='mean':
+        df2       = df.groupby('Bin').mean()                     # Average by bin
+    elif stats=='std':
+        df2       = df.groupby('Bin').std()                     # std by bin
     # also counting
     df['Counts'] = 1
     dfCount=df[['Counts','Bin']].groupby('Bin').sum()
@@ -171,20 +174,34 @@ def bin_DF(df, xbins, colBin):
     df2       = df2.reindex(xmid)
     return df2
 
-def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
+def azimuthal_average_DF(df, psiBin=np.arange(0,360+1,10), colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
     """ 
     Average a dataframe based on azimuthal value
     Returns a dataframe with same amount of columns as input, and azimuthal values as index
     """
-    if psiBin is None: 
-        psiBin = np.arange(0,360+1,10)
-
     if tStart is not None:
         if colTime not in df.columns.values:
             raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
         df=df[ df[colTime]>tStart].copy()
 
-    dfPsi= bin_DF(df, psiBin, colPsi)
+    dfPsi= bin_DF(df, psiBin, colPsi, stats='mean')
+    if np.any(dfPsi['Counts']<1):
+        print('[WARN] some bins have no data! Increase the bin size.')
+
+    return dfPsi
+
+
+def azimuthal_std_DF(df, psiBin=np.arange(0,360+1,10), colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
+    """ 
+    Average a dataframe based on azimuthal value
+    Returns a dataframe with same amount of columns as input, and azimuthal values as index
+    """
+    if tStart is not None:
+        if colTime not in df.columns.values:
+            raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
+        df=df[ df[colTime]>tStart].copy()
+
+    dfPsi= bin_DF(df, psiBin, colPsi, stats='std')
     if np.any(dfPsi['Counts']<1):
         print('[WARN] some bins have no data! Increase the bin size.')
 

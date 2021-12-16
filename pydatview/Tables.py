@@ -2,8 +2,6 @@ import numpy as np
 import os.path
 from dateutil import parser
 import pandas as pd
-import pydatview.fast.fastlib as fastlib
-import pydatview.fast.fastfarm as fastfarm
 try:
     from .common import no_unit, ellude_common, getDt
 except:
@@ -383,6 +381,8 @@ class Table(object):
 
 
     def radialAvg(self,avgMethod, avgParam):
+        import pydatview.fast.fastlib as fastlib
+        import pydatview.fast.fastfarm as fastfarm
         df = self.data
         base,out_ext = os.path.splitext(self.filename)
 

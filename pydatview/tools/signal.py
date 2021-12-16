@@ -392,17 +392,23 @@ def sine_approx(t, x, method='least_square'):
 # --------------------------------------------------------------------------------}
 # --- Convolution 
 # --------------------------------------------------------------------------------{
-def convolution_integral(time, f, g):
+def convolution_integral(time, f, g, method='auto'):
     """
     Compute convolution integral:
        f * g = \int 0^t f(tau) g(t-tau) dtau  = g * f
     For now, only works for uniform time vector, an exception is raised otherwise
+
+    method=['auto','direct','fft'], 
+        see scipy.signal.convolve
+        see scipy.signal.fftconvolve
     """
+    from scipy.signal import convolve
     dt = time[1]-time[0] 
     if len(np.unique(np.around(np.diff(time)/dt,3)))>1:
         raise Exception('Convolution integral implemented for uniform time vector')
 
-    return np.convolve(f.ravel(), g.ravel() )[:len(time)]*dt
+    #np.convolve(f.ravel(), g.ravel() )[:len(time)]*dt
+    return convolve(f.ravel(), g.ravel() )[:len(time)]*dt
 
 
 # --------------------------------------------------------------------------------}
@@ -514,6 +520,11 @@ def peaks(x, threshold=0.3, threshold_abs=True, method='intervals', min_length=3
     OUTPUTS:
       - I : index of the peaks 
       -[IStart, IEnd] if return intervals is true, see function `intervals`
+
+
+    see also:
+       scipy.signal.find_peaks
+
     """
     if not threshold_abs:
         threshold = threshold * (np.max(y) - np.min(y)) + np.min(y)
@@ -537,14 +548,74 @@ def peaks(x, threshold=0.3, threshold_abs=True, method='intervals', min_length=3
 # --------------------------------------------------------------------------------}
 # --- Simple signals 
 # --------------------------------------------------------------------------------{
-def step(time, tStep=0, valueAtStep=0, amplitude=1):
+def impulse(time, t0=0, A=1, epsilon=None, **kwargs):
+    """ 
+    returns a dirac  function:
+      A/dt    if t==t0
+      0    otherwise
+
+    Since the impulse response is poorly defined in discrete space, it's recommended 
+    to use a smooth_delta. See the welib.tools.functions.delta
+    """
+    from .functions import delta
+    t=np.asarray(time)-t0
+    y= delta(t, epsilon=epsilon, **kwargs)*A
+    return y
+
+def step(time, t0=0, valueAtStep=0, A=1):
     """ 
     returns a step function:
-      0           if t<tStep
-      amplitude   if t>tStep
-      valueAtStep if t==tStep
+      0     if t<t0
+      A     if t>t0
+      valueAtStep if t==t0
+
+    NOTE: see also welib.tools.functions.Pi
     """
-    return np.heaviside(time-tStep, valueAtStep)*amplitude
+    return np.heaviside(time-t0, valueAtStep)*A
+
+def ramp(time, t0=0, valueAtStep=0, A=1):
+    """ 
+    returns a ramp function:
+      0          if t<t0
+      A*(t-t0)   if t>=t0
+
+    NOTE: see also welib.tools.functions.Pi
+    """
+    t=np.asarray(time)-t0
+    y=np.zeros(t.shape)
+    y[t>=0]=A*t[t>=0]
+    return y
+
+
+def hat(time, T=1, t0=0, A=1, method='abs'):
+    """ 
+    returns a hat function:
+      A*hat   if |t-t0|<T/2
+      0       otherwise 
+    T : full time length of hat 
+    A : Amplitude of hat
+
+    NOTE: for an integral of 1, one needs: T*A=2
+    see also: scipy.signal.windows.triang
+    """
+    t=np.asarray(time)-t0
+
+    if method == 'abs':
+        # use definition in terms of absolute value (recommended)
+        y=np.zeros(t.shape)
+        b= np.abs(t)<=T/2
+        y[b]=A*(1-np.abs(2*t[b]/T))
+    elif method == 'sum':
+        # For fun, use summation of ramps
+        y1= ramp(time, t0=t0-T/2, A=A/T*2)
+        y2= ramp(time, t0=t0    , A=-A/T*4)
+        y3= ramp(time, t0=t0+T/2, A=A/T*2)
+        y= y1+y2+y3
+    else:
+        raise NotImplementedError()
+
+    return y
+
 
 
 

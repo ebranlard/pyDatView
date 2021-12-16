@@ -225,6 +225,8 @@ def expdecay(x, p, z_ref=100):
 
 def weibull_pdf(x, p, z_ref=100):
     """ p = (A, k) formula: {k}*x**({k}-1) / {A}**{k} * np.exp(-x/{A})**{k} """,
+    # NOTE: if x is 0, a divide by zero error is incountered if p[1]-1<0
+    p=list(p)
     return  p[1] * x ** (p[1] - 1) / p[0] ** p[1] * np.exp(-(x / p[0]) ** p[1])
 
 def sinusoid(x, p):

@@ -30,7 +30,7 @@ def ED_BldStations(ED):
     if hasattr(ED,'startswith'): # if string
         ED = FASTInputFile(ED)
 
-    nBldNodes = ED['BldNodes']
+    nBldNodes    = ED['BldNodes']
     bld_fract    = np.arange(1./nBldNodes/2., 1, 1./nBldNodes)
     r_nodes      = bld_fract*(ED['TipRad']-ED['HubRad']) + ED['HubRad']
     return bld_fract, r_nodes
@@ -156,6 +156,34 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
     else:
         return r_gag
 
+def BD_BldStations(BD, BDBld):
+    """ Returns BeamDyn Blade Station positions, useful to know where the outputs are.
+    INPUTS:
+       - BD: either:
+           - a filename of a ElastoDyn input file
+           - an instance of FileCl, as returned by reading the file, BD = weio.read(BD_filename)
+    OUTUPTS:
+        - r_nodes: spanwise position from the balde root of the Blade stations
+    """
+    if hasattr(BD,'startswith'): # if string
+        BD = FASTInputFile(BD)
+    if hasattr(BD,'startswith'): # if string
+        BDBld = FASTInputFile(BDBld)
+        #  BD['BldFile'].replace('"',''))
+
+    z_kp = BD['MemberGeom'][:,2]
+    R    = z_kp[-1]-z_kp[0]
+    r    = BDBld['BeamProperties']['span']*R
+    quad = BD['quadrature']
+    ref  = BD['refine']
+    if 'default' in str(ref).lower():
+        ref = 1
+    dr   = np.diff(r)/ref
+    rmid = np.concatenate( [r[:-1]+dr*(iref+1) for iref in np.arange(ref-1)  ])
+    r    = np.concatenate( (r, rmid))
+    r    = np.unique(np.sort(r))
+    return r
+
 def BD_BldGag(BD):
     """ Returns the radial position of BeamDyn blade gages 
     INPUTS:
@@ -246,6 +274,7 @@ def _HarmonizeSpanwiseData(Name, Columns, vr, R, IR=None) :
 def insert_radial_columns(df, vr=None, R=None, IR=None):
     """
     Add some columns to the radial data
+    df: dataframe
     """
     if df is None:
         return df
@@ -262,7 +291,6 @@ def insert_radial_columns(df, vr=None, R=None, IR=None):
         if (nrMax)<=len(vr_bar):
             vr_bar=vr_bar[:nrMax]
         elif (nrMax)>len(vr_bar):
-            print(vr_bar)
             raise Exception('Inconsitent length between radial stations ({:d}) and max index present in output chanels ({:d})'.format(len(vr_bar),nrMax))
         df.insert(0, 'r/R_[-]', vr_bar)
 
@@ -321,13 +349,153 @@ def extract_spanwise_data(ColsInfo, nrMax, df=None,ts=None):
     df = df.reindex(sorted(df.columns), axis=1)
     return df
 
-def spanwiseColBD(Cols):
-    """ Return column info, available columns and indices that contain BD spanwise data"""
+
+def _BDSpanMap():
     BDSpanMap=dict()
     for sB in ['B1','B2','B3']:
-        BDSpanMap['^'+sB+r'N(\d)TDxr_\[m\]']=sB+'TDxr_[m]'
-        BDSpanMap['^'+sB+r'N(\d)TDyr_\[m\]']=sB+'TDyr_[m]'
-        BDSpanMap['^'+sB+r'N(\d)TDzr_\[m\]']=sB+'TDzr_[m]'
+        # Old nodal outputs
+        BDSpanMap['^'+sB+r'N(\d)TDxr_\[m\]']         = sB+'TDxr_[m]'
+        BDSpanMap['^'+sB+r'N(\d)TDyr_\[m\]']         = sB+'TDyr_[m]'
+        BDSpanMap['^'+sB+r'N(\d)TDzr_\[m\]']         = sB+'TDzr_[m]'
+        # New nodal outputs
+        BDSpanMap['^'+sB+r'N(\d*)_FxL_\[N\]']        = sB+'FxL_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FxL_\[N\]']        = sB+'FxL_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FxL_\[N\]']        = sB+'FxL_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_MxL_\[N-m\]']      = sB+'MxL_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MxL_\[N-m\]']      = sB+'MxL_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MxL_\[N-m\]']      = sB+'MxL_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_Fxr_\[N\]']        = sB+'Fxr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_Fxr_\[N\]']        = sB+'Fxr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_Fxr_\[N\]']        = sB+'Fxr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_Mxr_\[N-m\]']      = sB+'Mxr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_Mxr_\[N-m\]']      = sB+'Mxr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_Mxr_\[N-m\]']      = sB+'Mxr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_TDxr_\[m\]']       = sB+'TDxr_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_TDyr_\[m\]']       = sB+'TDyr_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_TDzr_\[m\]']       = sB+'TDzr_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_RDxr_\[-\]']       = sB+'RDxr_[-]'
+        BDSpanMap['^'+sB+r'N(\d*)_RDyr_\[-\]']       = sB+'RDyr_[-]'
+        BDSpanMap['^'+sB+r'N(\d*)_RDzr_\[-\]']       = sB+'RDzr_[-]'
+        BDSpanMap['^'+sB+r'N(\d*)_AbsXg_\[m\]']      = sB+'AbsXg_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_AbsYg_\[m\]']      = sB+'AbsYg_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_AbsZg_\[m\]']      = sB+'AbsZg_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_AbsXr_\[m\]']      = sB+'AbsXr_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_AbsYr_\[m\]']      = sB+'AbsYr_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_AbsZr_\[m\]']      = sB+'AbsZr_[m]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVxg_\[m/s\]']     = sB+'TVxg_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVyg_\[m/s\]']     = sB+'TVyg_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVzg_\[m/s\]']     = sB+'TVzg_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVxl_\[m/s\]']     = sB+'TVxl_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVyl_\[m/s\]']     = sB+'TVyl_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVzl_\[m/s\]']     = sB+'TVzl_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVxr_\[m/s\]']     = sB+'TVxr_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVyr_\[m/s\]']     = sB+'TVyr_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TVzr_\[m/s\]']     = sB+'TVzr_[m/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVxg_\[deg/s\]']   = sB+'RVxg_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVyg_\[deg/s\]']   = sB+'RVyg_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVzg_\[deg/s\]']   = sB+'RVzg_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVxl_\[deg/s\]']   = sB+'RVxl_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVyl_\[deg/s\]']   = sB+'RVyl_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVzl_\[deg/s\]']   = sB+'RVzl_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVxr_\[deg/s\]']   = sB+'RVxr_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVyr_\[deg/s\]']   = sB+'RVyr_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_RVzr_\[deg/s\]']   = sB+'RVzr_[deg/s]'
+        BDSpanMap['^'+sB+r'N(\d*)_TAxl_\[m/s^2\]']   = sB+'TAxl_[m/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_TAyl_\[m/s^2\]']   = sB+'TAyl_[m/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_TAzl_\[m/s^2\]']   = sB+'TAzl_[m/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_TAxr_\[m/s^2\]']   = sB+'TAxr_[m/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_TAyr_\[m/s^2\]']   = sB+'TAyr_[m/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_TAzr_\[m/s^2\]']   = sB+'TAzr_[m/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_RAxl_\[deg/s^2\]'] = sB+'RAxl_[deg/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_RAyl_\[deg/s^2\]'] = sB+'RAyl_[deg/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_RAzl_\[deg/s^2\]'] = sB+'RAzl_[deg/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_RAxr_\[deg/s^2\]'] = sB+'RAxr_[deg/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_RAyr_\[deg/s^2\]'] = sB+'RAyr_[deg/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_RAzr_\[deg/s^2\]'] = sB+'RAzr_[deg/s^2]'
+        BDSpanMap['^'+sB+r'N(\d*)_PFxL_\[N\]']       = sB+'PFxL_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_PFyL_\[N\]']       = sB+'PFyL_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_PFzL_\[N\]']       = sB+'PFzL_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_PMxL_\[N-m\]']     = sB+'PMxL_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_PMyL_\[N-m\]']     = sB+'PMyL_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_PMzL_\[N-m\]']     = sB+'PMzL_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DFxL_\[N/m\]']     = sB+'DFxL_[N/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DFyL_\[N/m\]']     = sB+'DFyL_[N/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DFzL_\[N/m\]']     = sB+'DFzL_[N/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DMxL_\[N-m/m\]']   = sB+'DMxL_[N-m/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DMyL_\[N-m/m\]']   = sB+'DMyL_[N-m/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DMzL_\[N-m/m\]']   = sB+'DMzL_[N-m/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DFxR_\[N/m\]']     = sB+'DFxR_[N/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DFyR_\[N/m\]']     = sB+'DFyR_[N/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DFzR_\[N/m\]']     = sB+'DFzR_[N/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DMxR_\[N-m/m\]']   = sB+'DMxR_[N-m/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DMyR_\[N-m/m\]']   = sB+'DMyR_[N-m/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_DMzR_\[N-m/m\]']   = sB+'DMzR_[N-m/m]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFbxl_\[N\]']       = sB+'FFbxl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFbyl_\[N\]']       = sB+'FFbyl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFbzl_\[N\]']       = sB+'FFbzl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFbxr_\[N\]']       = sB+'FFbxr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFbyr_\[N\]']       = sB+'FFbyr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFbzr_\[N\]']       = sB+'FFbzr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFbxl_\[N-m\]']     = sB+'MFbxl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFbyl_\[N-m\]']     = sB+'MFbyl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFbzl_\[N-m\]']     = sB+'MFbzl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFbxr_\[N-m\]']     = sB+'MFbxr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFbyr_\[N-m\]']     = sB+'MFbyr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFbzr_\[N-m\]']     = sB+'MFbzr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFcxl_\[N\]']       = sB+'FFcxl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFcyl_\[N\]']       = sB+'FFcyl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFczl_\[N\]']       = sB+'FFczl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFcxr_\[N\]']       = sB+'FFcxr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFcyr_\[N\]']       = sB+'FFcyr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFczr_\[N\]']       = sB+'FFczr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFcxl_\[N-m\]']     = sB+'MFcxl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFcyl_\[N-m\]']     = sB+'MFcyl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFczl_\[N-m\]']     = sB+'MFczl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFcxr_\[N-m\]']     = sB+'MFcxr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFcyr_\[N-m\]']     = sB+'MFcyr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFczr_\[N-m\]']     = sB+'MFczr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFdxl_\[N\]']       = sB+'FFdxl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFdyl_\[N\]']       = sB+'FFdyl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFdzl_\[N\]']       = sB+'FFdzl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFdxr_\[N\]']       = sB+'FFdxr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFdyr_\[N\]']       = sB+'FFdyr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFdzr_\[N\]']       = sB+'FFdzr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFdxl_\[N-m\]']     = sB+'MFdxl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFdyl_\[N-m\]']     = sB+'MFdyl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFdzl_\[N-m\]']     = sB+'MFdzl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFdxr_\[N-m\]']     = sB+'MFdxr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFdyr_\[N-m\]']     = sB+'MFdyr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFdzr_\[N-m\]']     = sB+'MFdzr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFgxl_\[N\]']       = sB+'FFgxl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFgyl_\[N\]']       = sB+'FFgyl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFgzl_\[N\]']       = sB+'FFgzl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFgxr_\[N\]']       = sB+'FFgxr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFgyr_\[N\]']       = sB+'FFgyr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFgzr_\[N\]']       = sB+'FFgzr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFgxl_\[N-m\]']     = sB+'MFgxl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFgyl_\[N-m\]']     = sB+'MFgyl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFgzl_\[N-m\]']     = sB+'MFgzl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFgxr_\[N-m\]']     = sB+'MFgxr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFgyr_\[N-m\]']     = sB+'MFgyr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFgzr_\[N-m\]']     = sB+'MFgzr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFixl_\[N\]']       = sB+'FFixl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFiyl_\[N\]']       = sB+'FFiyl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFizl_\[N\]']       = sB+'FFizl_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFixr_\[N\]']       = sB+'FFixr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFiyr_\[N\]']       = sB+'FFiyr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FFizr_\[N\]']       = sB+'FFizr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFixl_\[N-m\]']     = sB+'MFixl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFiyl_\[N-m\]']     = sB+'MFiyl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFizl_\[N-m\]']     = sB+'MFizl_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFixr_\[N-m\]']     = sB+'MFixr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFiyr_\[N-m\]']     = sB+'MFiyr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MFizr_\[N-m\]']     = sB+'MFizr_[N-m]'
+    return BDSpanMap
+
+
+def spanwiseColBD(Cols):
+    """ Return column info, available columns and indices that contain BD spanwise data"""
+    BDSpanMap = _BDSpanMap()
     return find_matching_columns(Cols, BDSpanMap)
 
 def spanwiseColED(Cols):
@@ -639,7 +807,7 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
     IR_BD       = None
     fst=None
     if FST_In is not None:
-        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD'])
+        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD','BDbld'])
         # NOTE: all this below should be in FASTInputDeck
         if fst.version == 'F7':
             # --- FAST7
@@ -677,10 +845,13 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
 
             # --- BeamDyn
             if  fst.BD is not None:
-                r_BD, IR_BD, r_BD_All = BD_BldGag(fst.BD)
-                r_BD= r_BD+r_hub
                 if R is None:
                     R = r_BD_All[-1] # just in case ED file missing
+                if fst.BD.hasNodal:
+                    r_BD = BD_BldStations(fst.BD, fst.BDbld)
+                else:
+                    r_BD, IR_BD, r_BD_All = BD_BldGag(fst.BD)
+                r_BD= r_BD+r_hub
 
             # --- AeroDyn
             if  fst.AD is None:

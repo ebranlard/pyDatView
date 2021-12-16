@@ -145,8 +145,12 @@ def fastFarmTurbSimExtent(TurbSimFile, HubHeight, D, xWT, yWT, Cmeander=1.9, Cho
     """
     # --- TurbSim data
     ts      = weio.read(TurbSimFile)
-    iy,iz   = ts.closestPoint(y=0,z=HubHeight)
-    meanU   = ts['u'][0,:,iy,iz].mean()
+    #iy,iz   = ts.closestPoint(y=0,z=HubHeight)
+    #iy,iz   = ts.closestPoint(y=0,z=HubHeight)
+    zMid, uMid =  ts.midValues()
+    #print('uMid',uMid)
+    #meanU   = ts['u'][0,:,iy,iz].mean()
+    meanU   = uMid
     dY_High = ts['y'][1]-ts['y'][0]
     dZ_High = ts['z'][1]-ts['z'][0]
     Z0_Low  = ts['z'][0]
@@ -154,7 +158,8 @@ def fastFarmTurbSimExtent(TurbSimFile, HubHeight, D, xWT, yWT, Cmeander=1.9, Cho
     Width   = ts['y'][-1]-ts['y'][0]
     Height  = ts['z'][-1]-ts['z'][0]
     dT_High = ts['dt']
-    effSimLength = ts['t'][-1]-ts['t'][0] + Width/meanU
+    #effSimLength = ts['t'][-1]-ts['t'][0] + Width/meanU
+    effSimLength = ts['t'][-1]-ts['t'][0]
 
     # Desired resolution, rule of thumbs
     dX_High_desired = Chord_max             
@@ -172,7 +177,9 @@ def fastFarmTurbSimExtent(TurbSimFile, HubHeight, D, xWT, yWT, Cmeander=1.9, Cho
     Length     = effSimLength*meanU
     nx         = int(round(effSimLength/dT_High))
     dx_TS      = Length/(nx-1)
+    #print('dx_TS',dx_TS)
     dX_High    = round(dX_High_desired/dx_TS)*dx_TS
+    #print('dX_High_desired',dX_High_desired, dX_High)
     
     nX_High = int(round(Xdist_High/dX_High)+1)
     nY_High = int(round(Ydist_High/dY_High)+1)
@@ -190,14 +197,15 @@ def fastFarmTurbSimExtent(TurbSimFile, HubHeight, D, xWT, yWT, Cmeander=1.9, Cho
     dx_des = dX_Low_desired
     dy_des = dX_Low_desired
     dz_des = dX_Low_desired
-    X0_Low = min(xWT)-2*D
-    Y0_Low = -Width/2
-    dX_Low = round(dx_des/dX_High)*dX_High
-    dY_Low = round(dy_des/dY_High)*dY_High
-    dZ_Low = round(dz_des/dZ_High)*dZ_High
+    X0_Low = round( (min(xWT)-2*D)/dX_High) *dX_High
+    Y0_Low = round( -Width/2      /dY_High) *dY_High
+    dX_Low = round( dx_des        /dX_High)*dX_High
+    dY_Low = round( dy_des        /dY_High)*dY_High
+    dZ_Low = round( dz_des        /dZ_High)*dZ_High
     Xdist  = max(xWT)+8.0*D-X0_Low  # Maximum extent
     Ydist  = Width
     Zdist  = Height
+    #print('dX_Low',dX_Low, dX_Low/dx_TS, dX_High/dx_TS)
 
     nX_Low = int(Xdist/dX_Low)+1; 
     nY_Low = int(Ydist/dY_Low)+1;
