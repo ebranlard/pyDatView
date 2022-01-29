@@ -301,7 +301,10 @@ class PlotData():
         elif PD.xIsDate:
             return PD.x[0],'{}'.format(PD.x[0])
         else:
-            v = PD.x[np.where(PD.y == yMin)[0][0]]
+            try:
+                v = PD.x[np.where(PD.y == yMin)[0][0]]   # Might fail if all nan
+            except:
+                v = PD.x[0]
             s=pretty_num(v)
         return (v,s)
 
@@ -311,7 +314,10 @@ class PlotData():
         elif PD.xIsDate:
             return PD.x[-1],'{}'.format(PD.x[-1])
         else:
-            v = PD.x[np.where(PD.y == yMax)[0][0]]
+            try:
+                v = PD.x[np.where(PD.y == yMax)[0][0]] # Might fail if all nan
+            except:
+                v = PD.x[0]
             s=pretty_num(v)
         return (v,s)
 
