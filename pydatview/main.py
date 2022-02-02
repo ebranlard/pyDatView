@@ -92,7 +92,7 @@ class FileDropTarget(wx.FileDropTarget):
               Format = None
           else:
               Format = FILE_FORMATS[iFormat-1]
-          self.parent.load_files(filenames,fileformat=Format,bAdd=bAdd)
+          self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd)
       return True
 
 
@@ -242,7 +242,7 @@ class MainFrame(wx.Frame):
                 self.plotPanel.cleanPlot()
         gc.collect()
 
-    def load_files(self, filenames=[], fileformat=None, bReload=False, bAdd=False):
+    def load_files(self, filenames=[], fileformats=None, bReload=False, bAdd=False):
         """ load multiple files, only trigger the plot at the end """
         if bReload:
             if hasattr(self,'selPanel'):
@@ -251,22 +251,32 @@ class MainFrame(wx.Frame):
         if not bAdd:
             self.clean_memory(bReload=bReload)
 
+
+        if fileformats is None:
+            fileformats=[None]*len(filenames)
+        assert type(fileformats)==list, 'fileformats must be a list'
+        assert len(fileformats)==len(filenames), 'fileformats and filenames must have the same lengths'
+
+        # Sorting files in alphabetical order in base_filenames order
         base_filenames = [os.path.basename(f) for f in filenames]
-        filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
+        I = np.argsort(base_filenames)
+        filenames   = list(np.array(filenames)[I])
+        fileformats = list(np.array(fileformats)[I])
+        #filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
+
         # Load the tables
-        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bAdd=bAdd)
+        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd)
         if bReload:
             # Restore formulas that were previously added
-            _ITab, _STab = self.selPanel.getAllTables()
-            ITab = [iTab for __, iTab in sorted(zip(_STab, _ITab))]
-            if len(ITab) != len(self.restore_formulas):
-                raise ValueError('Invalid length of tabs and formulas!')
-            for iTab, f_list in zip(ITab, self.restore_formulas):
-                for f in f_list:
-                    self.tabList.get(iTab).addColumnByFormula(f['name'], f['formula'])
-            self.restore_formulas = []
+            for tab in self.tabList:
+                if tab.raw_name in self.restore_formulas.keys():
+                    for f in self.restore_formulas[tab.raw_name]:
+                        tab.addColumnByFormula(f['name'], f['formula'], f['pos']-1)
+            self.restore_formulas = {}
+        # Display warnings
         for warn in warnList: 
             Warn(self,warn)
+        # Load tables into the GUI
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=True)
 
@@ -356,11 +366,11 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('', 1) # Filenames
             self.statusbar.SetStatusText('', 2) # Shape
         elif nTabs==1:
-            self.statusbar.SetStatusText(self.tabList.get(0).fileformat,  0)
+            self.statusbar.SetStatusText(self.tabList.get(0).fileformat.name,  0)
             self.statusbar.SetStatusText(self.tabList.get(0).filename  ,  1)
             self.statusbar.SetStatusText(self.tabList.get(0).shapestring, 2)
         elif len(ISel)==1:
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat , 0)
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat.name , 0)
             self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename   , 1)
             self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring, 2)
         else:
@@ -478,23 +488,16 @@ class MainFrame(wx.Frame):
         Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReload(self, event=None):
-        filenames = self.tabList.unique_filenames
-        filenames.sort()
+        filenames, fileformats = self.tabList.filenames_and_formats
         if len(filenames)>0:
             # Save formulas to restore them after reload with sorted tabs
-            _ITab, _STab = self.selPanel.getAllTables()
-            ITab = [iTab for __, iTab in sorted(zip(_STab, _ITab))]
-            self.restore_formulas = []
-            for iTab in ITab:
-                f = self.tabList.get(iTab).formulas
-                f = sorted(f, key=lambda k: k['pos'])
-                self.restore_formulas.append(f)
-            iFormat=self.comboFormats.GetSelection()
-            if iFormat==0: # auto-format
-                Format = None
-            else:
-                Format = FILE_FORMATS[iFormat-1]
-            self.load_files(filenames,fileformat=Format,bReload=True,bAdd=False)
+            self.restore_formulas = {}
+            for tab in self.tabList._tabs:
+                f = tab.formulas # list of dict('pos','formula','name')
+                f = sorted(f, key=lambda k: k['pos']) # Sort formulae by position in list of formua
+                self.restore_formulas[tab.raw_name]=f # we use raw_name as key
+            # Actually load files (read and add in GUI)
+            self.load_files(filenames, fileformats=fileformats, bReload=True,bAdd=False)
         else:
            Error(self,'Open one or more file first.')
 
@@ -714,7 +717,7 @@ def showApp(firstArg=None,dataframe=None,filenames=[]):
         #tend = time.time()
         #print('PydatView time: ',tend-tstart)
     elif len(filenames)>0:
-        frame.load_files(filenames,fileformat=None)
+        frame.load_files(filenames, fileformats=None)
     app.MainLoop()
 
 def cmdline():

@@ -448,7 +448,7 @@ def Error(parent, message, caption = 'Error!'):
 # --------------------------------------------------------------------------------{
 
 def isString(x):
-    b = x.dtype == np.object and isinstance(x.values[0], str)
+    b = x.dtype == object and isinstance(x.values[0], str)
     return b 
 
 def isDate(x):

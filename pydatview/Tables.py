@@ -28,13 +28,25 @@ class TableList(object): # todo inherit list
         self._tabs=tabs
         self.Naming='Ellude'
 
+    # --- behaves like a list...
+    def __iter__(self):
+        self.__n = 0
+        return self
+
+    def __next__(self):
+        if self.__n < len(self._tabs):
+            self.__n += 1
+            return self._tabs[self.__n-1]
+        else:
+            raise StopIteration
+
     def append(self,t):
         if isinstance(t,list):
             self._tabs += t
         else:
             self._tabs += [t]
-        
 
+    # --- Main high level methods
     def from_dataframes(self, dataframes=[], names=[], bAdd=False):
         if not bAdd:
             self.clean() # TODO figure it out
@@ -43,27 +55,33 @@ class TableList(object): # todo inherit list
             if df is not None:
                 self.append(Table(data=df, name=name))
 
-    def load_tables_from_files(self, filenames=[], fileformat=None, bAdd=False):
-        """ load multiple files, only trigger the plot at the end """
+    def load_tables_from_files(self, filenames=[], fileformats=None, bAdd=False):
+        """ load multiple files into table list"""
         if not bAdd:
             self.clean() # TODO figure it out
+
+        if fileformats is None:
+            fileformats=[None]*len(filenames)
+        assert type(fileformats) ==list, 'fileformats must be a list'
+
+        # Loop through files, appending tables within files
         warnList=[]
-        for f in filenames:
+        for f,ff in zip(filenames, fileformats):
             if f in self.unique_filenames:
                 warnList.append('Warn: Cannot add a file already opened ' + f)
             elif len(f)==0:
                 pass
                 #    warn+= 'Warn: an empty filename was skipped' +'\n'
             else:
-                tabs, warnloc = self._load_file_tabs(f,fileformat=fileformat) 
+                tabs, warnloc = self._load_file_tabs(f,fileformat=ff) 
                 if len(warnloc)>0:
                     warnList.append(warnloc)
                 self.append(tabs)
         
         return warnList
 
-    def _load_file_tabs(self,filename,fileformat=None):
-        """ load a single file, adds table, and potentially trigger plotting """
+    def _load_file_tabs(self, filename, fileformat=None):
+        """ load a single file, adds table """
         # Returning a list of tables 
         tabs=[]
         warn=''
@@ -71,7 +89,14 @@ class TableList(object): # todo inherit list
             warn = 'Error: File not found: `'+filename+'`\n'
             return tabs, warn
         try:
-            F = weio.read(filename,fileformat = fileformat)
+            #F = weio.read(filename, fileformat = fileformat)
+            # --- Expanded version of weio.read
+            F = None
+            if fileformat is None:
+                fileformat, F = weio.detectFormat(filename)
+            # Reading the file with the appropriate class if necessary
+            if not isinstance(F, fileformat.constructor):
+                F=fileformat.constructor(filename=filename)
             dfs = F.toDataFrame()
         except weio.FileNotFoundError as e:
             warn = 'Error: A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}\n'.format(filename, e.filename)
@@ -101,11 +126,11 @@ class TableList(object): # todo inherit list
             pass
         elif not isinstance(dfs,dict):
             if len(dfs)>0:
-                tabs=[Table(data=dfs, filename=filename, fileformat=F.formatName())]
+                tabs=[Table(data=dfs, filename=filename, fileformat=fileformat)]
         else:
             for k in list(dfs.keys()):
                 if len(dfs[k])>0:
-                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=F.formatName()))
+                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=fileformat))
         if len(tabs)<=0:
             warn='Warn: No dataframe found in file: '+filename+'\n'
         return tabs, warn
@@ -166,6 +191,7 @@ class TableList(object): # todo inherit list
         else:
             raise Exception('Table naming unknown: {}'.format(self.Naming))
 
+    # --- Properties
     @property
     def tabNames(self):
         return [t.name for t in self._tabs]
@@ -175,8 +201,23 @@ class TableList(object): # todo inherit list
         return [t.filename for t in self._tabs]
 
     @property
+    def fileformats(self):
+        return [t.fileformat for t in self._tabs]
+
+    @property
     def unique_filenames(self):
         return list(set([t.filename for t in self._tabs]))
+
+    @property
+    def filenames_and_formats(self):
+        """ return unique list of filenames with associated fileformats """
+        filenames   = []
+        fileformats = []
+        for t in self._tabs:
+            if t.filename not in filenames:
+                filenames.append(t.filename)
+                fileformats.append(t.fileformat)
+        return filenames, fileformats
 
     def clean(self):
         del self._tabs
@@ -218,6 +259,7 @@ class TableList(object): # todo inherit list
 
         return dfs_new, names_new, errors
 
+    # --- Resampling and other actions
     def applyResampling(self,iCol,sampDict,bAdd=True):
         dfs_new   = []
         names_new = []
@@ -260,21 +302,40 @@ class TableList(object): # todo inherit list
 # --------------------------------------------------------------------------------}
 # --- Table 
 # --------------------------------------------------------------------------------{
-# TODO sort out the naming
 #
-# Main naming concepts:
-#    name        : 
-#    active_name : 
-#    raw_name    : 
-#    filename    : 
 class Table(object):
-    def __init__(self,data=None,name='',filename='',columns=[],fileformat=''):
+    """ 
+    Main attributes:
+      - data
+      - columns
+      - name
+      - raw_name 
+      - active_name
+      - filename   
+      - fileformat 
+      - fileformat_name
+      - nCols x nRows 
+      - mask
+      - maskString
+      - formulas
+    """
+    # TODO sort out the naming
+    # Main naming concepts:
+    #    name        : 
+    #    active_name : 
+    #    raw_name    : 
+    #    filename    : 
+    def __init__(self,data=None,name='',filename='',columns=[], fileformat=None):
         # Default init
         self.maskString=''
         self.mask=None
 
-        self.filename   = filename
-        self.fileformat = fileformat
+        self.filename        = filename
+        self.fileformat      = fileformat
+        if fileformat is not None:
+            self.fileformat_name = fileformat.name
+        else:
+            self.fileformat_name = ''
         self.formulas = []
 
         if not isinstance(data,pd.DataFrame):
@@ -320,7 +381,15 @@ class Table(object):
 
 
     def __repr__(self):
-        return 'Tab {} ({}x{}) (raw: {}, active: {}, file: {})'.format(self.name,self.nCols,self.nRows,self.raw_name, self.active_name,self.filename)
+        s='Table object:\n'
+        s+=' - name: {}\n'.format(self.name)
+        s+=' - raw_name   : {}\n'.format(self.raw_name)
+        s+=' - active_name: {}\n'.format(self.raw_name)
+        s+=' - filename   : {}\n'.format(self.filename)
+        s+=' - fileformat : {}\n'.format(self.fileformat)
+        s+=' - fileformat_name : {}\n'.format(self.fileformat_name)
+        s+=' - nCols x nRows: {}x{}\n'.format(self.nCols, self.nRows)
+        return s
 
     def columnsFromDF(self,df):
         return [s.replace('_',' ') for s in df.columns.values.astype(str)]
@@ -329,12 +398,6 @@ class Table(object):
     def clearMask(self):
         self.maskString=''
         self.mask=None
-
-    def addLabelToName(self,label):
-        print('raw_name',self.raw_name)
-        raw_name=self.raw_name
-        sp=raw_name.split('|')
-        print(sp)
 
     def applyMaskString(self,maskString,bAdd=True):
         df = self.data
@@ -425,7 +488,7 @@ class Table(object):
         if len(self.data)>0:
             for i,c in enumerate(self.data.columns.values):
                 y = self.data.iloc[:,i]
-                if y.dtype == np.object:
+                if y.dtype == object:
                     if isinstance(y.values[0], str):
                         # tring to convert to date
                         try:
@@ -479,6 +542,8 @@ class Table(object):
 
     def addColumn(self,sNewName,NewCol,i=-1,sFormula=''):
         if i<0:
+            i=self.data.shape[1]
+        elif i>self.data.shape[1]+1:
             i=self.data.shape[1]
         self.data.insert(int(i),sNewName,NewCol)
         self.columns=self.columnsFromDF(self.data)
@@ -540,7 +605,6 @@ class Table(object):
             c_no_unit = no_unit(c).strip()
             c_in_df   = df.columns[i]
             sFormula=sFormula.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
-        #print(sFormula)
         try:
             NewCol=eval(sFormula)
             return NewCol
