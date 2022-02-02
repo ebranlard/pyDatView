@@ -388,13 +388,14 @@ class Table(object):
         s+=' - filename   : {}\n'.format(self.filename)
         s+=' - fileformat : {}\n'.format(self.fileformat)
         s+=' - fileformat_name : {}\n'.format(self.fileformat_name)
+        s+=' - columns    : {}\n'.format(self.columns)
         s+=' - nCols x nRows: {}x{}\n'.format(self.nCols, self.nRows)
         return s
 
     def columnsFromDF(self,df):
         return [s.replace('_',' ') for s in df.columns.values.astype(str)]
 
-
+    # --- Mask
     def clearMask(self):
         self.maskString=''
         self.mask=None
@@ -428,6 +429,7 @@ class Table(object):
                 raise Exception('Error: The mask failed for table: '+self.name)
         return df_new, name_new
 
+    # --- Important manipulation
     def applyResampling(self,iCol,sampDict,bAdd=True):
         from pydatview.tools.signal import applySamplerDF
         if iCol==0:
@@ -441,7 +443,6 @@ class Table(object):
             name_new=None
             self.data=df_new
         return df_new, name_new
-
 
     def radialAvg(self,avgMethod, avgParam):
         import pydatview.fast.fastlib as fastlib
@@ -484,6 +485,12 @@ class Table(object):
             names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
         return dfs_new, names_new
 
+    def changeUnits(self, flavor='WE'):
+        """ Change units of the table """
+        # NOTE: moved to a plugin, but interface kept
+        from pydatview.plugins.data_standardizeUnits import changeUnits
+        changeUnits(self, flavor=flavor)
+
     def convertTimeColumns(self):
         if len(self.data)>0:
             for i,c in enumerate(self.data.columns.values):
@@ -519,6 +526,8 @@ class Table(object):
                         print('>> Unknown type:',type(y.values[0]))
             #print(self.data.dtypes)
 
+
+    # --- Column manipulations
     def renameColumn(self,iCol,newName):
         self.columns[iCol]=newName
         self.data.columns.values[iCol]=newName
@@ -566,6 +575,8 @@ class Table(object):
     def getColumn(self,i):
         """ Return column of data, where i=0 is the index column
         If a mask exist, the mask is applied
+
+        TODO TODO TODO get rid of this!
         """
         if i <= 0 :
             x = np.array(range(self.data.shape[0]))
@@ -594,7 +605,6 @@ class Table(object):
                 else:
                     x=x.astype('datetime64')
         return x,isString,isDate,c
-
 
 
     def evalFormula(self,sFormula):
@@ -639,6 +649,7 @@ class Table(object):
 
 
 
+    # --- Properties
     @property
     def basename(self):
         return os.path.splitext(os.path.basename(self.filename))[0]
@@ -650,7 +661,6 @@ class Table(object):
     @property
     def shape(self):
         return (self.nRows, self.nCols)
-
 
     @property
     def columns_clean(self):

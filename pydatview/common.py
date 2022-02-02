@@ -252,6 +252,9 @@ def getTabCommonColIndices(tabs):
     return IKeepPerTab, IMissPerTab, IDuplPerTab, nCols
 
 
+# --------------------------------------------------------------------------------}
+# --- Units 
+# --------------------------------------------------------------------------------{
 def cleanCol(s):
     s=no_unit(s).strip()
     s=no_unit(s.replace('(',' [').replace(')',']'))
@@ -273,6 +276,13 @@ def unit(s):
     else:
         return ''
 
+def splitunit(s):
+    iu=s.rfind('[')
+    if iu>1:
+        return s[:iu], s[iu+1:].replace(']','')
+    else:
+        return s, ''
+
 def inverse_unit(s):
     u=unit(s).strip()
     if u=='':
@@ -287,6 +297,8 @@ def inverse_unit(s):
         return '1/deg';
     else:
         return '1/('+u+')'
+
+
 
 def filter_list(L, string):
     """ simple (not regex or fuzzy) filtering of a list of strings

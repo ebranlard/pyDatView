@@ -35,6 +35,8 @@ from .Tables import TableList, Table
 # Helper
 from .common import *
 from .GUICommon import *
+# Pluggins
+from .plugins import dataPlugins
 
 
 
@@ -142,6 +144,10 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Resample') , dataMenu.Append(wx.ID_ANY, 'Resample'))
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
+        # --- Data Plugins
+        for string, function in dataPlugins:
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=string: function(self, e, s_loc), dataMenu.Append(wx.ID_ANY, string))
+
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
         self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'CurveFitting'), toolMenu.Append(wx.ID_ANY, 'Curve fitting'))
@@ -221,6 +227,8 @@ class MainFrame(wx.Frame):
                 )
         self.SetAcceleratorTable(accel_tbl)
 
+    def printString(self, event=None, string=''):
+        print('>>> string',string)
 
     def onFilter(self,event):
         if hasattr(self,'selPanel'):
@@ -417,6 +425,7 @@ class MainFrame(wx.Frame):
 
     def onShowTool(self, event=None, tool=''):
         """ 
+        Show tool
         tool in 'Outlier', 'Filter', 'LogDec','FASTRadialAverage', 'Mask', 'CurveFitting'
         """
         if not hasattr(self,'plotPanel'):
