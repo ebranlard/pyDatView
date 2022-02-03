@@ -145,8 +145,8 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
         # --- Data Plugins
-        for string, function in dataPlugins:
-            self.Bind(wx.EVT_MENU, lambda e, s_loc=string: function(self, e, s_loc), dataMenu.Append(wx.ID_ANY, string))
+        for string, function, isPanel in dataPlugins:
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=string: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, string))
 
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
@@ -364,6 +364,7 @@ class MainFrame(wx.Frame):
             pass
         # Hack
         #self.onShowTool(tool='Resample')
+        #self.onDataPlugin(toolName='Bin data')
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
@@ -374,11 +375,11 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('', 1) # Filenames
             self.statusbar.SetStatusText('', 2) # Shape
         elif nTabs==1:
-            self.statusbar.SetStatusText(self.tabList.get(0).fileformat.name,  0)
+            self.statusbar.SetStatusText(self.tabList.get(0).fileformat_name,  0)
             self.statusbar.SetStatusText(self.tabList.get(0).filename  ,  1)
             self.statusbar.SetStatusText(self.tabList.get(0).shapestring, 2)
         elif len(ISel)==1:
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat.name , 0)
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat_name , 0)
             self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename   , 1)
             self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring, 2)
         else:
@@ -432,6 +433,28 @@ class MainFrame(wx.Frame):
             Error(self,'Plot some data first')
             return
         self.plotPanel.showTool(tool)
+
+    def onDataPlugin(self, event=None, toolName=''):
+        """ 
+        Dispatcher to apply plugins to data:
+          - simple plugins are directly exectued
+          - plugins that are panels are sent over to plotPanel to show them
+        TODO merge with onShowTool
+        """
+        if not hasattr(self,'plotPanel'):
+            Error(self,'Plot some data first')
+            return
+
+        for thisToolName, function, isPanel in dataPlugins:
+            if toolName == thisToolName:
+                if isPanel:
+                    panelClass = function(self, event, toolName) # getting panelClass
+                    self.plotPanel.showToolPanel(panelClass)
+                else:
+                    function(self, event, toolName) # calling the data function
+                return
+        raise NotImplementedError('Tool: ',toolName)
+
 
     def onSashChangeMain(self,event=None):
         pass

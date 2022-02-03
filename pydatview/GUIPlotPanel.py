@@ -53,7 +53,7 @@ class PDFCtrlPanel(wx.Panel):
         super(PDFCtrlPanel,self).__init__(parent)
         self.parent   = parent
         lb = wx.StaticText( self, -1, 'Number of bins:')
-        self.scBins = wx.SpinCtrl(self, value='50',size=wx.Size(70,-1))
+        self.scBins = wx.SpinCtrl(self, value='51',size=wx.Size(70,-1), style=wx.TE_RIGHT)
         self.scBins.SetRange(3, 10000)
         self.cbSmooth = wx.CheckBox(self, -1, 'Smooth',(10,10))
         self.cbSmooth.SetValue(False)
@@ -691,15 +691,21 @@ class PlotPanel(wx.Panel):
 
     def showTool(self,toolName=''):
         from .GUITools import TOOLS
-        self.Freeze()
-        self.removeTools(Layout=False)
         if toolName in TOOLS.keys():
-            self.toolPanel=TOOLS[toolName](self) # calling the panel constructor
+            self.showToolPanel(TOOLS[toolName])
         else:
             raise Exception('Unknown tool {}'.format(toolName))
+
+    def showToolPanel(self, panelClass):
+        """ Show a tool panel based on a panel class (should inherit from GUIToolPanel)"""
+        from .GUITools import TOOLS
+        self.Freeze()
+        self.removeTools(Layout=False)
+        self.toolPanel=panelClass(parent=self) # calling the panel constructor
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
         self.Thaw()
+
 
     def setPD_PDF(self,PD,c):
         """ Convert plot data to PDF data based on GUI options"""

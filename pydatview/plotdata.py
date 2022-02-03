@@ -89,6 +89,11 @@ class PlotData():
                 from pydatview.tools.signal import applySampler
                 PD.x, PD.y = applySampler(PD.x, PD.y, Options['Sampler'])
 
+        if 'Binning' in keys:
+            if Options['Binning']:
+                if Options['Binning']['active']:
+                    PD.x, PD.y = Options['Binning']['applyCallBack'](PD.x, PD.y, Options['Binning'])
+
         # --- Store stats
         n=len(PD.y)
         if n>1000:

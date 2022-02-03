@@ -174,6 +174,27 @@ def bin_DF(df, xbins, colBin, stats='mean'):
     df2       = df2.reindex(xmid)
     return df2
 
+def bin_signal(x, y, xbins=None, stats='mean', nBins=None):
+    """ 
+    Perform bin averaging of a dataframe
+    INPUTS:
+      - df   : pandas dataframe
+      - xBins: end points delimiting the bins, array of ascending x values)
+      - colBin: column name (string) of the dataframe, used for binning 
+    OUTPUTS:
+       binned dataframe, with additional columns 'Counts' for the number 
+
+    """
+    if xbins is None:
+        xmin, xmax = np.min(x), np.max(x)
+        dx = (xmax-xmin)/nBins
+        xbins=np.arange(xmin, xmax+dx/2, dx)
+    df = pd.DataFrame(data=np.column_stack((x,y)), columns=['x','y'])
+    df2 = bin_DF(df, xbins, colBin='x', stats=stats)
+    return df2['x'].values, df2['y'].values
+
+
+
 def azimuthal_average_DF(df, psiBin=np.arange(0,360+1,10), colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
     """ 
     Average a dataframe based on azimuthal value
