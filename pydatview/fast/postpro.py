@@ -651,7 +651,7 @@ def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, ch
 
 def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.outb',df=None):
     """
-    Postprocess FAST radial data
+    Postprocess FAST radial data. Average the time series, return a dataframe nr x nColumns
 
     INPUTS:
         - FST_IN: Fast .fst input file
@@ -721,7 +721,7 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
 
 def spanwisePostProRows(df, FST_In=None):
     """ 
-    Returns a 3D matrix: n x nSpan x nColumn where df is of size n x nColumn
+    Returns a 3D matrix: n x nSpan x nColumn where df is of size n x mColumn
 
     NOTE: this is really not optimal. Spanwise columns should be extracted only once..
     """
@@ -746,6 +746,7 @@ def spanwisePostProRows(df, FST_In=None):
         try:
             rho = fst.AD['AirDens']
         except:
+            print('[WARN] Using default air density (1.225)')
             pass
     # --- Extract radial data for each azimuthal average
     M_AD=None
@@ -1034,7 +1035,7 @@ def _zero_crossings(y,x=None,direction=None):
         raise Exception('Direction should be either `up` or `down`')
     return xzc, iBef, sign
 
-def find_matching_pattern(List, pattern):
+def find_matching_pattern(List, pattern, sort=False):
     """ Return elements of a list of strings that match a pattern
         and return the first matching group
     """
@@ -1049,11 +1050,47 @@ def find_matching_pattern(List, pattern):
                 MatchedStrings.append(match.groups(1)[0])
             else:
                 MatchedStrings.append('')
+
+    if sort:
+        # Sorting by Matched string, NOTE: assumes that MatchedStrings are int.
+        # that's probably not necessary since alphabetical/integer sorting should be the same
+        # but it might be useful if number of leading zero differs, which would skew the sorting..
+        MatchedElements = np.asarray(MatchedElements)
+        MatchedStrings  = np.asarray(MatchedStrings)
+        Idx  = np.array([int(s) for s in MatchedStrings])
+        Isort = np.argsort(Idx)
+        Idx  = Idx[Isort]
+        MatchedElements = MatchedElements[Isort]
+        MatchedStrings  = MatchedStrings[Isort]
+
     return MatchedElements, MatchedStrings
 
         
+def extractSpanTS(df, pattern):
+    r"""
+    Extract spanwise time series of a given "type" (e.g. Cl for each radial node)
+    Return a dataframe of size nt x nr 
 
-def extractSpanTSReg(ts, col_pattern, colname, IR=None):
+    NOTE: time is not inserted in the output dataframe 
+
+    To find "r" use FASTRadialOutputs, it is different for AeroDyn/ElastoDyn/BeamDyn/
+    There is no guarantee that the number of columns matching pattern will exactly
+    corresponds to the number of radial stations. That's the responsability of the 
+    OpenFAST user.
+
+    INPUTS:
+     - df : a dataframe of size nt x nColumns
+     - pattern: Pattern used to find "radial" columns amongst the dataframe columns
+            r'B1N(\d*)Cl_\[-\]'
+            r'^AB1N(\d*)Cl_\[-\]' -> to match AB1N001Cl_[-], AB1N002Cl_[-], etc.
+     OUTPUTS:
+     - dfOut : a dataframe of size nt x nr where nr is the number of radial stations matching the pattern. The radial stations are sorted.
+    """
+    cols, sIdx = find_matching_pattern(df.columns, pattern, sort=True)
+    return df[cols]
+    
+
+def _extractSpanTSReg_Legacy(ts, col_pattern, colname, IR=None):
     r""" Helper function to extract spanwise results, like B1N1Cl B1N2Cl etc. 
 
     Example
@@ -1061,16 +1098,9 @@ def extractSpanTSReg(ts, col_pattern, colname, IR=None):
         colname    : r'B1Cl_[-]'
     """
     # Extracting columns matching pattern
-    cols, sIdx = find_matching_pattern(ts.keys(), col_pattern)
+    cols, sIdx = find_matching_pattern(ts.keys(), col_pattern, sort=True)
     if len(cols) ==0:
         return (None,None)
-
-    # Sorting by ID
-    cols = np.asarray(cols)
-    Idx  = np.array([int(s) for s in sIdx])
-    Isort = np.argsort(Idx)
-    Idx  = Idx[Isort]
-    cols = cols[Isort]
 
     nrMax =  np.max(Idx)
     Values = np.zeros((nrMax,1))
@@ -1091,7 +1121,7 @@ def extractSpanTSReg(ts, col_pattern, colname, IR=None):
         print('[WARN] More values found for {}, found {}/{}'.format(colname,len(cols),nrMax))
     return (colname,Values)
 
-def extractSpanTS(ts, nr, col_pattern, colname, IR=None):
+def _extractSpanTS_Legacy(ts, nr, col_pattern, colname, IR=None):
     """ Helper function to extract spanwise results, like B1N1Cl B1N2Cl etc. 
 
     Example
@@ -1362,6 +1392,58 @@ def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKee
 
     return result 
 
+
+def integrateMoment(r, F):
+    """ 
+    Integrate moment from force and radial station
+        M_j =  \int_{r_j}^(r_n) f(r) * (r-r_j) dr  for j=1,nr
+    TODO: integrate analytically the "r" part
+    """
+    M = np.zeros(len(r)-1)
+    for ir,_ in enumerate(r[:-1]):
+        M[ir] = np.trapz(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
+    return M
+
+def integrateMomentTS(r, F):
+    """
+    Integrate moment from time series of forces at nr radial stations
+
+    Compute 
+        M_j =  \int_{r_j}^(r_n) f(r) * (r-r_j) dr  for j=1,nr
+        M_j =  \int_{r_j}^(r_n) f(r) *r*dr  - r_j * \int_(r_j}^{r_n} f(r) dr
+      j are the columns of M
+
+    NOTE: simply trapezoidal integration is used. 
+    The "r" term is not integrated analytically. This can be improved!
+
+    INPUTS:
+      - r: array of size nr, of radial stations (ordered)
+      - F: array nt x nr of time series of forces at each radial stations
+    OUTPUTS:
+      - M: array nt x nr of integrated moment at each radial station
+
+    """
+    import scipy.integrate as si
+    # Compute \int_{r_j}^{r_n} f(r) dr, with "j" each column 
+    IF = np.fliplr(-si.cumtrapz(np.fliplr(F), r[-1::-1]))
+    # Compute \int_{r_j}^{r_n} f(r)*r dr, with "j" each column 
+    FR  = F * r 
+    IFR = np.fliplr(-si.cumtrapz(np.fliplr(FR), r[-1::-1]))
+    # Compute x_j * \int_{r_j}^(r_n) f(r) * r dr
+    R_IF = IF * r[:-1]
+    # \int_{r_j}^(r_n) f(r) * (r-r_j) dr  = IF + IFR
+    M = IFR - R_IF
+
+
+    # --- Sanity checks
+    M0  = integrateMoment(r, F[0,:])
+    Mm1 = integrateMoment(r, F[-1,:])
+    if np.max(np.abs(M0-M[0,:]))>1e-8:
+        raise Exception('>>> Inaccuracies in integrateMomentTS')
+    if np.max(np.abs(Mm1-M[-1,:]))>1e-8:
+        raise Exception('>>> Inaccuracies in integrateMomentTS')
+
+    return M
 
 if __name__ == '__main__':
     main()

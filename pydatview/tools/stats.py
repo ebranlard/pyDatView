@@ -53,16 +53,22 @@ def rsquare(y,f, c = True):
     rmse = np.sqrt(np.mean((y - f) ** 2))
     return r2,rmse
 
-def mean_rel_err(t1, y1, t2, y2, method='mean'):
+def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='mean', verbose=False):
     """ 
+    return mean relative error in % 
+
     Methods: 
       'mean'   : 100 * |y1-y2|/mean(y1)
       'meanabs': 100 * |y1-y2|/mean(|y1|)
-      'minmax': y1 and y2 scaled between 0.001 and 1
+      'minmax': y1 and y2 scaled between 0.5 and 1.5
                 |y1s-y2s|/|y1|
+      '0-2': signals are scalled between 0 & 2
     """
-    if len(y1)!=len(y2):
-        y2=np.interp(t1,t2,y2)
+    if t1 is None and t2 is None:
+        pass
+    else:
+        if len(y1)!=len(y2):
+            y2=np.interp(t1,t2,y2)
     # Method 1 relative to mean
     if method=='mean':
         ref_val = np.mean(y1)
@@ -74,10 +80,21 @@ def mean_rel_err(t1, y1, t2, y2, method='mean'):
         # Method 2 scaling signals
         Min=min(np.min(y1), np.min(y2))
         Max=max(np.max(y1), np.max(y2))
-        y1=(y1-Min)/(Max-Min)+0.001
-        y2=(y2-Min)/(Max-Min)+0.001
+        y1=(y1-Min)/(Max-Min)+0.5
+        y2=(y2-Min)/(Max-Min)+0.5
         meanrelerr = np.mean(np.abs(y1-y2)/np.abs(y1))*100 
-    #print('Mean rel error {:7.2f} %'.format( meanrelerr))
+    elif method=='1-2':
+        # transform values from 1 to 2
+        Min=min(np.min(y1), np.min(y2))
+        Max=max(np.max(y1), np.max(y2))
+        y1 = (y1-Min)/(Max-Min)+1
+        y2 = (y2-Min)/(Max-Min)+1
+        meanrelerr = np.mean(np.abs(y1-y2)/np.abs(y1))*100
+    else:
+        raise Exception('Unknown method',method)
+
+    if verbose:
+        print('Mean rel error {:7.2f} %'.format( meanrelerr))
     return meanrelerr
 
 

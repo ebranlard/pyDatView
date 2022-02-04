@@ -24,7 +24,7 @@ FAST_EXE='openfast'
 # --- Tools for executing FAST
 # --------------------------------------------------------------------------------{
 # --- START cmd.py
-def run_cmds(inputfiles, exe, parallel=True, showOutputs=True, nCores=None, showCommand=True): 
+def run_cmds(inputfiles, exe, parallel=True, showOutputs=True, nCores=None, showCommand=True, verbose=True): 
     """ Run a set of simple commands of the form `exe input_file`
     By default, the commands are run in "parallel" (though the method needs to be improved)
     The stdout and stderr may be displayed on screen (`showOutputs`) or hidden. 
@@ -33,13 +33,15 @@ def run_cmds(inputfiles, exe, parallel=True, showOutputs=True, nCores=None, show
     Failed=[]
     def _report(p):
         if p.returncode==0:
-            print('[ OK ] Input    : ',p.input_file)
+            if verbose:
+                print('[ OK ] Input    : ',p.input_file)
         else:
             Failed.append(p)
-            print('[FAIL] Input    : ',p.input_file)
-            print('       Directory: '+os.getcwd())
-            print('       Command  : '+p.cmd)
-            print('       Use `showOutputs=True` to debug, or run the command above.')
+            if verbose:
+                print('[FAIL] Input    : ',p.input_file)
+                print('       Directory: '+os.getcwd())
+                print('       Command  : '+p.cmd)
+                print('       Use `showOutputs=True` to debug, or run the command above.')
             #out, err = p.communicate()
             #print('StdOut:\n'+out)
             #print('StdErr:\n'+err)
@@ -70,13 +72,14 @@ def run_cmds(inputfiles, exe, parallel=True, showOutputs=True, nCores=None, show
         _report(p)
     # --- Giving a summary
     if len(Failed)==0:
-        print('[ OK ] All simulations run successfully.')
-        return True
+        if verbose:
+            print('[ OK ] All simulations run successfully.')
+        return True, Failed
     else:
         print('[FAIL] {}/{} simulations failed:'.format(len(Failed),len(inputfiles)))
         for p in Failed:
             print('      ',p.input_file)
-        return False
+        return False, Failed
 
 def run_cmd(input_file_or_arglist, exe, wait=True, showOutputs=False, showCommand=True):
     """ Run a simple command of the form `exe input_file` or `exe arg1 arg2`  """
@@ -118,7 +121,7 @@ def run_cmd(input_file_or_arglist, exe, wait=True, showOutputs=False, showComman
     return p
 # --- END cmd.py
 
-def run_fastfiles(fastfiles, fastExe=None, parallel=True, showOutputs=True, nCores=None, showCommand=True, reRun=True):
+def run_fastfiles(fastfiles, fastExe=None, parallel=True, showOutputs=True, nCores=None, showCommand=True, reRun=True, verbose=True):
     if fastExe is None:
         fastExe=FAST_EXE
     if not reRun:
@@ -133,7 +136,7 @@ def run_fastfiles(fastfiles, fastExe=None, parallel=True, showOutputs=True, nCor
                 newfiles.append(f)
         fastfiles=newfiles
 
-    return run_cmds(fastfiles, fastExe, parallel=parallel, showOutputs=showOutputs, nCores=nCores, showCommand=showCommand)
+    return run_cmds(fastfiles, fastExe, parallel=parallel, showOutputs=showOutputs, nCores=nCores, showCommand=showCommand, verbose=verbose)
 
 def run_fast(input_file, fastExe=None, wait=True, showOutputs=False, showCommand=True):
     if fastExe is None:
@@ -141,7 +144,7 @@ def run_fast(input_file, fastExe=None, wait=True, showOutputs=False, showCommand
     return run_cmd(input_file, fastExe, wait=wait, showOutputs=showOutputs, showCommand=showCommand)
 
 
-def writeBatch(batchfile, fastfiles, fastExe=None, nBatches=1):
+def writeBatch(batchfile, fastfiles, fastExe=None, nBatches=1, pause=False):
     """ Write batch file, everything is written relative to the batch file"""
     if fastExe is None:
         fastExe=FAST_EXE
@@ -156,6 +159,9 @@ def writeBatch(batchfile, fastfiles, fastExe=None, nBatches=1):
                 ff_rel = os.path.relpath(ff_abs, batchdir)
                 l = fastExe_rel + ' '+ ff_rel
                 f.write("%s\n" % l)
+            if pause:
+                f.write("pause\n") # windows only..
+
     if nBatches==1:
         writeb(batchfile, fastfiles)
     else:
