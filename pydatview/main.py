@@ -47,7 +47,6 @@ PROG_NAME='pyDatView'
 PROG_VERSION='v0.2-local'
 try:
     import weio # File Formats and File Readers
-    FILE_FORMATS= weio.fileFormats()
 except:
     print('')
     print('Error: the python package `weio` was not imported successfully.\n')
@@ -57,9 +56,7 @@ except:
     print('Alternatively re-clone this repository into a separate folder:\n')
     print('   git clone --recurse-submodules https://github.com/ebranlard/pyDatView\n')
     sys.exit(-1)
-FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in FILE_FORMATS]
-FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
-FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
+
 
 SIDE_COL       = [160,160,300,420,530]
 SIDE_COL_LARGE = [200,200,360,480,600]
@@ -93,7 +90,7 @@ class FileDropTarget(wx.FileDropTarget):
           if iFormat==0: # auto-format
               Format = None
           else:
-              Format = FILE_FORMATS[iFormat-1]
+              Format = parent.FILE_FORMATS[iFormat-1]
           self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd)
       return True
 
@@ -159,10 +156,20 @@ class MainFrame(wx.Frame):
         self.SetMenuBar(menuBar)
         self.Bind(wx.EVT_MENU,self.onAbout,aboutMenuItem)
 
+
+        self.FILE_FORMATS, errors= weio.fileFormats(ignoreErrors=True, verbose=False)
+        if len(errors)>0:
+            for e in errors:
+                Warn(self, e)
+
+        self.FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in self.FILE_FORMATS]
+        self.FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in self.FILE_FORMATS]
+        self.FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(self.FILE_FORMATS_NAMES,self.FILE_FORMATS_EXTENSIONS)]
+
         # --- ToolBar
         tb = self.CreateToolBar(wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT)
         self.toolBar = tb 
-        self.comboFormats = wx.ComboBox(tb, choices = FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
+        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
         self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)  
         self.comboMode.SetSelection(0)
@@ -517,7 +524,11 @@ class MainFrame(wx.Frame):
         self.plotPanel.navTB.save_figure()
 
     def onAbout(self, event=None):
-        Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
+        defaultDir = weio.defaultUserDataDir() # TODO input file options
+        Info(self,PROG_NAME+' '+PROG_VERSION+'\n\n'
+                'pyDatView data directory:\n     {}\n'.format(os.path.join(defaultDir,'pyDatView'))+
+                'weio data directory:     \n     {}\n'.format(os.path.join(defaultDir,'weio'))+
+                '\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReload(self, event=None):
         filenames, fileformats = self.tabList.filenames_and_formats
@@ -562,7 +573,7 @@ class MainFrame(wx.Frame):
         if iFormat==0: # auto-format
             Format = None
             #wildcard = 'all (*.*)|*.*'
-            wildcard='|'.join([n+'|*'+';*'.join(e) for n,e in zip(FILE_FORMATS_NAMEXT,FILE_FORMATS_EXTENSIONS)])
+            wildcard='|'.join([n+'|*'+';*'.join(e) for n,e in zip(self.FILE_FORMATS_NAMEXT,self.FILE_FORMATS_EXTENSIONS)])
             #wildcard = sFormat + extensions+'|all (*.*)|*.*'
         else:
             Format = FILE_FORMATS[iFormat-1]
