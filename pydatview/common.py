@@ -145,34 +145,6 @@ def extract_key_num(text):
     regex = re.compile(r'(?P<key>[\w\-]+)=(?P<value>[0-9+epinf.-]*?)($|,)')
     return {match.group("key"): np.float(match.group("value")) for match in regex.finditer(text.replace(' ',''))}
 
-# --------------------------------------------------------------------------------}
-# ---  
-# --------------------------------------------------------------------------------{
-# def getMonoFontAbs():
-#     import wx
-#     #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
-#     if os.name=='nt':
-#         font=wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-#     elif os.name=='posix':
-#         font=wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-#     else:
-#         font=wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-#     return font
-# 
-# def getMonoFont(widget):
-#     import wx
-#     font = widget.GetFont()
-#     font.SetFamily(wx.TELETYPE)
-#     if platform.system()=='Windows':
-#         pass
-#     elif platform.system()=='Linux':
-#         pass
-#     elif platform.system()=='Darwin':
-#         font.SetPointSize(font.GetPointSize()-1)
-#     else:
-#         pass
-#     return font
-
 def getDt(x):
     """ returns dt in s """
     def myisnat(dt):

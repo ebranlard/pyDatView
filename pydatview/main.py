@@ -6,6 +6,9 @@ standard_library.install_aliases()
 
 import numpy as np
 import os.path 
+import sys
+import traceback 
+import gc
 try:
     import pandas as pd
 except:
@@ -20,9 +23,6 @@ except:
     sys.exit(-1)
     #raise
 
-import sys
-import traceback 
-import gc
 
 #  GUI
 import wx
@@ -38,13 +38,6 @@ from .GUICommon import *
 # Pluggins
 from .plugins import dataPlugins
 
-
-
-# --------------------------------------------------------------------------------}
-# --- GLOBAL 
-# --------------------------------------------------------------------------------{
-PROG_NAME='pyDatView'
-PROG_VERSION='v0.2-local'
 try:
     import weio # File Formats and File Readers
 except:
@@ -57,7 +50,13 @@ except:
     print('   git clone --recurse-submodules https://github.com/ebranlard/pyDatView\n')
     sys.exit(-1)
 
+from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
+# --------------------------------------------------------------------------------}
+# --- GLOBAL 
+# --------------------------------------------------------------------------------{
+PROG_NAME='pyDatView'
+PROG_VERSION='v0.2-local'
 SIDE_COL       = [160,160,300,420,530]
 SIDE_COL_LARGE = [200,200,360,480,600]
 BOT_PANL =85
@@ -101,15 +100,21 @@ class FileDropTarget(wx.FileDropTarget):
 # --- Main Frame  
 # --------------------------------------------------------------------------------{
 class MainFrame(wx.Frame):
-    def __init__(self, filename=None):
+    def __init__(self, data=None):
         # Parent constructor
         wx.Frame.__init__(self, None, -1, PROG_NAME+' '+PROG_VERSION)
-        # Data
-        self.tabList=TableList()
-        self.restore_formulas = []
-
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
+        # --- Data
+        self.tabList=TableList()
+        self.restore_formulas = []
+        self.systemFontSize = self.GetFont().GetPointSize()
+        self.data = loadAppData(self)
+        self.datareset = False
+        # Global variables...
+        setFontSize(self.data['fontSize'])
+        setMonoFontSize(self.data['monoFontSize'])
+
         # --- GUI
         #font = self.GetFont()
         #print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
@@ -119,6 +124,7 @@ class MainFrame(wx.Frame):
         #font.SetPointSize(8)
         #print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
         #self.SetFont(font) 
+        self.SetFont(getFont(self))
         # --- Menu
         menuBar = wx.MenuBar()
 
@@ -152,9 +158,11 @@ class MainFrame(wx.Frame):
 
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
+        resetMenuItem = helpMenu.Append(wx.NewId(), 'Reset options', 'Rest options')
         menuBar.Append(helpMenu, "&Help")
         self.SetMenuBar(menuBar)
-        self.Bind(wx.EVT_MENU,self.onAbout,aboutMenuItem)
+        self.Bind(wx.EVT_MENU,self.onAbout, aboutMenuItem)
+        self.Bind(wx.EVT_MENU,self.onReset, resetMenuItem)
 
 
         self.FILE_FORMATS, errors= weio.fileFormats(ignoreErrors=True, verbose=False)
@@ -220,10 +228,11 @@ class MainFrame(wx.Frame):
         self.FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND,border=0)
         self.SetSizer(self.FrameSizer)
 
-        self.SetSize((900, 700))
+        self.SetSize(self.data['windowSize'])
         self.Center()
         self.Show()
         self.Bind(wx.EVT_SIZE, self.OnResizeWindow)
+        self.Bind(wx.EVT_CLOSE, self.onClose)
 
         # Shortcuts
         idFilter=wx.NewId()
@@ -234,15 +243,10 @@ class MainFrame(wx.Frame):
                 )
         self.SetAcceleratorTable(accel_tbl)
 
-    def printString(self, event=None, string=''):
-        print('>>> string',string)
-
     def onFilter(self,event):
         if hasattr(self,'selPanel'):
             self.selPanel.colPanel1.tFilter.SetFocus()
         event.Skip()
-
-
 
     def clean_memory(self,bReload=False):
         #print('Clean memory')
@@ -330,7 +334,7 @@ class MainFrame(wx.Frame):
             self.selPanel = SelectionPanel(self.vSplitter, self.tabList, mode=mode, mainframe=self)
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
-            self.infoPanel = InfoPanel(self.tSplitter)
+            self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
             self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, self)
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
@@ -502,7 +506,11 @@ class MainFrame(wx.Frame):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
 
     def onExit(self, event):
-        self.Close()
+        self.Close() 
+
+    def onClose(self, event):
+        saveAppData(self, self.data)
+        event.Skip()
 
     def cleanGUI(self, event=None):
         if hasattr(self,'plotPanel'):
@@ -525,10 +533,26 @@ class MainFrame(wx.Frame):
 
     def onAbout(self, event=None):
         defaultDir = weio.defaultUserDataDir() # TODO input file options
-        Info(self,PROG_NAME+' '+PROG_VERSION+'\n\n'
-                'pyDatView data directory:\n     {}\n'.format(os.path.join(defaultDir,'pyDatView'))+
+        About(self,PROG_NAME+' '+PROG_VERSION+'\n\n'
+                'pyDatView config file:\n     {}\n'.format(configFilePath())+
                 'weio data directory:     \n     {}\n'.format(os.path.join(defaultDir,'weio'))+
                 '\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
+
+    def onReset (self, event=None):
+        configFile = configFilePath()
+        result = YesNo(self,
+                'The options of pyDatView will be reset to default.\nThe changes will be noticeable the next time you open pyDatView.\n\n'+
+                'This action will overwrite the user settings file:\n   {}\n\n'.format(configFile)+
+                'pyDatView will then close.\n\n'
+                'Are you sure you want to continue?', caption = 'Reset settings?')
+        if result:
+            try:
+                os.remove(configFile)
+            except:
+                pass
+            self.data = defaultAppData(self)
+            self.datareset = True
+            self.onExit(event=None)
 
     def onReload(self, event=None):
         filenames, fileformats = self.tabList.filenames_and_formats

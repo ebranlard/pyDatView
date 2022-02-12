@@ -270,27 +270,56 @@ class PlotTypePanel(wx.Panel):
         self.parent.lbDeltaY.SetLabel('')
 
 class EstheticsPanel(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, data):
         wx.Panel.__init__(self, parent)
         self.parent=parent
         #self.SetBackgroundColour('red')
 
+        # Font
         lbFont = wx.StaticText( self, -1, 'Font:')
-        self.cbFont = wx.ComboBox(self, choices=['6','7','8','9','10','11','12','13','14','15','16','17','18'] , style=wx.CB_READONLY)
-        self.cbFont.SetSelection(2)
+        fontChoices = ['6','7','8','9','10','11','12','13','14','15','16','17','18']
+        self.cbFont = wx.ComboBox(self, choices=fontChoices , style=wx.CB_READONLY)
+        try:
+            i = fontChoices.index(str(data['Font']))
+        except ValueError:
+            i = 2
+        self.cbFont.SetSelection(i)
+        # Legend
         # NOTE: we don't offer "best" since best is slow
         lbLegend = wx.StaticText( self, -1, 'Legend:')
-        self.cbLegend = wx.ComboBox(self, choices=['None','Upper right','Upper left','Lower left','Lower right','Right','Center left','Center right','Lower center','Upper center','Center'] , style=wx.CB_READONLY)
-        self.cbLegend.SetSelection(1)
+        lbChoices = ['None','Upper right','Upper left','Lower left','Lower right','Right','Center left','Center right','Lower center','Upper center','Center']
+        self.cbLegend = wx.ComboBox(self, choices=lbChoices, style=wx.CB_READONLY)
+        try:
+            i = lbChoices.index(str(data['LegendPosition']))
+        except ValueError:
+            i=1
+        self.cbLegend.SetSelection(i)
+        # Legend Font
         lbLgdFont = wx.StaticText( self, -1, 'Legend font:')
-        self.cbLgdFont = wx.ComboBox(self, choices=['6','7','8','9','10','11','12','13','14','15','16','17','18'] , style=wx.CB_READONLY)
-        self.cbLgdFont.SetSelection(2)
+        self.cbLgdFont = wx.ComboBox(self, choices=fontChoices, style=wx.CB_READONLY)
+        try:
+            i = fontChoices.index(str(data['LegendFont']))
+        except ValueError:
+            i = 2
+        self.cbLgdFont.SetSelection(i)
+        # Line Width Font
         lbLW = wx.StaticText( self, -1, 'Line width:')
-        self.cbLW = wx.ComboBox(self, choices=['0.5','1.0','1.5','2.0','2.5','3.0'] , style=wx.CB_READONLY)
-        self.cbLW.SetSelection(2)
+        LWChoices = ['0.5','1.0','1.25','1.5','2.0','2.5','3.0']
+        self.cbLW = wx.ComboBox(self, choices=LWChoices , style=wx.CB_READONLY)
+        try:
+            i = LWChoices.index(str(data['LineWidth']))
+        except ValueError:
+            i = 3
+        self.cbLW.SetSelection(i)
+        #  Marker Size
         lbMS = wx.StaticText( self, -1, 'Marker size:')
-        self.cbMS= wx.ComboBox(self, choices=['0.5','1','2','3','4','5','6','7','8'] , style=wx.CB_READONLY)
-        self.cbMS.SetSelection(2)
+        MSChoices = ['0.5','1','2','3','4','5','6','7','8']
+        self.cbMS= wx.ComboBox(self, choices=MSChoices, style=wx.CB_READONLY)
+        try:
+            i = MSChoices.index(str(data['MarkerSize']))
+        except ValueError:
+            i = 2
+        self.cbMS.SetSelection(i)
 
         # Layout
         #dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -353,6 +382,12 @@ class PlotPanel(wx.Panel):
         self.mainframe= mainframe
         self.plotData = []
         self.plotDataOptions=dict()
+        try:
+            self.data  = mainframe.data['plotPanel']
+        except:
+            print('>>> Using default settings for plot panel')
+            from .appdata import defaultPlotPanelData
+            self.data = defaultPlotPanelData()
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
@@ -399,7 +434,7 @@ class PlotPanel(wx.Panel):
         self.cmpPanel = CompCtrlPanel(self)
         self.mmxPanel = MinMaxPanel(self)
         # --- Esthetics panel
-        self.esthPanel = EstheticsPanel(self)
+        self.esthPanel = EstheticsPanel(self, data=self.data['plotStyle'])
 
 
         # --- Ctrl Panel
@@ -420,8 +455,9 @@ class PlotPanel(wx.Panel):
         self.cbMeasure    = wx.CheckBox(self.ctrlPanel, -1, 'Measure',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
-        self.cbXHair.SetValue(True) # Have cross hair by default
+        self.cbXHair.SetValue(self.data['CrossHair']) # Have cross hair by default
         self.cbAutoScale.SetValue(True)
+        self.cbGrid.SetValue(self.data['Grid'])
         # Callbacks
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbSub    )
         self.Bind(wx.EVT_COMBOBOX, self.redraw_event     , self.cbCurveType)
