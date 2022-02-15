@@ -89,7 +89,7 @@ class FileDropTarget(wx.FileDropTarget):
           if iFormat==0: # auto-format
               Format = None
           else:
-              Format = parent.FILE_FORMATS[iFormat-1]
+              Format = self.parent.FILE_FORMATS[iFormat-1]
           self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd)
       return True
 
