@@ -113,7 +113,7 @@ class SpectralCtrlPanel(wx.Panel):
         self.cbType            = wx.ComboBox(self, choices=['PSD','f x PSD','Amplitude'] , style=wx.CB_READONLY)
         self.cbType.SetSelection(0)
         lbAveraging            = wx.StaticText( self, -1, 'Avg.:')
-        self.cbAveraging       = wx.ComboBox(self, choices=['None','Welch'] , style=wx.CB_READONLY)
+        self.cbAveraging       = wx.ComboBox(self, choices=['None','Welch','Binning'] , style=wx.CB_READONLY)
         self.cbAveraging.SetSelection(1)
         self.lbAveragingMethod = wx.StaticText( self, -1, 'Window:')
         self.cbAveragingMethod = wx.ComboBox(self, choices=['Hamming','Hann','Rectangular'] , style=wx.CB_READONLY)
@@ -121,7 +121,9 @@ class SpectralCtrlPanel(wx.Panel):
         self.lbP2 = wx.StaticText( self, -1, '2^n:')
         self.scP2 = wx.SpinCtrl(self, value='11',size=wx.Size(40,-1))
         self.lbWinLength = wx.StaticText( self, -1, '(2048) ')
-        self.scP2.SetRange(3, 19)
+        self.scP2.SetRange(3, 50)
+        self.previousNExp = 8
+        self.previousNDec = 20
         lbMaxFreq     = wx.StaticText( self, -1, 'Xlim:')
         self.tMaxFreq = wx.TextCtrl(self,size = (30,-1),style=wx.TE_PROCESS_ENTER)
         self.tMaxFreq.SetValue("-1")
@@ -155,13 +157,36 @@ class SpectralCtrlPanel(wx.Panel):
     def onXlimChange(self,event=None):
         self.parent.redraw_same_data();
     def onSpecCtrlChange(self,event=None):
+        if self.cbAveraging.GetStringSelection()=='None':
+            self.scP2.Enable(False)
+            self.cbAveragingMethod.Enable(False)
+            self.lbP2.SetLabel('')
+            self.lbWinLength.SetLabel('')
+        elif self.cbAveraging.GetStringSelection()=='Binning':
+            self.previousNExp= self.scP2.GetValue()
+            self.scP2.SetValue(self.previousNDec)
+            self.scP2.Enable(True)
+            self.cbAveragingMethod.Enable(False)
+            self.lbP2.SetLabel('n:')
+            self.lbWinLength.SetLabel('')
+        else:
+            self.previousDec= self.scP2.GetValue()
+            self.scP2.SetValue(self.previousNExp)
+            self.lbP2.SetLabel('2^n:')
+            self.scP2.Enable(True)
+            self.cbAveragingMethod.Enable(True)
+            self.onP2ChangeText(event=None)
         self.parent.load_and_draw() # Data changes
+
     def onDetrendChange(self,event=None):
         self.parent.load_and_draw() # Data changes
 
     def onP2ChangeText(self,event=None):
-        nExp=self.scP2.GetValue()
-        self.updateP2(nExp)
+        if self.cbAveraging.GetStringSelection()=='Binning':
+            pass
+        else:
+            nExp=self.scP2.GetValue()
+            self.updateP2(nExp)
         self.parent.load_and_draw() # Data changes
 
     def updateP2(self,P2):
@@ -683,7 +708,7 @@ class PlotPanel(wx.Panel):
                         self.rightMeasure.plot(ax, ax_idx)
                     else:
                         return
-                    if self.cbAutoScale.IsChecked() is False:
+                    if not self.cbAutoScale.IsChecked():
                         self._restore_limits()
                         
                     if self.leftMeasure.axis_idx == self.rightMeasure.axis_idx and self.leftMeasure.axis_idx != -1:
@@ -770,9 +795,10 @@ class PlotPanel(wx.Panel):
         avgWindow  = self.spcPanel.cbAveragingMethod.GetStringSelection()
         bDetrend   = self.spcPanel.cbDetrend.IsChecked()
         nExp       = self.spcPanel.scP2.GetValue()
+        nPerDecade = self.spcPanel.scP2.GetValue()
         # Convert plotdata to FFT data
         try:
-            Info = pd.toFFT(yType=yType, xType=xType, avgMethod=avgMethod, avgWindow=avgWindow, bDetrend=bDetrend, nExp=nExp) 
+            Info = pd.toFFT(yType=yType, xType=xType, avgMethod=avgMethod, avgWindow=avgWindow, bDetrend=bDetrend, nExp=nExp, nPerDecade=nPerDecade) 
             # Trigger
             if hasattr(Info,'nExp') and Info.nExp!=nExp:
                 self.spcPanel.scP2.SetValue(Info.nExp)
@@ -1013,18 +1039,21 @@ class PlotPanel(wx.Panel):
             # XLIM - TODO FFT ONLY NASTY
             if self.pltTypePanel.cbFFT.GetValue():
                 try:
-                    xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
-                    if xlim>0:
-                        ax_left.set_xlim([0,xlim])
-                        pd=PD[ax_left.iPD[0]]
-                        I=pd.x<xlim
-                        ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
-                        ax_left.set_ylim(bottom=ymin/2)
-                    if self.spcPanel.cbTypeX.GetStringSelection()=='x':
-                        ax_left.invert_xaxis()
+                    if self.cbAutoScale.IsChecked():
+                        xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
+                        if xlim>0:
+                                ax_left.set_xlim([0,xlim])
+                                pd=PD[ax_left.iPD[0]]
+                                I=pd.x<xlim
+                                ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
+                                ax_left.set_ylim(bottom=ymin/2)
+                        if self.spcPanel.cbTypeX.GetStringSelection()=='x':
+                            ax_left.invert_xaxis()
+                    else:
+                        self._restore_limits()
                 except:
                     pass
-            elif self.cbAutoScale.IsChecked() is False and keep_limits:
+            elif not self.cbAutoScale.IsChecked() and keep_limits:
                 self._restore_limits()
 
             ax_left.grid(self.cbGrid.IsChecked())

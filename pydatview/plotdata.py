@@ -202,7 +202,7 @@ class PlotData():
         return None
 
 
-    def toFFT(PD, yType='Amplitude', xType='1/x', avgMethod='Welch', avgWindow='Hamming', bDetrend=True, nExp=8):
+    def toFFT(PD, yType='Amplitude', xType='1/x', avgMethod='Welch', avgWindow='Hamming', bDetrend=True, nExp=8, nPerDecade=10):
         """ 
         Uses spectral.fft_wrap to generate a "FFT" plot data, with various options:
            yType      : amplitude, PSD, f x PSD
@@ -225,7 +225,7 @@ class PlotData():
         if PD.xIsDate:
             dt = getDt(PD.x)
         # --- Computing fft - x is freq, y is Amplitude
-        PD.x, PD.y, Info = fft_wrap(PD.x, PD.y, dt=dt, output_type=yType,averaging=avgMethod, averaging_window=avgWindow,detrend=bDetrend,nExp=nExp)
+        PD.x, PD.y, Info = fft_wrap(PD.x, PD.y, dt=dt, output_type=yType,averaging=avgMethod, averaging_window=avgWindow,detrend=bDetrend,nExp=nExp, nPerDecade=nPerDecade)
         # --- Setting plot options
         PD._Info=Info
         PD.xIsDate=False
