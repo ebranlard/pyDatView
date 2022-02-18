@@ -251,7 +251,6 @@ class FilterToolPanel(GUIToolPanel):
         self.onToggleCompute(init=True)
 
     def destroy(self,event=None):
-        self.parent.plotDataOptions['Filter']=None
         super(FilterToolPanel,self).destroy()
 
 
