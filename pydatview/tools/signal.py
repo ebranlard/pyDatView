@@ -234,7 +234,7 @@ def highpass1(y, dt, fc=3) :
     return y_filt
 
 
-def applyFilter(x, y,filtDict):
+def applyFilter(x, y, filtDict):
     if filtDict['name']=='Moving average':
         return moving_average(y, n=np.round(filtDict['param']).astype(int))
     elif filtDict['name']=='Low pass 1st order':
@@ -245,6 +245,17 @@ def applyFilter(x, y,filtDict):
         return highpass1(y, dt=dt, fc=filtDict['param'])
     else:
         raise NotImplementedError('{}'.format(filtDict))
+
+def applyFilterDF(df_old, x_col, options):
+    """ apply filter on a dataframe """
+    # Brute force loop
+    df_new = df_old.copy()
+    x = df_new[x_col]
+    for (colName, colData) in df_new.iteritems():
+        if colName != x_col:
+            df_new[colName] = applyFilter(x, colData, options)
+    return df_new
+
 
 # --------------------------------------------------------------------------------}
 # ---  

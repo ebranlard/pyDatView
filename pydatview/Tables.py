@@ -259,7 +259,7 @@ class TableList(object): # todo inherit list
 
         return dfs_new, names_new, errors
 
-    # --- Resampling and other actions
+    # --- Resampling TODO MOVE THIS OUT OF HERE OR UNIFY
     def applyResampling(self,iCol,sampDict,bAdd=True):
         dfs_new   = []
         names_new = []
@@ -273,7 +273,22 @@ class TableList(object): # todo inherit list
                 names_new.append(name_new)
 #             except:
 #                 errors.append('Resampling failed for table: '+t.active_name) # TODO
+        return dfs_new, names_new, errors
 
+    # --- Filtering  TODO MOVE THIS OUT OF HERE OR UNIFY
+    def applyFiltering(self,iCol,options,bAdd=True):
+        dfs_new   = []
+        names_new = []
+        errors=[]
+        for i,t in enumerate(self._tabs):
+#             try:
+            df_new, name_new = t.applyFiltering(iCol, options, bAdd=bAdd)
+            if df_new is not None: 
+                # we don't append when string is empty
+                dfs_new.append(df_new)
+                names_new.append(name_new)
+#             except:
+#                 errors.append('Resampling failed for table: '+t.active_name) # TODO
         return dfs_new, names_new, errors
 
 
@@ -429,8 +444,8 @@ class Table(object):
                 raise Exception('Error: The mask failed for table: '+self.name)
         return df_new, name_new
 
-    # --- Important manipulation
-    def applyResampling(self,iCol,sampDict,bAdd=True):
+    # --- Important manipulation TODO MOVE THIS OUT OF HERE OR UNIFY
+    def applyResampling(self, iCol, sampDict, bAdd=True):
         from pydatview.tools.signal import applySamplerDF
         if iCol==0:
             raise Exception('Cannot resample based on index')
@@ -443,6 +458,21 @@ class Table(object):
             name_new=None
             self.data=df_new
         return df_new, name_new
+
+    def applyFiltering(self, iCol, options, bAdd=True):
+        from pydatview.tools.signal import applyFilterDF
+        if iCol==0:
+            raise Exception('Cannot filter based on index')
+        colName=self.data.columns[iCol-1]
+        df_new =applyFilterDF(self.data, colName, options)
+        df_new
+        if bAdd:
+            name_new=self.raw_name+'_filtered'
+        else:
+            name_new=None
+            self.data=df_new
+        return df_new, name_new
+
 
     def radialAvg(self,avgMethod, avgParam):
         import pydatview.fast.fastlib as fastlib

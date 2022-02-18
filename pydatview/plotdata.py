@@ -70,8 +70,9 @@ class PlotData():
 
     def _post_init(PD, Options={}):
         # --- Perform data manipulation on the fly
-        #print(Options)
+        #[print(k,v) for k,v in Options.items()]
         keys=Options.keys()
+        # TODO setup an "Order"
         if 'RemoveOutliers' in keys:
             if Options['RemoveOutliers']:
                 from pydatview.tools.signal import reject_outliers

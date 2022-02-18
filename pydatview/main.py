@@ -374,6 +374,7 @@ class MainFrame(wx.Frame):
         except:
             pass
         # Hack
+        #self.onShowTool(tool='Filter')
         #self.onShowTool(tool='Resample')
         #self.onDataPlugin(toolName='Bin data')
 
