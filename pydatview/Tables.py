@@ -52,7 +52,7 @@ class TableList(object): # todo inherit list
         warnList=[]
         for f in filenames:
             if f in self.unique_filenames:
-                warn.append('Warn: Cannot add a file already opened ' + f)
+                warnList.append('Warn: Cannot add a file already opened ' + f)
             elif len(f)==0:
                 pass
                 #    warn+= 'Warn: an empty filename was skipped' +'\n'
