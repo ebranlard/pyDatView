@@ -58,15 +58,19 @@ def multiInterp(x, xp, fp, extrap='bounded'):
     INPUTS:
       - x  : array ( n ), new values
       - xp : array ( np ), old values
-      - fp : array ( np x ncol), matrix values to be interpolated
+      - fp : array ( nval, np), matrix values to be interpolated
     """
+    # Sanity
+    x   = np.asarray(x)
+    xp  = np.asarray(xp)
+    assert fp.shape[1]==len(xp), 'Second dimension of fp should have the same length as xp'
+
     j   = np.searchsorted(xp, x) - 1
     dd  = np.zeros(len(x))
     bOK = np.logical_and(j>=0, j< len(xp)-1)
     bLower =j<0
     bUpper =j>=len(xp)-1
     jOK = j[bOK]
-    #import pdb; pdb.set_trace()
     dd[bOK] = (x[bOK] - xp[jOK]) / (xp[jOK + 1] - xp[jOK])
     jBef=j 
     jAft=j+1
@@ -85,6 +89,42 @@ def multiInterp(x, xp, fp, extrap='bounded'):
         raise NotImplementedError()
 
     return (1 - dd) * fp[:,jBef] + fp[:,jAft] * dd
+
+def interpArray(x, xp, fp, extrap='bounded'):
+    """ 
+    Interpolate all the columns of a matrix `fp` based on one new value `x`
+    INPUTS:
+      - x  : scalar  new values
+      - xp : array ( np ), old values
+      - fp : array ( nval, np), matrix values to be interpolated
+    """
+    # Sanity
+    xp  = np.asarray(xp)
+    assert fp.shape[1]==len(xp), 'Second dimension of fp should have the same length as xp'
+
+    j   = np.searchsorted(xp, x) - 1
+    if j<0:
+        # Before bounds
+        if extrap=='bounded':
+            return fp[:,0]
+        elif extrap=='nan':
+            return fp[:,0]*np.nan
+        else:
+            raise NotImplementedError()
+
+    elif j>=len(xp)-1:
+        # After bounds
+        if extrap=='bounded':
+            return fp[:,-1]
+        elif extrap=='nan':
+            return fp[:,-1]*np.nan
+        else:
+            raise NotImplementedError()
+    else:
+        # Normal case, within bounds
+        dd = (x- xp[j]) / (xp[j+1] - xp[j])
+        return (1 - dd) * fp[:,j] + fp[:,j+1] * dd
+
 
 def resample_interp(x_old, x_new, y_old=None, df_old=None):
     #x_new=np.sort(x_new)

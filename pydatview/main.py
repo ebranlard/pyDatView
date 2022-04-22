@@ -39,7 +39,7 @@ from .GUICommon import *
 from .plugins import dataPlugins
 
 try:
-    import weio # File Formats and File Readers
+    import weio.weio as weio# File Formats and File Readers
 except:
     print('')
     print('Error: the python package `weio` was not imported successfully.\n')
