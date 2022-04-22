@@ -672,7 +672,9 @@ def pwelch(x, window='hamming', noverlap=None, nfft=None, fs=1.0, nperseg=None,
 
 
 def csd(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None, nfft=None,
-        detrend='constant', return_onesided=True, scaling='density', axis=-1):
+        detrend='constant', return_onesided=True, scaling='density', axis=-1,
+        returnInfo=False
+        ):
     r"""
     Estimate the cross power spectral density, Pxy, using Welch's
     method.
@@ -689,7 +691,10 @@ def csd(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None, nfft=None,
         else:
             Pxy = np.reshape(Pxy, Pxy.shape[:-1])
 
-    return freqs, Pxy, Info
+    if returnInfo:
+        return freqs, Pxy, Info
+    else:
+        return freqs, Pxy
 
 
 
@@ -706,7 +711,7 @@ def coherence(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None,
 
     freqs, Pxx, Infoxx = welch(x, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
     _, Pyy, Infoyy     = welch(y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
-    _, Pxy, Infoxy     = csd(x, y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
+    _, Pxy, Infoxy     = csd(x, y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis, returnInfo=True)
 
     Cxy = np.abs(Pxy)**2 / Pxx / Pyy
 
