@@ -666,7 +666,7 @@ def pwelch(x, window='hamming', noverlap=None, nfft=None, fs=1.0, nperseg=None,
         detrend='constant'
 
     freqs, Pxx, Info = csd(x, x, fs, window, nperseg, noverlap, nfft, detrend,
-                     return_onesided, scaling, axis)
+                     return_onesided, scaling, axis, returnInfo=True)
 
     return freqs, Pxx.real, Info
 
