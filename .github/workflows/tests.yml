@@ -26,12 +26,9 @@ jobs:
         id: versioning
         run: |
           git fetch --unshallow
-          export VERSION_TAG=""
           export CURRENT_DEV_TAG="v0.3-dev"
-          export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
           echo "GIT DESCRIBE:      `git describe`"
           echo "GITHUB_REF:        $GITHUB_REF"
-          echo "VERSION_NAME       $VERSION_NAME"
           # Check if current version corresponds to a tagged commit
           if [[ $GITHUB_REF == *"tags"* ]]; then 
               echo ">>> This is a tagged version"
@@ -41,6 +38,7 @@ jobs:
           else
               echo ">>> This is not a tagged version"
               export VERSION_TAG=$CURRENT_DEV_TAG ;
+              export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
               export FULL_VERSION_NAME="latest dev. version $VERSION_NAME"
           fi
           echo "VERSION_TAG        $VERSION_TAG"
@@ -83,8 +81,12 @@ jobs:
           echo "GH_EVENT    :  $GH_EVENT"
           echo "PY_VERSION  :  $PY_VERSION"
           export OK=0
-          if [[                 $PY_VERSION == "3.6" ]]; then export OK=1 ; fi
-          if [[ "$OK" == "1" && $GH_EVENT == "push"  ]]; then export OK=1 ; fi
+          # Only deploy for push events
+          if [[ $PY_VERSION == "3.6" ]]; then
+            if [[ $GH_EVENT == "push" ]]; then 
+                export OK=1 ;
+            fi
+          fi
           echo "DEPLOY      : $OK"
           echo "::set-output name=GO::$OK"
 
