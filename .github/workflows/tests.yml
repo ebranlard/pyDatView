@@ -33,14 +33,17 @@ jobs:
           echo "GITHUB_REF:        $GITHUB_REF"
           echo "VERSION_NAME       $VERSION_NAME"
           # Check if current version corresponds to a tagged commit
-          if [[ $GITHUB_REF == *"tags"* ]]; then export VERSION_TAG=${GITHUB_REF/refs\/tags\//} ; fi
+          if [[ $GITHUB_REF == *"tags"* ]]; then 
+              echo ">>> This is a tagged version"
+              export VERSION_TAG=${GITHUB_REF/refs\/tags\//} 
+              export VERSION_NAME=$VERSION_TAG
+              export FULL_VERSION_NAME="version $VERSION_NAME"
+          else
+              echo ">>> This is not a tagged version"
+              export VERSION_TAG=$CURRENT_DEV_TAG ;
+              export FULL_VERSION_NAME="latest dev. version $VERSION_NAME"
+          fi
           echo "VERSION_TAG        $VERSION_TAG"
-          if [[ "$VERSION_TAG" == ""     ]]; then export VERSION_TAG=$CURRENT_DEV_TAG ; fi
-          if [[ "$VERSION_TAG" != "$CURRENT_DEV_TAG" ]]; then export VERSION_NAME=$VERSION_TAG ; fi
-          echo "VERSION_NAME:      $VERSION_NAME"
-          echo "VERSION_TAG :      $VERSION_TAG"
-          if [[ "$VERSION_TAG" != "$CURRENT_DEV_TAG" ]]; then export FULL_VERSION_NAME="version $VERSION_NAME" ; fi
-          if [[ "$VERSION_TAG" == "$CURRENT_DEV_TAG" ]]; then export FULL_VERSION_NAME="latest dev. version $VERSION_NAME" ; fi
           echo "VERSION_NAME:      $VERSION_NAME"
           echo "FULL_VERSION_NAME: $FULL_VERSION_NAME"
           echo "::set-output name=FULL_VERSION_NAME::$FULL_VERSION_NAME"
