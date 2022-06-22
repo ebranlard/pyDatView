@@ -56,7 +56,7 @@ from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 # --- GLOBAL 
 # --------------------------------------------------------------------------------{
 PROG_NAME='pyDatView'
-PROG_VERSION='v0.2-local'
+PROG_VERSION='v0.3-local'
 SIDE_COL       = [160,160,300,420,530]
 SIDE_COL_LARGE = [200,200,360,480,600]
 BOT_PANL =85
