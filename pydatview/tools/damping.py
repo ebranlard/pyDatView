@@ -15,9 +15,9 @@ def indexes(y, thres=0.3, min_dist=1, thres_abs=False):
     ----------
     y : ndarray (signed)
         1D amplitude data to search for peaks.
-    thres : float between [0., 1.]
-        Normalized threshold. Only the peaks with amplitude higher than the
+    thres : float, defining threshold. Only the peaks with amplitude higher than the
         threshold will be detected.
+        if thres_abs is False: between [0., 1.], normalized threshold. 
     min_dist : int
         Minimum distance between each detected peak. The peak with the highest
         amplitude is preferred to satisfy this constraint.

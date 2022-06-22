@@ -53,7 +53,7 @@ class PDFCtrlPanel(wx.Panel):
         super(PDFCtrlPanel,self).__init__(parent)
         self.parent   = parent
         lb = wx.StaticText( self, -1, 'Number of bins:')
-        self.scBins = wx.SpinCtrl(self, value='50',size=wx.Size(70,-1))
+        self.scBins = wx.SpinCtrl(self, value='51',size=wx.Size(70,-1), style=wx.TE_RIGHT)
         self.scBins.SetRange(3, 10000)
         self.cbSmooth = wx.CheckBox(self, -1, 'Smooth',(10,10))
         self.cbSmooth.SetValue(False)
@@ -113,7 +113,7 @@ class SpectralCtrlPanel(wx.Panel):
         self.cbType            = wx.ComboBox(self, choices=['PSD','f x PSD','Amplitude'] , style=wx.CB_READONLY)
         self.cbType.SetSelection(0)
         lbAveraging            = wx.StaticText( self, -1, 'Avg.:')
-        self.cbAveraging       = wx.ComboBox(self, choices=['None','Welch'] , style=wx.CB_READONLY)
+        self.cbAveraging       = wx.ComboBox(self, choices=['None','Welch','Binning'] , style=wx.CB_READONLY)
         self.cbAveraging.SetSelection(1)
         self.lbAveragingMethod = wx.StaticText( self, -1, 'Window:')
         self.cbAveragingMethod = wx.ComboBox(self, choices=['Hamming','Hann','Rectangular'] , style=wx.CB_READONLY)
@@ -121,7 +121,9 @@ class SpectralCtrlPanel(wx.Panel):
         self.lbP2 = wx.StaticText( self, -1, '2^n:')
         self.scP2 = wx.SpinCtrl(self, value='11',size=wx.Size(40,-1))
         self.lbWinLength = wx.StaticText( self, -1, '(2048) ')
-        self.scP2.SetRange(3, 19)
+        self.scP2.SetRange(3, 50)
+        self.previousNExp = 8
+        self.previousNDec = 20
         lbMaxFreq     = wx.StaticText( self, -1, 'Xlim:')
         self.tMaxFreq = wx.TextCtrl(self,size = (30,-1),style=wx.TE_PROCESS_ENTER)
         self.tMaxFreq.SetValue("-1")
@@ -155,13 +157,36 @@ class SpectralCtrlPanel(wx.Panel):
     def onXlimChange(self,event=None):
         self.parent.redraw_same_data();
     def onSpecCtrlChange(self,event=None):
+        if self.cbAveraging.GetStringSelection()=='None':
+            self.scP2.Enable(False)
+            self.cbAveragingMethod.Enable(False)
+            self.lbP2.SetLabel('')
+            self.lbWinLength.SetLabel('')
+        elif self.cbAveraging.GetStringSelection()=='Binning':
+            self.previousNExp= self.scP2.GetValue()
+            self.scP2.SetValue(self.previousNDec)
+            self.scP2.Enable(True)
+            self.cbAveragingMethod.Enable(False)
+            self.lbP2.SetLabel('n:')
+            self.lbWinLength.SetLabel('')
+        else:
+            self.previousDec= self.scP2.GetValue()
+            self.scP2.SetValue(self.previousNExp)
+            self.lbP2.SetLabel('2^n:')
+            self.scP2.Enable(True)
+            self.cbAveragingMethod.Enable(True)
+            self.onP2ChangeText(event=None)
         self.parent.load_and_draw() # Data changes
+
     def onDetrendChange(self,event=None):
         self.parent.load_and_draw() # Data changes
 
     def onP2ChangeText(self,event=None):
-        nExp=self.scP2.GetValue()
-        self.updateP2(nExp)
+        if self.cbAveraging.GetStringSelection()=='Binning':
+            pass
+        else:
+            nExp=self.scP2.GetValue()
+            self.updateP2(nExp)
         self.parent.load_and_draw() # Data changes
 
     def updateP2(self,P2):
@@ -270,27 +295,56 @@ class PlotTypePanel(wx.Panel):
         self.parent.lbDeltaY.SetLabel('')
 
 class EstheticsPanel(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, data):
         wx.Panel.__init__(self, parent)
         self.parent=parent
         #self.SetBackgroundColour('red')
 
+        # Font
         lbFont = wx.StaticText( self, -1, 'Font:')
-        self.cbFont = wx.ComboBox(self, choices=['6','7','8','9','10','11','12','13','14','15','16','17','18'] , style=wx.CB_READONLY)
-        self.cbFont.SetSelection(2)
+        fontChoices = ['6','7','8','9','10','11','12','13','14','15','16','17','18']
+        self.cbFont = wx.ComboBox(self, choices=fontChoices , style=wx.CB_READONLY)
+        try:
+            i = fontChoices.index(str(data['Font']))
+        except ValueError:
+            i = 2
+        self.cbFont.SetSelection(i)
+        # Legend
         # NOTE: we don't offer "best" since best is slow
         lbLegend = wx.StaticText( self, -1, 'Legend:')
-        self.cbLegend = wx.ComboBox(self, choices=['None','Upper right','Upper left','Lower left','Lower right','Right','Center left','Center right','Lower center','Upper center','Center'] , style=wx.CB_READONLY)
-        self.cbLegend.SetSelection(1)
+        lbChoices = ['None','Upper right','Upper left','Lower left','Lower right','Right','Center left','Center right','Lower center','Upper center','Center']
+        self.cbLegend = wx.ComboBox(self, choices=lbChoices, style=wx.CB_READONLY)
+        try:
+            i = lbChoices.index(str(data['LegendPosition']))
+        except ValueError:
+            i=1
+        self.cbLegend.SetSelection(i)
+        # Legend Font
         lbLgdFont = wx.StaticText( self, -1, 'Legend font:')
-        self.cbLgdFont = wx.ComboBox(self, choices=['6','7','8','9','10','11','12','13','14','15','16','17','18'] , style=wx.CB_READONLY)
-        self.cbLgdFont.SetSelection(2)
+        self.cbLgdFont = wx.ComboBox(self, choices=fontChoices, style=wx.CB_READONLY)
+        try:
+            i = fontChoices.index(str(data['LegendFont']))
+        except ValueError:
+            i = 2
+        self.cbLgdFont.SetSelection(i)
+        # Line Width Font
         lbLW = wx.StaticText( self, -1, 'Line width:')
-        self.cbLW = wx.ComboBox(self, choices=['0.5','1.0','1.5','2.0','2.5','3.0'] , style=wx.CB_READONLY)
-        self.cbLW.SetSelection(2)
+        LWChoices = ['0.5','1.0','1.25','1.5','2.0','2.5','3.0']
+        self.cbLW = wx.ComboBox(self, choices=LWChoices , style=wx.CB_READONLY)
+        try:
+            i = LWChoices.index(str(data['LineWidth']))
+        except ValueError:
+            i = 3
+        self.cbLW.SetSelection(i)
+        #  Marker Size
         lbMS = wx.StaticText( self, -1, 'Marker size:')
-        self.cbMS= wx.ComboBox(self, choices=['0.5','1','2','3','4','5','6','7','8'] , style=wx.CB_READONLY)
-        self.cbMS.SetSelection(2)
+        MSChoices = ['0.5','1','2','3','4','5','6','7','8']
+        self.cbMS= wx.ComboBox(self, choices=MSChoices, style=wx.CB_READONLY)
+        try:
+            i = MSChoices.index(str(data['MarkerSize']))
+        except ValueError:
+            i = 2
+        self.cbMS.SetSelection(i)
 
         # Layout
         #dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -353,6 +407,12 @@ class PlotPanel(wx.Panel):
         self.mainframe= mainframe
         self.plotData = []
         self.plotDataOptions=dict()
+        try:
+            self.data  = mainframe.data['plotPanel']
+        except:
+            print('>>> Using default settings for plot panel')
+            from .appdata import defaultPlotPanelData
+            self.data = defaultPlotPanelData()
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
@@ -399,7 +459,7 @@ class PlotPanel(wx.Panel):
         self.cmpPanel = CompCtrlPanel(self)
         self.mmxPanel = MinMaxPanel(self)
         # --- Esthetics panel
-        self.esthPanel = EstheticsPanel(self)
+        self.esthPanel = EstheticsPanel(self, data=self.data['plotStyle'])
 
 
         # --- Ctrl Panel
@@ -420,8 +480,9 @@ class PlotPanel(wx.Panel):
         self.cbMeasure    = wx.CheckBox(self.ctrlPanel, -1, 'Measure',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
-        self.cbXHair.SetValue(True) # Have cross hair by default
+        self.cbXHair.SetValue(self.data['CrossHair']) # Have cross hair by default
         self.cbAutoScale.SetValue(True)
+        self.cbGrid.SetValue(self.data['Grid'])
         # Callbacks
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbSub    )
         self.Bind(wx.EVT_COMBOBOX, self.redraw_event     , self.cbCurveType)
@@ -647,7 +708,7 @@ class PlotPanel(wx.Panel):
                         self.rightMeasure.plot(ax, ax_idx)
                     else:
                         return
-                    if self.cbAutoScale.IsChecked() is False:
+                    if not self.cbAutoScale.IsChecked():
                         self._restore_limits()
                         
                     if self.leftMeasure.axis_idx == self.rightMeasure.axis_idx and self.leftMeasure.axis_idx != -1:
@@ -691,15 +752,21 @@ class PlotPanel(wx.Panel):
 
     def showTool(self,toolName=''):
         from .GUITools import TOOLS
-        self.Freeze()
-        self.removeTools(Layout=False)
         if toolName in TOOLS.keys():
-            self.toolPanel=TOOLS[toolName](self) # calling the panel constructor
+            self.showToolPanel(TOOLS[toolName])
         else:
             raise Exception('Unknown tool {}'.format(toolName))
+
+    def showToolPanel(self, panelClass):
+        """ Show a tool panel based on a panel class (should inherit from GUIToolPanel)"""
+        from .GUITools import TOOLS
+        self.Freeze()
+        self.removeTools(Layout=False)
+        self.toolPanel=panelClass(parent=self) # calling the panel constructor
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
         self.Thaw()
+
 
     def setPD_PDF(self,PD,c):
         """ Convert plot data to PDF data based on GUI options"""
@@ -728,9 +795,10 @@ class PlotPanel(wx.Panel):
         avgWindow  = self.spcPanel.cbAveragingMethod.GetStringSelection()
         bDetrend   = self.spcPanel.cbDetrend.IsChecked()
         nExp       = self.spcPanel.scP2.GetValue()
+        nPerDecade = self.spcPanel.scP2.GetValue()
         # Convert plotdata to FFT data
         try:
-            Info = pd.toFFT(yType=yType, xType=xType, avgMethod=avgMethod, avgWindow=avgWindow, bDetrend=bDetrend, nExp=nExp) 
+            Info = pd.toFFT(yType=yType, xType=xType, avgMethod=avgMethod, avgWindow=avgWindow, bDetrend=bDetrend, nExp=nExp, nPerDecade=nPerDecade) 
             # Trigger
             if hasattr(Info,'nExp') and Info.nExp!=nExp:
                 self.spcPanel.scP2.SetValue(Info.nExp)
@@ -971,18 +1039,21 @@ class PlotPanel(wx.Panel):
             # XLIM - TODO FFT ONLY NASTY
             if self.pltTypePanel.cbFFT.GetValue():
                 try:
-                    xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
-                    if xlim>0:
-                        ax_left.set_xlim([0,xlim])
-                        pd=PD[ax_left.iPD[0]]
-                        I=pd.x<xlim
-                        ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
-                        ax_left.set_ylim(bottom=ymin/2)
-                    if self.spcPanel.cbTypeX.GetStringSelection()=='x':
-                        ax_left.invert_xaxis()
+                    if self.cbAutoScale.IsChecked():
+                        xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
+                        if xlim>0:
+                                ax_left.set_xlim([0,xlim])
+                                pd=PD[ax_left.iPD[0]]
+                                I=pd.x<xlim
+                                ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
+                                ax_left.set_ylim(bottom=ymin/2)
+                        if self.spcPanel.cbTypeX.GetStringSelection()=='x':
+                            ax_left.invert_xaxis()
+                    else:
+                        self._restore_limits()
                 except:
                     pass
-            elif self.cbAutoScale.IsChecked() is False and keep_limits:
+            elif not self.cbAutoScale.IsChecked() and keep_limits:
                 self._restore_limits()
 
             ax_left.grid(self.cbGrid.IsChecked())

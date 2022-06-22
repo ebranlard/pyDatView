@@ -53,13 +53,24 @@ def reject_outliers(y, x=None, m = 2., replaceNaN=True):
 # --- Resampling 
 # --------------------------------------------------------------------------------{
 def multiInterp(x, xp, fp, extrap='bounded'):
+    """ 
+    Interpolate all the columns of a matrix `fp` based on new values `x`
+    INPUTS:
+      - x  : array ( n ), new values
+      - xp : array ( np ), old values
+      - fp : array ( nval, np), matrix values to be interpolated
+    """
+    # Sanity
+    x   = np.asarray(x)
+    xp  = np.asarray(xp)
+    assert fp.shape[1]==len(xp), 'Second dimension of fp should have the same length as xp'
+
     j   = np.searchsorted(xp, x) - 1
     dd  = np.zeros(len(x))
     bOK = np.logical_and(j>=0, j< len(xp)-1)
     bLower =j<0
     bUpper =j>=len(xp)-1
     jOK = j[bOK]
-    #import pdb; pdb.set_trace()
     dd[bOK] = (x[bOK] - xp[jOK]) / (xp[jOK + 1] - xp[jOK])
     jBef=j 
     jAft=j+1
@@ -78,6 +89,42 @@ def multiInterp(x, xp, fp, extrap='bounded'):
         raise NotImplementedError()
 
     return (1 - dd) * fp[:,jBef] + fp[:,jAft] * dd
+
+def interpArray(x, xp, fp, extrap='bounded'):
+    """ 
+    Interpolate all the columns of a matrix `fp` based on one new value `x`
+    INPUTS:
+      - x  : scalar  new values
+      - xp : array ( np ), old values
+      - fp : array ( nval, np), matrix values to be interpolated
+    """
+    # Sanity
+    xp  = np.asarray(xp)
+    assert fp.shape[1]==len(xp), 'Second dimension of fp should have the same length as xp'
+
+    j   = np.searchsorted(xp, x) - 1
+    if j<0:
+        # Before bounds
+        if extrap=='bounded':
+            return fp[:,0]
+        elif extrap=='nan':
+            return fp[:,0]*np.nan
+        else:
+            raise NotImplementedError()
+
+    elif j>=len(xp)-1:
+        # After bounds
+        if extrap=='bounded':
+            return fp[:,-1]
+        elif extrap=='nan':
+            return fp[:,-1]*np.nan
+        else:
+            raise NotImplementedError()
+    else:
+        # Normal case, within bounds
+        dd = (x- xp[j]) / (xp[j+1] - xp[j])
+        return (1 - dd) * fp[:,j] + fp[:,j+1] * dd
+
 
 def resample_interp(x_old, x_new, y_old=None, df_old=None):
     #x_new=np.sort(x_new)
@@ -227,7 +274,7 @@ def highpass1(y, dt, fc=3) :
     return y_filt
 
 
-def applyFilter(x, y,filtDict):
+def applyFilter(x, y, filtDict):
     if filtDict['name']=='Moving average':
         return moving_average(y, n=np.round(filtDict['param']).astype(int))
     elif filtDict['name']=='Low pass 1st order':
@@ -238,6 +285,17 @@ def applyFilter(x, y,filtDict):
         return highpass1(y, dt=dt, fc=filtDict['param'])
     else:
         raise NotImplementedError('{}'.format(filtDict))
+
+def applyFilterDF(df_old, x_col, options):
+    """ apply filter on a dataframe """
+    # Brute force loop
+    df_new = df_old.copy()
+    x = df_new[x_col]
+    for (colName, colData) in df_new.iteritems():
+        if colName != x_col:
+            df_new[colName] = applyFilter(x, colData, options)
+    return df_new
+
 
 # --------------------------------------------------------------------------------}
 # ---  
@@ -294,7 +352,7 @@ def zero_crossings(y,x=None,direction=None):
 
 
 # --------------------------------------------------------------------------------}
-# ---  
+# --- Correlation  
 # --------------------------------------------------------------------------------{
 def correlation(x, nMax=80, dt=1, method='manual'):
     """ 
@@ -311,13 +369,15 @@ def correlation(x, nMax=80, dt=1, method='manual'):
     return R, tau
 
 
-def correlated_signal(coeff, n=1000):
+def correlated_signal(coeff, n=1000, seed=None):
     """
     Create a correlated random signal of length `n` based on the correlation coefficient `coeff`
           value[t] = coeff * value[t-1]  + (1-coeff) * random
     """
     if coeff<0 or coeff>1: 
         raise Exception('Correlation coefficient should be between 0 and 1')
+    if seed is not None:
+        np.random.seed(seed)
 
     x    = np.zeros(n)
     rvec = rand(n)
@@ -326,6 +386,288 @@ def correlated_signal(coeff, n=1000):
         x[m] = coeff*x[m-1] + (1-coeff)*rvec[m] 
     x-=np.mean(x)
     return x
+
+
+def find_time_offset(t, f, g, outputAll=False):
+    """ 
+    Find time offset between two signals (may be negative)
+
+    t_offset = find_time_offset(t, f, g)
+    f(t+t_offset) ~= g(t)
+
+    """
+    import scipy
+    from scipy.signal import correlate
+    # Remove mean and normalize by std
+    f  = f.copy()
+    g  = g.copy()
+    f -= f.mean() 
+    g -= g.mean()
+    f /= f.std()
+    g /= g.std()
+
+    # Find cross-correlation
+    xcorr = correlate(f, g)
+
+    # Lags
+    n   = len(f)
+    dt  = t[1]-t[0]
+    lag = np.arange(1-n, n)*dt
+
+    # Time offset is located at maximum correlation
+    t_offset = lag[xcorr.argmax()]
+
+    if outputAll:
+        return t_offset, lag, xcorr
+    else:
+        return t_offset
+
+def sine_approx(t, x, method='least_square'):
+    """ 
+    Sinusoidal approximation of input signal x
+    """
+    if method=='least_square':
+        from welib.tools.curve_fitting import fit_sinusoid
+        y_fit, pfit, fitter = fit_sinusoid(t, x)
+        omega = fitter.model['coeffs']['omega']
+        A     = fitter.model['coeffs']['A']
+        phi   = fitter.model['coeffs']['phi']
+        x2    = y_fit
+    else:
+        raise NotImplementedError()
+
+
+    return x2, omega, A, phi
+
+
+# --------------------------------------------------------------------------------}
+# --- Convolution 
+# --------------------------------------------------------------------------------{
+def convolution_integral(time, f, g, method='auto'):
+    """
+    Compute convolution integral:
+       f * g = \int 0^t f(tau) g(t-tau) dtau  = g * f
+    For now, only works for uniform time vector, an exception is raised otherwise
+
+    method=['auto','direct','fft'], 
+        see scipy.signal.convolve
+        see scipy.signal.fftconvolve
+    """
+    from scipy.signal import convolve
+    dt = time[1]-time[0] 
+    if len(np.unique(np.around(np.diff(time)/dt,3)))>1:
+        raise Exception('Convolution integral implemented for uniform time vector')
+
+    #np.convolve(f.ravel(), g.ravel() )[:len(time)]*dt
+    return convolve(f.ravel(), g.ravel() )[:len(time)]*dt
+
+
+# --------------------------------------------------------------------------------}
+# --- Intervals/peaks 
+# --------------------------------------------------------------------------------{
+def intervals(b, min_length=1, forgivingJump=True, removeSmallRel=True, removeSmallFact=0.1, mergeCloseRel=False, mergeCloseFact=0.2):
+    """
+    Describe intervals from a boolean vector where intervals are indicated by True
+
+    INPUT:
+      - b         : a logical vector, where 1 means, I'm in an interval.
+      - min_length: if provided, do not return intervals of length < min_length
+      - forgivingJump: if true, merge intervals that are separated by a distance < min_length
+      - removeSmallRel: remove intervals that have a small length compared to the max length of intervals
+      - removeSmallFact: factor used for removeSmallRel
+      - mergeCloseRel: merge intervals that are closer than a fraction of the typical distance between intervals
+
+    OUTPUTS:
+        - IStart : ending  indices
+        - IEnd  :  ending  indices
+        - Length:  interval lenghts (IEnd-IStart+1)
+
+    IStart, IEnd, Lengths = intervals([False, True, True, False, True, True, True, False])
+        np.testing.assert_equal(IStart , np.array([1,4]))
+        np.testing.assert_equal(IEnd   , np.array([2,6]))
+        np.testing.assert_equal(Lengths, np.array([2,3]))
+    """
+    b = np.asarray(b)
+    total = np.sum(b)
+
+    min_length=max(min_length,1)
+    if forgivingJump:
+        min_jump=min_length
+    else:
+        min_jump=1
+
+    if total==0:
+        IStart = np.array([])
+        IEnd   = np.array([])
+        Lengths= np.array([])
+        return IStart, IEnd, Lengths
+    elif total==1:
+        i = np.where(b)[0][0]
+        IStart = np.array([i])
+        IEnd   = np.array([i])
+        Lengths= np.array([1])
+    else:
+        n = len(b)
+        Idx = np.arange(n)[b]
+        delta_Idx=np.diff(Idx)
+        jumps =np.where(delta_Idx>min_jump)[0]
+        if len(jumps)==0:
+            IStart = np.array([Idx[0]])
+            IEnd   = np.array([Idx[-1]])
+        else:
+            istart=Idx[0]
+            jumps=np.concatenate(([-1],jumps,[len(Idx)-1]))
+            IStart = Idx[jumps[:-1]+1] # intervals start right after a jump
+            IEnd   = Idx[jumps[1:]]    # intervals stops at jump
+        Lengths = IEnd-IStart+1
+
+    # Removing intervals smaller than min_length
+    bKeep   = Lengths>=min_length
+    IStart  = IStart[bKeep]
+    IEnd    = IEnd[bKeep]
+    Lengths = Lengths[bKeep]
+    # Removing intervals smaller than less than a fraction of the max interval
+    if removeSmallRel:
+        bKeep   = Lengths>=removeSmallFact*np.max(Lengths)
+    IStart  = IStart[bKeep]
+    IEnd    = IEnd[bKeep]
+    Lengths = Lengths[bKeep]
+
+    # Distances between intervals
+    if mergeCloseRel:
+        if len(IStart)<=2:
+            pass
+        else:
+            D = IStart[1:]-IEnd[0:-1]
+            #print('D',D,np.max(D),int(np.max(D) * mergeCloseFact))
+            min_length = max(int(np.max(D) * mergeCloseFact), min_length)
+            if min_length<=1:
+                pass 
+            else:
+                #print('Readjusting min_length to {} to accomodate for max interval spacing of {:.0f}'.format(min_length, np.mean(D)))
+                return intervals(b, min_length=min_length, forgivingJump=True, removeSmallRel=removeSmallRel, removeSmallFact=removeSmallFact, mergeCloseRel=False)
+    return IStart, IEnd, Lengths
+
+def peaks(x, threshold=0.3, threshold_abs=True, method='intervals', min_length=3,
+         mergeCloseRel=True, returnIntervals=False):
+    """
+    Find peaks in a signal, above a given threshold
+    INPUTS:
+     - x         : 1d-array, signal
+     - threshold : scalar, absolute or relative threshold beyond which peaks are looked for
+                   relative threshold are proportion of the max-min of the signal (between 0-1)
+     - threshold_abs : boolean, specify whether the threshold is absolute or relative
+     - method    : string, selects which method is used to find the peaks, between:
+                   - 'interval'  : one peak per interval above the threshold
+                   - 'derivative': uses derivative to find maxima, may return more than one per interval
+     - min_length: 
+          - if 'interval'   method is used: minimum interval
+          - if 'derivative' method is used: minimum distance between two peaks 
+
+    OPTIONS for interval method:
+      - mergeCloseRel: logical, if True, attempts to merge intervals that are close to each other compare to the typical interval spacing
+                       set to False if all peaks are wanted
+      - returnIntervals: logical, if true, return intervals used for interval method
+    OUTPUTS:
+      - I : index of the peaks 
+      -[IStart, IEnd] if return intervals is true, see function `intervals`
+
+
+    see also:
+       scipy.signal.find_peaks
+
+    """
+    if not threshold_abs:
+        threshold = threshold * (np.max(y) - np.min(y)) + np.min(y)
+
+    if method =='intervals':
+        IStart, IEnd, Lengths = intervals(x>threshold, min_length=min_length, mergeCloseRel=mergeCloseRel)
+        I = np.array([iS if L==1 else np.argmax(x[iS:iE+1])+iS for iS,iE,L in zip(IStart,IEnd,Lengths)])
+        if returnIntervals:
+            return I, IStart, IEnd
+        else:
+            return I
+            
+    elif method =='derivative':
+        I = indexes(x, thres=threshold, thres_abs=True, min_dist=min_length)
+        return I
+    else:
+        raise NotImplementedError('Method {}'.format(method))
+
+
+
+# --------------------------------------------------------------------------------}
+# --- Simple signals 
+# --------------------------------------------------------------------------------{
+def impulse(time, t0=0, A=1, epsilon=None, **kwargs):
+    """ 
+    returns a dirac  function:
+      A/dt    if t==t0
+      0    otherwise
+
+    Since the impulse response is poorly defined in discrete space, it's recommended 
+    to use a smooth_delta. See the welib.tools.functions.delta
+    """
+    from .functions import delta
+    t=np.asarray(time)-t0
+    y= delta(t, epsilon=epsilon, **kwargs)*A
+    return y
+
+def step(time, t0=0, valueAtStep=0, A=1):
+    """ 
+    returns a step function:
+      0     if t<t0
+      A     if t>t0
+      valueAtStep if t==t0
+
+    NOTE: see also welib.tools.functions.Pi
+    """
+    return np.heaviside(time-t0, valueAtStep)*A
+
+def ramp(time, t0=0, valueAtStep=0, A=1):
+    """ 
+    returns a ramp function:
+      0          if t<t0
+      A*(t-t0)   if t>=t0
+
+    NOTE: see also welib.tools.functions.Pi
+    """
+    t=np.asarray(time)-t0
+    y=np.zeros(t.shape)
+    y[t>=0]=A*t[t>=0]
+    return y
+
+
+def hat(time, T=1, t0=0, A=1, method='abs'):
+    """ 
+    returns a hat function:
+      A*hat   if |t-t0|<T/2
+      0       otherwise 
+    T : full time length of hat 
+    A : Amplitude of hat
+
+    NOTE: for an integral of 1, one needs: T*A=2
+    see also: scipy.signal.windows.triang
+    """
+    t=np.asarray(time)-t0
+
+    if method == 'abs':
+        # use definition in terms of absolute value (recommended)
+        y=np.zeros(t.shape)
+        b= np.abs(t)<=T/2
+        y[b]=A*(1-np.abs(2*t[b]/T))
+    elif method == 'sum':
+        # For fun, use summation of ramps
+        y1= ramp(time, t0=t0-T/2, A=A/T*2)
+        y2= ramp(time, t0=t0    , A=-A/T*4)
+        y3= ramp(time, t0=t0+T/2, A=A/T*2)
+        y= y1+y2+y3
+    else:
+        raise NotImplementedError()
+
+    return y
+
+
 
 
 if __name__=='__main__':

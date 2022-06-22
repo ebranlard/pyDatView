@@ -179,7 +179,7 @@ class OutlierToolPanel(GUIToolPanel):
 
 
 # --------------------------------------------------------------------------------}
-# --- Moving Average
+# --- Filter Tool 
 # --------------------------------------------------------------------------------{
 class FilterToolPanel(GUIToolPanel):
     """
@@ -200,36 +200,46 @@ class FilterToolPanel(GUIToolPanel):
         self._filterApplied = type(self.parent.plotDataOptions['Filter'])==dict
 
 
-        btClose     = self.getBtBitmap(self,'Close','close',self.destroy)
-        self.btClear     = self.getBtBitmap(self, 'Clear Plot','sun'   , self.onClear)
-        self.btComp = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleCompute)
-        self.btPlot      = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
+        self.btClose = self.getBtBitmap(self,'Close','close',self.destroy)
+        self.btAdd   = self.getBtBitmap(self, 'Add','add'  , self.onAdd)
+        self.btHelp  = self.getBtBitmap(self, 'Help','help', self.onHelp)
+        self.btClear = self.getBtBitmap(self, 'Clear Plot','sun'   , self.onClear)
+        self.btApply = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
+        self.btPlot  = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
 
-        lb1 = wx.StaticText(self, -1, 'Filter:')
+        self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
+
         self.cbFilters = wx.ComboBox(self, choices=[filt['name'] for filt in self._DEFAULT_FILTERS], style=wx.CB_READONLY)
         self.lbParamName = wx.StaticText(self, -1, '            :')
         self.cbFilters.SetSelection(0)
-        #self.tParam = wx.TextCtrl(self, wx.ID_ANY,, size = (30,-1), style=wx.TE_PROCESS_ENTER)
         self.tParam = wx.SpinCtrlDouble(self, value='11', size=wx.Size(60,-1))
         self.lbInfo = wx.StaticText( self, -1, '')
 
 
         # --- Layout
         btSizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
-        btSizer.Add(btClose    ,0,flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btClear    ,0,flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btComp,0,flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btPlot     ,0,flag = wx.ALL|wx.EXPAND, border = 1)
-        #btSizer.Add(btHelp     ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btClose                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btClear                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btAdd                  , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btPlot                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btHelp                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btApply                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+
+
+        horzSizerT = wx.BoxSizer(wx.HORIZONTAL)
+        horzSizerT.Add(wx.StaticText(self, -1, 'Table:')  , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 5)
+        horzSizerT.Add(self.cbTabs                        , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 1)
 
         horzSizer = wx.BoxSizer(wx.HORIZONTAL)
-        horzSizer.Add(lb1              ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-        horzSizer.Add(self.cbFilters   ,0,flag = wx.LEFT|wx.CENTER,border = 1)
-        horzSizer.Add(self.lbParamName ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-        horzSizer.Add(self.tParam      ,0,flag = wx.LEFT|wx.CENTER,border = 1)
+        horzSizer.Add(wx.StaticText(self, -1, 'Filter:')  , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 5)
+        horzSizer.Add(self.cbFilters                      , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 1)
+        horzSizer.Add(self.lbParamName                    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 5)
+        horzSizer.Add(self.tParam                         , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 1)
+
 
         vertSizer = wx.BoxSizer(wx.VERTICAL)
         vertSizer.Add(self.lbInfo  ,0, flag = wx.LEFT          ,border = 5)
+        vertSizer.Add(horzSizerT   ,1, flag = wx.LEFT|wx.EXPAND,border = 1)
         vertSizer.Add(horzSizer    ,1, flag = wx.LEFT|wx.EXPAND,border = 1)
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -238,6 +248,7 @@ class FilterToolPanel(GUIToolPanel):
         self.SetSizer(self.sizer)
 
         # --- Events
+        self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
         self.cbFilters.Bind(wx.EVT_COMBOBOX, self.onSelectFilt)
         self.Bind(wx.EVT_SPINCTRLDOUBLE, self.onParamChangeArrow, self.tParam)
         self.Bind(wx.EVT_TEXT_ENTER,     self.onParamChangeEnter, self.tParam)
@@ -247,13 +258,13 @@ class FilterToolPanel(GUIToolPanel):
             assert isinstance(self.spintxt, wx.TextCtrl)
             self.spintxt.Bind(wx.EVT_CHAR_HOOK, self.onParamChangeChar)
 
+        # --- Init triggers
+        self.updateTabList()
         self.onSelectFilt()
-        self.onToggleCompute(init=True)
+        self.onToggleApply(init=True)
 
     def destroy(self,event=None):
-        self.parent.plotDataOptions['Filter']=None
         super(FilterToolPanel,self).destroy()
-
 
     def onSelectFilt(self, event=None):
         """ Select the filter, but does not applied it to the plotData 
@@ -273,7 +284,16 @@ class FilterToolPanel(GUIToolPanel):
         else:
             self.tParam.SetValue(filt['param'])
 
-    def onToggleCompute(self, event=None, init=False):
+    def _GUI2Data(self):
+        iFilt = self.cbFilters.GetSelection()
+        filt = self._DEFAULT_FILTERS[iFilt].copy()
+        try:
+            filt['param']=np.float(self.spintxt.Value)
+        except:
+            print('[WARN] pyDatView: Issue on Mac: GUITools.py/_GUI2Data. Help needed.')
+        return filt
+
+    def onToggleApply(self, event=None, init=False):
         """
         apply Filter based on GUI Data
         """
@@ -282,14 +302,14 @@ class FilterToolPanel(GUIToolPanel):
             self._filterApplied = not self._filterApplied
 
         if self._filterApplied:
-            self.parent.plotDataOptions['Filter'] =self._GUI2Filt()
+            self.parent.plotDataOptions['Filter'] =self._GUI2Data()
             #print('Apply', self.parent.plotDataOptions['Filter'])
             self.lbInfo.SetLabel(
                     'Filter is now applied on the fly. Change parameter live. Click "Clear" to stop. '
                     )
             self.btPlot.Enable(False)
             self.btClear.Enable(False)
-            self.btComp.SetLabel(CHAR['sun']+' Clear')
+            self.btApply.SetLabel(CHAR['sun']+' Clear')
         else:
             self.parent.plotDataOptions['Filter'] = None
             self.lbInfo.SetLabel(
@@ -298,18 +318,29 @@ class FilterToolPanel(GUIToolPanel):
                     )
             self.btPlot.Enable(True)
             self.btClear.Enable(True)
-            self.btComp.SetLabel(CHAR['cloud']+' Apply')
+            self.btApply.SetLabel(CHAR['cloud']+' Apply')
 
         if not init:
             self.parent.load_and_draw() # Data will change
+            self.updateTabList()
 
-        pass
+    def onAdd(self,event=None):
+        iSel         = self.cbTabs.GetSelection()
+        tabList      = self.parent.selPanel.tabList
+        mainframe    = self.parent.mainframe
+        icol, colname = self.parent.selPanel.xCol
+        opt = self._GUI2Data()
+        errors=[]
+        if iSel==0:
+            dfs, names, errors = tabList.applyFiltering(icol, opt, bAdd=True)
+            mainframe.load_dfs(dfs,names,bAdd=True)
+        else:
+            df, name = tabList.get(iSel-1).applyFiltering(icol, opt, bAdd=True)
+            mainframe.load_df(df,name,bAdd=True)
+        self.updateTabList()
 
-    def _GUI2Filt(self):
-        iFilt = self.cbFilters.GetSelection()
-        filt = self._DEFAULT_FILTERS[iFilt].copy()
-        filt['param']=np.float(self.spintxt.Value)
-        return filt
+        if len(errors)>0:
+            raise Exception('Error: The resampling failed on some tables:\n\n'+'\n'.join(errors))
 
     def onPlot(self, event=None):
         """ 
@@ -319,7 +350,7 @@ class FilterToolPanel(GUIToolPanel):
         if len(self.parent.plotData)!=1:
             Error(self,'Plotting only works for a single plot. Plot less data.')
             return
-        filt=self._GUI2Filt()
+        filt=self._GUI2Data()
 
         PD = self.parent.plotData[0]
         y_filt = applyFilter(PD.x0, PD.y0, filt)
@@ -336,7 +367,7 @@ class FilterToolPanel(GUIToolPanel):
 
     def onParamChange(self, event=None):
         if self._filterApplied:
-            self.parent.plotDataOptions['Filter'] =self._GUI2Filt()
+            self.parent.plotDataOptions['Filter'] =self._GUI2Data()
             #print('OnParamChange', self.parent.plotDataOptions['Filter'])
             self.parent.load_and_draw() # Data will change
 
@@ -355,6 +386,46 @@ class FilterToolPanel(GUIToolPanel):
             #print(self.spintxt.Value)
             self.tParam.SetValue(self.spintxt.Value)
             self.onParamChangeEnter(event)
+
+    def onTabChange(self,event=None):
+        #tabList = self.parent.selPanel.tabList
+        #iSel=self.cbTabs.GetSelection()
+        pass
+
+    def updateTabList(self,event=None):
+        tabList = self.parent.selPanel.tabList
+        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+        try:
+            iSel=np.max([np.min([self.cbTabs.GetSelection(),len(tabListNames)]),0])
+            self.cbTabs.Clear()
+            [self.cbTabs.Append(tn) for tn in tabListNames]
+            self.cbTabs.SetSelection(iSel)
+        except RuntimeError:
+            pass
+
+    def onHelp(self,event=None):
+        Info(self,"""Filtering.
+
+The filtering operation changes the "y" values of a table/plot, 
+applying a given filter (typically cutting off some frequencies).
+
+To filter perform the following step:
+
+- Chose a filtering method:
+   - Moving average: apply a moving average filter, with
+          a length specified by the window size (in indices)
+   - High pass 1st order: apply a first oder high-pass filter,
+          passing the frequencies above the cutoff frequency parameter.
+   - Low pass 1st order: apply a first oder low-pass filter,
+          passing the frequencies below the cutoff frequency parameter.
+
+- Click on one of the following buttons:
+   - Plot: will display the filtered data on the figure
+   - Apply: will perform the filtering on the fly for all new plots
+   - Add: will create new table(s) with filtered values for all 
+          signals. This process might take some time.
+          Currently done for all tables.
+""")
 
 
 # --------------------------------------------------------------------------------}
@@ -377,10 +448,10 @@ class ResampleToolPanel(GUIToolPanel):
         # --- GUI elements
         self.btClose    = self.getBtBitmap(self, 'Close','close', self.destroy)
         self.btAdd      = self.getBtBitmap(self, 'Add','add'  , self.onAdd)
-        self.btPlot     = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
-        self.btClear    = self.getBtBitmap(self, 'Clear Plot','sun', self.onClear)
-        self.btApply    = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
         self.btHelp     = self.getBtBitmap(self, 'Help','help', self.onHelp)
+        self.btClear    = self.getBtBitmap(self, 'Clear Plot','sun', self.onClear)
+        self.btPlot     = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
+        self.btApply    = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
 
         #self.lb         = wx.StaticText( self, -1, """ Click help """)
         self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
@@ -506,7 +577,6 @@ class ResampleToolPanel(GUIToolPanel):
         if not init:
             self.parent.load_and_draw() # Data will change
         self.setCurrentX()
-
 
     def onAdd(self,event=None):
         iSel         = self.cbTabs.GetSelection()
@@ -976,6 +1046,10 @@ class CurveFitToolPanel(GUIToolPanel):
             Error(self,'Curve fitting tool only works with a single curve. Plot less data.')
             return
         PD =self.parent.plotData[0]
+        ax =self.parent.fig.axes[0]
+        # Restricting data to axes visible bounds on the x axis
+        xlim= ax.get_xlim()
+        b=np.logical_and(PD.x>=xlim[0], PD.x<=xlim[1])
 
         iModel = self.cbModels.GetSelection()
         d = self.Models[iModel]
@@ -1000,7 +1074,7 @@ class CurveFitToolPanel(GUIToolPanel):
         #print('>>> Model fit bounds:',bounds    )
         #print('>>> Model fit kwargs:',fun_kwargs)
         # Performing fit
-        y_fit, pfit, fitter = model_fit(sFunc, PD.x, PD.y, p0=p0, bounds=bounds,**fun_kwargs)
+        y_fit, pfit, fitter = model_fit(sFunc, PD.x[b], PD.y[b], p0=p0, bounds=bounds,**fun_kwargs)
             
         formatter = lambda x: pretty_num_short(x, digits=3)
         formula_num = fitter.formula_num(fmt=formatter)
@@ -1021,10 +1095,10 @@ class CurveFitToolPanel(GUIToolPanel):
 
         # Plot
         ax=self.parent.fig.axes[0]
-        ax.plot(PD.x,y_fit,'o', ms=4)
+        ax.plot(PD.x[b],y_fit,'o', ms=4)
         self.parent.canvas.draw()
 
-        self.x=PD.x
+        self.x=PD.x[b]
         self.y_fit=y_fit
         self.sx=PD.sx
         self.sy=PD.sy

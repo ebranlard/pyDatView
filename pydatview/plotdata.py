@@ -70,8 +70,9 @@ class PlotData():
 
     def _post_init(PD, Options={}):
         # --- Perform data manipulation on the fly
-        #print(Options)
+        #[print(k,v) for k,v in Options.items()]
         keys=Options.keys()
+        # TODO setup an "Order"
         if 'RemoveOutliers' in keys:
             if Options['RemoveOutliers']:
                 from pydatview.tools.signal import reject_outliers
@@ -88,6 +89,11 @@ class PlotData():
             if Options['Sampler']:
                 from pydatview.tools.signal import applySampler
                 PD.x, PD.y = applySampler(PD.x, PD.y, Options['Sampler'])
+
+        if 'Binning' in keys:
+            if Options['Binning']:
+                if Options['Binning']['active']:
+                    PD.x, PD.y = Options['Binning']['applyCallBack'](PD.x, PD.y, Options['Binning'])
 
         # --- Store stats
         n=len(PD.y)
@@ -196,7 +202,7 @@ class PlotData():
         return None
 
 
-    def toFFT(PD, yType='Amplitude', xType='1/x', avgMethod='Welch', avgWindow='Hamming', bDetrend=True, nExp=8):
+    def toFFT(PD, yType='Amplitude', xType='1/x', avgMethod='Welch', avgWindow='Hamming', bDetrend=True, nExp=8, nPerDecade=10):
         """ 
         Uses spectral.fft_wrap to generate a "FFT" plot data, with various options:
            yType      : amplitude, PSD, f x PSD
@@ -219,7 +225,7 @@ class PlotData():
         if PD.xIsDate:
             dt = getDt(PD.x)
         # --- Computing fft - x is freq, y is Amplitude
-        PD.x, PD.y, Info = fft_wrap(PD.x, PD.y, dt=dt, output_type=yType,averaging=avgMethod, averaging_window=avgWindow,detrend=bDetrend,nExp=nExp)
+        PD.x, PD.y, Info = fft_wrap(PD.x, PD.y, dt=dt, output_type=yType,averaging=avgMethod, averaging_window=avgWindow,detrend=bDetrend,nExp=nExp, nPerDecade=nPerDecade)
         # --- Setting plot options
         PD._Info=Info
         PD.xIsDate=False
@@ -301,7 +307,10 @@ class PlotData():
         elif PD.xIsDate:
             return PD.x[0],'{}'.format(PD.x[0])
         else:
-            v = PD.x[np.where(PD.y == yMin)[0][0]]
+            try:
+                v = PD.x[np.where(PD.y == yMin)[0][0]]   # Might fail if all nan
+            except:
+                v = PD.x[0]
             s=pretty_num(v)
         return (v,s)
 
@@ -311,7 +320,10 @@ class PlotData():
         elif PD.xIsDate:
             return PD.x[-1],'{}'.format(PD.x[-1])
         else:
-            v = PD.x[np.where(PD.y == yMax)[0][0]]
+            try:
+                v = PD.x[np.where(PD.y == yMax)[0][0]] # Might fail if all nan
+            except:
+                v = PD.x[0]
             s=pretty_num(v)
         return (v,s)
 
