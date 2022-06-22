@@ -74,7 +74,7 @@ if __name__ == '__main__':
     sys.path.append(root_dir)
 #     print(root_dir)
     #filenames=['../_TODO/DLC120_ws13_yeNEG_s2_r3_PIT.SFunc.outb','../_TODO/DLC120_ws13_ye000_s1_r1.SFunc.outb']
-#     filenames=['../weio/_tests/CSVComma.csv']
+#     filenames=['../example_files/CSVComma.csv']
 #     filenames =[os.path.join(script_dir,f) for f in filenames]
     
     #pydatview.test(filenames=filenames)

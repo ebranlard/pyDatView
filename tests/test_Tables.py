@@ -44,8 +44,8 @@ class TestTable(unittest.TestCase):
     def test_load_files_misc_formats(self):
         tablist = TableList()
         files =[
-                os.path.join(self.scriptdir,'../weio/weio/tests/example_files/CSVComma.csv'),
-                os.path.join(self.scriptdir,'../weio/weio/tests/example_files/HAWCStab2.pwr')
+                os.path.join(self.scriptdir,'../example_files/CSVComma.csv'),
+                os.path.join(self.scriptdir,'../example_files/HAWCStab2.pwr')
                 ]
         # --- First read without fileformats 
         tablist.load_tables_from_files(filenames=files, fileformats=None, bAdd=False)

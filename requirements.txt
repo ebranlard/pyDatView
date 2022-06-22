@@ -8,5 +8,5 @@ pyarrow # for parquet files
 matplotlib 
 future
 chardet
-wxpython
 scipy
+wxpython

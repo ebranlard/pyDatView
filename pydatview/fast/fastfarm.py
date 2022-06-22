@@ -2,9 +2,9 @@ import os
 import glob
 import numpy as np
 import pandas as pd
-from weio.weio.fast_input_file import FASTInputFile
-from weio.weio.fast_output_file import FASTOutputFile
-from weio.weio.turbsim_file import TurbSimFile
+from pydatview.io.fast_input_file import FASTInputFile
+from pydatview.io.fast_output_file import FASTOutputFile
+from pydatview.io.turbsim_file import TurbSimFile
 
 from . import fastlib
 

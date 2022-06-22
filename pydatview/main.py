@@ -35,21 +35,9 @@ from .Tables import TableList, Table
 # Helper
 from .common import *
 from .GUICommon import *
+import pydatview.io as weio # File Formats and File Readers
 # Pluggins
 from .plugins import dataPlugins
-
-try:
-    import weio.weio as weio# File Formats and File Readers
-except:
-    print('')
-    print('Error: the python package `weio` was not imported successfully.\n')
-    print('Most likely the submodule `weio` was not cloned with `pyDatView`')
-    print('Type the following command to retrieve it:\n')
-    print('   git submodule update --init --recursive\n')
-    print('Alternatively re-clone this repository into a separate folder:\n')
-    print('   git clone --recurse-submodules https://github.com/ebranlard/pyDatView\n')
-    sys.exit(-1)
-
 from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
 # --------------------------------------------------------------------------------}
@@ -165,7 +153,8 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU,self.onReset, resetMenuItem)
 
 
-        self.FILE_FORMATS, errors= weio.fileFormats(ignoreErrors=True, verbose=False)
+        io_userpath = os.path.join(weio.defaultUserDataDir(), 'pydatview_io')
+        self.FILE_FORMATS, errors= weio.fileFormats(userpath=io_userpath, ignoreErrors=True, verbose=False)
         if len(errors)>0:
             for e in errors:
                 Warn(self, e)
@@ -533,10 +522,10 @@ class MainFrame(wx.Frame):
         self.plotPanel.navTB.save_figure()
 
     def onAbout(self, event=None):
-        defaultDir = weio.defaultUserDataDir() # TODO input file options
+        io_userpath = os.path.join(weio.defaultUserDataDir(), 'pydatview_io')
         About(self,PROG_NAME+' '+PROG_VERSION+'\n\n'
                 'pyDatView config file:\n     {}\n'.format(configFilePath())+
-                'weio data directory:     \n     {}\n'.format(os.path.join(defaultDir,'weio'))+
+                'pyDatView io data directory:\n     {}\n'.format(io_userpath)+
                 '\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReset (self, event=None):

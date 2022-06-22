@@ -9,7 +9,7 @@ import stat
 import re
 
 # --- Misc fast libraries
-import weio.weio.fast_input_file as fi
+import pydatview.io.fast_input_file as fi
 import pydatview.fast.runner as runner
 import pydatview.fast.postpro as postpro
 #import pyFAST.input_output.fast_input_file as fi

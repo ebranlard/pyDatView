@@ -16,7 +16,7 @@ For **Windows** users, an installer executable is available [here](https://githu
 
 **Linux** and **MacOS** users can use the command lines below. **Linux** users may need to install the package python-wxgtk\* (e.g. `python-gtk3.0`) from their distribution. **MacOS** users can use a `brew`, `anaconda` or `virtualenv` version of python and pip, but the final version of python that calls the script needs to have access to the screen (see [details for MacOS](#macos-installation)). The main commands for **Linux** and **MacOS** users are:
 ```bash
-git clone --recurse-submodules https://github.com/ebranlard/pyDatView
+git clone https://github.com/ebranlard/pyDatView
 cd pyDatView
 python -m pip install --user -r requirements.txt
 make     # executes: 'python pyDatView.py' (on linux) or './pythonmac pyDatView.py' (on Mac)
@@ -152,7 +152,7 @@ For Windows users, installer executables are available [here](https://github.com
 The script is compatible python 2.7 and python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`.
 To download the code and install the dependencies (with pip) run the following:
 ```bash
-git clone --recurse-submodules https://github.com/ebranlard/pyDatView
+git clone https://github.com/ebranlard/pyDatView
 cd pyDatView
 python -m pip install --user -r requirements.txt
 ```
@@ -176,7 +176,7 @@ python setup.py install
 The installation works with python2 and python3, with `brew` (with or without a `virtualenv`) or `anaconda`.
 First, download the source code:
 ```bash
-git clone --recurse-submodules https://github.com/ebranlard/pyDatView
+git clone https://github.com/ebranlard/pyDatView
 cd pyDatView
 ```
 Before installing the requirements, you need to be aware of the two following issues with MacOS:
@@ -232,8 +232,11 @@ python setup.py install
 
 
 ## Adding more file formats
-File formats can be added by implementing a subclass of `weio/File.py`, for instance `weio/VTKFile.py`. Existing examples are found in the folder `weio`.
-Once implemented the fileformat needs to be registered in `weio/__init__.py` by adding an import line at the beginning of this script and adding a line in the function `fileFormats()` of the form `formats.append(FileFormat(VTKFile))`
+File formats can be added by implementing a subclass of `pydatview/io/File.py`, for instance `pydatview/io/VTKFile.py`. Existing examples are found in the folder `pydatview/io`.
+Once implemented the fileformat needs to be registered in `pydatview/io/__init__.py` by adding an import line at the beginning of this script and adding a line in the function `fileFormats()` of the form `formats.append(FileFormat(VTKFile))`
+
+If you believe your fileformat will be beneficial to the wind energy community, we recommend to also add your file format to the [weio](http://github.com/ebranlard/weio/) repository.
+Follow the procedure mentioned in the README of the weio repository (in particualr adding unit tests and minimalistic example files).
 
 
 

@@ -1,6 +1,6 @@
 import json
 import os
-from weio.weio import defaultUserDataDir
+from pydatview.io import defaultUserDataDir
 from .GUICommon import Error
 
 

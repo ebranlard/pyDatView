@@ -6,17 +6,7 @@ try:
     from .common import no_unit, ellude_common, getDt
 except:
     from common import no_unit, ellude_common, getDt
-try:
-    import weio.weio as weio# File Formats and File Readers
-except:
-    print('')
-    print('Error: the python package `weio` was not imported successfully.\n')
-    print('Most likely the submodule `weio` was not cloned with `pyDatView`')
-    print('Type the following command to retrieve it:\n')
-    print('   git submodule update --init --recursive\n')
-    print('Alternatively re-clone this repository into a separate folder:\n')
-    print('   git clone --recurse-submodules https://github.com/ebranlard/pyDatView\n')
-    sys.exit(-1)
+import pydatview.io as weio # File Formats and File Readers
 
 
 

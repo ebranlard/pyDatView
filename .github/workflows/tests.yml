@@ -57,7 +57,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r _tools/travis_requirements.txt
-          pip install -r weio/requirements.txt
 
       - name: System info
         run: |

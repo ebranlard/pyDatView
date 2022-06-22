@@ -13,8 +13,8 @@ import stat
 import re
 
 # --- Fast libraries
-from weio.weio.fast_input_file import FASTInputFile
-from weio.weio.fast_output_file import FASTOutputFile
+from pydatview.io.fast_input_file import FASTInputFile
+from pydatview.io.fast_output_file import FASTOutputFile
 # from pyFAST.input_output.fast_input_file import FASTInputFile
 # from pyFAST.input_output.fast_output_file import FASTOutputFile
 

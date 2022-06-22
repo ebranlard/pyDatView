@@ -8,7 +8,7 @@ else
     detected_OS := $(patsubst MINGW%,MSYS,$(detected_OS))
 endif
 
-testfile= weio/weio/tests/example_files/FASTIn_arf_coords.txt
+testfile= example_files/FASTIn_arf_coords.txt
 all:
 ifeq ($(detected_OS),Darwin)        # Mac OS X
 	./pythonmac pyDatView.py $(testfile)
