@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.8]  # 2.7, 
+        python-version: [3.6, 3.8, 3.9]
 
     steps:
       # --- Install steps
@@ -81,7 +81,7 @@ jobs:
           echo "PY_VERSION  :  $PY_VERSION"
           export OK=0
           # Only deploy for push events
-          if [[ $PY_VERSION == "3.6" ]]; then
+          if [[ $PY_VERSION == "3.9" ]]; then
             if [[ $GH_EVENT == "push" ]]; then 
                 export OK=1 ;
             fi
