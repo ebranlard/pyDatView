@@ -80,7 +80,7 @@ else
 	@sh _tools/setVersion.sh
 endif
 
-installer: version
+installer: 
 	python -m nsist installer.cfg
 
 

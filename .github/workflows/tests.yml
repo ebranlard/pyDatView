@@ -21,6 +21,32 @@ jobs:
         with:
           submodules: recursive
 
+      # --- Versioning
+      - name: Versioning
+        id: versioning
+        run: |
+          git fetch --unshallow
+          export VERSION_TAG=""
+          export CURRENT_DEV_TAG="v0.3-dev"
+          export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
+          echo "GIT DESCRIBE:      `git describe`"
+          echo "GITHUB_REF:        $GITHUB_REF"
+          echo "VERSION_NAME       $VERSION_NAME"
+          # Check if current version corresponds to a tagged commit
+          if [[ $GITHUB_REF == *"tags"* ]]; then export VERSION_TAG=${GITHUB_REF/refs\/tags\//} ; fi
+          echo "VERSION_TAG        $VERSION_TAG"
+          if [[ "$VERSION_TAG" == ""     ]]; then export VERSION_TAG=$CURRENT_DEV_TAG ; fi
+          if [[ "$VERSION_TAG" != "$CURRENT_DEV_TAG" ]]; then export VERSION_NAME=$VERSION_TAG ; fi
+          echo "VERSION_NAME:      $VERSION_NAME"
+          echo "VERSION_TAG :      $VERSION_TAG"
+          if [[ "$VERSION_TAG" != "$CURRENT_DEV_TAG" ]]; then export FULL_VERSION_NAME="version $VERSION_NAME" ; fi
+          if [[ "$VERSION_TAG" == "$CURRENT_DEV_TAG" ]]; then export FULL_VERSION_NAME="latest dev. version $VERSION_NAME" ; fi
+          echo "VERSION_NAME:      $VERSION_NAME"
+          echo "FULL_VERSION_NAME: $FULL_VERSION_NAME"
+          echo "::set-output name=FULL_VERSION_NAME::$FULL_VERSION_NAME"
+          echo "::set-output name=VERSION_NAME::$VERSION_NAME"
+          echo "::set-output name=VERSION_TAG::$VERSION_TAG"
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -64,27 +90,6 @@ jobs:
         if:  ${{ steps.check_deploy.outputs.GO == '1'}}
         run: sudo apt-get install nsis
 
-      - name: Versioning
-        if:  ${{ steps.check_deploy.outputs.GO == '1'}}
-        id: versioning
-        run: |
-          git fetch --unshallow
-          export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
-          export FULL_VERSION_NAME="version $VERSION_NAME" 
-          echo "GITHUB_REF:        $GITHUB_REF"
-          echo "VERSION_NAME      $VERSION_NAME"
-          echo "FULL_VERSION_NAME $FULL_VERSION_NAME"
-          if [[ $GITHUB_REF == *"tags" ]]; then export VERSION_TAG=${GITHUB_REF/refs\/tags\//} ; fi
-          if [[ $GITHUB_REF != *"tags" ]]; then export VERSION_TAG="" ; fi
-          echo "VERSION_TAG       $VERSION_TAG"
-          if [[ "$VERSION_TAG" == ""     ]]; then export VERSION_TAG="vdev" ; fi
-          if [[ "$VERSION_TAG" == "vdev" ]]; then export VERSION_NAME=$VERSION_NAME"-dev" ; fi
-          if [[ "$VERSION_TAG" == "vdev" ]]; then export FULL_VERSION_NAME="latest dev. version $VERSION_NAME" ; fi
-          echo "VERSION_NAME:      $VERSION_NAME"
-          echo "FULL_VERSION_NAME: $FULL_VERSION_NAME"
-          echo "::set-output name=FULL_VERSION_NAME::$FULL_VERSION_NAME"
-          echo "::set-output name=VERSION_NAME::$VERSION_NAME"
-          echo "::set-output name=VERSION_TAG::$VERSION_TAG"
 
       - name: Before deploy
         if:  ${{ steps.check_deploy.outputs.GO == '1'}}
@@ -101,6 +106,7 @@ jobs:
           pip install distlib
           git clone https://github.com/takluyver/pynsist
           mv pynsist/nsist nsist 
+          sh _tools/setVersion.sh $VERSION_NAME
           make installer
           mv build/nsis/pyDatView_setup.exe "pyDatView_"$VERSION_NAME"_setup.exe"
           mv _tools/pyDatView.cmd build/nsis/
@@ -109,8 +115,8 @@ jobs:
           mv build/nsis build/pyDatView_$VERSION_NAME
           cd build && zip -r "../pyDatView_"$VERSION_NAME"_portable.zip" pyDatView_$VERSION_NAME
           cd ..
-          cp "pyDatView_"$VERSION_NAME"_setup.exe"    "pyDatView_LatestVersion_setup.exe"
-          cp "pyDatView_"$VERSION_NAME"_portable.zip" "pyDatView_LatestVersion_portable.zip"
+          if [[ "$VERSION_TAG" == *"-dev"* ]]; then cp "pyDatView_"$VERSION_NAME"_setup.exe"    "pyDatView_LatestVersion_setup.exe"    ;fi
+          if [[ "$VERSION_TAG" == *"-dev"* ]]; then cp "pyDatView_"$VERSION_NAME"_portable.zip" "pyDatView_LatestVersion_portable.zip" ;fi
           ls
 
       - name: Deploy
@@ -124,7 +130,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: pyDatView_*.*
           release_name: ${{steps.versioning.outputs.FULL_VERSION_NAME}}
-          tag: vdev
+          tag:          ${{steps.versioning.outputs.VERSION_TAG}}
           overwrite: true
           file_glob: true
           body: |
