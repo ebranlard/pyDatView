@@ -145,34 +145,6 @@ def extract_key_num(text):
     regex = re.compile(r'(?P<key>[\w\-]+)=(?P<value>[0-9+epinf.-]*?)($|,)')
     return {match.group("key"): np.float(match.group("value")) for match in regex.finditer(text.replace(' ',''))}
 
-# --------------------------------------------------------------------------------}
-# ---  
-# --------------------------------------------------------------------------------{
-# def getMonoFontAbs():
-#     import wx
-#     #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
-#     if os.name=='nt':
-#         font=wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-#     elif os.name=='posix':
-#         font=wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-#     else:
-#         font=wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-#     return font
-# 
-# def getMonoFont(widget):
-#     import wx
-#     font = widget.GetFont()
-#     font.SetFamily(wx.TELETYPE)
-#     if platform.system()=='Windows':
-#         pass
-#     elif platform.system()=='Linux':
-#         pass
-#     elif platform.system()=='Darwin':
-#         font.SetPointSize(font.GetPointSize()-1)
-#     else:
-#         pass
-#     return font
-
 def getDt(x):
     """ returns dt in s """
     def myisnat(dt):
@@ -221,6 +193,8 @@ def getDt(x):
 
 def getTabCommonColIndices(tabs):
     cleanedColLists = [ [cleanCol(s) for s in t.columns] for t in tabs]
+    nCols = np.array([len(cols) for cols in cleanedColLists])
+    # Common columns between all column lists
     commonCols = cleanedColLists[0]
     for i in np.arange(1,len(cleanedColLists)):
         commonCols = list( set(commonCols) & set( cleanedColLists[i]))
@@ -247,9 +221,12 @@ def getTabCommonColIndices(tabs):
         IMissPerTab.append(IMiss)
         IKeepPerTab.append(IKeep)
         IDuplPerTab.append(IDupl)
-    return IKeepPerTab, IMissPerTab, IDuplPerTab
+    return IKeepPerTab, IMissPerTab, IDuplPerTab, nCols
 
 
+# --------------------------------------------------------------------------------}
+# --- Units 
+# --------------------------------------------------------------------------------{
 def cleanCol(s):
     s=no_unit(s).strip()
     s=no_unit(s.replace('(',' [').replace(')',']'))
@@ -271,6 +248,13 @@ def unit(s):
     else:
         return ''
 
+def splitunit(s):
+    iu=s.rfind('[')
+    if iu>1:
+        return s[:iu], s[iu+1:].replace(']','')
+    else:
+        return s, ''
+
 def inverse_unit(s):
     u=unit(s).strip()
     if u=='':
@@ -285,6 +269,8 @@ def inverse_unit(s):
         return '1/deg';
     else:
         return '1/('+u+')'
+
+
 
 def filter_list(L, string):
     """ simple (not regex or fuzzy) filtering of a list of strings
@@ -446,7 +432,7 @@ def Error(parent, message, caption = 'Error!'):
 # --------------------------------------------------------------------------------{
 
 def isString(x):
-    b = x.dtype == np.object and isinstance(x.values[0], str)
+    b = x.dtype == object and isinstance(x.values[0], str)
     return b 
 
 def isDate(x):

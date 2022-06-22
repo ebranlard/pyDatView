@@ -53,16 +53,22 @@ def rsquare(y,f, c = True):
     rmse = np.sqrt(np.mean((y - f) ** 2))
     return r2,rmse
 
-def mean_rel_err(t1, y1, t2, y2, method='mean'):
+def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='mean', verbose=False):
     """ 
+    return mean relative error in % 
+
     Methods: 
       'mean'   : 100 * |y1-y2|/mean(y1)
       'meanabs': 100 * |y1-y2|/mean(|y1|)
-      'minmax': y1 and y2 scaled between 0.001 and 1
+      'minmax': y1 and y2 scaled between 0.5 and 1.5
                 |y1s-y2s|/|y1|
+      '0-2': signals are scalled between 0 & 2
     """
-    if len(y1)!=len(y2):
-        y2=np.interp(t1,t2,y2)
+    if t1 is None and t2 is None:
+        pass
+    else:
+        if len(y1)!=len(y2):
+            y2=np.interp(t1,t2,y2)
     # Method 1 relative to mean
     if method=='mean':
         ref_val = np.mean(y1)
@@ -74,10 +80,21 @@ def mean_rel_err(t1, y1, t2, y2, method='mean'):
         # Method 2 scaling signals
         Min=min(np.min(y1), np.min(y2))
         Max=max(np.max(y1), np.max(y2))
-        y1=(y1-Min)/(Max-Min)+0.001
-        y2=(y2-Min)/(Max-Min)+0.001
+        y1=(y1-Min)/(Max-Min)+0.5
+        y2=(y2-Min)/(Max-Min)+0.5
         meanrelerr = np.mean(np.abs(y1-y2)/np.abs(y1))*100 
-    #print('Mean rel error {:7.2f} %'.format( meanrelerr))
+    elif method=='1-2':
+        # transform values from 1 to 2
+        Min=min(np.min(y1), np.min(y2))
+        Max=max(np.max(y1), np.max(y2))
+        y1 = (y1-Min)/(Max-Min)+1
+        y2 = (y2-Min)/(Max-Min)+1
+        meanrelerr = np.mean(np.abs(y1-y2)/np.abs(y1))*100
+    else:
+        raise Exception('Unknown method',method)
+
+    if verbose:
+        print('Mean rel error {:7.2f} %'.format( meanrelerr))
     return meanrelerr
 
 
@@ -147,7 +164,7 @@ def pdf_sns(y,nBins=50):
 # --------------------------------------------------------------------------------}
 # --- Binning 
 # --------------------------------------------------------------------------------{
-def bin_DF(df, xbins, colBin):
+def bin_DF(df, xbins, colBin, stats='mean'):
     """ 
     Perform bin averaging of a dataframe
     INPUTS:
@@ -162,7 +179,10 @@ def bin_DF(df, xbins, colBin):
         raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
     xmid      = (xbins[:-1]+xbins[1:])/2
     df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
-    df2       = df.groupby('Bin').mean()                     # Average by bin
+    if stats=='mean':
+        df2       = df.groupby('Bin').mean()                     # Average by bin
+    elif stats=='std':
+        df2       = df.groupby('Bin').std()                     # std by bin
     # also counting
     df['Counts'] = 1
     dfCount=df[['Counts','Bin']].groupby('Bin').sum()
@@ -171,20 +191,55 @@ def bin_DF(df, xbins, colBin):
     df2       = df2.reindex(xmid)
     return df2
 
-def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
+def bin_signal(x, y, xbins=None, stats='mean', nBins=None):
+    """ 
+    Perform bin averaging of a dataframe
+    INPUTS:
+      - df   : pandas dataframe
+      - xBins: end points delimiting the bins, array of ascending x values)
+      - colBin: column name (string) of the dataframe, used for binning 
+    OUTPUTS:
+       binned dataframe, with additional columns 'Counts' for the number 
+
+    """
+    if xbins is None:
+        xmin, xmax = np.min(x), np.max(x)
+        dx = (xmax-xmin)/nBins
+        xbins=np.arange(xmin, xmax+dx/2, dx)
+    df = pd.DataFrame(data=np.column_stack((x,y)), columns=['x','y'])
+    df2 = bin_DF(df, xbins, colBin='x', stats=stats)
+    return df2['x'].values, df2['y'].values
+
+
+
+def azimuthal_average_DF(df, psiBin=np.arange(0,360+1,10), colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
     """ 
     Average a dataframe based on azimuthal value
     Returns a dataframe with same amount of columns as input, and azimuthal values as index
     """
-    if psiBin is None: 
-        psiBin = np.arange(0,360+1,10)
-
     if tStart is not None:
         if colTime not in df.columns.values:
             raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
         df=df[ df[colTime]>tStart].copy()
 
-    dfPsi= bin_DF(df, psiBin, colPsi)
+    dfPsi= bin_DF(df, psiBin, colPsi, stats='mean')
+    if np.any(dfPsi['Counts']<1):
+        print('[WARN] some bins have no data! Increase the bin size.')
+
+    return dfPsi
+
+
+def azimuthal_std_DF(df, psiBin=np.arange(0,360+1,10), colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
+    """ 
+    Average a dataframe based on azimuthal value
+    Returns a dataframe with same amount of columns as input, and azimuthal values as index
+    """
+    if tStart is not None:
+        if colTime not in df.columns.values:
+            raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
+        df=df[ df[colTime]>tStart].copy()
+
+    dfPsi= bin_DF(df, psiBin, colPsi, stats='std')
     if np.any(dfPsi['Counts']<1):
         print('[WARN] some bins have no data! Increase the bin size.')
 

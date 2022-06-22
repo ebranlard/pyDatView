@@ -6,6 +6,9 @@ standard_library.install_aliases()
 
 import numpy as np
 import os.path 
+import sys
+import traceback 
+import gc
 try:
     import pandas as pd
 except:
@@ -20,9 +23,6 @@ except:
     sys.exit(-1)
     #raise
 
-import sys
-import traceback 
-import gc
 
 #  GUI
 import wx
@@ -35,17 +35,11 @@ from .Tables import TableList, Table
 # Helper
 from .common import *
 from .GUICommon import *
+# Pluggins
+from .plugins import dataPlugins
 
-
-
-# --------------------------------------------------------------------------------}
-# --- GLOBAL 
-# --------------------------------------------------------------------------------{
-PROG_NAME='pyDatView'
-PROG_VERSION='v0.2-local'
 try:
-    import weio # File Formats and File Readers
-    FILE_FORMATS= weio.fileFormats()
+    import weio.weio as weio# File Formats and File Readers
 except:
     print('')
     print('Error: the python package `weio` was not imported successfully.\n')
@@ -55,10 +49,14 @@ except:
     print('Alternatively re-clone this repository into a separate folder:\n')
     print('   git clone --recurse-submodules https://github.com/ebranlard/pyDatView\n')
     sys.exit(-1)
-FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in FILE_FORMATS]
-FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in FILE_FORMATS]
-FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(FILE_FORMATS_NAMES,FILE_FORMATS_EXTENSIONS)]
 
+from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
+
+# --------------------------------------------------------------------------------}
+# --- GLOBAL 
+# --------------------------------------------------------------------------------{
+PROG_NAME='pyDatView'
+PROG_VERSION='v0.3-local'
 SIDE_COL       = [160,160,300,420,530]
 SIDE_COL_LARGE = [200,200,360,480,600]
 BOT_PANL =85
@@ -91,8 +89,8 @@ class FileDropTarget(wx.FileDropTarget):
           if iFormat==0: # auto-format
               Format = None
           else:
-              Format = FILE_FORMATS[iFormat-1]
-          self.parent.load_files(filenames,fileformat=Format,bAdd=bAdd)
+              Format = self.parent.FILE_FORMATS[iFormat-1]
+          self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd)
       return True
 
 
@@ -102,15 +100,21 @@ class FileDropTarget(wx.FileDropTarget):
 # --- Main Frame  
 # --------------------------------------------------------------------------------{
 class MainFrame(wx.Frame):
-    def __init__(self, filename=None):
+    def __init__(self, data=None):
         # Parent constructor
         wx.Frame.__init__(self, None, -1, PROG_NAME+' '+PROG_VERSION)
-        # Data
-        self.tabList=TableList()
-        self.restore_formulas = []
-
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
+        # --- Data
+        self.tabList=TableList()
+        self.restore_formulas = []
+        self.systemFontSize = self.GetFont().GetPointSize()
+        self.data = loadAppData(self)
+        self.datareset = False
+        # Global variables...
+        setFontSize(self.data['fontSize'])
+        setMonoFontSize(self.data['monoFontSize'])
+
         # --- GUI
         #font = self.GetFont()
         #print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
@@ -120,6 +124,7 @@ class MainFrame(wx.Frame):
         #font.SetPointSize(8)
         #print(font.GetFamily(),font.GetStyle(),font.GetPointSize())
         #self.SetFont(font) 
+        self.SetFont(getFont(self))
         # --- Menu
         menuBar = wx.MenuBar()
 
@@ -142,6 +147,10 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Resample') , dataMenu.Append(wx.ID_ANY, 'Resample'))
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
+        # --- Data Plugins
+        for string, function, isPanel in dataPlugins:
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=string: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, string))
+
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
         self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'CurveFitting'), toolMenu.Append(wx.ID_ANY, 'Curve fitting'))
@@ -149,14 +158,26 @@ class MainFrame(wx.Frame):
 
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
+        resetMenuItem = helpMenu.Append(wx.NewId(), 'Reset options', 'Rest options')
         menuBar.Append(helpMenu, "&Help")
         self.SetMenuBar(menuBar)
-        self.Bind(wx.EVT_MENU,self.onAbout,aboutMenuItem)
+        self.Bind(wx.EVT_MENU,self.onAbout, aboutMenuItem)
+        self.Bind(wx.EVT_MENU,self.onReset, resetMenuItem)
+
+
+        self.FILE_FORMATS, errors= weio.fileFormats(ignoreErrors=True, verbose=False)
+        if len(errors)>0:
+            for e in errors:
+                Warn(self, e)
+
+        self.FILE_FORMATS_EXTENSIONS = [['.*']]+[f.extensions for f in self.FILE_FORMATS]
+        self.FILE_FORMATS_NAMES      = ['auto (any supported file)'] + [f.name for f in self.FILE_FORMATS]
+        self.FILE_FORMATS_NAMEXT     =['{} ({})'.format(n,','.join(e)) for n,e in zip(self.FILE_FORMATS_NAMES,self.FILE_FORMATS_EXTENSIONS)]
 
         # --- ToolBar
         tb = self.CreateToolBar(wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT)
         self.toolBar = tb 
-        self.comboFormats = wx.ComboBox(tb, choices = FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
+        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
         self.comboFormats.SetSelection(0)
         self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)  
         self.comboMode.SetSelection(0)
@@ -207,10 +228,11 @@ class MainFrame(wx.Frame):
         self.FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND,border=0)
         self.SetSizer(self.FrameSizer)
 
-        self.SetSize((900, 700))
+        self.SetSize(self.data['windowSize'])
         self.Center()
         self.Show()
         self.Bind(wx.EVT_SIZE, self.OnResizeWindow)
+        self.Bind(wx.EVT_CLOSE, self.onClose)
 
         # Shortcuts
         idFilter=wx.NewId()
@@ -221,13 +243,10 @@ class MainFrame(wx.Frame):
                 )
         self.SetAcceleratorTable(accel_tbl)
 
-
     def onFilter(self,event):
         if hasattr(self,'selPanel'):
             self.selPanel.colPanel1.tFilter.SetFocus()
         event.Skip()
-
-
 
     def clean_memory(self,bReload=False):
         #print('Clean memory')
@@ -242,7 +261,7 @@ class MainFrame(wx.Frame):
                 self.plotPanel.cleanPlot()
         gc.collect()
 
-    def load_files(self, filenames=[], fileformat=None, bReload=False, bAdd=False):
+    def load_files(self, filenames=[], fileformats=None, bReload=False, bAdd=False):
         """ load multiple files, only trigger the plot at the end """
         if bReload:
             if hasattr(self,'selPanel'):
@@ -251,22 +270,32 @@ class MainFrame(wx.Frame):
         if not bAdd:
             self.clean_memory(bReload=bReload)
 
+
+        if fileformats is None:
+            fileformats=[None]*len(filenames)
+        assert type(fileformats)==list, 'fileformats must be a list'
+        assert len(fileformats)==len(filenames), 'fileformats and filenames must have the same lengths'
+
+        # Sorting files in alphabetical order in base_filenames order
         base_filenames = [os.path.basename(f) for f in filenames]
-        filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
+        I = np.argsort(base_filenames)
+        filenames   = list(np.array(filenames)[I])
+        fileformats = list(np.array(fileformats)[I])
+        #filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
+
         # Load the tables
-        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformat=fileformat, bAdd=bAdd)
+        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd)
         if bReload:
             # Restore formulas that were previously added
-            _ITab, _STab = self.selPanel.getAllTables()
-            ITab = [iTab for __, iTab in sorted(zip(_STab, _ITab))]
-            if len(ITab) != len(self.restore_formulas):
-                raise ValueError('Invalid length of tabs and formulas!')
-            for iTab, f_list in zip(ITab, self.restore_formulas):
-                for f in f_list:
-                    self.tabList.get(iTab).addColumnByFormula(f['name'], f['formula'])
-            self.restore_formulas = []
+            for tab in self.tabList:
+                if tab.raw_name in self.restore_formulas.keys():
+                    for f in self.restore_formulas[tab.raw_name]:
+                        tab.addColumnByFormula(f['name'], f['formula'], f['pos']-1)
+            self.restore_formulas = {}
+        # Display warnings
         for warn in warnList: 
             Warn(self,warn)
+        # Load tables into the GUI
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=True)
 
@@ -305,7 +334,7 @@ class MainFrame(wx.Frame):
             self.selPanel = SelectionPanel(self.vSplitter, self.tabList, mode=mode, mainframe=self)
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
-            self.infoPanel = InfoPanel(self.tSplitter)
+            self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
             self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, self)
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
@@ -345,7 +374,9 @@ class MainFrame(wx.Frame):
         except:
             pass
         # Hack
+        #self.onShowTool(tool='Filter')
         #self.onShowTool(tool='Resample')
+        #self.onDataPlugin(toolName='Bin data')
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
@@ -356,11 +387,11 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('', 1) # Filenames
             self.statusbar.SetStatusText('', 2) # Shape
         elif nTabs==1:
-            self.statusbar.SetStatusText(self.tabList.get(0).fileformat,  0)
+            self.statusbar.SetStatusText(self.tabList.get(0).fileformat_name,  0)
             self.statusbar.SetStatusText(self.tabList.get(0).filename  ,  1)
             self.statusbar.SetStatusText(self.tabList.get(0).shapestring, 2)
         elif len(ISel)==1:
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat , 0)
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat_name , 0)
             self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename   , 1)
             self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring, 2)
         else:
@@ -407,12 +438,35 @@ class MainFrame(wx.Frame):
 
     def onShowTool(self, event=None, tool=''):
         """ 
+        Show tool
         tool in 'Outlier', 'Filter', 'LogDec','FASTRadialAverage', 'Mask', 'CurveFitting'
         """
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
             return
         self.plotPanel.showTool(tool)
+
+    def onDataPlugin(self, event=None, toolName=''):
+        """ 
+        Dispatcher to apply plugins to data:
+          - simple plugins are directly exectued
+          - plugins that are panels are sent over to plotPanel to show them
+        TODO merge with onShowTool
+        """
+        if not hasattr(self,'plotPanel'):
+            Error(self,'Plot some data first')
+            return
+
+        for thisToolName, function, isPanel in dataPlugins:
+            if toolName == thisToolName:
+                if isPanel:
+                    panelClass = function(self, event, toolName) # getting panelClass
+                    self.plotPanel.showToolPanel(panelClass)
+                else:
+                    function(self, event, toolName) # calling the data function
+                return
+        raise NotImplementedError('Tool: ',toolName)
+
 
     def onSashChangeMain(self,event=None):
         pass
@@ -453,7 +507,11 @@ class MainFrame(wx.Frame):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
 
     def onExit(self, event):
-        self.Close()
+        self.Close() 
+
+    def onClose(self, event):
+        saveAppData(self, self.data)
+        event.Skip()
 
     def cleanGUI(self, event=None):
         if hasattr(self,'plotPanel'):
@@ -475,26 +533,39 @@ class MainFrame(wx.Frame):
         self.plotPanel.navTB.save_figure()
 
     def onAbout(self, event=None):
-        Info(self,PROG_NAME+' '+PROG_VERSION+'\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
+        defaultDir = weio.defaultUserDataDir() # TODO input file options
+        About(self,PROG_NAME+' '+PROG_VERSION+'\n\n'
+                'pyDatView config file:\n     {}\n'.format(configFilePath())+
+                'weio data directory:     \n     {}\n'.format(os.path.join(defaultDir,'weio'))+
+                '\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
+
+    def onReset (self, event=None):
+        configFile = configFilePath()
+        result = YesNo(self,
+                'The options of pyDatView will be reset to default.\nThe changes will be noticeable the next time you open pyDatView.\n\n'+
+                'This action will overwrite the user settings file:\n   {}\n\n'.format(configFile)+
+                'pyDatView will then close.\n\n'
+                'Are you sure you want to continue?', caption = 'Reset settings?')
+        if result:
+            try:
+                os.remove(configFile)
+            except:
+                pass
+            self.data = defaultAppData(self)
+            self.datareset = True
+            self.onExit(event=None)
 
     def onReload(self, event=None):
-        filenames = self.tabList.unique_filenames
-        filenames.sort()
+        filenames, fileformats = self.tabList.filenames_and_formats
         if len(filenames)>0:
             # Save formulas to restore them after reload with sorted tabs
-            _ITab, _STab = self.selPanel.getAllTables()
-            ITab = [iTab for __, iTab in sorted(zip(_STab, _ITab))]
-            self.restore_formulas = []
-            for iTab in ITab:
-                f = self.tabList.get(iTab).formulas
-                f = sorted(f, key=lambda k: k['pos'])
-                self.restore_formulas.append(f)
-            iFormat=self.comboFormats.GetSelection()
-            if iFormat==0: # auto-format
-                Format = None
-            else:
-                Format = FILE_FORMATS[iFormat-1]
-            self.load_files(filenames,fileformat=Format,bReload=True,bAdd=False)
+            self.restore_formulas = {}
+            for tab in self.tabList._tabs:
+                f = tab.formulas # list of dict('pos','formula','name')
+                f = sorted(f, key=lambda k: k['pos']) # Sort formulae by position in list of formua
+                self.restore_formulas[tab.raw_name]=f # we use raw_name as key
+            # Actually load files (read and add in GUI)
+            self.load_files(filenames, fileformats=fileformats, bReload=True,bAdd=False)
         else:
            Error(self,'Open one or more file first.')
 
@@ -527,7 +598,7 @@ class MainFrame(wx.Frame):
         if iFormat==0: # auto-format
             Format = None
             #wildcard = 'all (*.*)|*.*'
-            wildcard='|'.join([n+'|*'+';*'.join(e) for n,e in zip(FILE_FORMATS_NAMEXT,FILE_FORMATS_EXTENSIONS)])
+            wildcard='|'.join([n+'|*'+';*'.join(e) for n,e in zip(self.FILE_FORMATS_NAMEXT,self.FILE_FORMATS_EXTENSIONS)])
             #wildcard = sFormat + extensions+'|all (*.*)|*.*'
         else:
             Format = FILE_FORMATS[iFormat-1]
@@ -604,8 +675,13 @@ def MyExceptionHook(etype, value, trace):
     :param string `trace`: the traceback header, if any (otherwise, it prints the
      standard Python header: ``Traceback (most recent call last)``.
     """
+    from wx._core import wxAssertionError
     # Printing exception
     traceback.print_exception(etype, value, trace)
+    if etype==wxAssertionError:
+        if wx.Platform == '__WXMAC__':
+            # We skip these exceptions on macos (likely bitmap size 0)
+            return
     # Then showing to user the last error
     frame = wx.GetApp().GetTopWindow()
     tmp = traceback.format_exception(etype, value, trace)
@@ -709,7 +785,7 @@ def showApp(firstArg=None,dataframe=None,filenames=[]):
         #tend = time.time()
         #print('PydatView time: ',tend-tstart)
     elif len(filenames)>0:
-        frame.load_files(filenames,fileformat=None)
+        frame.load_files(filenames, fileformats=None)
     app.MainLoop()
 
 def cmdline():

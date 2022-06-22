@@ -44,8 +44,10 @@ help:
 test:
 ifeq ($(detected_OS),Darwin)        # Mac OS X
 	./pythonmac -m unittest discover -v tests
+	./pythonmac -m unittest discover -v pydatview/plugins/tests
 else
 	python -m unittest discover -v tests
+	python -m unittest discover -v pydatview/plugins/tests
 endif
 
 prof:
@@ -78,7 +80,7 @@ else
 	@sh _tools/setVersion.sh
 endif
 
-installer: version
+installer: 
 	python -m nsist installer.cfg
 
 

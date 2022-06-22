@@ -3,7 +3,8 @@ from __future__ import unicode_literals,print_function
 import unittest
 import numpy as np
 import pandas as pd
-from pydatview.common import unit,no_unit,ellude_common,getDt, find_leftstop
+from pydatview.common import unit, no_unit, splitunit
+from pydatview.common import ellude_common, getDt, find_leftstop
 from pydatview.common import has_chinese_char
 from pydatview.common import filter_list
 from pydatview.common import rectangleOverlap
@@ -18,6 +19,12 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(unit   ('speed [m/s]'),'m/s'  )
         self.assertEqual(unit   ('speed [m/s' ),'m/s'  ) # ...
         self.assertEqual(no_unit('speed [m/s]'),'speed')
+
+    def test_splitunit(self):
+        self.assertEqual(splitunit   ('speed [m/s]'),('speed ','m/s'  ))
+        self.assertEqual(splitunit   ('speed [m/s' ),('speed ','m/s'  )) 
+        self.assertEqual(splitunit   ('speed_[m/s]'),('speed_','m/s'  )) 
+        self.assertEqual(splitunit   ('speed'),('speed','' )) 
 
     def test_date(self):
         def test_dt(datestr,dt_ref):

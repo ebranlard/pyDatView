@@ -35,6 +35,14 @@ def handleRemoveReadonlyWin(func, path, exc_info):
         raise
 
 
+def forceCopyFile (sfile, dfile):
+    # ---- Handling error due to wrong mod
+    if os.path.isfile(dfile):
+        if not os.access(dfile, os.W_OK):
+            os.chmod(dfile, stat.S_IWUSR)
+    #print(sfile, ' > ', dfile)
+    shutil.copy2(sfile, dfile)
+
 def copyTree(src, dst):
     """ 
     Copy a directory to another one, overwritting files if necessary.
@@ -47,14 +55,6 @@ def copyTree(src, dst):
             srcFile = os.path.join(srcDir, item)
             dstFile = os.path.join(dstDir, item)
             forceCopyFile(srcFile, dstFile)
-
-    def forceCopyFile (sfile, dfile):
-        # ---- Handling error due to wrong mod
-        if os.path.isfile(dfile):
-            if not os.access(dfile, os.W_OK):
-                os.chmod(dfile, stat.S_IWUSR)
-        #print(sfile, ' > ', dfile)
-        shutil.copy2(sfile, dfile)
 
     def isAFlatDir(sDir):
         for item in os.listdir(sDir):
@@ -295,27 +295,32 @@ def removeFASTOuputs(workDir):
 # --------------------------------------------------------------------------------}
 # --- Tools for template replacement 
 # --------------------------------------------------------------------------------{
-def paramsSteadyAero(p=dict()):
+def paramsSteadyAero(p=None):
+    p = dict() if p is None else p
     p['AeroFile|AFAeroMod']=1 # remove dynamic effects dynamic
     p['AeroFile|WakeMod']=1 # remove dynamic inflow dynamic
     p['AeroFile|TwrPotent']=0 # remove tower shadow
     return p
 
-def paramsNoGen(p=dict()):
+def paramsNoGen(p=None):
+    p = dict() if p is None else p
     p['EDFile|GenDOF' ]  = 'False'
     return p
 
-def paramsGen(p=dict()):
+def paramsGen(p=None):
+    p = dict() if p is None else p
     p['EDFile|GenDOF' ]  = 'True'
     return p
 
-def paramsNoController(p=dict()):
+def paramsNoController(p=None):
+    p = dict() if p is None else p
     p['ServoFile|PCMode']   = 0;
     p['ServoFile|VSContrl'] = 0;
     p['ServoFile|YCMode']   = 0;
     return p
 
-def paramsControllerDLL(p=dict()):
+def paramsControllerDLL(p=None):
+    p = dict() if p is None else p
     p['ServoFile|PCMode']   = 5;
     p['ServoFile|VSContrl'] = 5;
     p['ServoFile|YCMode']   = 5;
@@ -323,7 +328,8 @@ def paramsControllerDLL(p=dict()):
     return p
 
 
-def paramsStiff(p=dict()):
+def paramsStiff(p=None):
+    p = dict() if p is None else p
     p['EDFile|FlapDOF1']  = 'False'
     p['EDFile|FlapDOF2']  = 'False'
     p['EDFile|EdgeDOF' ]  = 'False'
@@ -389,7 +395,8 @@ def paramsWS_RPM_Pitch(WS, RPM, Pitch, baseDict=None, flatInputs=False):
         PARAMS.append(p)
     return PARAMS
 
-def paramsLinearTrim(p=dict()):
+def paramsLinearTrim(p=None):
+    p = dict() if p is None else p
 
     # Set a few DOFs, move this to main file
     p['Linearize']              = True

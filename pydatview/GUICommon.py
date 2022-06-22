@@ -3,55 +3,58 @@ import numpy as np
 import os
 import platform
 
+_MONOFONTSIZE=9
+_FONTSIZE=9
+
 # --------------------------------------------------------------------------------}
-# ---  
+# --- FONT
 # --------------------------------------------------------------------------------{
-def getMonoFontAbs():
-    #return wx.Font(9, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Monospace')
-    if os.name=='nt':
-        font=wx.Font(9, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-    elif os.name=='posix':
-        font=wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
-    else:
-        font=wx.Font(8, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
+def setMonoFontSize(fs):
+    global _MONOFONTSIZE
+    _MONOFONTSIZE=int(fs)
+
+def getMonoFontSize():
+    global _MONOFONTSIZE
+    return _MONOFONTSIZE
+
+def setFontSize(fs):
+    global _FONTSIZE
+    _FONTSIZE=int(fs)
+
+def getFontSize():
+    global _FONTSIZE
+    return _FONTSIZE
+
+
+def getFont(widget):
+    global _FONTSIZE
+    font = widget.GetFont()
+    #font.SetFamily(wx.TELETYPE)
+    font.SetPointSize(_FONTSIZE)
+    #font=wx.Font(_FONTSIZE-1, wx.TELETYPE, wx.NORMAL, wx.NORMAL, False)
     return font
 
 def getMonoFont(widget):
+    global _MONOFONTSIZE
     font = widget.GetFont()
     font.SetFamily(wx.TELETYPE)
-    if platform.system()=='Windows':
-        pass
-    elif platform.system()=='Linux':
-        pass
-    elif platform.system()=='Darwin':
-        font.SetPointSize(font.GetPointSize()-1)
-    else:
-        pass
+    font.SetPointSize(_MONOFONTSIZE)
     return font
 
-
-
-# def getColumn(df,i):
-#     if i == wx.NOT_FOUND or i == 0:
-#         x = np.array(range(df.shape[0]))
-#         c = None
-#         isString = False
-#         isDate   = False
-#     else:
-#         c = df.iloc[:, i-1]
-#         x = df.iloc[:, i-1].values
-#         isString = c.dtype == np.object and isinstance(c.values[0], str)
-#         if isString:
-#             x=x.astype(str)
-#         isDate   = np.issubdtype(c.dtype, np.datetime64)
-#         if isDate:
-#             x=x.astype('datetime64[s]')
-# 
-#     return x,isString,isDate,c
-# 
 # --------------------------------------------------------------------------------}
 # --- Helper functions
 # --------------------------------------------------------------------------------{
+def About(parent, message):
+    class MessageBox(wx.Dialog):
+        def __init__(self, parent, title, message):
+            wx.Dialog.__init__(self, parent, title=title, style=wx.CAPTION|wx.CLOSE_BOX)
+            text = wx.TextCtrl(self, style=wx.TE_READONLY|wx.BORDER_NONE|wx.TE_MULTILINE|wx.TE_AUTO_URL)
+            text.SetValue(message)
+            text.SetBackgroundColour(wx.SystemSettings.GetColour(4))
+            self.ShowModal()
+            self.Destroy()
+    MessageBox(parent, 'About', message)
+
 def YesNo(parent, question, caption = 'Yes or no?'):
     dlg = wx.MessageDialog(parent, question, caption, wx.YES_NO | wx.ICON_QUESTION)
     result = dlg.ShowModal() == wx.ID_YES

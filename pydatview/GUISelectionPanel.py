@@ -910,8 +910,8 @@ class SelectionPanel(wx.Panel):
                 self.twoColumnsMode()
             else:
                 # See if tables are quite similar
-                IKeepPerTab, IMissPerTab, IDuplPerTab= getTabCommonColIndices([self.tabList.get(i) for i in ISel])
-                if np.all(np.array([len(I) for I in IMissPerTab])<30) and np.all(np.array([len(I) for I in IKeepPerTab])>=2):
+                IKeepPerTab, IMissPerTab, IDuplPerTab, nCols = getTabCommonColIndices([self.tabList.get(i) for i in ISel])
+                if np.all(np.array([len(I) for I in IMissPerTab]))<np.mean(nCols)*0.8  and np.all(np.array([len(I) for I in IKeepPerTab])>=2):
                     self.simColumnsMode()
                 elif len(ISel)==2:
                     self.twoColumnsMode()
@@ -1046,7 +1046,7 @@ class SelectionPanel(wx.Panel):
     def setColForSimTab(self,ISel):
         """ Set column panels for similar tables """
         tabs = [self.tabList.get(i) for i in ISel]
-        IKeepPerTab, IMissPerTab, IDuplPerTab = getTabCommonColIndices(tabs)
+        IKeepPerTab, IMissPerTab, IDuplPerTab, _ = getTabCommonColIndices(tabs)
         LenMiss = np.array([len(I) for I in IMissPerTab])
         LenKeep = np.array([len(I) for I in IKeepPerTab])
         LenDupl = np.array([len(I) for I in IDuplPerTab])

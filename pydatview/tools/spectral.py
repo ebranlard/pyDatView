@@ -20,6 +20,7 @@
 from __future__ import division, print_function, absolute_import
 
 import numpy as np
+import pandas as pd
 from six import string_types
 
 __all__  = ['fft_wrap','welch', 'psd', 'fft_amplitude']
@@ -32,12 +33,12 @@ __all__ += ['TestSpectral']
 # --------------------------------------------------------------------------------}
 # --- FFT wrap
 # --------------------------------------------------------------------------------{
-def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_window='hamming',detrend=False,nExp=None):
+def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_window='hamming',detrend=False,nExp=None, nPerDecade=None):
     """ 
     Wrapper to compute FFT amplitude or power spectra, with averaging.
     INPUTS:
        output_type      : amplitude, PSD, f x PSD
-       averaging_method : None, Welch
+       averaging : None, Welch, Binning
        averaging_window : Hamming, Hann, Rectangular
     OUTPUTS:
        frq: vector of frequencies
@@ -60,8 +61,10 @@ def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_win
         if dtDelta0 !=dt:
             print('[WARN] dt from tmax-tmin different from dt from t2-t1' )
     Fs = 1/dt
-    if averaging=='none':
+    if averaging =='none':
         frq, PSD, Info = psd(y, fs=Fs, detrend=detrend, return_onesided=True)
+    elif averaging =='binning':
+        frq, PSD, Info = psd_binned(y, fs=Fs, detrend=detrend, return_onesided=True, nPerDecade=nPerDecade)
     elif averaging=='welch':
         # --- Welch - PSD
         #overlap_frac=0.5
@@ -114,6 +117,70 @@ def fft_amplitude(y, fs=1.0, detrend ='constant', return_onesided=True):
     deltaf = frq[1]-frq[0]
     Y = np.sqrt(PSD*2*deltaf)
     return frq, Y, Info
+
+
+def psd_binned(y, fs=1.0, nPerDecade=10, detrend ='constant', return_onesided=True):
+    """ 
+    Return PSD binned with nPoints per decade
+    """
+    # --- First  return regular PSD
+    frq, PSD, Info = psd(y, fs=fs, detrend=detrend, return_onesided=return_onesided)
+
+    add0=False
+    if frq[0]==0:
+        add0=True
+        f0   = 0
+        PSD0 = PSD[0]
+        frq=frq[1:]
+        PSD=PSD[1:]
+
+    # -- Then bin per decase
+    log_f = np.log10(frq)
+    ndecades = np.ceil(log_f[-1] -log_f[0])
+    xbins = np.linspace(log_f[0], log_f[-1], int(ndecades*nPerDecade))
+
+    # Using Pandas to bin..
+    df = pd.DataFrame(data=np.column_stack((log_f,PSD)), columns=['x','y'])
+    xmid  = (xbins[:-1]+xbins[1:])/2
+    df['Bin'] = pd.cut(df['x'], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
+    df2  = df.groupby('Bin').mean()                     # Average by bin
+    df2  = df2.reindex(xmid)
+    log_f_bin = df2['x'].values
+    PSD_bin = df2['y'].values
+    frq2= 10**log_f_bin
+    PSD2= PSD_bin
+    if add0:
+        frq2=np.concatenate(  ([f0  ], frq2)  )
+        PSD2=np.concatenate(  ([PSD0], PSD2)  )
+    b = ~np.isnan(frq2)
+    frq2 = frq2[b]
+    PSD2 = PSD2[b]
+
+    #import matplotlib.pyplot as plt
+    #fig,ax = plt.subplots(1, 1, sharey=False, figsize=(6.4,4.8)) # (6.4,4.8)
+    #fig.subplots_adjust(left=0.12, right=0.95, top=0.95, bottom=0.11, hspace=0.20, wspace=0.20)
+    #ax.plot(log_f, PSD, label='')
+    #ax.plot(log_f_bin, PSD_bin, 'o', label='')
+    #for x in xbins:
+    #    ax.axvline(x, ls=':', c=(0.5,0.5,0.5))
+    #ax.set_xlabel('')
+    #ax.set_ylabel('')
+    #ax.legend()
+    #plt.show()
+
+    #Info.df    = frq[1]-frq[0]
+    #Info.fMax  = frq[-1]
+    #Info.LFreq = len(frq)
+    #Info.LSeg  = len(Y)
+    #Info.LWin  = len(Y)
+    #Info.LOvlp = 0
+    #Info.nFFT  = len(Y)
+    #Info.nseg  = 1
+    Info.nPerDecade  = nPerDecade
+    Info.xbins  = xbins
+
+    return frq2, PSD2, Info
+
 
 def psd(y, fs=1.0, detrend ='constant', return_onesided=True):
     """ Perform PSD without averaging """
@@ -587,7 +654,7 @@ def pwelch(x, window='hamming', noverlap=None, nfft=None, fs=1.0, nperseg=None,
         if nperseg is None:
             if noverlap is None:
                 overlap_frac=0.5
-            elif noverlap is 0:
+            elif noverlap == 0:
                 overlap_frac=0
             else:
                 raise NotImplementedError('TODO noverlap set but not nperseg')
@@ -599,13 +666,15 @@ def pwelch(x, window='hamming', noverlap=None, nfft=None, fs=1.0, nperseg=None,
         detrend='constant'
 
     freqs, Pxx, Info = csd(x, x, fs, window, nperseg, noverlap, nfft, detrend,
-                     return_onesided, scaling, axis)
+                     return_onesided, scaling, axis, returnInfo=True)
 
     return freqs, Pxx.real, Info
 
 
 def csd(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None, nfft=None,
-        detrend='constant', return_onesided=True, scaling='density', axis=-1):
+        detrend='constant', return_onesided=True, scaling='density', axis=-1,
+        returnInfo=False
+        ):
     r"""
     Estimate the cross power spectral density, Pxy, using Welch's
     method.
@@ -622,7 +691,10 @@ def csd(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None, nfft=None,
         else:
             Pxy = np.reshape(Pxy, Pxy.shape[:-1])
 
-    return freqs, Pxy, Info
+    if returnInfo:
+        return freqs, Pxy, Info
+    else:
+        return freqs, Pxy
 
 
 
@@ -639,7 +711,7 @@ def coherence(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None,
 
     freqs, Pxx, Infoxx = welch(x, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
     _, Pyy, Infoyy     = welch(y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
-    _, Pxy, Infoxy     = csd(x, y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis)
+    _, Pxy, Infoxy     = csd(x, y, fs, window, nperseg, noverlap, nfft, detrend, axis=axis, returnInfo=True)
 
     Cxy = np.abs(Pxy)**2 / Pxx / Pyy
 
@@ -955,7 +1027,30 @@ class TestSpectral(unittest.TestCase):
         i=np.argmax(Y)
         self.assertAlmostEqual(Y[i],A)
         self.assertAlmostEqual(f[i],f0)
+
+    def test_fft_binning(self):
+        dt=0.1
+        t=np.arange(0,10,dt);
+        f0=1;
+        A=5;
+        y=A*np.sin(2*np.pi*f0*t)
+
+        f,   Y, Info  = psd_binned(y, fs=1/dt, nPerDecade=10, detrend ='constant')
+        f2, Y2, Info2 = psd       (y, fs=1/dt,           detrend ='constant')
+        #print(f)
+        #print(Y)
+
+        #import matplotlib.pyplot as plt
+        #fig,ax = plt.subplots(1, 1, sharey=False, figsize=(6.4,4.8)) # (6.4,4.8)
+        #fig.subplots_adjust(left=0.12, right=0.95, top=0.95, bottom=0.11, hspace=0.20, wspace=0.20)
+        #ax.plot( f2, Y2   , label='Full')
+        #ax.plot( f,  Y    , label='Binned')
+        #ax.set_xlabel('')
+        #ax.set_ylabel('')
+        #ax.legend()
+        #plt.show()
     
 if __name__ == '__main__':
+    #TestSpectral().test_fft_binning()
     unittest.main()
 
