@@ -91,6 +91,7 @@ int main (int argc, char** argv) {
     char pythonwpath2[MAX_PATH]="";
     char pythonwpath3[MAX_PATH]="";
     char pythonwpath4[MAX_PATH]="";
+    char pythonwpath5[MAX_PATH]="";
     char* pfullCommand ;
     bool useImport = true;
     int index=0;
@@ -146,14 +147,18 @@ int main (int argc, char** argv) {
     concatenate(pythonwpath3,"\\AppData\\Local\\pyDatView\\Python\\pythonw.exe");
     printf("Pythonw3   : %s\n", pythonwpath3);
 
+    // --- Pythonw path (assuming user installed in AppData)
+    concatenate(pythonwpath5,"C:\\Users\\");
+    concatenate(pythonwpath5,user);
+    concatenate(pythonwpath5,"\\AppData\\Local\\Programs\\pyDatView\\Python\\pythonw.exe");
+    printf("Pythonw5   : %s\n", pythonwpath5);
+
     // --- Pythonw path (using PYDATPATH env variable)
     if (pydatpath) {
         concatenate(pythonwpath4, pydatpath);
         concatenate(pythonwpath4,"\\Python\\pythonw.exe");
         printf("Pythonw4   : %s\n", pythonwpath4);
     }
-
-
 
     // --- Selecting pythonw path that exist
     if (strcmp(parentdir,"_tools")==0) {
@@ -174,6 +179,10 @@ int main (int argc, char** argv) {
     } else if (file_exists(pythonwpath4)) {
         concatenate(pythonwpath0, pythonwpath4);
         printf(">>> Using Pythonw4\n");
+
+    } else if (file_exists(pythonwpath5)) {
+        concatenate(pythonwpath0, pythonwpath5);
+        printf(">>> Using Pythonw5\n");
 
     } else {
         ShowWindow( hWnd, SW_RESTORE);

@@ -11,7 +11,7 @@ compile:
 
 test:
 	@echo --------------------------------------------------------------------------
-	./pyDatView.exe C:\Bin\test.outb BB CC
+	./pyDatView.exe ../example_files/HAWCStab2.pwr ../example_files/CSVComma.csv
 
 clean:
 	rm *.obj *.res pyDatView.exe  
