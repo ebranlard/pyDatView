@@ -30,6 +30,8 @@ jobs:
           export CURRENT_DEV_TAG="$CURRENT_TAG-dev"
           echo "GIT DESCRIBE:      `git describe`"
           echo "GITHUB_REF:        $GITHUB_REF"
+          echo "Commits:           `git rev-list $CURRENT_TAG.. --count`"
+          echo "Commits-dev:       `git rev-list $CURRENT_DEV_TAG.. --count`"
           # Check if current version corresponds to a tagged commit
           if [[ $GITHUB_REF == *"tags"* ]]; then 
               echo ">>> This is a tagged version"
