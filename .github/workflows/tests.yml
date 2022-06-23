@@ -26,6 +26,7 @@ jobs:
         id: versioning
         run: |
           git fetch --unshallow
+          git fetch --tags
           export CURRENT_TAG="v0.3"
           export CURRENT_DEV_TAG="$CURRENT_TAG-dev"
           echo "GIT DESCRIBE:      `git describe`"
