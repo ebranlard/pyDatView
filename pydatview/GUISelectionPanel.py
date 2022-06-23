@@ -16,6 +16,7 @@ __all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES
 
 SEL_MODES    = ['auto','Same tables'    ,'Sim. tables' ,'2 tables','3 tables (exp.)'  ]
 SEL_MODES_ID = ['auto','sameColumnsMode','simColumnsMode','twoColumnsMode'  ,'threeColumnsMode' ]
+MAX_X_COLUMNS=300 # Maximum number of columns used in combo box of the x-axis (for performance)
 
 def ireplace(text, old, new):
     """ Replace case insensitive """
@@ -755,7 +756,14 @@ class ColumnPanel(wx.Panel):
         # NOTE: limiting to 300 for now.. I'm not sure anywant would want to scroll more than that
         # Consider adding a "more button"
         #  see e.g. https://comp.soft-sys.wxwindows.narkive.com/gDfA1Ds5/long-load-time-in-wxpython
-        self.comboX.Set(columnsX[:300]) # non filtered
+        if self.comboX.GetCurrentSelection()==MAX_X_COLUMNS:
+            self.comboX.Set(columnsX)
+        else:
+            if len(columnsX)>MAX_X_COLUMNS:
+                columnsX_show=np.append(columnsX[:MAX_X_COLUMNS],'[...]')
+            else:
+                columnsX_show=columnsX
+            self.comboX.Set(columnsX_show) # non filtered
 
         # Set selection for y, if any, and considering filtering
         for iFull in ySel:
@@ -812,6 +820,9 @@ class ColumnPanel(wx.Panel):
             SY = [self.lbColumns.GetString(i) for i in IY]
         iXFull = iX # NOTE: x is always in full
         IYFull = [self.Filt2Full[iY] for iY in IY]
+        
+        if self.comboX.GetCurrentSelection()==MAX_X_COLUMNS:
+            self.setGUIColumns(xSel=iXFull, ySel=IYFull)
         return iXFull,IYFull,sX,SY
 
     def onClearFilter(self, event=None):
