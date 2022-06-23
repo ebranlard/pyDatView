@@ -601,8 +601,8 @@ class MainFrame(wx.Frame):
             wildcard='|'.join([n+'|*'+';*'.join(e) for n,e in zip(self.FILE_FORMATS_NAMEXT,self.FILE_FORMATS_EXTENSIONS)])
             #wildcard = sFormat + extensions+'|all (*.*)|*.*'
         else:
-            Format = FILE_FORMATS[iFormat-1]
-            extensions = '|*'+';*'.join(FILE_FORMATS[iFormat-1].extensions)
+            Format = self.FILE_FORMATS[iFormat-1]
+            extensions = '|*'+';*'.join(self.FILE_FORMATS[iFormat-1].extensions)
             wildcard = sFormat + extensions+'|all (*.*)|*.*'
 
         with wx.FileDialog(self, "Open file", wildcard=wildcard,
@@ -612,7 +612,8 @@ class MainFrame(wx.Frame):
             #dlg.Center()
            if dlg.ShowModal() == wx.ID_CANCEL:
                return     # the user changed their mind
-           self.load_files(dlg.GetPaths(),fileformat=Format,bAdd=bAdd)
+           filenames = dlg.GetPaths()
+           self.load_files(filenames,fileformats=[Format]*len(filenames),bAdd=bAdd)
 
     def onModeChange(self, event=None):
         if hasattr(self,'selPanel'):
@@ -704,7 +705,7 @@ def test(filenames=None):
     if filenames is not None:
         app = wx.App(False)
         frame = MainFrame()
-        frame.load_files(filenames,fileformat=None)
+        frame.load_files(filenames,fileformats=None)
         return
  
 # --------------------------------------------------------------------------------}
