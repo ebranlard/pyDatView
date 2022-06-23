@@ -26,7 +26,8 @@ jobs:
         id: versioning
         run: |
           git fetch --unshallow
-          export CURRENT_DEV_TAG="v0.3-dev"
+          export CURRENT_TAG="v0.3"
+          export CURRENT_DEV_TAG="$CURRENT_TAG-dev"
           echo "GIT DESCRIBE:      `git describe`"
           echo "GITHUB_REF:        $GITHUB_REF"
           # Check if current version corresponds to a tagged commit
@@ -34,6 +35,11 @@ jobs:
               echo ">>> This is a tagged version"
               export VERSION_TAG=${GITHUB_REF/refs\/tags\//} 
               export VERSION_NAME=$VERSION_TAG
+              export FULL_VERSION_NAME="version $VERSION_NAME"
+          elif [[ $GITHUB_REF == *"main"* ]]; then 
+              echo ">>> This is not a tagged version, but on the main branch"
+              export VERSION_TAG=$CURRENT_TAG 
+              export VERSION_NAME="$CURRENT_TAG-`git rev-list $CURRENT_TAG.. --count`"
               export FULL_VERSION_NAME="version $VERSION_NAME"
           else
               echo ">>> This is not a tagged version"
