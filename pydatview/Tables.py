@@ -436,7 +436,7 @@ class Table(object):
 
     # --- Important manipulation TODO MOVE THIS OUT OF HERE OR UNIFY
     def applyResampling(self, iCol, sampDict, bAdd=True):
-        from pydatview.tools.signal import applySamplerDF
+        from pydatview.tools.signal_analysis import applySamplerDF
         if iCol==0:
             raise Exception('Cannot resample based on index')
         colName=self.data.columns[iCol-1]
@@ -450,7 +450,7 @@ class Table(object):
         return df_new, name_new
 
     def applyFiltering(self, iCol, options, bAdd=True):
-        from pydatview.tools.signal import applyFilterDF
+        from pydatview.tools.signal_analysis import applyFilterDF
         if iCol==0:
             raise Exception('Cannot filter based on index')
         colName=self.data.columns[iCol-1]

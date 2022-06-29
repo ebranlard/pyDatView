@@ -75,19 +75,19 @@ class PlotData():
         # TODO setup an "Order"
         if 'RemoveOutliers' in keys:
             if Options['RemoveOutliers']:
-                from pydatview.tools.signal import reject_outliers
+                from pydatview.tools.signal_analysis import reject_outliers
                 try:
                     PD.x, PD.y = reject_outliers(PD.y, PD.x, m=Options['OutliersMedianDeviation'])
                 except:
                     raise Exception('Warn: Outlier removal failed. Desactivate it or use a different signal. ')
         if 'Filter' in keys:
             if Options['Filter']:
-                from pydatview.tools.signal import applyFilter
+                from pydatview.tools.signal_analysis import applyFilter
                 PD.y = applyFilter(PD.x, PD.y, Options['Filter'])
 
         if 'Sampler' in keys:
             if Options['Sampler']:
-                from pydatview.tools.signal import applySampler
+                from pydatview.tools.signal_analysis import applySampler
                 PD.x, PD.y = applySampler(PD.x, PD.y, Options['Sampler'])
 
         if 'Binning' in keys:

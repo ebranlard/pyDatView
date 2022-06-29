@@ -1,3 +1,8 @@
+""" 
+Signal analysis tools.
+NOTE: naming this module "signal.py" can sometimes create conflict with numpy
+
+"""
 from __future__ import division
 import numpy as np
 from numpy.random import rand
@@ -101,6 +106,9 @@ def interpArray(x, xp, fp, extrap='bounded'):
     # Sanity
     xp  = np.asarray(xp)
     assert fp.shape[1]==len(xp), 'Second dimension of fp should have the same length as xp'
+
+    if fp.shape[1]==0:
+        raise Exception('Second dimension of fp should be >0')
 
     j   = np.searchsorted(xp, x) - 1
     if j<0:
@@ -444,7 +452,7 @@ def sine_approx(t, x, method='least_square'):
 # --- Convolution 
 # --------------------------------------------------------------------------------{
 def convolution_integral(time, f, g, method='auto'):
-    """
+    r"""
     Compute convolution integral:
        f * g = \int 0^t f(tau) g(t-tau) dtau  = g * f
     For now, only works for uniform time vector, an exception is raised otherwise

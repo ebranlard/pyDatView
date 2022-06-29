@@ -188,7 +188,7 @@ class FilterToolPanel(GUIToolPanel):
     I need to think of a better way to do that
     """
     def __init__(self, parent):
-        from pydatview.tools.signal import FILTERS
+        from pydatview.tools.signal_analysis import FILTERS
         super(FilterToolPanel,self).__init__(parent)
         self.parent = parent # parent is GUIPlotPanel
 
@@ -346,7 +346,7 @@ class FilterToolPanel(GUIToolPanel):
         """ 
         Overlay on current axis the filter
         """
-        from pydatview.tools.signal import applyFilter
+        from pydatview.tools.signal_analysis import applyFilter
         if len(self.parent.plotData)!=1:
             Error(self,'Plotting only works for a single plot. Plot less data.')
             return
@@ -436,7 +436,7 @@ class ResampleToolPanel(GUIToolPanel):
         super(ResampleToolPanel,self).__init__(parent)
 
         # --- Data from other modules
-        from pydatview.tools.signal import SAMPLERS
+        from pydatview.tools.signal_analysis import SAMPLERS
         self.parent = parent # parent is GUIPlotPanel
         self._SAMPLERS=SAMPLERS 
         # Setting default states to parent
@@ -598,7 +598,7 @@ class ResampleToolPanel(GUIToolPanel):
             raise Exception('Error: The resampling failed on some tables:\n\n'+'\n'.join(errors))
 
     def onPlot(self,event=None):
-        from pydatview.tools.signal import applySampler
+        from pydatview.tools.signal_analysis import applySampler
         if len(self.parent.plotData)!=1:
             Error(self,'Plotting only works for a single plot. Plot less data.')
             return
