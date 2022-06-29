@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from pydatview.tools.signal import *
+from pydatview.tools.signal_analysis import *
 
 # --------------------------------------------------------------------------------}
 # ---  
