@@ -32,10 +32,123 @@ TABTYPE_MIX_WITH_HEADER    = 6
 TABTYPE_FIL                = 3
 TABTYPE_FMT                = 9999 # TODO
 
-# --------------------------------------------------------------------------------}
-# --- INPUT FILE 
-# --------------------------------------------------------------------------------{
+
+
 class FASTInputFile(File):
+    """ 
+    Read/write an OpenFAST input file. The object behaves like a dictionary.
+    A generic reader/writer is used at first.
+    If a dedicated OpenFAST input file is detected, additional functionalities are added.
+    See at the end of this file for dedicated class that can be used instead of this generic reader.
+
+    Main methods
+    ------------
+    - read, write, toDataFrame, keys, toGraph
+
+
+    Return an object which inherits from FASTInputFileBase
+     - The generic file reader is run first
+     - If a specific file format/module is detected, a fixed file format object is returned
+       The fixed file format have additional outputs, sanity checks and methods
+    """
+
+    @staticmethod
+    def defaultExtensions():
+        return ['.dat','.fst','.txt','.fstf']
+
+    @staticmethod
+    def formatName():
+        return 'FAST input file'
+
+    def __init__(self, filename=None, **kwargs):
+        self._fixedfile = None
+        self.basefile = FASTInputFileBase(filename, **kwargs) # Generic fileformat
+
+    @property
+    def fixedfile(self):
+        if self._fixedfile is not None:
+            return self._fixedfile
+        elif len(self.basefile.data)>0:
+            self._fixedfile=self.fixedFormat()
+            return self._fixedfile
+        else:
+            return self.basefile
+    @property
+    def module(self):
+        if self._fixedfile is None:
+            return self.basefile.module
+        else:
+            return self._fixedfile.module
+
+    def fixedFormat(self):
+        # --- Creating a dedicated Child
+        KEYS = list(self.basefile.keys())
+        if 'NumBlNds' in KEYS:
+            return ADBladeFile.from_fast_input_file(self.basefile)
+        elif 'NBlInpSt' in KEYS:
+            return EDBladeFile.from_fast_input_file(self.basefile)
+        elif 'MassMatrix' in KEYS and self.module =='ExtPtfm':
+            return ExtPtfmFile.from_fast_input_file(self.basefile)
+        elif 'NumCoords' in KEYS and 'InterpOrd' in KEYS:
+            return ADPolarFile.from_fast_input_file(self.basefile)
+        else:
+            # TODO: HD, SD, SvD, ED, AD, EDbld, BD,
+            #print('>>>>>>>>>>>> NO FILEFORMAT', KEYS)
+            return self.basefile
+
+
+    def read(self, filename=None):
+        return self.fixedfile.read(filename)
+
+    def write(self, filename=None):
+        return self.fixedfile.write(filename)
+
+    def toDataFrame(self):
+        return self.fixedfile.toDataFrame()
+
+    def toString(self):
+        return self.fixedfile.toString()
+
+    def keys(self):
+        return self.fixedfile.keys()
+
+    def toGraph(self):
+        return self.fixedfile.toGraph()
+
+    @property
+    def filename(self):
+        return self.fixedfile.filename
+
+    @property
+    def comment(self):
+        return self.fixedfile.comment
+
+    @comment.setter
+    def comment(self,comment):
+        self.fixedfile.comment(comment)
+
+    def __iter__(self):
+        return self.fixedfile.__iter__()
+
+    def __next__(self): 
+        return self.fixedfile.__next__()
+
+    def __setitem__(self,key,item):
+        return self.fixedfile.__setitem__(key,item)
+
+    def __getitem__(self,key):
+        return self.fixedfile.__getitem__(key)
+
+    def __repr__(self):
+        return self.fixedfile.__repr__()
+        #s ='Fast input file: {}\n'.format(self.filename)
+        #return s+'\n'.join(['{:15s}: {}'.format(d['label'],d['value']) for i,d in enumerate(self.data)])
+
+
+# --------------------------------------------------------------------------------}
+# --- BASE INPUT FILE 
+# --------------------------------------------------------------------------------{
+class FASTInputFileBase(File):
     """ 
     Read/write an OpenFAST input file. The object behaves like a dictionary.
 
@@ -58,25 +171,26 @@ class FASTInputFile(File):
 
     """
 
-    @staticmethod
-    def defaultExtensions():
-        return ['.dat','.fst','.txt','.fstf']
-
-    @staticmethod
-    def formatName():
-        return 'FAST input file'
-
     def __init__(self, filename=None, **kwargs):
         self._size=None
         self._encoding=None
+        self.setData() # Init data
         if filename:
             self.filename = filename
             self.read()
+
+    def setData(self, filename=None, data=None, hasNodal=False, module=None):
+        """ Set the data of this object. This object shouldn't store anything else. """
+        if data is None:
+            self.data     = []
         else:
-            self.filename = None
+            self.data     = data
+        self.hasNodal = hasNodal
+        self.module   = module
+        self.filename = filename
 
     def keys(self):
-        self.labels = [ d['label'] for d in self.data if not d['isComment'] ]
+        self.labels = [ d['label'] for i,d in enumerate(self.data) if (not d['isComment']) and (i not in self._IComment)]
         return self.labels
 
     def getID(self,label):
@@ -130,16 +244,56 @@ class FASTInputFile(File):
         return self.data[i]['value']
 
     def __repr__(self):
-        s ='Fast input file: {}\n'.format(self.filename)
+        s ='Fast input file base: {}\n'.format(self.filename)
         return s+'\n'.join(['{:15s}: {}'.format(d['label'],d['value']) for i,d in enumerate(self.data)])
 
-    def addKeyVal(self,key,val,descr=None):
-        d=getDict()
+    def addKeyVal(self, key, val, descr=None):
+        i=self.getIDSafe(key)
+        if i<0:
+            d = getDict()
+        else:
+            d = self.data[i]
         d['label']=key
         d['value']=val
         if descr is not None:
             d['descr']=descr
+        if i<0:
+            self.data.append(d)
+
+    def addValKey(self,val,key,descr=None):
+        self.addKeyVal(key, val, descr)
+
+    def addComment(self, comment='!'):
+        d=getDict()
+        d['isComment'] = True
+        d['value']     = comment
         self.data.append(d)
+
+    def addTable(self, label, tab, cols=None, units=None, tabType=1, tabDimVar=None):
+        d=getDict()
+        d['label']          = label
+        d['value']          = tab
+        d['tabType']        = tabType
+        d['tabDimVar']      = tabDimVar
+        d['tabColumnNames'] = cols
+        d['tabUnits']       = units
+        self.data.append(d)
+
+    @property
+    def comment(self):
+        return '\n'.join([self.data[i]['value'] for i in self._IComment])
+
+    @comment.setter
+    def comment(self, comment):
+        splits = comment.split('\n')
+        for i,com in zip(self._IComment, splits):
+            self.data[i]['value'] = com
+
+    @property
+    def _IComment(self):
+        """ return indices of comment line"""
+        return [] # Typical OpenFAST files have comment on second line [1]
+
 
     def read(self, filename=None):
         if filename:
@@ -202,6 +356,7 @@ class FASTInputFile(File):
         NUMTAB_FROM_LAB_DETECT_L = [s.lower() for s in NUMTAB_FROM_LAB_DETECT]                                         
         FILTAB_FROM_LAB_DETECT_L = [s.lower() for s in FILTAB_FROM_LAB_DETECT]
 
+        # Reset data
         self.data   = []
         self.hasNodal=False
         self.module = None
@@ -216,9 +371,9 @@ class FASTInputFile(File):
         #    raise Exception('Fast file do not start with ! or -, is it the right format?')
 
         # Special filetypes
-        if self.detectAndReadExtPtfmSE(lines):
+        if detectAndReadExtPtfmSE(self, lines):
             return
-        if self.detectAndReadAirfoil(lines):
+        if self.detectAndReadAirfoilAD14(lines):
             return
 
         # Parsing line by line, storing each line into a dictionary
@@ -226,6 +381,9 @@ class FASTInputFile(File):
         nComments  = 0
         nWrongLabels = 0
         allowSpaceSeparatedList=False
+        iTab = 0
+
+        labOffset=''
         while i<len(lines):
             line = lines[i]
 
@@ -300,12 +458,14 @@ class FASTInputFile(File):
             # --- Parsing of standard lines: value(s) key comment
             line = lines[i]
             d = parseFASTInputLine(line,i,allowSpaceSeparatedList)
+            labelRaw =d['label'].lower()
+            d['label']+=labOffset
 
             # --- Handling of special files
-            if d['label'].lower()=='kp_total':
+            if labelRaw=='kp_total':
                 # BeamDyn has weird space speparated list around keypoint definition
                 allowSpaceSeparatedList=True
-            elif d['label'].lower()=='numcoords':
+            elif labelRaw=='numcoords':
                 # TODO, lazy implementation so far, MAKE SUB FUNCTION
                 if isStr(d['value']):
                     if d['value'][0]=='@':
@@ -347,7 +507,12 @@ class FASTInputFile(File):
                         self.data.append(d)
                         break
 
-
+            elif labelRaw=='re':
+                nAirfoilTab = self['NumTabs']
+                iTab +=1
+                if nAirfoilTab>1:
+                    labOffset ='_'+str(iTab)
+                d['label']=labelRaw+labOffset
 
             #print('label>',d['label'],'<',type(d['label']));
             #print('value>',d['value'],'<',type(d['value']));
@@ -365,7 +530,7 @@ class FASTInputFile(File):
                     d['tabType']   = TABTYPE_NUM_WITH_HEADER
                 else:
                     d['tabType']   = TABTYPE_MIX_WITH_HEADER
-                d['label']     = NUMTAB_FROM_VAL_VARNAME[ii]
+                d['label']     = NUMTAB_FROM_VAL_VARNAME[ii]+labOffset
                 d['tabDimVar'] = NUMTAB_FROM_VAL_DIM_VAR[ii]
                 nHeaders       = NUMTAB_FROM_VAL_NHEADER[ii]
                 nTabLines=0
@@ -386,21 +551,23 @@ class FASTInputFile(File):
                 del NUMTAB_FROM_VAL_TYPE   [ii] 
                 del NUMTAB_FROM_VAL_DETECT_L[ii]  
 
-            elif isStr(d['label']) and d['label'].lower() in NUMTAB_FROM_LAB_DETECT_L:
-                ii      = NUMTAB_FROM_LAB_DETECT_L.index(d['label'].lower())
+            elif isStr(labelRaw) and labelRaw in NUMTAB_FROM_LAB_DETECT_L:
+                ii      = NUMTAB_FROM_LAB_DETECT_L.index(labelRaw)
                 tab_type       = NUMTAB_FROM_LAB_TYPE[ii]
                 # Special case for airfoil data, the table follows NumAlf, so we add d first
-                if d['label'].lower()=='numalf':
+                doDelete =True
+                if labelRaw=='numalf':
+                    doDelete =False
                     d['tabType']=TABTYPE_NOT_A_TAB
                     self.data.append(d)
                     # Creating a new dictionary for the table
-                    d = {'value':None, 'label':'NumAlf', 'isComment':False, 'descr':'', 'tabType':None}
+                    d = {'value':None, 'label':'NumAlf'+labOffset, 'isComment':False, 'descr':'', 'tabType':None}
                     i += 1
                 nHeaders       = NUMTAB_FROM_LAB_NHEADER[ii]
                 nOffset        = NUMTAB_FROM_LAB_NOFFSET[ii]
                 if nOffset>0:
                     # Creating a dictionary for that entry
-                    dd = {'value':d['value'], 'label':d['label'], 'isComment':False, 'descr':d['descr'], 'tabType':TABTYPE_NOT_A_TAB}
+                    dd = {'value':d['value'], 'label':d['label']+labOffset, 'isComment':False, 'descr':d['descr'], 'tabType':TABTYPE_NOT_A_TAB}
                     self.data.append(dd)
 
                 d['label']     = NUMTAB_FROM_LAB_VARNAME[ii]
@@ -415,24 +582,27 @@ class FASTInputFile(File):
                 if isinstance(d['tabDimVar'],int):
                     nTabLines = d['tabDimVar']
                 else:
-                    nTabLines = self[d['tabDimVar']]
+                    nTabLines = self[d['tabDimVar']+labOffset]
+
+                d['label']  += labOffset
                 #print('Reading table {} Dimension {} (based on {})'.format(d['label'],nTabLines,d['tabDimVar']));
                 d['value'], d['tabColumnNames'], d['tabUnits'] = parseFASTNumTable(self.filename,lines[i:i+nTabLines+nHeaders+nOffset],nTabLines,i, nHeaders, tableType=tab_type, nOffset=nOffset, varNumLines=d['tabDimVar'])
                 i += nTabLines+1-nOffset
 
                 # --- Temporary hack for e.g. SubDyn, that has duplicate table, impossible to detect in the current way...
                 # So we remove the element form the list one read
-                del NUMTAB_FROM_LAB_DETECT[ii]  
-                del NUMTAB_FROM_LAB_DIM_VAR[ii] 
-                del NUMTAB_FROM_LAB_VARNAME[ii] 
-                del NUMTAB_FROM_LAB_NHEADER[ii] 
-                del NUMTAB_FROM_LAB_NOFFSET[ii] 
-                del NUMTAB_FROM_LAB_TYPE   [ii] 
-                del NUMTAB_FROM_LAB_DETECT_L[ii]  
+                if doDelete:
+                    del NUMTAB_FROM_LAB_DETECT[ii]  
+                    del NUMTAB_FROM_LAB_DIM_VAR[ii] 
+                    del NUMTAB_FROM_LAB_VARNAME[ii] 
+                    del NUMTAB_FROM_LAB_NHEADER[ii] 
+                    del NUMTAB_FROM_LAB_NOFFSET[ii] 
+                    del NUMTAB_FROM_LAB_TYPE   [ii] 
+                    del NUMTAB_FROM_LAB_DETECT_L[ii]  
 
             elif isStr(d['label']) and d['label'].lower() in FILTAB_FROM_LAB_DETECT_L:
                 ii             = FILTAB_FROM_LAB_DETECT_L.index(d['label'].lower())
-                d['label']     = FILTAB_FROM_LAB_VARNAME[ii]
+                d['label']     = FILTAB_FROM_LAB_VARNAME[ii]+labOffset
                 d['tabDimVar'] = FILTAB_FROM_LAB_DIM_VAR[ii]
                 d['tabType']   = TABTYPE_FIL
                 nTabLines = self[d['tabDimVar']]
@@ -459,10 +629,12 @@ class FASTInputFile(File):
                     nWrongLabels +=1
             if nComments>len(lines)*0.35:
                 #print('Comment fail',nComments,len(lines),self.filename)
-                raise WrongFormatError('Most lines were read as comments, probably not a FAST Input File')
+                raise WrongFormatError('Most lines were read as comments, probably not a FAST Input File: {}'.format(self.filename))
             if nWrongLabels>len(lines)*0.10:
                 #print('Label fail',nWrongLabels,len(lines),self.filename)
-                raise WrongFormatError('Too many lines with wrong labels, probably not a FAST Input File')
+                raise WrongFormatError('Too many lines with wrong labels, probably not a FAST Input File {}:'.format(self.filename))
+
+            # --- END OF FOR LOOP ON LINES
 
         # --- PostReading checks
         labels = self.keys()
@@ -477,35 +649,12 @@ class FASTInputFile(File):
 #             raise e
 # #             print(e)
 #             raise Exception('Fast File {}: '.format(self.filename)+'\n'+e.args[0])
+        self._lines = lines 
 
             
     def toString(self):
         s=''
         # Special file formats, TODO subclass
-        if self.module=='ExtPtfm':
-            s+='!Comment\n'
-            s+='!Comment Flex 5 Format\n'
-            s+='!Dimension: {}\n'.format(self['nDOF'])
-            s+='!Time increment in simulation: {}\n'.format(self['dt'])
-            s+='!Total simulation time in file: {}\n'.format(self['T'])
-
-            s+='\n!Mass Matrix\n'
-            s+='!Dimension: {}\n'.format(self['nDOF'])
-            s+='\n'.join(''.join('{:16.8e}'.format(x) for x in y) for y in self['MassMatrix'])
-
-            s+='\n\n!Stiffness Matrix\n'
-            s+='!Dimension: {}\n'.format(self['nDOF'])
-            s+='\n'.join(''.join('{:16.8e}'.format(x) for x in y) for y in self['StiffnessMatrix'])
-
-            s+='\n\n!Damping Matrix\n'
-            s+='!Dimension: {}\n'.format(self['nDOF'])
-            s+='\n'.join(''.join('{:16.8e}'.format(x) for x in y) for y in self['DampingMatrix'])
-
-            s+='\n\n!Loading and Wave Elevation\n'
-            s+='!Dimension: 1 time column -  {} force columns\n'.format(self['nDOF'])
-            s+='\n'.join(''.join('{:16.8e}'.format(x) for x in y) for y in self['Loading'])
-            return s
-
         def toStringVLD(val,lab,descr):
             val='{}'.format(val)
             lab='{}'.format(lab)
@@ -571,6 +720,7 @@ class FASTInputFile(File):
                 s+='{} {} {}\n'.format(d['value'][0],d['label'],d['descr']) # TODO?
                 s+='\n'.join(fil for fil in d['value'][1:])
             elif d['tabType']==TABTYPE_NUM_BEAMDYN:
+                # TODO use dedicated sub-class
                 data = d['value']
                 Cols =['Span'] 
                 Cols+=['K{}{}'.format(i+1,j+1) for i in range(6) for j in range(6)] 
@@ -594,36 +744,20 @@ class FASTInputFile(File):
         else:
             raise Exception('No filename provided')
 
+    def _writeSanityChecks(self):
+        """ Sanity checks before write"""
+        pass
+
     def _write(self):
+        self._writeSanityChecks()
         with open(self.filename,'w') as f:
             f.write(self.toString())
 
+    def toDataFrame(self):
+        return self._toDataFrame()
+
     def _toDataFrame(self):
         dfs={}
-        # Special types, TODO Subclass
-        if self.module=='ExtPtfm':
-            nDOF=self['nDOF']
-            Cols=['Time_[s]','InpF_Fx_[N]', 'InpF_Fy_[N]', 'InpF_Fz_[N]', 'InpF_Mx_[Nm]', 'InpF_My_[Nm]', 'InpF_Mz_[Nm]']
-            Cols+=['CBF_{:03d}_[-]'.format(iDOF+1) for iDOF in np.arange(nDOF)]
-            Cols=Cols[:nDOF+1]
-            #dfs['Loading']         = pd.DataFrame(data = self['Loading'],columns  = Cols)
-            dfs = pd.DataFrame(data = self['Loading'],columns  = Cols)
-
-            #Cols=['SurgeAcc_[m/s]', 'SwayAcc_[m/s]', 'HeaveAcc_[m/s]', 'RollAcc_[rad/s]', 'PitchAcc_[rad/s]', 'YawAcc_[rad/s]']
-            #Cols+=['CBQD_{:03d}_[-]'.format(iDOF+1) for iDOF in np.arange(nDOF)]
-            #Cols=Cols[:nDOF]
-            #dfs['MassMatrix']      = pd.DataFrame(data = self['MassMatrix'], columns=Cols)
-
-            #Cols=['SurgeVel_[m/s]', 'SwayVel_[m/s]', 'HeaveVel_[m/s]', 'RollVel_[rad/s]', 'PitchVel_[rad/s]', 'YawVel_[rad/s]']
-            #Cols+=['CBQD_{:03d}_[-]'.format(iDOF+1) for iDOF in np.arange(nDOF)]
-            #Cols=Cols[:nDOF]
-            #dfs['DampingMatrix']   = pd.DataFrame(data = self['DampingMatrix'], columns=Cols)
-
-            #Cols=['Surge_[m]', 'Sway_[m]', 'Heave_[m]', 'Roll_[rad]', 'Pitch_[rad]', 'Yaw_[rad]']
-            #Cols+=['CBQ_{:03d}_[-]'.format(iDOF+1) for iDOF in np.arange(nDOF)]
-            #Cols=Cols[:nDOF]
-            #dfs['StiffnessMatrix'] = pd.DataFrame(data = self['StiffnessMatrix'], columns=Cols)
-            return dfs
 
         for i in range(len(self.data)): 
             d=self.data[i]
@@ -637,29 +771,8 @@ class FASTInputFile(File):
                 #print(Cols)
 
                 # --- Adding some useful tabulated data for some files (Shapefunctions, polar)
-                if self.getIDSafe('BldFl1Sh(2)')>0:
-                    # Hack for blade files, we add the modes
-                    x=Val[:,0]
-                    Modes=np.zeros((x.shape[0],3))
-                    Modes[:,0] = x**2 * self['BldFl1Sh(2)'] \
-                               + x**3 * self['BldFl1Sh(3)'] \
-                               + x**4 * self['BldFl1Sh(4)'] \
-                               + x**5 * self['BldFl1Sh(5)'] \
-                               + x**6 * self['BldFl1Sh(6)'] 
-                    Modes[:,1] = x**2 * self['BldFl2Sh(2)'] \
-                               + x**3 * self['BldFl2Sh(3)'] \
-                               + x**4 * self['BldFl2Sh(4)'] \
-                               + x**5 * self['BldFl2Sh(5)'] \
-                               + x**6 * self['BldFl2Sh(6)'] 
-                    Modes[:,2] = x**2 * self['BldEdgSh(2)'] \
-                               + x**3 * self['BldEdgSh(3)'] \
-                               + x**4 * self['BldEdgSh(4)'] \
-                               + x**5 * self['BldEdgSh(5)'] \
-                               + x**6 * self['BldEdgSh(6)'] 
-                    Val = np.hstack((Val,Modes))
-                    Cols = Cols + ['ShapeFlap1_[-]','ShapeFlap2_[-]','ShapeEdge1_[-]']
                   
-                elif self.getIDSafe('TwFAM1Sh(2)')>0:
+                if self.getIDSafe('TwFAM1Sh(2)')>0:
                     # Hack for tower files, we add the modes
                     x=Val[:,0]
                     Modes=np.zeros((x.shape[0],4))
@@ -685,35 +798,6 @@ class FASTInputFile(File):
                                + x**6 * self['TwSSM2Sh(6)'] 
                     Val = np.hstack((Val,Modes))
                     Cols = Cols + ['ShapeForeAft1_[-]','ShapeForeAft2_[-]','ShapeSideSide1_[-]','ShapeSideSide2_[-]']
-                elif d['label']=='AFCoeff':
-                    try:
-                        pol   = d['value']
-                        alpha = pol[:,0]*np.pi/180.
-                        Cl    = pol[:,1]
-                        Cd    = pol[:,2]
-                        Cd0   = self['Cd0']
-                        # Cn (with or without Cd0)
-                        Cn1 = Cl*np.cos(alpha)+ (Cd-Cd0)*np.sin(alpha) 
-                        Cn  = Cl*np.cos(alpha)+ Cd*np.sin(alpha) 
-                        Val=np.column_stack((Val,Cn));  Cols+=['Cn_[-]']
-                        Val=np.column_stack((Val,Cn1)); Cols+=['Cn_Cd0off_[-]']
-
-                        CnLin = self['C_nalpha']*(alpha-self['alpha0']*np.pi/180.)
-                        CnLin[alpha<-20*np.pi/180]=np.nan
-                        CnLin[alpha> 30*np.pi/180]=np.nan
-                        Val=np.column_stack((Val,CnLin)); Cols+=['Cn_pot_[-]']
-
-                        # Highlighting points surrounding 0 1 2 Cn points
-                        CnPoints = Cn*np.nan
-                        iBef2 = np.where(alpha<self['alpha2']*np.pi/180.)[0][-1]
-                        iBef1 = np.where(alpha<self['alpha1']*np.pi/180.)[0][-1]
-                        iBef0 = np.where(alpha<self['alpha0']*np.pi/180.)[0][-1]
-                        CnPoints[iBef2:iBef2+2] = Cn[iBef2:iBef2+2]
-                        CnPoints[iBef1:iBef1+2] = Cn[iBef1:iBef1+2]
-                        CnPoints[iBef0:iBef0+2] = Cn[iBef0:iBef0+2]
-                        Val=np.column_stack((Val,CnPoints)); Cols+=['Cn_012_[-]']
-                    except:
-                        pass
 
                 name=d['label']
 
@@ -754,81 +838,9 @@ class FASTInputFile(File):
 # --------------------------------------------------------------------------------}
 # --- SubReaders /detectors
 # --------------------------------------------------------------------------------{
-    def detectAndReadExtPtfmSE(self,lines):
-        def readmat(n,m,lines,iStart):
-            M=np.zeros((n,m))
-            for j in np.arange(n):
-                i=iStart+j
-                M[j,:]=np.array(lines[i].split()).astype(float)
-            return M
-        if len(lines)<10:
-            return False
-        if not (lines[0][0]=='!' and lines[1][0]=='!'):
-            return False
-        if lines[1].lower().find('flex')<0:
-            return
-        if  lines[2].lower().find('!dimension')<0:
-            return
-        # --- At this stage we assume it's in the proper format
-        self.module='ExtPtfm'
-        nDOFCommon = -1
-        i=2;
-        try:
-            while i<len(lines):
-                l=lines[i].lower()
-                if l.find('!mass')==0:
-                    l=lines[i+1]
-                    nDOF=int(l.split(':')[1])
-                    if nDOF<-1 or nDOF!=nDOFCommon:
-                        raise BrokenFormatError('ExtPtfm stiffness matrix nDOF issue. nDOF common: {}, nDOF provided: {}'.format(nDOFCommon,nDOF))
-                    self.addKeyVal('MassMatrix',readmat(nDOF,nDOF,lines,i+2))
-                    i=i+1+nDOF
-                elif l.find('!stiffness')==0:
-                    l=lines[i+1]
-                    nDOF=int(l.split(':')[1])
-                    if nDOF<-1 or nDOF!=nDOFCommon:
-                        raise BrokenFormatError('ExtPtfm stiffness matrix nDOF issue nDOF common: {}, nDOF provided: {}'.format(nDOFCommon,nDOF))
-                    self.addKeyVal('StiffnessMatrix',readmat(nDOF,nDOF,lines,i+2))
-                    i=i+1+nDOF
-                elif l.find('!damping')==0:
-                    l=lines[i+1]
-                    nDOF=int(l.split(':')[1])
-                    if nDOF<-1 or nDOF!=nDOFCommon:
-                        raise BrokenFormatError('ExtPtfm damping matrix nDOF issue nDOF common: {}, nDOF provided: {}'.format(nDOFCommon,nDOF))
-                    self.addKeyVal('DampingMatrix',readmat(nDOF,nDOF,lines,i+2))
-                    i=i+1+nDOF
-                elif l.find('!loading')==0:
-                    try: 
-                        nt=int(self['T']/self['dt'])+1
-                    except:
-                        raise BrokenFormatError('Cannot read loading since time step and simulation time not properly set.')
-                    self.addKeyVal('Loading',readmat(nt,nDOFCommon+1,lines,i+2))
-                    i=i+nt+1
-                elif len(l)>0:
-                    if l[0]=='!':
-                        if l.find('!dimension')==0:
-                            self.addKeyVal('nDOF',int(l.split(':')[1]))
-                            nDOFCommon=self['nDOF']
-                        elif l.find('!time increment')==0:
-                            self.addKeyVal('dt',float(l.split(':')[1]))
-                        elif l.find('!total simulation time')==0:
-                            self.addKeyVal('T',float(l.split(':')[1]))
-                    elif len(l.strip())==0:
-                        pass
-                    else:
-                        raise BrokenFormatError('Unexcepted content found on line {}'.format(i))
-                i+=1
-        except BrokenFormatError as e:
-            raise e
-        except: 
-            raise
 
 
-        return True
-        
-
-
-    def detectAndReadAirfoil(self,lines):
+    def detectAndReadAirfoilAD14(self,lines):
         if len(lines)<14:
             return False
         # Reading number of tables
@@ -1063,7 +1075,6 @@ def parseFASTInputLine(line_raw,i,allowSpaceSeparatedList=False):
             else:
                 d['value']=s
             iNext=1
-            #import pdb  ; pdb.set_trace();
 
         # Extracting label (TODO, for now only second split)
         bOK=False
@@ -1280,7 +1291,536 @@ def parseFASTFilTable(lines,n,iStart):
     return Tab
 
 
+
+# --------------------------------------------------------------------------------}
+# --------------------------------------------------------------------------------}
+# --------------------------------------------------------------------------------}
+# --- Predefined types (may change with OpenFAST version..)
+# --------------------------------------------------------------------------------{
+# --------------------------------------------------------------------------------{
+# --------------------------------------------------------------------------------{
+
+# --------------------------------------------------------------------------------}
+# --- AeroDyn Blade 
+# --------------------------------------------------------------------------------{
+class EDBladeFile(FASTInputFileBase):
+    @classmethod
+    def from_fast_input_file(cls, parent):
+        self = cls()
+        self.setData(filename=parent.filename, data=parent.data, hasNodal=parent.hasNodal, module='EDBlade')
+        return self
+
+    def __init__(self, filename=None, **kwargs):
+        FASTInputFileBase.__init__(self, filename, **kwargs)
+        if filename is None:
+            # Define a prototype for this file format
+            self.addComment('------- ELASTODYN V1.00.* INDIVIDUAL BLADE INPUT FILE --------------------------')
+            self.addComment('ElastoDyn blade definition, written by EDBladeFile.')
+            self.addComment('---------------------- BLADE PARAMETERS ----------------------------------------')
+            self.addValKey(         0  , 'NBlInpSt'   , 'Number of blade input stations (-)')
+            self.addValKey(         1. , 'BldFlDmp(1)', 'Blade flap mode #1 structural damping in percent of critical (%)')
+            self.addValKey(         1. , 'BldFlDmp(2)', 'Blade flap mode #2 structural damping in percent of critical (%)')
+            self.addValKey(         1. , 'BldEdDmp(1)', 'Blade edge mode #1 structural damping in percent of critical (%)')
+            self.addComment('---------------------- BLADE ADJUSTMENT FACTORS --------------------------------')
+            self.addValKey(         1. , 'FlStTunr(1)', 'Blade flapwise modal stiffness tuner, 1st mode (-)')
+            self.addValKey(         1. , 'FlStTunr(2)', 'Blade flapwise modal stiffness tuner, 2nd mode (-)')
+            self.addValKey(         1. , 'AdjBlMs'    , 'Factor to adjust blade mass density (-)')
+            self.addValKey(         1. , 'AdjFlSt'    , 'Factor to adjust blade flap stiffness (-)')
+            self.addValKey(         1. , 'AdjEdSt'    , 'Factor to adjust blade edge stiffness (-)')
+            self.addComment('---------------------- DISTRIBUTED BLADE PROPERTIES ----------------------------')
+            self.addTable('BldProp', np.zeros((0,6)), tabType=1, tabDimVar='NBlInpSt', cols=['BlFract', 'PitchAxis', 'StrcTwst', 'BMassDen', 'FlpStff', 'EdgStff'], units=['(-)', '(-)', '(deg)', '(kg/m)', '(Nm^2)', '(Nm^2)'])
+            self.addComment('---------------------- BLADE MODE SHAPES ---------------------------------------')
+            self.addValKey(     1.0   , 'BldFl1Sh(2)', 'Flap mode 1, coeff of x^2')
+            self.addValKey(     0.0   , 'BldFl1Sh(3)', '           , coeff of x^3')
+            self.addValKey(     0.0   , 'BldFl1Sh(4)', '           , coeff of x^4')
+            self.addValKey(     0.0   , 'BldFl1Sh(5)', '           , coeff of x^5')
+            self.addValKey(     0.0   , 'BldFl1Sh(6)', '           , coeff of x^6')
+            self.addValKey(     1.0   , 'BldFl2Sh(2)', 'Flap mode 2, coeff of x^2')
+            self.addValKey(     0.0   , 'BldFl2Sh(3)', '           , coeff of x^3')
+            self.addValKey(     0.0   , 'BldFl2Sh(4)', '           , coeff of x^4')
+            self.addValKey(     0.0   , 'BldFl2Sh(5)', '           , coeff of x^5')
+            self.addValKey(     0.0   , 'BldFl2Sh(6)', '           , coeff of x^6')
+            self.addValKey(     1.0   , 'BldEdgSh(2)', 'Edge mode 1, coeff of x^2')
+            self.addValKey(     0.0   , 'BldEdgSh(3)', '           , coeff of x^3')
+            self.addValKey(     0.0   , 'BldEdgSh(4)', '           , coeff of x^4')
+            self.addValKey(     0.0   , 'BldEdgSh(5)', '           , coeff of x^5')
+            self.addValKey(     0.0   , 'BldEdgSh(6)', '           , coeff of x^6')
+        else:
+            # fix some stuff that generic reader fail at
+            self.data[1] =  self._lines[1]
+        self.module='EDBlade'
+
+    def _writeSanityChecks(self):
+        """ Sanity checks before write """
+        self['NBlInpSt']=self['BldProp'].shape[0]
+        # Sum of Coeffs should be 1
+        for s in ['BldFl1Sh','BldFl2Sh','BldEdgSh']:
+            sumcoeff=np.sum([self[s+'('+str(i)+')'] for i in [2,3,4,5,6] ])
+            if np.abs(sumcoeff-1)>1e-4:
+                print('[WARN] Sum of coefficients for polynomial {} not equal to 1 ({}). File: {}'.format(s, sumcoeff, self.filename))
+
+    def _toDataFrame(self):
+        df = FASTInputFileBase._toDataFrame(self)
+        # We add the shape functions for EDBladeFile
+        x=df['BlFract_[-]'].values
+        Modes=np.zeros((x.shape[0],3))
+        Modes[:,0] = x**2 * self['BldFl1Sh(2)'] \
+                   + x**3 * self['BldFl1Sh(3)'] \
+                   + x**4 * self['BldFl1Sh(4)'] \
+                   + x**5 * self['BldFl1Sh(5)'] \
+                   + x**6 * self['BldFl1Sh(6)'] 
+        Modes[:,1] = x**2 * self['BldFl2Sh(2)'] \
+                   + x**3 * self['BldFl2Sh(3)'] \
+                   + x**4 * self['BldFl2Sh(4)'] \
+                   + x**5 * self['BldFl2Sh(5)'] \
+                   + x**6 * self['BldFl2Sh(6)'] 
+        Modes[:,2] = x**2 * self['BldEdgSh(2)'] \
+                   + x**3 * self['BldEdgSh(3)'] \
+                   + x**4 * self['BldEdgSh(4)'] \
+                   + x**5 * self['BldEdgSh(5)'] \
+                   + x**6 * self['BldEdgSh(6)'] 
+        df[['ShapeFlap1_[-]','ShapeFlap2_[-]','ShapeEdge1_[-]']]=Modes
+        return df
+
+    @property
+    def _IComment(self): return [1]
+
+
+# --------------------------------------------------------------------------------}
+# --- AeroDyn Blade 
+# --------------------------------------------------------------------------------{
+class ADBladeFile(FASTInputFileBase):
+    @classmethod
+    def from_fast_input_file(cls, parent):
+        self = cls()
+        self.setData(filename=parent.filename, data=parent.data, hasNodal=parent.hasNodal, module='ADBlade')
+        return self
+
+    def __init__(self, filename=None, **kwargs):
+        FASTInputFileBase.__init__(self, filename, **kwargs)
+        if filename is None:
+            # Define a prototype for this file format
+            self.addComment('------- AERODYN BLADE DEFINITION INPUT FILE ----------------------------------------------')
+            self.addComment('Aerodynamic blade definition, written by ADBladeFile')
+            self.addComment('======  Blade Properties =================================================================')
+            self.addKeyVal('NumBlNds', 0, 'Number of blade nodes used in the analysis (-)')
+            self.addTable('BldAeroNodes', np.zeros((0,7)), tabType=1, tabDimVar='NumBlNds', cols=['BlSpn', 'BlCrvAC', 'BlSwpAC', 'BlCrvAng', 'BlTwist', 'BlChord', 'BlAFID'], units=['(m)', '(m)', '(m)', '(deg)', '(deg)', '(m)', '(-)'])
+        self.module='ADBlade'
+
+    def _writeSanityChecks(self):
+        """ Sanity checks before write"""
+        self['NumBlNds']=self['BldAeroNodes'].shape[0]
+        aeroNodes = self['BldAeroNodes']
+        # TODO double check this calculation with gradient
+        dr = np.gradient(aeroNodes[:,0])
+        dx = np.gradient(aeroNodes[:,1])
+        crvAng = np.degrees(np.arctan2(dx,dr))*np.pi/180
+        if np.mean(np.abs(crvAng-aeroNodes[:,3]))>0.1:
+            print('[WARN] BlCrvAng might not be computed correctly')
+
+    def _toDataFrame(self):
+        df = FASTInputFileBase._toDataFrame(self)
+        aeroNodes = self['BldAeroNodes']
+        r     = aeroNodes[:,0]
+        chord = aeroNodes[:,5]
+        twist = aeroNodes[:,4]*np.pi/180
+        prebendAC = aeroNodes[:,1]
+        sweepAC   = aeroNodes[:,2]
+
+        # --- IEA 15
+        ##'le_location: 'Leading-edge positions from a reference blade axis (usually blade pitch axis). Locations are normalized by the local chord length. Positive in -x direction for airfoil-aligned coordinate system')
+        ## pitch_axis
+        ##'1D array of the chordwise position of the pitch axis (0-LE, 1-TE), defined along blade span.')
+        #grid     = [0.0, 0.02040816326530612, 0.04081632653061224, 0.061224489795918366, 0.08163265306122448, 0.1020408163265306, 0.12244897959183673, 0.14285714285714285, 0.16326530612244897, 0.18367346938775508, 0.2040816326530612, 0.22448979591836732, 0.24489795918367346, 0.26530612244897955, 0.2857142857142857, 0.3061224489795918, 0.32653061224489793, 0.3469387755102041, 0.36734693877551017, 0.3877551020408163, 0.4081632653061224, 0.42857142857142855, 0.44897959183673464, 0.4693877551020408, 0.4897959183673469, 0.5102040816326531, 0.5306122448979591, 0.5510204081632653, 0.5714285714285714, 0.5918367346938775, 0.6122448979591836, 0.6326530612244897, 0.6530612244897959, 0.673469387755102, 0.6938775510204082, 0.7142857142857142, 0.7346938775510203, 0.7551020408163265, 0.7755102040816326, 0.7959183673469387, 0.8163265306122448, 0.836734693877551, 0.8571428571428571, 0.8775510204081632, 0.8979591836734693, 0.9183673469387754, 0.9387755102040816, 0.9591836734693877, 0.9795918367346939, 1.0]
+        #values   = [0.5045454545454545, 0.4900186808012221, 0.47270018284548393, 0.4540147730610375, 0.434647782591965, 0.4156278851950606, 0.3979378721273935, 0.38129960745617403, 0.3654920515699109, 0.35160780834472827, 0.34008443128769117, 0.3310670675965599, 0.3241031342163746, 0.3188472934612394, 0.3146895762675238, 0.311488897995355, 0.3088429219529899, 0.3066054031112312, 0.3043613335231313, 0.3018756624023877, 0.2992017656131912, 0.29648581499532917, 0.29397119399704474, 0.2918571873240831, 0.2901098902886204, 0.28880659979944606, 0.28802634398115073, 0.28784151044623507, 0.28794253614539367, 0.28852264941156663, 0.28957685074559625, 0.2911108045758606, 0.2930139151081327, 0.2952412111444283, 0.2977841397364215, 0.300565286724993, 0.3035753776130124, 0.30670446458784534, 0.30988253764299156, 0.3130107259708016, 0.31639042766652853, 0.32021109189825026, 0.32462311714967124, 0.329454188784972, 0.33463306413024474, 0.3401190402144396, 0.3460555975714659, 0.3527211856428439, 0.3600890296396286, 0.36818181818181805]
+        ##'ref_axis_blade' desc='2D array of the coordinates (x,y,z) of the blade reference axis, defined along blade span. The coordinate system is the one of BeamDyn: it is placed at blade root with x pointing the suction side of the blade, y pointing the trailing edge and z along the blade span. A standard configuration will have negative x values (prebend), if swept positive y values, and positive z values.')
+        #x_grid   = [0.0, 0.02040816326530612, 0.04081632653061224, 0.061224489795918366, 0.08163265306122448, 0.1020408163265306, 0.12244897959183673, 0.14285714285714285, 0.16326530612244897, 0.18367346938775508, 0.2040816326530612, 0.22448979591836732, 0.24489795918367346, 0.26530612244897955, 0.2857142857142857, 0.3061224489795918, 0.32653061224489793, 0.3469387755102041, 0.36734693877551017, 0.3877551020408163, 0.4081632653061224, 0.42857142857142855, 0.44897959183673464, 0.4693877551020408, 0.4897959183673469, 0.5102040816326531, 0.5306122448979591, 0.5510204081632653, 0.5714285714285714, 0.5918367346938775, 0.6122448979591836, 0.6326530612244897, 0.6530612244897959, 0.673469387755102, 0.6938775510204082, 0.7142857142857142, 0.7346938775510203, 0.7551020408163265, 0.7755102040816326, 0.7959183673469387, 0.8163265306122448, 0.836734693877551, 0.8571428571428571, 0.8775510204081632, 0.8979591836734693, 0.9183673469387754, 0.9387755102040816, 0.9591836734693877, 0.9795918367346939, 1.0]
+        #x_values = [0.0, 0.018400065266506227, 0.04225083661157623, 0.0713435070518306, 0.1036164118664373, 0.13698065932882636, 0.16947761902506267, 0.19850810716711273, 0.22314347791028566, 0.24053558565655847, 0.24886598803245524, 0.2502470372487695, 0.24941257744761433, 0.24756615214432298, 0.24481686563607896, 0.24130290560673967, 0.23698965095246982, 0.23242285078249267, 0.22531163517427788, 0.2110134548882222, 0.18623119147117725, 0.1479307251853749, 0.09847131457569316, 0.04111540547132665, -0.02233952894219675, -0.08884150619038655, -0.15891966620096387, -0.2407441175807782, -0.3366430472730907, -0.44693576549987823, -0.5680658106768092, -0.6975208703059096, -0.8321262196998409, -0.9699653368698024, -1.1090930486685822, -1.255144506570033, -1.4103667735456449, -1.5733007007462756, -1.7434963771088456, -1.9194542609028804, -2.1000907378795275, -2.285501961499942, -2.4756894577736315, -2.6734165188032692, -2.8782701025304545, -3.090085737186208, -3.308459127246535, -3.533712868740941, -3.7641269864926348, -4.0]
+        #y_grid   = [0.0, 1.0]
+        #y_values = [0.0, 0.0]
+        #z_grid   = [0.0, 0.02040816326530612, 0.04081632653061224, 0.061224489795918366, 0.08163265306122448, 0.1020408163265306, 0.12244897959183673, 0.14285714285714285, 0.16326530612244897, 0.18367346938775508, 0.2040816326530612, 0.22448979591836732, 0.24489795918367346, 0.26530612244897955, 0.2857142857142857, 0.3061224489795918, 0.32653061224489793, 0.3469387755102041, 0.36734693877551017, 0.3877551020408163, 0.4081632653061224, 0.42857142857142855, 0.44897959183673464, 0.4693877551020408, 0.4897959183673469, 0.5102040816326531, 0.5306122448979591, 0.5510204081632653, 0.5714285714285714, 0.5918367346938775, 0.6122448979591836, 0.6326530612244897, 0.6530612244897959, 0.673469387755102, 0.6938775510204082, 0.7142857142857142, 0.7346938775510203, 0.7551020408163265, 0.7755102040816326, 0.7959183673469387, 0.8163265306122448, 0.836734693877551, 0.8571428571428571, 0.8775510204081632, 0.8979591836734693, 0.9183673469387754, 0.9387755102040816, 0.9591836734693877, 0.9795918367346939, 1.0]
+        #z_values = [0.0, 2.387755102040816, 4.775510204081632, 7.163265306122448, 9.551020408163264, 11.938775510204081, 14.326530612244898, 16.714285714285715, 19.10204081632653, 21.489795918367346, 23.877551020408163, 26.265306122448976, 28.653061224489797, 31.04081632653061, 33.42857142857143, 35.81632653061224, 38.20408163265306, 40.59183673469388, 42.979591836734684, 45.36734693877551, 47.75510204081632, 50.14285714285714, 52.53061224489795, 54.91836734693877, 57.30612244897959, 59.69387755102041, 62.08163265306122, 64.46938775510203, 66.85714285714285, 69.24489795918367, 71.63265306122447, 74.0204081632653, 76.40816326530611, 78.79591836734693, 81.18367346938776, 83.57142857142857, 85.95918367346938, 88.3469387755102, 90.73469387755102, 93.12244897959182, 95.51020408163265, 97.89795918367345, 100.28571428571428, 102.6734693877551, 105.0612244897959, 107.44897959183673, 109.83673469387753, 112.22448979591836, 114.61224489795919, 117.0]
+        #r_ = [0.0, 0.02, 0.15, 0.245170, 1.0]
+        #ac = [0.5, 0.5, 0.316, 0.25, 0.25]
+        #r0 = r/r[-1]
+        #z = np.interp(r0, z_grid, z_values)
+        #x = np.interp(r0, x_grid, x_values)
+        #y = np.interp(r0, y_grid, y_values)
+        #xp = np.interp(r0, grid, values)
+        #df['z'] = z
+        #df['x'] = x
+        #df['y'] = y
+        #df['xp'] = xp
+        #ACloc = np.interp(r0, r_,ac)
+
+        ## Get the absolute offset between pitch axis (rotation center) and aerodynamic center
+        #ch_offset = inputs['chord'] * (inputs['ac'] - inputs['le_location'])
+        ## Rotate it by the twist using the AD15 coordinate system
+        #x , y = util.rotate(0., 0., 0., ch_offset, -np.deg2rad(inputs['theta']))
+        ## Apply offset to determine the AC axis
+        #BlCrvAC = inputs['ref_axis_blade'][:,0] + x
+        #BlSwpAC = inputs['ref_axis_blade'][:,1] + y
+
+        # --- Adding C2 axis
+        ACloc = r*0 + 0.25 # distance (in chord) from leading edge to aero center
+        n=int(len(r)*0.15) # 15% span
+        ACloc[:n]=np.linspace(0.5,0.25, n) # Root is at 0
+
+        dx = chord*(0.5-ACloc) * np.sin(twist)  # Should be mostly >0
+        dy = chord*(0.5-ACloc) * np.cos(twist)  # Should be mostly >0
+        prebend = prebendAC + dx
+        sweep   = sweepAC   + dy
+        df['c2_Crv_Approx_[m]'] = prebend
+        df['c2_Swp_Approx_[m]'] = sweep
+        df['AC_Approx_[-]'] = ACloc
+        return df
+
+    @property
+    def _IComment(self): return [1]
+
+
+# --------------------------------------------------------------------------------}
+# --- AeroDyn Polar 
+# --------------------------------------------------------------------------------{
+class ADPolarFile(FASTInputFileBase):
+    @classmethod
+    def from_fast_input_file(cls, parent):
+        self = cls()
+        self.setData(filename=parent.filename, data=parent.data, hasNodal=parent.hasNodal, module='ADPolar')
+        return self
+
+    def __init__(self, filename=None, hasUA=True, numTabs=1, **kwargs):
+        FASTInputFileBase.__init__(self, filename, **kwargs)
+        if filename is None:
+            # Define a prototype for this file format
+            self.addComment('! ------------ AirfoilInfo Input File ------------------------------------------')
+            self.addComment('! Airfoil definition, written by ADPolarFile')
+            self.addComment('! ')
+            self.addComment('! ')
+            self.addComment('! ------------------------------------------------------------------------------')
+            self.addValKey("DEFAULT", 'InterpOrd' , 'Interpolation order to use for quasi-steady table lookup {1=linear; 3=cubic spline; "default"} [default=3]')
+            self.addValKey(        1, 'NonDimArea', 'The non-dimensional area of the airfoil (area/chord^2) (set to 1.0 if unsure or unneeded)')
+            self.addValKey(        0, 'NumCoords' , 'The number of coordinates in the airfoil shape file.  Set to zero if coordinates not included.')
+            self.addValKey( numTabs , 'NumTabs'   , 'Number of airfoil tables in this file.  Each table must have lines for Re and Ctrl.')
+            # TODO multiple tables
+            for iTab in range(numTabs):
+                if numTabs==1:
+                    labOffset =''
+                else:
+                    labOffset ='_'+str(iTab+1)
+                self.addComment('! ------------------------------------------------------------------------------')
+                self.addComment('! data for table {}'.format(iTab+1))
+                self.addComment('! ------------------------------------------------------------------------------')
+                self.addValKey(     1.0 ,    'Re'  +labOffset , 'Reynolds number in millions')
+                self.addValKey(       0 ,    'Ctrl'+labOffset , 'Control setting')
+                if hasUA:
+                    self.addValKey(True  ,    'InclUAdata', 'Is unsteady aerodynamics data included in this table? If TRUE, then include 30 UA coefficients below this line')
+                    self.addComment('!........................................')
+                    self.addValKey(     np.nan   , 'alpha0'    + labOffset, r"0-lift angle of attack, depends on airfoil.")
+                    self.addValKey(     np.nan   , 'alpha1'    + labOffset, r"Angle of attack at f=0.7, (approximately the stall angle) for AOA>alpha0. (deg)")
+                    self.addValKey(     np.nan   , 'alpha2'    + labOffset, r"Angle of attack at f=0.7, (approximately the stall angle) for AOA<alpha0. (deg)")
+                    self.addValKey(          1   , 'eta_e'     + labOffset, r"Recovery factor in the range [0.85 - 0.95] used only for UAMOD=1, it is set to 1 in the code when flookup=True. (-)")
+                    self.addValKey(     np.nan   , 'C_nalpha'  + labOffset, r"Slope of the 2D normal force coefficient curve. (1/rad)")
+                    self.addValKey(   "DEFAULT"  , 'T_f0'      + labOffset, r"Initial value of the time constant associated with Df in the expression of Df and f''. [default = 3]")
+                    self.addValKey(   "DEFAULT"  , 'T_V0'      + labOffset, r"Initial value of the time constant associated with the vortex lift decay process; it is used in the expression of Cvn. It depends on Re,M, and airfoil class. [default = 6]")
+                    self.addValKey(   "DEFAULT"  , 'T_p'       + labOffset, r"Boundary-layer,leading edge pressure gradient time constant in the expression of Dp. It should be tuned based on airfoil experimental data. [default = 1.7]")
+                    self.addValKey(   "DEFAULT"  , 'T_VL'      + labOffset, r"Initial value of the time constant associated with the vortex advection process; it represents the non-dimensional time in semi-chords, needed for a vortex to travel from LE to trailing edge (TE); it is used in the expression of Cvn. It depends on Re, M (weakly), and airfoil. [valid range = 6 - 13, default = 11]")
+                    self.addValKey(   "DEFAULT"  , 'b1'        + labOffset, r"Constant in the expression of phi_alpha^c and phi_q^c.  This value is relatively insensitive for thin airfoils, but may be different for turbine airfoils. [from experimental results, defaults to 0.14]")
+                    self.addValKey(   "DEFAULT"  , 'b2'        + labOffset, r"Constant in the expression of phi_alpha^c and phi_q^c.  This value is relatively insensitive for thin airfoils, but may be different for turbine airfoils. [from experimental results, defaults to 0.53]")
+                    self.addValKey(   "DEFAULT"  , 'b5'        + labOffset, r"Constant in the expression of K'''_q,Cm_q^nc, and k_m,q.  [from  experimental results, defaults to 5]")
+                    self.addValKey(   "DEFAULT"  , 'A1'        + labOffset, r"Constant in the expression of phi_alpha^c and phi_q^c.  This value is relatively insensitive for thin airfoils, but may be different for turbine airfoils. [from experimental results, defaults to 0.3]")
+                    self.addValKey(   "DEFAULT"  , 'A2'        + labOffset, r"Constant in the expression of phi_alpha^c and phi_q^c.  This value is relatively insensitive for thin airfoils, but may be different for turbine airfoils. [from experimental results, defaults to 0.7]")
+                    self.addValKey(   "DEFAULT"  , 'A5'        + labOffset, r"Constant in the expression of K'''_q,Cm_q^nc, and k_m,q. [from experimental results, defaults to 1]")
+                    self.addValKey(          0   , 'S1'        + labOffset, r"Constant in the f curve best-fit for alpha0<=AOA<=alpha1; by definition it depends on the airfoil. [ignored if UAMod<>1]")
+                    self.addValKey(          0   , 'S2'        + labOffset, r"Constant in the f curve best-fit for         AOA> alpha1; by definition it depends on the airfoil. [ignored if UAMod<>1]")
+                    self.addValKey(          0   , 'S3'        + labOffset, r"Constant in the f curve best-fit for alpha2<=AOA< alpha0; by definition it depends on the airfoil. [ignored if UAMod<>1]")
+                    self.addValKey(          0   , 'S4'        + labOffset, r"Constant in the f curve best-fit for         AOA< alpha2; by definition it depends on the airfoil. [ignored if UAMod<>1]")
+                    self.addValKey(     np.nan   , 'Cn1'       + labOffset, r"Critical value of C0n at leading edge separation. It should be extracted from airfoil data at a given Mach and Reynolds number. It can be calculated from the static value of Cn at either the break in the pitching moment or the loss of chord force at the onset of stall. It is close to the condition of maximum lift of the airfoil at low Mach numbers.")
+                    self.addValKey(     np.nan   , 'Cn2'       + labOffset, r"As Cn1 for negative AOAs.")
+                    self.addValKey(   "DEFAULT"  , 'St_sh'     + labOffset, r"Strouhal's shedding frequency constant.  [default = 0.19]")
+                    self.addValKey(     np.nan   , 'Cd0'       + labOffset, r"2D drag coefficient value at 0-lift.")
+                    self.addValKey(     np.nan   , 'Cm0'       + labOffset, r"2D pitching moment coefficient about 1/4-chord location, at 0-lift, positive if nose up. [If the aerodynamics coefficients table does not include a column for Cm, this needs to be set to 0.0]")
+                    self.addValKey(          0   , 'k0'        + labOffset, r"Constant in the \hat(x)_cp curve best-fit; = (\hat(x)_AC-0.25).  [ignored if UAMod<>1]")
+                    self.addValKey(          0   , 'k1'        + labOffset, r"Constant in the \hat(x)_cp curve best-fit.  [ignored if UAMod<>1]")
+                    self.addValKey(          0   , 'k2'        + labOffset, r"Constant in the \hat(x)_cp curve best-fit.  [ignored if UAMod<>1]")
+                    self.addValKey(          0   , 'k3'        + labOffset, r"Constant in the \hat(x)_cp curve best-fit.  [ignored if UAMod<>1]")
+                    self.addValKey(          0   , 'k1_hat'    + labOffset, r"Constant in the expression of Cc due to leading edge vortex effects.  [ignored if UAMod<>1]")
+                    self.addValKey(   "DEFAULT"  , 'x_cp_bar'  + labOffset, r"Constant in the expression of \hat(x)_cp^v. [ignored if UAMod<>1, default = 0.2]")
+                    self.addValKey(   "DEFAULT"  , 'UACutout'  + labOffset, r"Angle of attack above which unsteady aerodynamics are disabled (deg). [Specifying the string 'Default' sets UACutout to 45 degrees]")
+                    self.addValKey(   "DEFAULT"  , 'filtCutOff'+ labOffset, r"Reduced frequency cut-off for low-pass filtering the AoA input to UA, as well as the 1st and 2nd derivatives (-) [default = 0.5]")
+                    self.addComment('!........................................')
+                else:             
+                    self.addValKey(False ,    'InclUAdata'+labOffset, 'Is unsteady aerodynamics data included in this table? If TRUE, then include 30 UA coefficients below this line')
+                self.addComment('! Table of aerodynamics coefficients')
+                self.addValKey(0 ,    'NumAlf'+labOffset, '! Number of data lines in the following table')
+                self.addTable('AFCoeff'+labOffset, np.zeros((0,4)), tabType=2, tabDimVar='NumAlf', cols=['Alpha', 'Cl', 'Cd', 'Cm'], units=['(deg)', '(-)', '(-)', '(-)'])
+        self.module='ADPolar'
+
+    def _writeSanityChecks(self):
+        """ Sanity checks before write"""
+        nTabs = self['NumTabs']
+        if nTabs==1:
+            self['NumAlf']=self['AFCoeff'].shape[0]
+        else:
+            for iTab in range(nTabs):
+                labOffset='_{}'.format(iTab+1)
+                self['NumAlf'+labOffset] = self['AFCoeff'+labOffset].shape[0]
+        # Potentially compute unsteady params here
+
+    def _write(self):
+        nTabs = self['NumTabs']
+        if nTabs==1:
+            FASTInputFileBase._write(self)
+        else:
+            self._writeSanityChecks()
+            Labs=['Re','Ctrl','UserProp','alpha0','alpha1','alpha2','eta_e','C_nalpha','T_f0','T_V0','T_p','T_VL','b1','b2','b5','A1','A2','A5','S1','S2','S3','S4','Cn1','Cn2','St_sh','Cd0','Cm0','k0','k1','k2','k3','k1_hat','x_cp_bar','UACutout','filtCutOff','InclUAdata','NumAlf','AFCoeff']
+            # Store all labels
+            AllLabels=[self.data[i]['label'] for i in range(len(self.data))]
+            # Removing lab Offset - TODO TEMPORARY HACK
+            for iTab in range(nTabs):
+                labOffset='_{}'.format(iTab+1)
+                for labRaw in Labs:
+                    i = self.getIDSafe(labRaw+labOffset)
+                    if i>0:
+                        self.data[i]['label'] = labRaw
+            # Write
+            with open(self.filename,'w') as f:
+                f.write(self.toString())
+            # Restore labels 
+            for i,labFull in enumerate(AllLabels):
+                self.data[i]['label'] = labFull
+
+    def _toDataFrame(self):
+        dfs = FASTInputFileBase._toDataFrame(self)
+        if not isinstance(dfs, dict):
+            dfs={'AFCoeff':dfs}
+
+        for k,df in dfs.items():
+            sp = k.split('_')
+            if len(sp)==2:
+                labOffset='_'+sp[1]
+            else:
+                labOffset=''
+            alpha = df['Alpha_[deg]'].values*np.pi/180.
+            Cl    = df['Cl_[-]'].values
+            Cd    = df['Cd_[-]'].values
+            Cd0   = self['Cd0'+labOffset]
+            # Cn (with or without Cd0)
+            Cn1 = Cl*np.cos(alpha)+ (Cd-Cd0)*np.sin(alpha) 
+            Cn  = Cl*np.cos(alpha)+ Cd*np.sin(alpha) 
+            df['Cn_[-]'] = Cn
+            df['Cn_Cd0off_[-]'] = Cn1
+
+            CnLin = self['C_nalpha'+labOffset]*(alpha-self['alpha0'+labOffset]*np.pi/180.)
+            CnLin[alpha<-20*np.pi/180]=np.nan
+            CnLin[alpha> 30*np.pi/180]=np.nan
+            df['Cn_pot_[-]'] = CnLin
+
+            # Highlighting points surrounding 0 1 2 Cn points
+            CnPoints = Cn*np.nan
+            try:
+                iBef2 = np.where(alpha<self['alpha2'+labOffset]*np.pi/180.)[0][-1]
+                iBef1 = np.where(alpha<self['alpha1'+labOffset]*np.pi/180.)[0][-1]
+                iBef0 = np.where(alpha<self['alpha0'+labOffset]*np.pi/180.)[0][-1]
+                CnPoints[iBef2:iBef2+2] = Cn[iBef2:iBef2+2]
+                CnPoints[iBef1:iBef1+2] = Cn[iBef1:iBef1+2]
+                CnPoints[iBef0:iBef0+2] = Cn[iBef0:iBef0+2]
+                df['Cn_012_[-]'] = CnPoints
+            except:
+                pass
+
+        if len(dfs)==1:
+            dfs=dfs[list(dfs.keys())[0]]
+        return dfs
+
+    @property
+    def comment(self):
+        return FASTInputFileBase.comment
+
+    @comment.setter
+    def comment(self, comment):
+        splits = comment.split('\n')
+        for i,com in zip(self._IComment, splits):
+            self.data[i]['value'] = '! ' +com
+
+    @property
+    def _IComment(self):
+        """ return indices of comment line"""
+        I=[]
+        for i in [1,2,3]:
+            if self.data[i]['value'].startswith('!'):
+                if not self.data[i]['value'].startswith('! ---'):
+                    I.append(i)
+        return I
+
+
+# --------------------------------------------------------------------------------}
+# --- ExtPtfm 
+# --------------------------------------------------------------------------------{
+def detectAndReadExtPtfmSE(self, lines):
+    # TODO place this in ExtPtfmFile
+    def readmat(n,m,lines,iStart):
+        M=np.zeros((n,m))
+        for j in np.arange(n):
+            i=iStart+j
+            M[j,:]=np.array(lines[i].split()).astype(float)
+        return M
+    if len(lines)<10:
+        return False
+    if not (lines[0][0]=='!' and lines[1][0]=='!'):
+        return False
+    if lines[1].lower().find('flex')<0:
+        return
+    if  lines[2].lower().find('!dimension')<0:
+        return
+    # --- At this stage we assume it's in the proper format
+    self.module='ExtPtfm'
+    nDOFCommon = -1
+    i=2;
+    try:
+        while i<len(lines):
+            l=lines[i].lower()
+            if l.find('!mass')==0:
+                l=lines[i+1]
+                nDOF=int(l.split(':')[1])
+                if nDOF<-1 or nDOF!=nDOFCommon:
+                    raise BrokenFormatError('ExtPtfm stiffness matrix nDOF issue. nDOF common: {}, nDOF provided: {}'.format(nDOFCommon,nDOF))
+                self.addKeyVal('MassMatrix',readmat(nDOF,nDOF,lines,i+2))
+                i=i+1+nDOF
+            elif l.find('!stiffness')==0:
+                l=lines[i+1]
+                nDOF=int(l.split(':')[1])
+                if nDOF<-1 or nDOF!=nDOFCommon:
+                    raise BrokenFormatError('ExtPtfm stiffness matrix nDOF issue nDOF common: {}, nDOF provided: {}'.format(nDOFCommon,nDOF))
+                self.addKeyVal('StiffnessMatrix',readmat(nDOF,nDOF,lines,i+2))
+                i=i+1+nDOF
+            elif l.find('!damping')==0:
+                l=lines[i+1]
+                nDOF=int(l.split(':')[1])
+                if nDOF<-1 or nDOF!=nDOFCommon:
+                    raise BrokenFormatError('ExtPtfm damping matrix nDOF issue nDOF common: {}, nDOF provided: {}'.format(nDOFCommon,nDOF))
+                self.addKeyVal('DampingMatrix',readmat(nDOF,nDOF,lines,i+2))
+                i=i+1+nDOF
+            elif l.find('!loading')==0:
+                try: 
+                    nt=int(self['T']/self['dt'])+1
+                except:
+                    raise BrokenFormatError('Cannot read loading since time step and simulation time not properly set.')
+                self.addKeyVal('Loading',readmat(nt,nDOFCommon+1,lines,i+2))
+                i=i+nt+1
+            elif len(l)>0:
+                if l[0]=='!':
+                    if l.find('!dimension')==0:
+                        self.addKeyVal('nDOF',int(l.split(':')[1]))
+                        nDOFCommon=self['nDOF']
+                    elif l.find('!time increment')==0:
+                        self.addKeyVal('dt',float(l.split(':')[1]))
+                    elif l.find('!total simulation time')==0:
+                        self.addKeyVal('T',float(l.split(':')[1]))
+                elif len(l.strip())==0:
+                    pass
+                else:
+                    raise BrokenFormatError('Unexcepted content found on line {}'.format(i))
+            i+=1
+    except BrokenFormatError as e:
+        raise e
+    except: 
+        raise
+
+    return True
+
+class ExtPtfmFile(FASTInputFileBase):
+    @classmethod
+    def from_fast_input_file(cls, parent):
+        self = cls()
+        self.setData(filename=parent.filename, data=parent.data, hasNodal=parent.hasNodal, module='ExtPtfm')
+        return self
+
+    def __init__(self, filename=None, **kwargs):
+        FASTInputFileBase.__init__(self, filename, **kwargs)
+        if filename is None:
+            # Define a prototype for this file format
+            self.addValKey(0 ,    'nDOF', '')
+            self.addValKey(1 ,    'dt'  , '')
+            self.addValKey(0 ,    'T'   , '')
+            self.addTable('MassMatrix'     , np.zeros((0,0)), tabType=0) 
+            self.addTable('StiffnessMatrix', np.zeros((0,0)), tabType=0) 
+            self.addTable('DampingMatrix'  , np.zeros((0,0)), tabType=0) 
+            self.addTable('Loading'        , np.zeros((0,0)), tabType=0) 
+            self.comment=''
+        self.module='ExtPtfm'
+
+
+    def _read(self):
+        with open(self.filename, 'r', errors="surrogateescape") as f:
+            lines=f.read().splitlines()
+        detectAndReadExtPtfmSE(self, lines)
+
+    def toString(self):
+        s=''
+        s+='!Comment\n'
+        s+='!Comment Flex 5 Format\n'
+        s+='!Dimension: {}\n'.format(self['nDOF'])
+        s+='!Time increment in simulation: {}\n'.format(self['dt'])
+        s+='!Total simulation time in file: {}\n'.format(self['T'])
+
+        s+='\n!Mass Matrix\n'
+        s+='!Dimension: {}\n'.format(self['nDOF'])
+        s+='\n'.join(''.join('{:16.8e}'.format(x) for x in y) for y in self['MassMatrix'])
+
+        s+='\n\n!Stiffness Matrix\n'
+        s+='!Dimension: {}\n'.format(self['nDOF'])
+        s+='\n'.join(''.join('{:16.8e}'.format(x) for x in y) for y in self['StiffnessMatrix'])
+
+        s+='\n\n!Damping Matrix\n'
+        s+='!Dimension: {}\n'.format(self['nDOF'])
+        s+='\n'.join(''.join('{:16.8e}'.format(x) for x in y) for y in self['DampingMatrix'])
+
+        s+='\n\n!Loading and Wave Elevation\n'
+        s+='!Dimension: 1 time column -  {} force columns\n'.format(self['nDOF'])
+        s+='\n'.join(''.join('{:16.8e}'.format(x) for x in y) for y in self['Loading'])
+        return s
+
+    def _writeSanityChecks(self):
+        """ Sanity checks before write"""
+        assert self['MassMatrix'].shape[0]      == self['nDOF']
+        assert self['StiffnessMatrix'].shape[0] == self['nDOF']
+        assert self['DampingMatrix'].shape[0]   == self['nDOF']
+        assert self['MassMatrix'].shape[0]      == self['MassMatrix'].shape[1]
+        assert self['StiffnessMatrix'].shape[0] == self['StiffnessMatrix'].shape[1]
+        assert self['DampingMatrix'].shape[0]   == self['DampingMatrix'].shape[1]
+        #         if self['T']>0:
+        #             assert self['Loading'].shape[0]     == (int(self['T']/self['dT'])+1
+
+    def _toDataFrame(self):
+        # Special types, TODO Subclass
+        nDOF=self['nDOF']
+        Cols=['Time_[s]','InpF_Fx_[N]', 'InpF_Fy_[N]', 'InpF_Fz_[N]', 'InpF_Mx_[Nm]', 'InpF_My_[Nm]', 'InpF_Mz_[Nm]']
+        Cols+=['CBF_{:03d}_[-]'.format(iDOF+1) for iDOF in np.arange(nDOF)]
+        Cols=Cols[:nDOF+1]
+        #dfs['Loading']         = pd.DataFrame(data = self['Loading'],columns  = Cols)
+        dfs = pd.DataFrame(data = self['Loading'],columns  = Cols)
+
+        #Cols=['SurgeAcc_[m/s]', 'SwayAcc_[m/s]', 'HeaveAcc_[m/s]', 'RollAcc_[rad/s]', 'PitchAcc_[rad/s]', 'YawAcc_[rad/s]']
+        #Cols+=['CBQD_{:03d}_[-]'.format(iDOF+1) for iDOF in np.arange(nDOF)]
+        #Cols=Cols[:nDOF]
+        #dfs['MassMatrix']      = pd.DataFrame(data = self['MassMatrix'], columns=Cols)
+
+        #Cols=['SurgeVel_[m/s]', 'SwayVel_[m/s]', 'HeaveVel_[m/s]', 'RollVel_[rad/s]', 'PitchVel_[rad/s]', 'YawVel_[rad/s]']
+        #Cols+=['CBQD_{:03d}_[-]'.format(iDOF+1) for iDOF in np.arange(nDOF)]
+        #Cols=Cols[:nDOF]
+        #dfs['DampingMatrix']   = pd.DataFrame(data = self['DampingMatrix'], columns=Cols)
+
+        #Cols=['Surge_[m]', 'Sway_[m]', 'Heave_[m]', 'Roll_[rad]', 'Pitch_[rad]', 'Yaw_[rad]']
+        #Cols+=['CBQ_{:03d}_[-]'.format(iDOF+1) for iDOF in np.arange(nDOF)]
+        #Cols=Cols[:nDOF]
+        #dfs['StiffnessMatrix'] = pd.DataFrame(data = self['StiffnessMatrix'], columns=Cols)
+        return dfs
+
+
+
 if __name__ == "__main__":
+    f = FASTInputFile()
     pass
     #B=FASTIn('Turbine.outb')
 

@@ -6,16 +6,7 @@ Created on 20/01/2014
 See documentation of HTCFile below
 
 '''
-from __future__ import division
-from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import absolute_import
-from builtins import zip
-from builtins import int
-from builtins import str
-from future import standard_library
 import os
-standard_library.install_aliases()
 from collections import OrderedDict
 import collections
 
@@ -43,9 +34,6 @@ def fmt_value(v):
         return float(v)
     except ValueError:
         return v.replace("\\", "/")
-
-
-c = 0
 
 
 class HTCContents(object):
@@ -95,7 +83,6 @@ class HTCContents(object):
             if k in self.contents:
                 self.contents[k].values = v
                 return
-
             v = HTCLine(k, v, "")
         self.contents[k] = v
         v.parent = self
@@ -208,10 +195,11 @@ class HTCSection(HTCContents):
     begin_comments = ""
 
     def __init__(self, name, begin_comments="", end_comments=""):
-        self.name_ = name
+        self.name_ = name.strip() # strip if tabs in name somehow 
         self.begin_comments = begin_comments.strip(" \t")
         self.end_comments = end_comments.strip(" \t")
         self.contents = OrderedDict()
+        self.parent = None
 
     @property
     def section_name(self):
@@ -246,12 +234,14 @@ class HTCSection(HTCContents):
         else:
             section = HTCSection(name, begin_comments)
         while lines:
+            if lines[0].strip() == "":
+                lines.pop(0)
             if lines[0].lower().startswith("begin"):
                 section._add_contents(HTCSection.from_lines(lines))
             elif lines[0].lower().startswith("end"):
                 line, section.end_comments = parse_next_line(lines)
                 break
-            else:
+            elif lines:
                 section._add_contents(section.line_from_line(lines))
         else:
             raise Exception("Section '%s' has not end" % section.name_)
@@ -312,6 +302,7 @@ class HTCLine(HTCContents):
         self.name_ = name
         self.values = list(values)
         self.comments = comments.strip(" \t")
+        self.parent = None
 
     def __repr__(self):
         return str(self)
@@ -381,9 +372,8 @@ class HTCOutputSection(HTCSection):
         htcSensor.parent = self
 
     def line_from_line(self, lines):
-        while len(lines) and lines[0].strip() == "":
-            lines.pop(0)
         name = lines[0].split()[0].strip()
+
         if name in ['filename', 'data_format', 'buffer', 'time']:
             return HTCLine.from_lines(lines)
         else:

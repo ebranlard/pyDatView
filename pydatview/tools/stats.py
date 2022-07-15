@@ -53,7 +53,7 @@ def rsquare(y,f, c = True):
     rmse = np.sqrt(np.mean((y - f) ** 2))
     return r2,rmse
 
-def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='mean', verbose=False):
+def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='mean', verbose=False, varname=''):
     """ 
     return mean relative error in % 
 
@@ -69,32 +69,37 @@ def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='mean', verbose=Fals
     else:
         if len(y1)!=len(y2):
             y2=np.interp(t1,t2,y2)
-    # Method 1 relative to mean
     if method=='mean':
+        # Method 1 relative to mean
         ref_val = np.mean(y1)
-        meanrelerr = np.mean(np.abs(y1-y2)/ref_val)*100 
+        meanrelerr = np.mean(np.abs(y2-y1)/ref_val)*100 
     elif method=='meanabs':
         ref_val = np.mean(np.abs(y1))
-        meanrelerr = np.mean(np.abs(y1-y2)/ref_val)*100 
+        meanrelerr = np.mean(np.abs(y2-y1)/ref_val)*100 
+    elif method=='loc':
+        meanrelerr = np.mean(np.abs(y2-y1)/abs(y1))*100 
     elif method=='minmax':
         # Method 2 scaling signals
         Min=min(np.min(y1), np.min(y2))
         Max=max(np.max(y1), np.max(y2))
         y1=(y1-Min)/(Max-Min)+0.5
         y2=(y2-Min)/(Max-Min)+0.5
-        meanrelerr = np.mean(np.abs(y1-y2)/np.abs(y1))*100 
+        meanrelerr = np.mean(np.abs(y2-y1)/np.abs(y1))*100 
     elif method=='1-2':
         # transform values from 1 to 2
         Min=min(np.min(y1), np.min(y2))
         Max=max(np.max(y1), np.max(y2))
         y1 = (y1-Min)/(Max-Min)+1
         y2 = (y2-Min)/(Max-Min)+1
-        meanrelerr = np.mean(np.abs(y1-y2)/np.abs(y1))*100
+        meanrelerr = np.mean(np.abs(y2-y1)/np.abs(y1))*100
     else:
         raise Exception('Unknown method',method)
 
     if verbose:
-        print('Mean rel error {:7.2f} %'.format( meanrelerr))
+        if len(varname)>0:
+            print('Mean rel error {:15s} {:7.2f} %'.format(varname, meanrelerr))
+        else:
+            print('Mean rel error {:7.2f} %'.format( meanrelerr))
     return meanrelerr
 
 

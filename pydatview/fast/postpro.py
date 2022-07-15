@@ -6,12 +6,11 @@ import numpy as np
 import re
 
 # --- fast libraries
+import pydatview.io as weio
 from pydatview.io.fast_input_file import FASTInputFile
 from pydatview.io.fast_output_file import FASTOutputFile
 from pydatview.io.fast_input_deck import FASTInputDeck
-# from pyFAST.input_output.fast_input_file import FASTInputFile
-# from pyFAST.input_output.fast_output_file import FASTOutputFile
-# from pyFAST.input_output.fast_input_deck import FASTInputDeck
+
 
 # --------------------------------------------------------------------------------}
 # --- Tools for IO 
@@ -1035,35 +1034,42 @@ def _zero_crossings(y,x=None,direction=None):
         raise Exception('Direction should be either `up` or `down`')
     return xzc, iBef, sign
 
-def find_matching_pattern(List, pattern, sort=False):
-    """ Return elements of a list of strings that match a pattern
+def find_matching_pattern(List, pattern, sort=False, integers=True):
+    r""" Return elements of a list of strings that match a pattern
         and return the first matching group
+
+    Example:
+
+        find_matching_pattern(['Misc','TxN1_[m]', 'TxN20_[m]'], 'TxN(\d+)_\[m\]')
+        returns: Matches = 1,20
     """
     reg_pattern=re.compile(pattern)
     MatchedElements=[]
-    MatchedStrings=[]
+    Matches=[]
     for l in List:
         match=reg_pattern.search(l)
         if match:
             MatchedElements.append(l)
             if len(match.groups(1))>0:
-                MatchedStrings.append(match.groups(1)[0])
+                Matches.append(match.groups(1)[0])
             else:
-                MatchedStrings.append('')
+                Matches.append('')
+
+    MatchedElements = np.asarray(MatchedElements)
+    Matches         = np.asarray(Matches)
+
+    if integers:
+        Matches  = Matches.astype(int)
 
     if sort:
         # Sorting by Matched string, NOTE: assumes that MatchedStrings are int.
         # that's probably not necessary since alphabetical/integer sorting should be the same
         # but it might be useful if number of leading zero differs, which would skew the sorting..
-        MatchedElements = np.asarray(MatchedElements)
-        MatchedStrings  = np.asarray(MatchedStrings)
-        Idx  = np.array([int(s) for s in MatchedStrings])
-        Isort = np.argsort(Idx)
-        Idx  = Idx[Isort]
+        Isort = np.argsort(Matches)
         MatchedElements = MatchedElements[Isort]
-        MatchedStrings  = MatchedStrings[Isort]
+        Matches         = Matches[Isort]
 
-    return MatchedElements, MatchedStrings
+    return MatchedElements, Matches
 
         
 def extractSpanTS(df, pattern):
@@ -1367,7 +1373,8 @@ def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKee
     # Loop trough files and populate result
     for i,f in enumerate(outFiles):
         try:
-            df=FASTOutputFile(f).toDataFrame()
+            df=weio.read(f).toDataFrame()
+            #df=FASTOutputFile(f).toDataFrame()A # For pyFAST
         except:
             invalidFiles.append(f)
             continue

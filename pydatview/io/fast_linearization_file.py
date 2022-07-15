@@ -296,10 +296,16 @@ class FASTLinearizationFile(File):
         return [shortname(s) for s in slist]
 
     def xdescr(self):
-        return self.short_descr(self['x_info']['Description'])
+        if 'x_info' in self.keys():
+            return self.short_descr(self['x_info']['Description'])
+        else:
+            return []
 
     def xdotdescr(self):
-        return self.short_descr(self['xdot_info']['Description'])
+        if 'xdot_info' in self.keys():
+            return self.short_descr(self['xdot_info']['Description'])
+        else:
+            return []
 
     def ydescr(self):
         if 'y_info' in self.keys():

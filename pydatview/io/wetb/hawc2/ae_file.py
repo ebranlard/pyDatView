@@ -1,14 +1,4 @@
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import division
-from __future__ import absolute_import
-from io import open
-from builtins import range
-from builtins import int
-from future import standard_library
 import os
-standard_library.install_aliases()
-
 import numpy as np
 
 
@@ -77,9 +67,16 @@ class AEFile(object):
         ae_data = self.ae_sets[set_nr]
         index = np.searchsorted(ae_data[:, 0], radius)
         index = max(1, index)
+        # --- Emmanuel's addition
+        maxRad = np.max(ae_data[:,0])
+        index2 = np.argmin(np.abs(ae_data[:, 0]-radius))
+        if abs(ae_data[index2,0]-radius)<1e-4*maxRad:
+            # We are very close to an ae location, we use this set
+            return ae_data[index2, 3]
+        # Otherwise we look at index before or after
         setnrs = ae_data[index - 1:index + 1, 3]
         if setnrs[0] != setnrs[-1]:
-            raise NotImplementedError
+            print('[WARN] AE file, at radius {}, should return a set between {}. Using first one.'.format(radius,setnrs))
         return setnrs[0]
 
     def add_set(self, radius, chord, thickness, pc_set_id, set_id=None):
@@ -103,7 +100,9 @@ class AEFile(object):
 
     def save(self, filename):
         if not os.path.isdir(os.path.dirname(filename)):
-            os.makedirs(os.path.dirname(filename))
+            # fails if dirname is empty string
+            if len(os.path.dirname(filename)) > 0:
+                os.makedirs(os.path.dirname(filename))
         with open(filename, 'w') as fid:
             fid.write(str(self))
 
@@ -122,11 +121,18 @@ class AEFile(object):
             lptr += n_rows
 
 
+def main():
+    if __name__ == "__main__":
+        ae = AEFile(os.path.dirname(__file__) + "/tests/test_files/NREL_5MW_ae.txt")
+        print(ae.radius_ae(36))
+        print(ae.thickness())
+        print(ae.chord(36))
+        print(ae.pc_set_nr(36))
+        ae.add_set(radius=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                   chord=[1.1, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],
+                   thickness=[100.0, 100.0, 90.0, 80.0, 70.0, 60.0, 50.0, 40.0, 30.0, 20.0, 10.0],
+                   pc_set_id=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+        print(str(ae))
 
 
-if __name__ == "__main__":
-    ae = AEFile(r"tests/test_files/NREL_5MW_ae.txt")
-    print (ae.radius_ae(36))
-    print (ae.thickness())
-    print (ae.chord(36))
-    print (ae.pc_set_nr(36))
+main()

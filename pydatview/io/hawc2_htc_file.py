@@ -23,26 +23,41 @@ class HAWC2HTCFile(File):
 
     def _read(self):
         self.data = HTCFile(self.filename)
-        self.data.contents # trigger read
 
     def _write(self):
         self.data.save(self.filename)
 
     def __repr__(self):
-        s='<{} object> with attribute `data`\n'.format(type(self).__name__)
+        s='<{} object>\n'.format(type(self).__name__)
+        s+='| Attributes:\n'
+        s+='| - data: HTCFile with keys: {}`\n'.format(list(self.data.keys()))
+        s+='| Derived attributes:\n'
+        s+='| * bodyNames: {}\n'.format(self.bodyNames)
+        s+='| * bodyDict: dict with keys bodyNames\n'
+        s+='| Methods: bodyByName, bodyC2, setBodyC2\n'
         return s
+
+    @property
+    def bodyNames(self):
+        return list(self.bodyDict.keys())
+
+    @property
+    def bodyDict(self):
+        struct = self.data.new_htc_structure
+        bodyKeys = [k for k in struct.keys() if k.startswith('main_body')]
+        #print('>>> keys', struct.keys())
+        bdDict={}
+        for k in bodyKeys:
+            bodyName = struct[k].name[0]
+            bdDict[bodyName] = struct[k]
+        return bdDict
 
     def bodyByName(self, bodyname):
         """ return body inputs given a body name"""
-        struct = self.data.new_htc_structure
-        bodyKeys = [k for k in struct.keys() if k.startswith('main_body')]
-        bdies = [struct[k] for k in bodyKeys if struct[k].name[0]==bodyname]
-        if len(bdies)==1:
-            return bdies[0]
-        elif len(bdies)==0:
+        bodyDict= self.bodyDict
+        if bodyname not in bodyDict.keys():
             raise Exception('No body found with name {} in file {}'.format(bodyname,self.filename))
-        else:
-            raise Exception('Several bodies found with name {} in file {}'.format(bodyname,self.filename))
+        return bodyDict[bodyname]
 
     def bodyC2(self, bdy):
         """ return body C2_def given body inputs"""

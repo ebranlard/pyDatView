@@ -75,3 +75,23 @@ class HAWC2PCFile(File):
         """
         self.data.pc_sets[set_label] = (np.array(thicknesses), profiles) 
 
+    @property
+    def sets(self):
+        return self.pc_sets
+
+    def __repr__(self):
+        cols=['Alpha_[deg]','Cl_[-]','Cd_[-]','Cm_[-]']
+        #nRows = 0
+        s='<{} object>\n'.format(type(self).__name__)
+        s+='| Attributes:\n'
+        s+='| - filename: {}\n'.format(self.filename)
+        s+='| - data: PCFile, with attributes `pc_sets`\n'
+        s+='| Derived attributes:\n'
+        s+='| * sets: dict of length: {}:\n'.format(len(self.data.pc_sets))
+        for iset in self.data.pc_sets.keys():
+            vt, vpolar = self.data.pc_sets[iset]
+            nRows =  [np.asarray(s).shape[0] for s in vpolar]
+            s+='|   key: {}, len: {}, thicknesses: {}, rows: {}\n'.format(iset, len(vt), vt, nRows)
+        s+='| Methods: add_set, toDataFrame\n'
+        return s
+

@@ -1304,7 +1304,7 @@ def _clean_formula(s, latex=False):
 def main_frequency(t,y):
     """ 
     Returns main frequency of a signal
-    NOTE: this tool below to welib.tools.signal, but put here for convenience
+    NOTE: this tool below to welib.tools.signal_analysis, but put here for convenience
     """
     dt       = t[1]-t[0]  # assume uniform spacing of time and frequency
     om       = np.fft.fftfreq(len(t), (dt))*2*np.pi 

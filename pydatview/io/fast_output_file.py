@@ -12,17 +12,17 @@ standard_library.install_aliases()
 
 from itertools import takewhile
 
-# try:
-from .file import File, WrongFormatError, BrokenReaderError, EmptyFileError
-# except:
-#     # --- Allowing this file to be standalone..
-#     class WrongFormatError(Exception):
-#         pass
-#     class WrongReaderError(Exception):
-#         pass
-#     class EmptyFileError(Exception):
-#         pass
-#     File = dict
+try:
+    from .file import File, WrongFormatError, BrokenReaderError, EmptyFileError
+except:
+    # --- Allowing this file to be standalone..
+    class WrongFormatError(Exception):
+        pass
+    class WrongReaderError(Exception):
+        pass
+    class EmptyFileError(Exception):
+        pass
+    File = dict
 try:
     from .csv_file import CSVFile
 except:

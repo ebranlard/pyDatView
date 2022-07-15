@@ -12,10 +12,7 @@ import re
 import pydatview.io.fast_input_file as fi
 import pydatview.fast.runner as runner
 import pydatview.fast.postpro as postpro
-#import pyFAST.input_output.fast_input_file as fi
-#import pyFAST.case_generation.runner as runner
-#import pyFAST.input_output.postpro as postpro
-
+from pydatview.io.fast_wind_file import FASTWndFile
 
 # --------------------------------------------------------------------------------}
 # --- Template replace 
@@ -445,7 +442,7 @@ def paramsLinearTrim(p=None):
 # ---  
 # --------------------------------------------------------------------------------{
 def createStepWind(filename,WSstep=1,WSmin=3,WSmax=25,tstep=100,dt=0.5,tmin=0,tmax=999):
-    f = weio.FASTWndFile()
+    f = FASTWndFile()
     Steps= np.arange(WSmin,WSmax+WSstep,WSstep)
     print(Steps)
     nCol = len(f.colNames)
@@ -536,7 +533,7 @@ def CPCT_LambdaPitch(refdir,main_fastfile,Lambda=None,Pitch=np.linspace(-10,40,5
 
     # --- Creating set of parameters to be changed
     # TODO: verify that RtAeroCp and RtAeroCt are present in AeroDyn outlist
-    PARAMS = paramsWS_RPM_Pitch(WS_flat,RPM_flat,Pitch_flat,baseDict=baseDict, FlatInputs=True)
+    PARAMS = paramsWS_RPM_Pitch(WS_flat,RPM_flat,Pitch_flat,baseDict=baseDict, flatInputs=True)
 
     # --- Generating all files in a workDir
     workDir = refdir.strip('/').strip('\\')+'_CPLambdaPitch'

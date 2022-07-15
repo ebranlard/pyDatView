@@ -2,6 +2,7 @@
 Hawc2 AE file
 """
 import os
+import numpy as np
 import pandas as pd
 
 try:
@@ -65,7 +66,26 @@ class HAWC2AEFile(File):
                 dfs[name] = pd.DataFrame(data=self.data.ae_sets[iset+1], columns=cols)
             return dfs
 
+    @property
+    def sets(self):
+        # Returns a list of ae_sets, otherwise not easy to iterate
+        sets=[]
+        for iset,aeset in enumerate(self.data.ae_sets):
+            sets.append(self.data.ae_sets[iset+1])
+        return sets
+
     # --- Convenient utils
     def add_set(self, **kwargs):
         self.data.add_set(**kwargs)
 
+    def __repr__(self):
+        cols=['radius_[m]','chord_[m]','thickness_[%]','pc_set_[#]']
+        nRows =  [np.asarray(s).shape[0] for s in self.sets]
+        s='<{} object>\n'.format(type(self).__name__)
+        s+='| Attributes:\n'
+        s+='| - filename: {}\n'.format(self.filename)
+        s+='| - data: AEFile, with attributes `ae_sets`\n'
+        s+='| Derived attributes:\n'
+        s+='| * sets: list of {} arrays, length: {}, 4 columns: {}\n'.format(len(self.data.ae_sets), nRows, cols)
+        s+='| Methods: add_set, toDataFrame\n'
+        return s

@@ -6,18 +6,9 @@ Created on 20/01/2014
 See documentation of HTCFile below
 
 '''
-from __future__ import division
-from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import absolute_import
-from builtins import zip
-from builtins import int
-from builtins import str
-from future import standard_library
 import os
 
 
-standard_library.install_aliases()
 
 
 class HTCDefaults(object):
