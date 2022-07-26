@@ -33,12 +33,18 @@ If you cloned this repository, the main script at the root (`pyDatView.py`) is e
 ```bash
 pyDatView file.csv
 ```
-The python package can also be used directly from python/jupyter to display a dataframe or show the data in a file
+The python package can also be used directly from python/jupyter to display one or multiple dataframe(s) (called `df1` and `df2` in the example below) or show the data present in one or several file(s). The interface is forgiving for the first argument, and can accept a list or a single value:
 ```python
 import pydatview 
-pydatview.show(dataframe=df)
+pydatview.show(dataframes=[df1,df2], names=['data1','data2'])
 # OR
-pydatview.show(filenames=['file.csv'])
+pydatview.show([df1,df2], names=['data1','data2'])
+# OR
+pydatview.show(df1)
+# OR
+pydatview.show(filenames=['file.csv','file2.csv'])
+# OR
+pydatview.show(['file.csv','file2.csv'])
 # OR
 pydatview.show('file.csv')
 ```

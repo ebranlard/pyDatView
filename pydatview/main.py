@@ -753,27 +753,33 @@ pyDatView help:
 # --------------------------------------------------------------------------------}
 # --- Mains 
 # --------------------------------------------------------------------------------{
-def showApp(firstArg=None,dataframe=None,filenames=[]):
+def showApp(firstArg=None, dataframes=None, filenames=[], names=None):
     """
-    The main function to start the data frame GUI.
+    The main function to start the pyDatView GUI and loads
+    Call this function with:
+      - filenames : list of filenames or a single filename (string)
+      OR
+      - dataframes: list of dataframes or a single dataframe
+      - names: list of names to be used for the multiple dataframes
     """
     app = MyWxApp(False)
     frame = MainFrame()
     # Optional first argument
     if firstArg is not None:
         if isinstance(firstArg,list):
-            filenames=firstArg
+            if isinstance(firstArg[0],str):
+                filenames=firstArg
+            else:
+                dataframes=firstArg
         elif isinstance(firstArg,str):
             filenames=[firstArg]
         elif isinstance(firstArg, pd.DataFrame):
-            dataframe=firstArg
-    #
-    if (dataframe is not None) and (len(dataframe)>0):
-        #import time
-        #tstart = time.time()
-        frame.load_df(dataframe)
-        #tend = time.time()
-        #print('PydatView time: ',tend-tstart)
+            dataframes=[firstArg]
+    # Load files or dataframe depending on interface
+    if (dataframes is not None) and (len(dataframes)>0):
+        if names is None:
+            names=['df{}'.format(i+1) for i in range(len(dataframes))]
+        frame.load_dfs(dataframes, names)
     elif len(filenames)>0:
         frame.load_files(filenames, fileformats=None)
     app.MainLoop()
