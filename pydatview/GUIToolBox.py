@@ -50,10 +50,43 @@ def TBAddCheckTool(tb,label,bitmap,callback=None,bitmap2=None):
         tb.Bind(wx.EVT_TOOL, callback, tl)
     return tl
 
-def TBAddTool(tb,label,bitmap,callback=None,Type=None):
+def TBAddTool(tb, label, defaultBitmap=None, callback=None, Type=None):
     """ Adding a toolbar tool, safe depending on interface and compatibility
     see also wx_compat AddTool in wx backends 
     """
+    try:
+        wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN)
+        hasBitMap=True
+    except:
+        # Somehow fails on recent Mac OS
+        hasBitMap     = False
+        bitmap        = None
+        defaultBitmap = None
+
+    if defaultBitmap is None:
+        # Last resort, we add a button only
+        bt=wx.Button(tb,wx.ID_ANY, label)
+        tl=tb.AddControl(bt)
+        if callback is not None:
+            tb.Bind(wx.EVT_BUTTON, callback, bt)
+        return tl
+    else:
+        # --- TODO this is not pretty.. Use wx.INDEX directly?
+        if defaultBitmap=='ART_REDO':
+            bitmap = wx.ArtProvider.GetBitmap(wx.ART_REDO)
+        elif defaultBitmap=='ART_FILE_OPEN':
+                bitmap = wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN)
+        elif defaultBitmap=='ART_PLUS':
+            try:
+                bitmap = wx.ArtProvider.GetBitmap(wx.ART_PLUS)
+            except:
+                bitmap = wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN)
+        elif defaultBitmap=='ART_ERROR':
+            bitmap = wx.ArtProvider.GetBitmap(wx.ART_ERROR)
+        else:
+            raise NotImplementedError(defaultBitmap)
+
+
     # Modern API
     if Type is None or Type==0:
         try:
@@ -85,11 +118,6 @@ def TBAddTool(tb,label,bitmap,callback=None,Type=None):
             return tl
         except:
             Type=None
-    # Last resort, we add a button only
-    bt=wx.Button(tb,wx.ID_ANY, label)
-    tl=tb.AddControl(bt)
-    if callback is not None:
-        tb.Bind(wx.EVT_BUTTON, callback, bt)
     return tl
 
 

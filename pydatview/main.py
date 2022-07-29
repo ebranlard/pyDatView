@@ -178,13 +178,10 @@ class MainFrame(wx.Frame):
         tb.AddControl( wx.StaticText(tb, -1, 'Format: ' ) )
         tb.AddControl(self.comboFormats ) 
         tb.AddSeparator()
+        TBAddTool(tb, "Open"  , 'ART_FILE_OPEN', self.onLoad)
+        TBAddTool(tb, "Reload", 'ART_REDO'     , self.onReload)
+        TBAddTool(tb, "Add"   , 'ART_PLUS'     , self.onAdd)
         #bmp = wx.Bitmap('help.png') #wx.Bitmap("NEW.BMP", wx.BITMAP_TYPE_BMP) 
-        TBAddTool(tb,"Open"  ,wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN),self.onLoad)
-        TBAddTool(tb,"Reload",wx.ArtProvider.GetBitmap(wx.ART_REDO),self.onReload)
-        try:
-            TBAddTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.ART_PLUS),self.onAdd)
-        except:
-            TBAddTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.FILE_OPEN),self.onAdd)
         #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onDEBUG)
         tb.AddStretchableSpace()
         tb.Realize() 

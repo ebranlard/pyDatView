@@ -106,7 +106,16 @@ fi
 #fi
 #PYTHON_EXE=$FRAMEWORK_PYTHON
 # --- Setting up PYTHONHOME and PYTHON_EXE
-if [ "$IS_VIRTUAL_ENV" == "0" ] ; then
+if [ "$CONDA_ACTIVE" == "1" ] ; then
+    # TODO: NEW we use pythonw
+    echo "[INFO] It seems you are in a conda environment, trying with conda python.app"
+    #
+    #PYTHON_EXE=`which conda|rev|cut -c 6-|rev`"python.app"
+    PYTHON_EXE=pythonw
+    # NOTE: error message needs updating
+    HELP="[HELP] If a weird error appears(e.g. loading pandas), try 'conda update python.app'"
+
+elif [ "$IS_VIRTUAL_ENV" == "0" ] ; then
     if [ "$CONDA_ACTIVE" == "1" ] ; then
         echo "[INFO] It seems you are in a conda environment, trying with conda python.app"
         #
