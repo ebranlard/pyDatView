@@ -79,6 +79,9 @@ class FASTInputFile(File):
             return self.basefile.module
         else:
             return self._fixedfile.module
+    @property
+    def hasNodal(self):
+        return self.fixedfile.hasNodal
 
     def fixedFormat(self):
         # --- Creating a dedicated Child
