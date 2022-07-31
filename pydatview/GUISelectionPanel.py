@@ -296,10 +296,7 @@ class TablePopup(wx.Menu):
             self.Bind(wx.EVT_MENU, self.OnExportTab, item)
 
     def MyAppend(self, item):
-        try:
-            self.Append(item) # python3
-        except:
-            self.AppendItem(item) # python2
+        self.Append(item) # python3
 
     def OnNaming(self, event=None):
         tabPanel=self.parent.GetParent()
@@ -358,10 +355,7 @@ class ColumnPopup(wx.Menu):
                 self.Bind(wx.EVT_MENU, self.OnDeleteColumn, item)
 
     def MyAppend(self, item):
-        try:
-            self.Append(item) # python3
-        except:
-            self.AppendItem(item) # python2
+        self.Append(item) # python3
 
     def OnShowID(self, event=None):
         self.parent.bShowID=self.itShowID.IsChecked()

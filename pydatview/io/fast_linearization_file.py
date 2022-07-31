@@ -1,11 +1,12 @@
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import
-from io import open
-from .file import File, isBinary, WrongFormatError, BrokenFormatError
-import pandas as pd
 import numpy as np
+import pandas as pd
 import re
+try:
+    from .file import File, WrongFormatError, BrokenFormatError
+except:
+    File = dict
+    class WrongFormatError(Exception): pass
+    class BrokenFormatError(Exception): pass
 
 class FASTLinearizationFile(File):
     """ 

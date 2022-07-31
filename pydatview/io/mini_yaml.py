@@ -1,6 +1,3 @@
-from __future__ import unicode_literals
-from __future__ import print_function
-from io import open
 import numpy as np
 
 def yaml_read(filename,dictIn=None):

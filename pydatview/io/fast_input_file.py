@@ -1,25 +1,13 @@
-from __future__ import division
-from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import absolute_import
-from io import open
-from builtins import range
-from builtins import str
-from future import standard_library
-standard_library.install_aliases()
+import numpy as np
+import os
+import pandas as pd
+import re
 try:
     from .file import File, WrongFormatError, BrokenFormatError
 except:
-    # --- Allowing this file to be standalone..
-    class WrongFormatError(Exception):
-        pass
-    class BrokenFormatError(Exception):
-        pass
     File = dict
-import os
-import numpy as np
-import re
-import pandas as pd
+    class WrongFormatError(Exception): pass
+    class BrokenFormatError(Exception): pass
 
 __all__  = ['FASTInputFile']
 
@@ -79,9 +67,6 @@ class FASTInputFile(File):
             return self.basefile.module
         else:
             return self._fixedfile.module
-    @property
-    def hasNodal(self):
-        return self.fixedfile.hasNodal
 
     def fixedFormat(self):
         # --- Creating a dedicated Child
@@ -176,7 +161,6 @@ class FASTInputFileBase(File):
 
     def __init__(self, filename=None, **kwargs):
         self._size=None
-        self._encoding=None
         self.setData() # Init data
         if filename:
             self.filename = filename
@@ -931,26 +915,6 @@ class FASTInputFileBase(File):
 # --- Helper functions 
 # --------------------------------------------------------------------------------{
 def isStr(s):
-    # Python 2 and 3 compatible
-    # Two options below
-    # NOTE: all this avoided since we import str from builtins
-    # --- Version 2
-    #     isString = False;
-    #     if(isinstance(s, str)):
-    #         isString = True;
-    #     try:
-    #         if(isinstance(s, basestring)): # todo unicode as well
-    #             isString = True;
-    #     except NameError:
-    #         pass; 
-    #     return isString
-    # --- Version 1
-    #     try: 
-    #        basestring # python 2
-    #        return isinstance(s, basestring) or isinstance(s,unicode)
-    #     except NameError:
-    #          basestring=str #python 3
-    #     return isinstance(s, str)
    return isinstance(s, str)
 
 def strIsFloat(s):

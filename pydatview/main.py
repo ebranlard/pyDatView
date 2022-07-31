@@ -1,9 +1,3 @@
-from __future__ import division, unicode_literals, print_function, absolute_import
-from builtins import map, range, chr, str
-from io import open
-from future import standard_library
-standard_library.install_aliases()
-
 import numpy as np
 import os.path 
 import sys
@@ -728,9 +722,6 @@ pyDatView help:
        /usr/lib/Cellar/python/XXXXX/Frameworks/python.framework/Versions/XXXX/bin/pythonXXX;
   - Your python is an anaconda python, use something like:;
        /anaconda3/bin/python.app   (NOTE: the '.app'!
-  - You are using a python 2 version, you can use the system one:
-       /Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX
-       /System/Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX
 """
 
             elif wx.Platform == '__WXGTK__':

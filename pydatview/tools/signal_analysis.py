@@ -3,7 +3,6 @@ Signal analysis tools.
 NOTE: naming this module "signal.py" can sometimes create conflict with numpy
 
 """
-from __future__ import division
 import numpy as np
 from numpy.random import rand
 import pandas as pd
@@ -429,6 +428,111 @@ def find_time_offset(t, f, g, outputAll=False):
         return t_offset, lag, xcorr
     else:
         return t_offset
+
+def amplitude(x, t=None, T = None, mask=None, debug=False):
+    """
+    Compute signal amplitude (max-min)/2.
+    If a frequency is provided, the calculation is the average on each period
+
+    x: signal time series
+    mask - time at which transient starts 
+    """
+    if mask is not None:
+        x = x[mask]
+        if t is not None:
+            t = t[mask]
+    #
+    if T is not None and t is not None:
+        t -= t[0]
+        if t[-1]<=T:
+            return (np.max(x)-np.min(x))/2
+        n = int(t[-1]/T)
+        A = 0
+        for i in range(n):
+            b = np.logical_and(t<=(i+1)*T ,  t>=i*T)
+            A+=(np.max(x[b])-np.min(x[b]))/2
+        A/=n
+
+        if debug:
+            import matplotlib.pyplot as plt
+            from welib.tools.colors import python_colors
+            fig,ax = plt.subplots(1, 1, sharey=False, figsize=(6.4,4.8)) # (6.4,4.8)
+            fig.subplots_adjust(left=0.12, right=0.95, top=0.95, bottom=0.11, hspace=0.20, wspace=0.20)
+            ax.plot(t,  x-np.mean(x) ,'k-', lw=3, label='Original')
+            for i in range(n):
+                b = np.logical_and(t<=(i+1)*T ,  t>=i*T)
+                A=(np.max(x[b])-np.min(x[b]))/2
+                ax.plot(t[b]- i*T,  x[b]-np.mean(x[b]), c=python_colors(i),  label='A={}'.format(A))
+                ax.plot([0,0,T,T,0],[-A,A,A,-A,-A] ,'--', c=python_colors(i)  )
+            ax.set_xlabel('time')
+            ax.set_ylabel('x')
+            ax.legend()
+        return A
+
+        # split signals into  subsets
+        import pdb; pdb.set_trace()
+    else:
+        return (np.max(x)-np.min(x))/2
+
+def phase_shift(A, B, t, omega, tStart=0, deg=True, debug=False):
+    """
+    A: reference signal
+    omega: expected frequency of reference signal
+    """
+    b =t>=tStart
+    t = t[b]
+    A = A[b]
+    B = B[b]
+    t_offset, lag, xcorr = find_time_offset(t, A, B, outputAll=True)
+    phi0 = t_offset*omega # Phase offset in radians
+    phi  = np.mod(phi0, 2*np.pi)  
+    if phi > 0.8 * np.pi:
+        phi = phi-2*np.pi
+    if deg: 
+        phi *=180/np.pi
+        phi0*=180/np.pi
+        if phi<-190:
+            phi+=360
+#     if debug:
+#         raise NotImplementedError()
+    return phi 
+
+def input_output_amplitude_phase(t, u, y, omega_u=None, A_u=None, deg=True, mask=None, debug=False):
+    """ 
+    Return amplitude ratio and phase shift between a reference input `u` and output `y`
+       Typically used when the input is a sinusoidal signal and the output is "similar".
+
+    INPUTS:
+     - t: time vector, length nt
+     - u: input time series, length nt
+     - y: output time series, length nt
+     - omega_u: cyclic frequency, required to convert time offset to phase
+                when provided, amplitude ratio is computed for each possible periods, and averaged
+     - A_u : amplitude of input signal (typically known if y is a sinusoid)
+     - deg: phase is returned in degrees
+     - mask: mask to be applied to t, u, y
+    """
+    if mask is not None:
+        t = t[mask]
+        u = u[mask]
+        y = y[mask]
+    if omega_u is None:
+        raise NotImplementedError()
+        T=None
+    else:
+        T = 2*np.pi/omega_u
+
+    # --- Amplitude ratio
+    A_y = amplitude(y, t, T=T, debug=debug)
+    if A_u is None:
+        A_u = amplitude(u, t, T=T)
+    G = A_y/A_u
+
+    # --- Phase shift
+    phi = phase_shift(u, y, t, omega_u, deg=deg, debug=debug)
+
+    return G, phi
+    
 
 def sine_approx(t, x, method='least_square'):
     """ 

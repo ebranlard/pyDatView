@@ -155,7 +155,6 @@ class File(dict):
 # --- Helper functions
 # --------------------------------------------------------------------------------{
 def isBinary(filename):
-    from io import open
     with open(filename, 'r') as f:
         try:
             # first try to read as string

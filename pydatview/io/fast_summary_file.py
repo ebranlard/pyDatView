@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from io import open
 import os
 # Local 
 from .mini_yaml import yaml_read

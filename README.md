@@ -5,7 +5,7 @@
 
 # pyDatView
 
-A crossplatform GUI to display tabulated data from files or python pandas dataframes. It's compatible Windows, Linux and MacOS, python 2 and python 3. Some of its features are: multiples plots, FFT plots, probability plots, export of figures...
+A crossplatform GUI to display tabulated data from files or python pandas dataframes. It's compatible Windows, Linux and MacOS, with python 3. Some of its features are: multiples plots, FFT plots, probability plots, export of figures...
 The file formats supported, are: CSV files and other formats present in the [weio](http://github.com/ebranlard/weio/) library.
 Additional file formats can easily be added.
 
@@ -168,7 +168,7 @@ Scaling all plots between 0 and 1 (by selecting `MinMax`)
 For Windows users, installer executables are available [here](https://github.com/ebranlard/pyDatView/releases) (look for the latest pyDatView\*.exe)
 
 ### Linux installation
-The script is compatible python 2.7 and python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`.
+The script is compatible with python 3 and relies on the following python packages: `numpy` `matplotlib`, `pandas`, `wxpython`.
 To download the code and install the dependencies (with pip) run the following:
 ```bash
 git clone https://github.com/ebranlard/pyDatView
@@ -192,7 +192,7 @@ python setup.py install
 
 
 ## MacOS installation
-The installation should work with python2 and python3, with `brew` (with or without a `virtualenv`) or `anaconda`.
+The installation should work with python3, with `brew` (with or without a `virtualenv`) or `anaconda`.
 First, download the source code:
 ```bash
 git clone https://github.com/ebranlard/pyDatView
@@ -232,7 +232,7 @@ python3 pyDatView.py
 ```
 
 ### Brew-python version (inside a virtualenv)
-If you are inside a virtualenv, with python 2 or 3, use:
+If you are inside a virtualenv, with python 3, use:
 ```
 pip install -r requirements.txt
 ./pythonmac pyDatView.py

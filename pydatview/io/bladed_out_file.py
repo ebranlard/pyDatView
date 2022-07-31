@@ -1,17 +1,15 @@
-# -*- coding: utf-8 -*-
 import os
 import numpy as np
 import re
 import pandas as pd
 import glob
 import shlex
-# try:
-from .file import File, WrongFormatError, BrokenFormatError, isBinary
-# except:
-#     EmptyFileError    = type('EmptyFileError', (Exception,),{})
-#     WrongFormatError  = type('WrongFormatError', (Exception,),{})
-#     BrokenFormatError = type('BrokenFormatError', (Exception,),{})
-#     File=dict
+try:
+    from .file import File, WrongFormatError, BrokenFormatError
+except:
+    File = dict
+    class WrongFormatError(Exception): pass
+    class BrokenFormatError(Exception): pass
 
         
 # --------------------------------------------------------------------------------}
@@ -371,6 +369,21 @@ class BladedFile(File):
         else:
             return dfs
     
+
+def isBinary(filename):
+    with open(filename, 'r') as f:
+        try:
+            # first try to read as string
+            l = f.readline()
+            # then look for weird characters
+            for c in l:
+                code = ord(c)
+                if code<10 or (code>14 and code<31):
+                    return True
+            return False
+        except UnicodeDecodeError:
+            return True
+
 if __name__ == '__main__':
     pass
     #filename = r'E:\Work_Google Drive\Bladed_Sims\Bladed_out_binary.$41'

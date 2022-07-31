@@ -1,8 +1,3 @@
-from __future__ import division,unicode_literals,print_function,absolute_import
-from builtins import map, range, chr, str
-from io import open
-from future import standard_library
-standard_library.install_aliases()
 import os
 
 from .file import File, WrongFormatError

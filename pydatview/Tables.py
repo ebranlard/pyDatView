@@ -660,10 +660,7 @@ class Table(object):
 
     def export(self,path):
         if isinstance(self.data, pd.DataFrame):
-            try:
-                self.data.to_csv(path,sep=',',index=False) #python3
-            except:
-                self.data.to_csv(path,sep=str(u',').encode('utf-8'),index=False) #python 2.
+            self.data.to_csv(path,sep=',',index=False) #python3
         else:
             raise NotImplementedError('Export of data that is not a dataframe')
 

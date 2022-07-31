@@ -602,7 +602,6 @@ class GraphModel(object):
 
         if outfile is not None:
             import json
-            from io import open
             jsonFile=outfile
             with open(jsonFile, 'w', encoding='utf-8') as f:
                 #f.write(to_json(d))

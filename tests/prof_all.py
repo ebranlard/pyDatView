@@ -1,7 +1,4 @@
 
-from __future__ import absolute_import
-
-
 def test_heavy():
     import time
     import sys

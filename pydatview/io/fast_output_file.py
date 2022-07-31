@@ -1,37 +1,20 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import unicode_literals
-from __future__ import print_function
-from io import open
-from builtins import map
-from builtins import range
-from builtins import chr
-from builtins import str
-from future import standard_library
-standard_library.install_aliases()
-
 from itertools import takewhile
-
-try:
-    from .file import File, WrongFormatError, BrokenReaderError, EmptyFileError
-except:
-    # --- Allowing this file to be standalone..
-    class WrongFormatError(Exception):
-        pass
-    class WrongReaderError(Exception):
-        pass
-    class EmptyFileError(Exception):
-        pass
-    File = dict
-try:
-    from .csv_file import CSVFile
-except:
-    print('CSVFile not available')
 import numpy as np
 import pandas as pd
 import struct
 import os
 import re
+try:
+    from .file import File, WrongFormatError, BrokenReaderError, EmptyFileError
+except:
+    File = dict
+    class WrongFormatError(Exception): pass
+    class WrongReaderError(Exception): pass
+    class EmptyFileError(Exception): pass
+try:
+    from .csv_file import CSVFile
+except:
+    print('CSVFile not available')
 
 
 # --------------------------------------------------------------------------------}

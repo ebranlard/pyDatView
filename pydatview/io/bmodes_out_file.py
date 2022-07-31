@@ -8,10 +8,10 @@ import os
 try:
     from .file import File, WrongFormatError, BrokenFormatError
 except:
+    File=dict
     EmptyFileError    = type('EmptyFileError', (Exception,),{})
     WrongFormatError  = type('WrongFormatError', (Exception,),{})
     BrokenFormatError = type('BrokenFormatError', (Exception,),{})
-    File=dict
 
 class BModesOutFile(File):
     """ 

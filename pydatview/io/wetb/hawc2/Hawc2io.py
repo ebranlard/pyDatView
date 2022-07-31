@@ -27,17 +27,6 @@ Need to be done:
     * add error handling for allmost every thing
 
 """
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import absolute_import
-from builtins import int
-from builtins import range
-from io import open as opent
-from builtins import str
-from future import standard_library
-standard_library.install_aliases()
-from builtins import object
 import numpy as np
 import os
 
@@ -80,7 +69,7 @@ class ReadHawc2(object):
         # read *.sel hawc2 output file for result info
         if self.FileName.lower().endswith('.sel'):
             self.FileName = self.FileName[:-4]
-        fid = opent(self.FileName + '.sel', 'r')
+        fid = open(self.FileName + '.sel', 'r')
         Lines = fid.readlines()
         fid.close()
         if Lines[0].lower().find('bhawc')>=0:

@@ -1,9 +1,3 @@
-from __future__ import division,unicode_literals,print_function,absolute_import
-from builtins import map, range, chr, str
-from io import open
-from future import standard_library
-standard_library.install_aliases()
-
 from .file import File, WrongFormatError, BrokenFormatError
 import numpy as np
 import pandas as pd

@@ -1,20 +1,12 @@
-from __future__ import division
-from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import absolute_import
-from io import open
-from builtins import map
-from builtins import range
-from builtins import chr
-from builtins import str
-from future import standard_library
-standard_library.install_aliases()
-import os
-import re
-
-from .file import File, WrongFormatError
 import numpy as np
 import pandas as pd
+import os
+try:
+    from .file import File, WrongFormatError, BrokenFormatError
+except:
+    File = dict
+    class WrongFormatError(Exception): pass
+    class BrokenFormatError(Exception): pass
 
 
 class HAWCStab2IndFile(File):

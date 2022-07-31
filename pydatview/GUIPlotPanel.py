@@ -24,8 +24,8 @@ except Exception as e:
         print('')
         print('  You can solve this by either:')
         print('    - using python3, and pip3 e.g. installing it with brew')
-        print('    - using a virtual environment with python 2 or 3')
-        print('    - using anaconda with python 2 or 3');
+        print('    - using a virtual environment with python 3')
+        print('    - using anaconda with python 3');
         print('')
         import sys
         sys.exit(1)

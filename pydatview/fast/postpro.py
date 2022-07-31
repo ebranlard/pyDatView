@@ -1,5 +1,4 @@
 # --- For cmd.py
-from __future__ import division, print_function
 import os
 import pandas as pd
 import numpy as np
@@ -140,7 +139,6 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
     if hasattr(AD_bld,'startswith'): # if string
         AD_bld = FASTInputFile(AD_bld)
     #print(AD_bld.keys())
-
     nOuts=AD['NBlOuts']
     if nOuts<=0:
         if chordOut:
@@ -156,31 +154,65 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
         return r_gag
 
 def BD_BldStations(BD, BDBld):
-    """ Returns BeamDyn Blade Station positions, useful to know where the outputs are.
+ 
+    """ Returns BeamDyn Blade Quadrature Points positions:
+        - Defines where BeamDyn outputs are provided.
+        - Used by BeamDyn for the Input Mesh  u%DistrLoad
+                          and the Output Mesh y%BldMotion
+    NOTE: This should match the quadrature points in the summary file of BeamDyn for a straight beam
+          This will NOT match the "Initial Nodes" reported  in the summary file.
     INPUTS:
        - BD: either:
            - a filename of a ElastoDyn input file
            - an instance of FileCl, as returned by reading the file, BD = weio.read(BD_filename)
-    OUTUPTS:
+    OUTPUTS:
         - r_nodes: spanwise position from the balde root of the Blade stations
     """
+    GAUSS_QUADRATURE = 1
+    TRAP_QUADRATURE  = 2
     if hasattr(BD,'startswith'): # if string
         BD = FASTInputFile(BD)
-    if hasattr(BD,'startswith'): # if string
+    if hasattr(BDBld,'startswith'): # if string
         BDBld = FASTInputFile(BDBld)
         #  BD['BldFile'].replace('"',''))
 
+
+
+    # --- Extract relevant info from BD files
     z_kp = BD['MemberGeom'][:,2]
     R    = z_kp[-1]-z_kp[0]
-    r    = BDBld['BeamProperties']['span']*R
+
+    nStations      = BDBld['station_total']
+    rStations      = BDBld['BeamProperties']['span']*R
     quad = BD['quadrature']
-    ref  = BD['refine']
-    if 'default' in str(ref).lower():
-        ref = 1
-    dr   = np.diff(r)/ref
-    rmid = np.concatenate( [r[:-1]+dr*(iref+1) for iref in np.arange(ref-1)  ])
-    r    = np.concatenate( (r, rmid))
-    r    = np.unique(np.sort(r))
+
+    refine         = BD['refine']
+    nodes_per_elem = BD['order_elem'] + 1
+    if 'default' in str(refine).lower():
+        refine = 1
+
+    # --- Distribution of points
+    if quad==GAUSS_QUADRATURE:
+        # See BD_GaussPointWeight
+        #  Number of Gauss points
+        nqp = nodes_per_elem #- 1
+        # qp_indx_offset = 1 ! we skip the first node on the input mesh (AD needs values at the end points, but BD doesn't use them)
+        x, _ = np.polynomial.legendre.leggauss(nqp)
+        r= R*(1+x)/2
+
+    elif quad==TRAP_QUADRATURE:
+        # See BD_TrapezoidalPointWeight
+        nqp = (nStations - 1)*refine + 1
+        # qp_indx_offset = 0
+        # BldMotionNodeLoc = BD_MESH_QP ! we want to output y%BldMotion at the blade input property stations, and this will be a short-cut       
+        dr   = np.diff(rStations)/refine
+        rmid = np.concatenate( [rStations[:-1]+dr*(iref+1) for iref in np.arange(refine-1)  ])
+        r    = np.concatenate( (rStations, rmid))
+        r    = np.unique(np.sort(r))
+    else:
+
+        raise NotImplementedError('BeamDyn with Gaussian quadrature points')
+
     return r
 
 def BD_BldGag(BD):
@@ -1401,7 +1433,7 @@ def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKee
 
 
 def integrateMoment(r, F):
-    """ 
+    r""" 
     Integrate moment from force and radial station
         M_j =  \int_{r_j}^(r_n) f(r) * (r-r_j) dr  for j=1,nr
     TODO: integrate analytically the "r" part
@@ -1412,7 +1444,7 @@ def integrateMoment(r, F):
     return M
 
 def integrateMomentTS(r, F):
-    """
+    r"""
     Integrate moment from time series of forces at nr radial stations
 
     Compute 
