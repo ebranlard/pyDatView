@@ -128,7 +128,7 @@ class FASTInputFile(File):
 
     @comment.setter
     def comment(self,comment):
-        self.fixedfile.comment(comment)
+        self.fixedfile.comment = comment
 
     def __iter__(self):
         return self.fixedfile.__iter__()
