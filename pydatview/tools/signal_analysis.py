@@ -21,7 +21,7 @@ SAMPLERS=[
     {'name':'Remove',  'param':[], 'paramName':'Remove list'},
     {'name':'Every n', 'param':2  , 'paramName':'n'},
     {'name':'Time-based', 'param':0.01  , 'paramName':'Sample time (s)'},
-    {'name':'Delta x', 'param':0.1, 'paramName':'dx'},
+    {'name':'Delta x', 'param':[0.1,np.nan,np.nan], 'paramName':'dx, xmin, xmax'},
 ]
 
 
@@ -164,10 +164,10 @@ def resample_interp(x_old, x_new, y_old=None, df_old=None):
         # --- Method 2 interp storing dx
         data_new=multiInterp(x_new, x_old, df_old.values.T)
         df_new = pd.DataFrame(data=data_new.T, columns=df_old.columns.values)
-        return x_new, df_new
+        return df_new
 
     if y_old is not None:
-        return x_new, np.interp(x_new, x_old, y_old)
+        return np.interp(x_new, x_old, y_old)
 
 
 def applySamplerDF(df_old, x_col, sampDict):
@@ -185,13 +185,13 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
         if len(param)==0:
             raise Exception('Error: At least one value is required to resample the x values with')
         x_new = param
-        return resample_interp(x_old, x_new, y_old, df_old)
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
 
     elif sampDict['name']=='Insert':
         if len(param)==0:
             raise Exception('Error: provide a list of values to insert')
         x_new = np.sort(np.concatenate((x_old.ravel(),param)))
-        return resample_interp(x_old, x_new, y_old, df_old)
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
 
     elif sampDict['name']=='Remove':
         I=[]
@@ -202,14 +202,33 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
             if len(Ifound)>0:
                 I+=list(Ifound.ravel())
         x_new=np.delete(x_old,I)
-        return resample_interp(x_old, x_new, y_old, df_old)
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
 
     elif sampDict['name']=='Delta x':
         if len(param)==0:
             raise Exception('Error: provide value for dx')
         dx    = param[0]
-        x_new = np.arange(x_old[0], x_old[-1]+dx/2, dx)
-        return resample_interp(x_old, x_new, y_old, df_old)
+        if dx==0:
+            raise Exception('Error: `dx` cannot be 0')
+        if len(param)==1:
+            # NOTE: not using min/max if data loops (like airfoil)
+            xmin =  np.min(x_old) 
+            xmax =  np.max(x_old) + dx/2
+        elif len(param)==3:
+            xmin  = param[1]
+            xmax  = param[2]
+            if xmin is np.nan:
+                xmin =  np.min(x_old) 
+            if xmax is np.nan:
+                xmax =  np.max(x_old) + dx/2
+        else:
+            raise Exception('Error: the sampling parameters should be a list of three values `dx, xmin, xmax`')
+        x_new = np.arange(xmin, xmax, dx)
+        if len(x_new)==0:
+            xmax = xmin+dx*1.1 # NOTE: we do it like this to account for negative dx
+            x_new = np.arange(xmin, xmax, dx)
+        param = [dx, xmin, xmax]
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
 
     elif sampDict['name']=='Every n':
         if len(param)==0:
