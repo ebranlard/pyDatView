@@ -14,9 +14,11 @@ import pydatview.io as weio # File Formats and File Readers
 # --- TabList 
 # --------------------------------------------------------------------------------{
 class TableList(object): # todo inherit list
-    def __init__(self,tabs=[]):
-        self._tabs=tabs
-        self.Naming='Ellude'
+    def __init__(self, tabs=None):
+        if tabs is None:
+            tabs =[]
+        self._tabs  = tabs
+        self.Naming = 'Ellude'
 
     # --- behaves like a list...
     def __iter__(self):
@@ -30,7 +32,10 @@ class TableList(object): # todo inherit list
         else:
             raise StopIteration
 
-    def append(self,t):
+    def __len__(self):
+        return len(self._tabs)
+
+    def append(self, t):
         if isinstance(t,list):
             self._tabs += t
         else:
@@ -156,6 +161,48 @@ class TableList(object): # todo inherit list
             self._tabs = [t for _,t in sorted(zip(tabnames_display,self._tabs))]
         else:
             raise Exception('Sorting method unknown: `{}`'.format(method))
+
+    def mergeTabs(self, I=None, ICommonColPerTab=None, samplDict=None, extrap='nan'):
+        """ 
+        Merge table together.
+        TODO: add options for how interpolation/merging is done
+
+        I: index of tables to merge, if None: all tables are merged
+        """
+        from pydatview.tools.signal_analysis import interpDF
+        #from pydatview.tools.signal_analysis import applySampler
+        #df_new, name_new = t.applyResampling(iCol,sampDict, bAdd=bAdd)
+        if I is None:
+            I = range(len(self._tabs))
+
+        dfs = [self._tabs[i].data for i in I]
+        if ICommonColPerTab is None:
+            # --- Option 0 - Index concatenation 
+            df = pd.concat(dfs, axis=1)
+            # Remove duplicated columns
+            #df = df.loc[:,~df.columns.duplicated()].copy()
+        else:
+            # --- Option 1 - We combine all the x from the common column together 
+            # NOTE: We use unique and sort, which will distrupt the user data (e.g. Airfoil Coords)
+            #       The user should then use other methods (when implemented)
+            x_new=[]
+            cols = []
+            for it, icol in  zip(I, ICommonColPerTab):
+                xtab = self._tabs[it].data.iloc[:, icol].values
+                cols.append(self._tabs[it].data.columns[icol])
+                x_new = np.concatenate( (x_new, xtab) ) 
+            x_new = np.unique(np.sort(x_new)) 
+            # Create interpolated dataframes based on x_new
+            dfs_new = []
+            for i, (col, df_old) in enumerate(zip(cols, dfs)):
+                df = interpDF(x_new, col, df_old, extrap=extrap)
+                if i>0:
+                    df = df.loc[:, df.columns!=col] # We remove the common columns
+                dfs_new.append(df)
+            df = pd.concat(dfs_new, axis=1)
+        newName = self._tabs[I[0]].name+'_merged'
+        self.append(Table(data=df, name=newName))
+        return newName, df
 
     def deleteTabs(self, I):
         self._tabs = [t for i,t in enumerate(self._tabs) if i not in I]
@@ -714,5 +761,3 @@ if __name__ == '__main__':
     from Tables import Table
     import numpy as np
 
-    def OnTabPopup(event):
-        self.PopupMenu(TablePopup(self,selPanel.tabPanel.lbTab), event.GetPosition())

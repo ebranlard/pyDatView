@@ -343,8 +343,6 @@ class MainFrame(wx.Frame):
             self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.tabPanel.lbTab)
             self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
 
-            self.selPanel.tabPanel.lbTab.Bind(wx.EVT_RIGHT_DOWN, self.OnTabPopup)
-
         # plot trigger
         if bPlot:
             self.mainFrameUpdateLayout()
@@ -379,6 +377,7 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),1)
             self.statusbar.SetStatusText('',2)
 
+    # --- Table Actions - TODO consider a table handler, or doing only the triggers
     def renameTable(self, iTab, newName):
         oldName = self.tabList.renameTable(iTab, newName)
         self.selPanel.renameTable(iTab, oldName, newName)
@@ -390,9 +389,15 @@ class MainFrame(wx.Frame):
         # Trigger a replot
         self.onTabSelectionChange()
 
+    def mergeTabsTrigger(self):
+        # Trigger a replot
+        self.onTabSelectionChange()
 
     def deleteTabs(self, I):
         self.tabList.deleteTabs(I)
+        if len(self.tabList)==0:
+            self.cleanGUI()
+            return
 
         # Invalidating selections
         self.selPanel.tabPanel.lbTab.SetSelection(-1)
@@ -404,6 +409,7 @@ class MainFrame(wx.Frame):
         self.selPanel.update_tabs(self.tabList)
         # Trigger a replot
         self.onTabSelectionChange()
+
 
     def exportTab(self, iTab):
         tab=self.tabList.get(iTab)
@@ -454,11 +460,6 @@ class MainFrame(wx.Frame):
         #if hasattr(self,'selPanel'):
         #    print('ON SASH')
         #    self.selPanel.setEquiSash(event)
-
-    def OnTabPopup(self,event):
-        menu = TablePopup(self,self.selPanel.tabPanel.lbTab)
-        self.PopupMenu(menu, event.GetPosition())
-        menu.Destroy()
 
     def onTabSelectionChange(self,event=None):
         # TODO This can be cleaned-up

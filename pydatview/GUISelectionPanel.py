@@ -1,12 +1,9 @@
 import wx
 import platform
-try:
-    from .common import *
-    from .GUICommon import *
-    from .GUIMultiSplit import MultiSplit
-    from .GUIToolBox import GetKeyString
-except:
-    raise
+from pydatview.common import *
+from pydatview.GUICommon import *
+from pydatview.GUIMultiSplit import MultiSplit
+from pydatview.GUIToolBox import GetKeyString
 #     from common import *
 #     from GUICommon import *
 #     from GUIMultiSplit import MultiSplit
@@ -258,54 +255,88 @@ class FormulaDialog(wx.Dialog):
 # --- Popup menus
 # --------------------------------------------------------------------------------{
 class TablePopup(wx.Menu):
-    def __init__(self, mainframe, parent, fullmenu=False):
+    """ Popup Menu when right clicking on the table list """
+    def __init__(self, parent, tabPanel, selPanel=None, mainframe=None, fullmenu=False):
         wx.Menu.__init__(self)
-        self.parent = parent # parent is listbox
+        self.parent    = parent    # parent is listbox
+        self.tabPanel  = tabPanel
+        self.tabList   = tabPanel.tabList
+        self.selPanel  = selPanel
         self.mainframe = mainframe
         self.ISel = self.parent.GetSelections()
 
         if fullmenu:
             self.itNameFile = wx.MenuItem(self, -1, "Naming: by file names", kind=wx.ITEM_CHECK)
-            self.MyAppend(self.itNameFile)
+            self.Append(self.itNameFile)
             self.Bind(wx.EVT_MENU, self.OnNaming, self.itNameFile)
             self.Check(self.itNameFile.GetId(), self.parent.GetParent().tabList.Naming=='FileNames') # Checking the menu box
 
             item = wx.MenuItem(self, -1, "Sort by name")
-            self.MyAppend(item)
+            self.Append(item)
             self.Bind(wx.EVT_MENU, self.OnSort, item)
 
-            item = wx.MenuItem(self, -1, "Add")
-            self.MyAppend(item)
-            self.Bind(wx.EVT_MENU, self.mainframe.onAdd, item)
+            if self.mainframe is not None:
+                item = wx.MenuItem(self, -1, "Add")
+                self.Append(item)
+                self.Bind(wx.EVT_MENU, self.mainframe.onAdd, item)
+
+        if len(self.ISel)>1:
+            item = wx.MenuItem(self, -1, "Merge")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnMergeTabs, item)
 
         if len(self.ISel)>0:
             item = wx.MenuItem(self, -1, "Delete")
-            self.MyAppend(item)
+            self.Append(item)
             self.Bind(wx.EVT_MENU, self.OnDeleteTabs, item)
 
         if len(self.ISel)==1:
-            tabPanel=self.parent.GetParent()
-            if tabPanel.tabList.Naming!='FileNames':
+            if self.tabPanel.tabList.Naming!='FileNames':
                 item = wx.MenuItem(self, -1, "Rename")
-                self.MyAppend(item)
+                self.Append(item)
                 self.Bind(wx.EVT_MENU, self.OnRenameTab, item)
 
         if len(self.ISel)==1:
             item = wx.MenuItem(self, -1, "Export")
-            self.MyAppend(item)
+            self.Append(item)
             self.Bind(wx.EVT_MENU, self.OnExportTab, item)
 
-    def MyAppend(self, item):
-        self.Append(item) # python3
-
     def OnNaming(self, event=None):
-        tabPanel=self.parent.GetParent()
         if self.itNameFile.IsChecked():
-            tabPanel.tabList.setNaming('FileNames')
+            self.tabPanel.tabList.setNaming('FileNames')
         else:
-            tabPanel.tabList.setNaming('Ellude')
+            self.tabPanel.tabList.setNaming('Ellude')
 
-        tabPanel.updateTabNames()
+        self.tabPanel.updateTabNames()
+
+    def OnMergeTabs(self, event):
+        # --- Figure out the common columns
+        tabs = [self.tabList.get(i) for i in self.ISel]
+        IKeepPerTab, IMissPerTab, IDuplPerTab, _ = getTabCommonColIndices(tabs)
+        nCommonCols = len(IKeepPerTab[0])
+        commonCol        = None
+        ICommonColPerTab = None
+        samplDict        = None
+        if nCommonCols>=1:
+            # We use the first one
+            # TODO Menu to figure out which column to chose and how to merge (interp?)
+            keepAllX = True
+            #samplDict ={'name':'Replace', 'param':[], 'paramName':'New x'}
+            # Index of common column for each table
+            ICommonColPerTab = [I[0] for I in IKeepPerTab]
+        else:
+            # we'll merge based on index..
+            pass
+
+            
+
+        # Merge tables and add it to the list
+        self.tabList.mergeTabs(self.ISel, ICommonColPerTab, samplDict=samplDict)
+        # Updating tables
+        self.selPanel.update_tabs(self.tabList)
+        # TODO select latest
+        if self.mainframe:
+            self.mainframe.mergeTabsTrigger()
 
     def OnDeleteTabs(self, event):
         self.mainframe.deleteTabs(self.ISel)
@@ -325,37 +356,35 @@ class TablePopup(wx.Menu):
         self.mainframe.sortTabs()
 
 class ColumnPopup(wx.Menu):
+    """ Popup Menu when right clicking on the column list """
     def __init__(self, parent, fullmenu=False):
         wx.Menu.__init__(self)
-        self.parent = parent
+        self.parent = parent # parent is ColumnPanel
         self.ISel = self.parent.lbColumns.GetSelections()
 
         self.itShowID = wx.MenuItem(self, -1, "Show ID", kind=wx.ITEM_CHECK)
-        self.MyAppend(self.itShowID)
+        self.Append(self.itShowID)
         self.Bind(wx.EVT_MENU, self.OnShowID, self.itShowID)
         self.Check(self.itShowID.GetId(), self.parent.bShowID)
 
         if self.parent.tab is not None:  # TODO otherwise
             item = wx.MenuItem(self, -1, "Add")
-            self.MyAppend(item)
+            self.Append(item)
             self.Bind(wx.EVT_MENU, self.OnAddColumn, item)
 
             if len(self.ISel)==1 and self.ISel[0]>=0: 
                 item = wx.MenuItem(self, -1, "Rename")
-                self.MyAppend(item)
+                self.Append(item)
                 self.Bind(wx.EVT_MENU, self.OnRenameColumn, item)
             if len(self.ISel) == 1 and any(
                     f['pos'] == self.ISel[0] for f in self.parent.tab.formulas):
                 item = wx.MenuItem(self, -1, "Edit")
-                self.MyAppend(item)
+                self.Append(item)
                 self.Bind(wx.EVT_MENU, self.OnEditColumn, item)
             if len(self.ISel)>=1 and self.ISel[0]>=0: 
                 item = wx.MenuItem(self, -1, "Delete")
-                self.MyAppend(item)
+                self.Append(item)
                 self.Bind(wx.EVT_MENU, self.OnDeleteColumn, item)
-
-    def MyAppend(self, item):
-        self.Append(item) # python3
 
     def OnShowID(self, event=None):
         self.parent.bShowID=self.itShowID.IsChecked()
@@ -490,13 +519,14 @@ class ColumnPopup(wx.Menu):
 # --------------------------------------------------------------------------------{
 class TablePanel(wx.Panel):
     """ Display list of tables """
-    def __init__(self, parent, mainframe,tabList):
+    def __init__(self, parent, selPanel, mainframe, tabList):
         # Superclass constructor
         super(TablePanel,self).__init__(parent)
         # DATA
-        self.parent=parent
-        self.mainframe=mainframe
-        self.tabList=tabList
+        self.parent    = parent    # splitter
+        self.selPanel  = selPanel
+        self.mainframe = mainframe
+        self.tabList   = tabList
         # GUI
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
         self.bt=wx.Button(tb,wx.ID_ANY,CHAR['menu'], style=wx.BU_EXACTFIT)
@@ -513,13 +543,20 @@ class TablePanel(wx.Panel):
         #sizer.Add(label, 0, border=5)
         sizer.Add(self.lbTab, 2, flag=wx.EXPAND, border=5)
         self.SetSizer(sizer)
+        # Bind
+        self.lbTab.Bind(wx.EVT_RIGHT_DOWN, self.onTabPopup)
 
-    def showTableMenu(self,event=None):
-        pos = (self.bt.GetPosition()[0], self.bt.GetPosition()[1] + self.bt.GetSize()[1])
-        menu = TablePopup(self.mainframe,self.lbTab,fullmenu=True)
-        self.PopupMenu(menu, pos)
+    def onTabPopup(self, event=None):
+        menu = TablePopup(self.lbTab, self, self.selPanel, self.mainframe, fullmenu=False)
+        self.PopupMenu(menu, event.GetPosition())
         menu.Destroy()
 
+    def showTableMenu(self,event=None):
+        """ Table Menu is Table Popup but at button position, and with "full" menu options """
+        pos = (self.bt.GetPosition()[0], self.bt.GetPosition()[1] + self.bt.GetSize()[1])
+        menu = TablePopup(self.lbTab, self, self.selPanel, self.mainframe, fullmenu=True)
+        self.PopupMenu(menu, pos)
+        menu.Destroy()
 
     def updateTabNames(self):
         tabnames_display=self.tabList.getDisplayTabNames()
@@ -861,7 +898,7 @@ class SelectionPanel(wx.Panel):
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
         self.splitter.SetMinimumPaneSize(70)
-        self.tabPanel  = TablePanel (self.splitter,mainframe, tabList)
+        self.tabPanel  = TablePanel (self.splitter, self, mainframe, tabList)
         self.colPanel1 = ColumnPanel(self.splitter, self, mainframe);
         self.colPanel2 = ColumnPanel(self.splitter, self, mainframe);
         self.colPanel3 = ColumnPanel(self.splitter, self, mainframe);
@@ -1309,21 +1346,26 @@ class SelectionPanel(wx.Panel):
 
 if __name__ == '__main__':
     import pandas as pd;
-    from Tables import Table
+    from Tables import Table, TableList
     import numpy as np
 
-    def OnTabPopup(event):
-        self.PopupMenu(TablePopup(self,selPanel.tabPanel.lbTab), event.GetPosition())
 
     app = wx.App(False)
     self=wx.Frame(None,-1,"Title")
-    tab=Table(data=pd.DataFrame(data={'ColA': np.random.normal(0,1,100)+1,'ColB':np.random.normal(0,1,100)+2}))
-    selPanel=SelectionPanel(self,[tab],mode='twoColumnsMode')
+    tab1=Table(data=pd.DataFrame(data={'ID': np.arange(0,100),'ColA': np.random.normal(0,1,100)+1,'ColB':np.random.normal(0,1,100)+2}))
+    tab2=Table(data=pd.DataFrame(data={'ID': np.arange(50,150),'ColA': np.random.normal(0,1,100)+1,'ColB':np.random.normal(0,1,100)+2}))
+    tabs = TableList([tab1,tab2])
+
+    selPanel=SelectionPanel(self, tabs, mode='twoColumnsMode')
     self.SetSize((800, 600))
     self.Center()
     self.Show()
-    selPanel.tabPanel.lbTab.Bind(wx.EVT_RIGHT_DOWN, OnTabPopup)
 
+
+    selPanel.tabPanel.lbTab.SetSelection(0)
+    selPanel.tabPanel.lbTab.SetSelection(1)
+    menu = TablePopup(selPanel.tabPanel.lbTab, selPanel.tabPanel, selPanel)
+    menu.OnMergeTabs(None)
 
     app.MainLoop()
 

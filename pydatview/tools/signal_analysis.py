@@ -69,26 +69,28 @@ def multiInterp(x, xp, fp, extrap='bounded'):
     xp  = np.asarray(xp)
     assert fp.shape[1]==len(xp), 'Second dimension of fp should have the same length as xp'
 
-    j   = np.searchsorted(xp, x) - 1
-    dd  = np.zeros(len(x))
+    j = np.searchsorted(xp, x, 'left') - 1
+    dd  = np.zeros(len(x)) #*np.nan
     bOK = np.logical_and(j>=0, j< len(xp)-1)
-    bLower =j<0
-    bUpper =j>=len(xp)-1
     jOK = j[bOK]
     dd[bOK] = (x[bOK] - xp[jOK]) / (xp[jOK + 1] - xp[jOK])
     jBef=j 
     jAft=j+1
     # 
+    bLower =j<0
+    bUpper =j>=len(xp)-1
     # Use first and last values for anything beyond xp
     jAft[bUpper] = len(xp)-1
     jBef[bUpper] = len(xp)-1
     jAft[bLower] = 0
     jBef[bLower] = 0
     if extrap=='bounded':
+        #OK
         pass
-        # OK
     elif extrap=='nan':
-        dd[~bOK] = np.nan
+        # Set values to nan if out of bounds
+        bBeyond= np.logical_or(x<np.min(xp), x>np.max(xp))
+        dd[bBeyond] = np.nan
     else:
         raise NotImplementedError()
 
@@ -131,6 +133,23 @@ def interpArray(x, xp, fp, extrap='bounded'):
         # Normal case, within bounds
         dd = (x- xp[j]) / (xp[j+1] - xp[j])
         return (1 - dd) * fp[:,j] + fp[:,j+1] * dd
+
+
+def interpDF(x_new, xLabel, df, extrap='bounded'):
+    """ Resample a dataframe using linear interpolation"""
+    x_old = df[xLabel].values
+    #x_new=np.sort(x_new)
+    # --- Method 1 (pandas)
+    #df_new = df_old.copy()
+    #df_new = df_new.set_index(x_old)
+    #df_new = df_new.reindex(df_new.index | x_new)
+    #df_new = df_new.interpolate().loc[x_new]
+    #df_new = df_new.reset_index()
+    # --- Method 2 interp storing dx
+    data_new=multiInterp(x_new, x_old, df.values.T, extrap=extrap)
+    df_new = pd.DataFrame(data=data_new.T, columns=df.columns.values)
+    df_new[xLabel] = x_new # Just in case this value was replaced by nan..
+    return df_new
 
 
 def resample_interp(x_old, x_new, y_old=None, df_old=None):

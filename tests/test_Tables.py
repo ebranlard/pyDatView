@@ -40,6 +40,16 @@ class TestTable(unittest.TestCase):
         #      self.tabList.from_dataframes(dataframes=dfs, names=names, bAdd=bAdd)
         #
 
+    def test_merge(self):
+
+        tab1=Table(data=pd.DataFrame(data={'ID': np.arange(0,3,0.5),'ColA': [10,10.5,11,11.5,12,12.5]}))
+        tab2=Table(data=pd.DataFrame(data={'ID': np.arange(1,4),'ColB': [11,12,13]}))
+        tablist = TableList([tab1,tab2])
+        #
+        name, df = tablist.mergeTabs(ICommonColPerTab=[0,0], extrap='nan')
+        np.testing.assert_almost_equal(df['ID']   , [0      , 0.5    , 1.0 , 1.5  , 2.0 , 2.5  , 3.0])
+        np.testing.assert_almost_equal(df['ColA'] , [10     , 10.5   , 11  , 11.5 , 12  , 12.5 , np.nan] )
+        np.testing.assert_almost_equal(df['ColB'] , [np.nan , np.nan , 11  , 11.5 , 12  , 12.5 , 13.0] )
 
     def test_load_files_misc_formats(self):
         tablist = TableList()
@@ -78,6 +88,7 @@ class TestTable(unittest.TestCase):
 
 if __name__ == '__main__':
 #     TestTable.setUpClass()
+    TestTable().test_merge()
 #     tt= TestTable()
 #     tt.test_load_files_misc_formats()
-    unittest.main()
+#     unittest.main()
