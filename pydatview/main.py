@@ -402,7 +402,8 @@ class MainFrame(wx.Frame):
     def mergeTabsTrigger(self):
         if hasattr(self,'selPanel'):
             # Select the newly created table
-            self.selPanel.tabPanel.lbTab.SetSelection(len(self.tabList))
+            self.selPanel.tabPanel.lbTab.SetSelection(-1) # Empty selection
+            self.selPanel.tabPanel.lbTab.SetSelection(len(self.tabList)-1) # Select new/last table
             # Trigger a replot
             self.onTabSelectionChange()
 
