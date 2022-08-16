@@ -72,7 +72,7 @@ class FileDropTarget(wx.FileDropTarget):
               Format = None
           else:
               Format = self.parent.FILE_FORMATS[iFormat-1]
-          self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd)
+          self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd, bPlot=True)
       return True
 
 
@@ -241,7 +241,7 @@ class MainFrame(wx.Frame):
                 self.plotPanel.cleanPlot()
         gc.collect()
 
-    def load_files(self, filenames=[], fileformats=None, bReload=False, bAdd=False):
+    def load_files(self, filenames=[], fileformats=None, bReload=False, bAdd=False, bPlot=True):
         """ load multiple files, only trigger the plot at the end """
         if bReload:
             if hasattr(self,'selPanel'):
@@ -277,7 +277,7 @@ class MainFrame(wx.Frame):
             Warn(self,warn)
         # Load tables into the GUI
         if self.tabList.len()>0:
-            self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=True)
+            self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=bPlot)
 
     def load_df(self, df, name=None, bAdd=False, bPlot=True):
         if bAdd:
@@ -308,6 +308,7 @@ class MainFrame(wx.Frame):
         if bReload or bAdd:
             self.selPanel.update_tabs(self.tabList)
         else:
+            # --- Create a selPanel, plotPanel and infoPanel
             mode = SEL_MODES_ID[self.comboMode.GetSelection()]
             #self.vSplitter = wx.SplitterWindow(self.nb)
             self.vSplitter = wx.SplitterWindow(self.MainPanel)
@@ -390,8 +391,11 @@ class MainFrame(wx.Frame):
         self.onTabSelectionChange()
 
     def mergeTabsTrigger(self):
-        # Trigger a replot
-        self.onTabSelectionChange()
+        if hasattr(self,'selPanel'):
+            # Select the newly created table
+            self.selPanel.tabPanel.lbTab.SetSelection(len(self.tabList))
+            # Trigger a replot
+            self.onTabSelectionChange()
 
     def deleteTabs(self, I):
         self.tabList.deleteTabs(I)
@@ -546,7 +550,7 @@ class MainFrame(wx.Frame):
                 f = sorted(f, key=lambda k: k['pos']) # Sort formulae by position in list of formua
                 self.restore_formulas[tab.raw_name]=f # we use raw_name as key
             # Actually load files (read and add in GUI)
-            self.load_files(filenames, fileformats=fileformats, bReload=True,bAdd=False)
+            self.load_files(filenames, fileformats=fileformats, bReload=True, bAdd=False, bPlot=True)
         else:
            Error(self,'Open one or more file first.')
 
@@ -594,7 +598,7 @@ class MainFrame(wx.Frame):
            if dlg.ShowModal() == wx.ID_CANCEL:
                return     # the user changed their mind
            filenames = dlg.GetPaths()
-           self.load_files(filenames,fileformats=[Format]*len(filenames),bAdd=bAdd)
+           self.load_files(filenames,fileformats=[Format]*len(filenames),bAdd=bAdd, bPlot=True)
 
     def onModeChange(self, event=None):
         if hasattr(self,'selPanel'):
@@ -686,7 +690,7 @@ def test(filenames=None):
     if filenames is not None:
         app = wx.App(False)
         frame = MainFrame()
-        frame.load_files(filenames,fileformats=None)
+        frame.load_files(filenames,fileformats=None, bPlot=True)
         return
  
 # --------------------------------------------------------------------------------}
@@ -770,7 +774,7 @@ def showApp(firstArg=None, dataframes=None, filenames=[], names=None):
             names=['df{}'.format(i+1) for i in range(len(dataframes))]
         frame.load_dfs(dataframes, names)
     elif len(filenames)>0:
-        frame.load_files(filenames, fileformats=None)
+        frame.load_files(filenames, fileformats=None, bPlot=True)
     app.MainLoop()
 
 def cmdline():

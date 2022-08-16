@@ -881,7 +881,7 @@ class ColumnPanel(wx.Panel):
 # --------------------------------------------------------------------------------{
 class SelectionPanel(wx.Panel):
     """ Display options for the user to select data """
-    def __init__(self, parent, tabList, mode='auto',mainframe=None):
+    def __init__(self, parent, tabList, mode='auto', mainframe=None):
         # Superclass constructor
         super(SelectionPanel,self).__init__(parent)
         # DATA
@@ -894,6 +894,7 @@ class SelectionPanel(wx.Panel):
         self.modeRequested = mode
         self.currentMode   = None
         self.nSplits = -1
+        self.IKeepPerTab=None
 
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
@@ -916,7 +917,7 @@ class SelectionPanel(wx.Panel):
         # TRIGGERS
         self.setTables(tabList)
 
-    def updateLayout(self,mode=None):
+    def updateLayout(self, mode=None):
         self.Freeze()
         if mode is None:
             mode=self.modeRequested
@@ -937,7 +938,6 @@ class SelectionPanel(wx.Panel):
             raise Exception('Wrong mode for selection layout: {}'.format(mode))
         self.Thaw()
 
-
     def autoMode(self):
         ISel=self.tabPanel.lbTab.GetSelections()
         if self.tabList is not None:
@@ -955,6 +955,7 @@ class SelectionPanel(wx.Panel):
                 IKeepPerTab, IMissPerTab, IDuplPerTab, nCols = getTabCommonColIndices([self.tabList.get(i) for i in ISel])
                 if np.all(np.array([len(I) for I in IMissPerTab]))<np.mean(nCols)*0.8  and np.all(np.array([len(I) for I in IKeepPerTab])>=2):
                     self.simColumnsMode()
+                    # >>>self.IKeepPerTab = IKeepPerTab
                 elif len(ISel)==2:
                     self.twoColumnsMode()
                 elif len(ISel)==3:
@@ -1057,6 +1058,9 @@ class SelectionPanel(wx.Panel):
             # Trigger - updating columns and layout
             ISel=self.tabPanel.lbTab.GetSelections()
             self.tabSelected=ISel
+            # Mode might have changed if tables changed
+            if self.modeRequested=='auto':
+                self.autoMode()
             if self.currentMode=='simColumnsMode':
                 self.setColForSimTab(ISel)
             else:
@@ -1167,7 +1171,6 @@ class SelectionPanel(wx.Panel):
 
     def tabSelectionChanged(self):
         # TODO This can be cleaned-up and merged with updateLayout
-        #print('Tab selection change')
         # Storing the previous selection 
         #self.printSelection()
         self.saveSelection() # 
@@ -1265,7 +1268,6 @@ class SelectionPanel(wx.Panel):
         self.tabSelected = self.tabPanel.lbTab.GetSelections();
 
     def printSelection(self):
-        print('Number of tabSelections stored:',len(self.tabSelections))
         TS=self.tabSelections
         for i,tn in enumerate(self.tabList.tabNames):
             if tn not in TS.keys():
@@ -1281,6 +1283,8 @@ class SelectionPanel(wx.Panel):
             if self.currentMode=='simColumnsMode' and len(ITab)>1:
                 iiX1,IY1,ssX1,SY1 = self.colPanel1.getColumnSelection()
                 SameCol=False
+                if self.IKeepPerTab is None:
+                    raise Exception('>>>TODO')
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     IKeep=self.IKeepPerTab[i]
                     for j,(iiy,ssy) in enumerate(zip(IY1,SY1)):
