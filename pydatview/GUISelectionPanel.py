@@ -711,8 +711,10 @@ class ColumnPanel(wx.Panel):
         self.tFilter.Enable(False)
         self.tFilter.SetValue('')
 
-    def setTab(self,tab=None,xSel=-1,ySel=[],colNames=None, tabLabel=''):
-        """ Set the table used for the columns, update the GUI """
+    def setTab(self, tab=None, xSel=-1, ySel=[], colNames=None, tabLabel='', sFilter=None):
+        """ Set the table used for the columns, update the GUI
+        tab is None, when in simColumnsMode
+        """
         self.tab=tab;
         self.lbColumns.Enable(True)
         self.comboX.Enable(True)
@@ -721,17 +723,23 @@ class ColumnPanel(wx.Panel):
         self.btFilter.Enable(True)
         self.tFilter.Enable(True)
         self.bt.Enable(True)
+
+        selInFull = True
+        if sFilter is not None and len(sFilter.strip())>0:
+            self.tFilter.SetValue(sFilter)
+            selInFull = False
+
         if tab is not None:
-            self.Filt2Full=None # TODO
+            # For a single tab
             if tab.active_name!='default':
                 self.lb.SetLabel(' '+tab.active_name)
+            # Setting raw columns from raw table (self.tab)
             self.setColumns()
-            self.setGUIColumns(xSel=xSel, ySel=ySel)
+            self.setGUIColumns(xSel=xSel, ySel=ySel, selInFull=selInFull) # Filt2Full will be created if a filter is present
         else:
-            self.Filt2Full=None # TODO Decide whether filter should be applied...
             self.lb.SetLabel(tabLabel)
             self.setColumns(columnNames=colNames)
-            self.setGUIColumns(xSel=xSel, ySel=ySel)
+            self.setGUIColumns(xSel=xSel, ySel=ySel, selInFull=selInFull) # Filt2Full will be created if a filter is present
 
     def updateColumn(self,i,newName):
         """ Update of one column name
@@ -751,6 +759,10 @@ class ColumnPanel(wx.Panel):
             return -1
 
     def setColumns(self, columnNames=None):
+        """ 
+        For a regular table, sets "full columns" from the tab.
+        In simColumnsMode, tab is None, and the columns are given by the user.
+        """
         # Get columns from user inputs, or table, or stored.
         if columnNames is not None:
             # Populating based on user inputs..
@@ -763,13 +775,30 @@ class ColumnPanel(wx.Panel):
         # Storing columns, considered as "Full"
         self.columns=np.array(columns)
 
-    def setGUIColumns(self, xSel=-1, ySel=[]):
-        """ Set GUI columns based on self.columns and potential filter """
+    def setGUIColumns(self, xSel=-1, ySel=[], selInFull=True):
+        """ Set columns actually shown on the GUI based on self.columns and potential filter
+          if selInFull is True, the selection is assumed to be in the full/raw columns
+          Otherwise, the selection is assumed to be in the filtered column
+        """
         # Filtering columns if neeed
         sFilt = self.tFilter.GetLineText(0).strip()
         if len(sFilt)>0:
             Lf, If = filter_list(self.columns, sFilt)
             self.Filt2Full = If
+
+            if len(If)==0:
+                # No results
+                if not selInFull:
+                    # Then it's likely a reload, we cancel the filter
+                    self.tFilter.SetValue('')
+                    self.Filt2Full = list(np.arange(len(self.columns)))
+                    selInFull=False
+            elif len(If)==1:
+                # Only one result, we select first value
+                selInFull=False
+                ySel=[0]
+
+
         else:
             self.Filt2Full = list(np.arange(len(self.columns)))
         columns=self.columns[self.Filt2Full] 
@@ -797,16 +826,23 @@ class ColumnPanel(wx.Panel):
             self.comboX.Set(columnsX_show) # non filtered
 
         # Set selection for y, if any, and considering filtering
-        for iFull in ySel:
-            if iFull<len(columnsY) and iFull>=0:
-                iFilt = self.Full2Filt(iFull)
-                if iFilt>0:
+        if selInFull:
+            for iFull in ySel:
+                if iFull<len(columnsY) and iFull>=0:
+                    iFilt = self.Full2Filt(iFull)
+                    if iFilt>0:
+                        self.lbColumns.SetSelection(iFilt)
+                        self.lbColumns.EnsureVisible(iFilt)
+        else:
+            for iFilt in ySel:
+                if iFilt>=0 and iFilt<=len(columnsY):
                     self.lbColumns.SetSelection(iFilt)
                     self.lbColumns.EnsureVisible(iFilt)
+
         if len(self.lbColumns.GetSelections())<=0:
             self.lbColumns.SetSelection(self.getDefaultColumnY(self.tab,len(columnsY)-1))
 
-        # Set selection for x, if any, NOTE x is not filtered!
+        # Set selection for x, if any, NOTE x is not filtered, alwasy in full!
         if (xSel<0) or xSel>len(columnsX):
             self.comboX.SetSelection(self.getDefaultColumnX(self.tab,len(columnsX)-1))
         else:
@@ -839,6 +875,14 @@ class ColumnPanel(wx.Panel):
         self.tFilter.SetValue('')
 
     def getColumnSelection(self):
+        """ return the indices selected for the given table so that the plotData can be extracted
+        The indices will be in "orignal/full" table, removing the account for a potential filter.
+
+        iX - index in table corresponding to selected x column
+        sX - selected x column (in table)
+        IY - indices in table corresponding to selected y columns
+        SY - selected Y columns (in table)
+        """
         iX = self.comboX.GetSelection()
         if self.bShowID:
             sX = self.comboX.GetStringSelection()[4:]
@@ -889,7 +933,9 @@ class SelectionPanel(wx.Panel):
         self.tabList       = None
         self.itabForCol    = None
         self.parent        = parent
-        self.tabSelections = {}
+        self.tabSelections = {}      # x-Y-Columns selected for each table
+        self.simTabSelection = {}   # selection for simTable case
+        self.filterSelection = ['','','']   # filters 
         self.tabSelected   = [] # NOTE only used to remember a selection after a reload
         self.modeRequested = mode
         self.currentMode   = None
@@ -955,7 +1001,6 @@ class SelectionPanel(wx.Panel):
                 IKeepPerTab, IMissPerTab, IDuplPerTab, nCols = getTabCommonColIndices([self.tabList.get(i) for i in ISel])
                 if np.all(np.array([len(I) for I in IMissPerTab]))<np.mean(nCols)*0.8  and np.all(np.array([len(I) for I in IKeepPerTab])>=2):
                     self.simColumnsMode()
-                    # >>>self.IKeepPerTab = IKeepPerTab
                 elif len(ISel)==2:
                     self.twoColumnsMode()
                 elif len(ISel)==3:
@@ -1081,11 +1126,11 @@ class SelectionPanel(wx.Panel):
         t  = self.tabList.get(iTabSel)
         ts = self.tabSelections[t.name]
         if iPanel==1:
-            self.colPanel1.setTab(t,ts['xSel'],ts['ySel'])
+            self.colPanel1.setTab(t,ts['xSel'],ts['ySel'], sFilter=self.filterSelection[0])
         elif iPanel==2:
-            self.colPanel2.setTab(t,ts['xSel'],ts['ySel'])
+            self.colPanel2.setTab(t,ts['xSel'],ts['ySel'], sFilter=self.filterSelection[1])
         elif iPanel==3:
-            self.colPanel3.setTab(t,ts['xSel'],ts['ySel'])
+            self.colPanel3.setTab(t,ts['xSel'],ts['ySel'], sFilter=self.filterSelection[2])
         else:
             raise Exception('Wrong ipanel')
 
@@ -1154,8 +1199,18 @@ class SelectionPanel(wx.Panel):
                 ColInfo.append('----------------------------------')
 
 
+
         colNames = ['Index'] + [tabs[0].columns[i] for i in IKeepPerTab[0]]
-        self.colPanel1.setTab(tab=None, colNames=colNames, tabLabel=' Tab. Intersection')
+
+        # restore selection 
+        xSel = -1
+        ySel = []
+        sFilter = self.filterSelection[0]
+        if 'xSel' in self.simTabSelection:
+            xSel = self.simTabSelection['xSel']
+            ySel = self.simTabSelection['ySel']
+        # Set the colPanels
+        self.colPanel1.setTab(tab=None, colNames=colNames, tabLabel=' Tab. Intersection', xSel=xSel, ySel=ySel, sFilter=sFilter)
         self.colPanel2.setReadOnly(' Tab. Difference', ColInfo)
         self.IKeepPerTab=IKeepPerTab
 
@@ -1172,9 +1227,7 @@ class SelectionPanel(wx.Panel):
     def tabSelectionChanged(self):
         # TODO This can be cleaned-up and merged with updateLayout
         # Storing the previous selection 
-        #self.printSelection()
         self.saveSelection() # 
-        #self.printSelection()
         ISel=self.tabPanel.lbTab.GetSelections()
         if len(ISel)>0:
             if self.modeRequested=='auto':
@@ -1215,7 +1268,7 @@ class SelectionPanel(wx.Panel):
                     self.tabPanel.lbTab.SetSelection(ISel[0])
                 for iPanel,iTab in enumerate(ISel):
                     self.setTabForCol(iTab,iPanel+1) 
-            #print('>>>Updating tabSelected, from',self.tabSelected,'to',self.tabPanel.lbTab.GetSelections())
+            #print('>>Updating tabSelected, from',self.tabSelected,'to',self.tabPanel.lbTab.GetSelections())
             self.tabSelected=self.tabPanel.lbTab.GetSelections()
 
     def colSelectionChanged(self):
@@ -1247,35 +1300,52 @@ class SelectionPanel(wx.Panel):
     def saveSelection(self):
         #self.ISel=self.tabPanel.lbTab.GetSelections()
         ISel=self.tabSelected # 
-        if self.tabList.haveSameColumns(ISel):
-            for ii in ISel:
-                t=self.tabList.get(ii)
-                self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
-                self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
+
+        # --- Save filters
+        self.filterSelection  = [self.colPanel1.tFilter.GetLineText(0).strip()]
+        self.filterSelection += [self.colPanel2.tFilter.GetLineText(0).strip()]
+        self.filterSelection += [self.colPanel3.tFilter.GetLineText(0).strip()]
+
+        # --- Save simTab is needed
+        if self.currentMode=='simColumnsMode':
+            self.simTabSelection['xSel'] = self.colPanel1.comboX.GetSelection()
+            self.simTabSelection['ySel'] = self.colPanel1.lbColumns.GetSelections()
         else:
-            if len(ISel)>=1:
-                t=self.tabList.get(ISel[0])
-                self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
-                self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
-            if len(ISel)>=2:
-                t=self.tabList.get(ISel[1])
-                self.tabSelections[t.name]['xSel'] = self.colPanel2.comboX.GetSelection()
-                self.tabSelections[t.name]['ySel'] = self.colPanel2.lbColumns.GetSelections()
-            if len(ISel)>=3:
-                t=self.tabList.get(ISel[2])
-                self.tabSelections[t.name]['xSel'] = self.colPanel3.comboX.GetSelection()
-                self.tabSelections[t.name]['ySel'] = self.colPanel3.lbColumns.GetSelections()
-        self.tabSelected = self.tabPanel.lbTab.GetSelections();
+            #self.simTabSelection = {} # We do not erase it
+            # --- Save selected columns for each tab
+            if self.tabList.haveSameColumns(ISel):
+                for ii in ISel:
+                    t=self.tabList.get(ii)
+                    self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
+                    self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
+            else:
+                if len(ISel)>=1:
+                    t=self.tabList.get(ISel[0])
+                    self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
+                    self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
+                if len(ISel)>=2:
+                    t=self.tabList.get(ISel[1])
+                    self.tabSelections[t.name]['xSel'] = self.colPanel2.comboX.GetSelection()
+                    self.tabSelections[t.name]['ySel'] = self.colPanel2.lbColumns.GetSelections()
+                if len(ISel)>=3:
+                    t=self.tabList.get(ISel[2])
+                    self.tabSelections[t.name]['xSel'] = self.colPanel3.comboX.GetSelection()
+                    self.tabSelections[t.name]['ySel'] = self.colPanel3.lbColumns.GetSelections()
+            self.tabSelected = self.tabPanel.lbTab.GetSelections();
+        #self.printSelection()
 
     def printSelection(self):
         TS=self.tabSelections
         for i,tn in enumerate(self.tabList.tabNames):
             if tn not in TS.keys():
-                print('Tab',i,'>>> Name {} not found in selection'.format(tn))
+                print('Tab',i,' Name {} not found in selection'.format(tn))
             else:
                 print('Tab',i,'xSel:',TS[tn]['xSel'],'ySel:',TS[tn]['ySel'],'Name:',tn)
+        print('simTab ', self.simTabSelection)
+        print('filters', self.filterSelection)
 
     def getPlotDataSelection(self):
+        """ Returns the table/columns indices to be plotted"""
         ID = []
         SameCol=False
         if self.tabList is not None  and self.tabList.len()>0:
@@ -1283,8 +1353,6 @@ class SelectionPanel(wx.Panel):
             if self.currentMode=='simColumnsMode' and len(ITab)>1:
                 iiX1,IY1,ssX1,SY1 = self.colPanel1.getColumnSelection()
                 SameCol=False
-                if self.IKeepPerTab is None:
-                    raise Exception('>>>TODO')
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     IKeep=self.IKeepPerTab[i]
                     for j,(iiy,ssy) in enumerate(zip(IY1,SY1)):

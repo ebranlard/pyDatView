@@ -50,7 +50,7 @@ class TableList(object): # todo inherit list
             if df is not None:
                 self.append(Table(data=df, name=name))
 
-    def load_tables_from_files(self, filenames=[], fileformats=None, bAdd=False):
+    def load_tables_from_files(self, filenames=[], fileformats=None, bAdd=False, bReload=False):
         """ load multiple files into table list"""
         if not bAdd:
             self.clean() # TODO figure it out
@@ -68,14 +68,14 @@ class TableList(object): # todo inherit list
                 pass
                 #    warn+= 'Warn: an empty filename was skipped' +'\n'
             else:
-                tabs, warnloc = self._load_file_tabs(f,fileformat=ff) 
+                tabs, warnloc = self._load_file_tabs(f,fileformat=ff, bReload=bReload) 
                 if len(warnloc)>0:
                     warnList.append(warnloc)
                 self.append(tabs)
         
         return warnList
 
-    def _load_file_tabs(self, filename, fileformat=None):
+    def _load_file_tabs(self, filename, fileformat=None, bReload=False):
         """ load a single file, adds table """
         # Returning a list of tables 
         tabs=[]
@@ -83,37 +83,52 @@ class TableList(object): # todo inherit list
         if not os.path.isfile(filename):
             warn = 'Error: File not found: `'+filename+'`\n'
             return tabs, warn
-        try:
-            #F = weio.read(filename, fileformat = fileformat)
-            # --- Expanded version of weio.read
-            F = None
-            if fileformat is None:
-                fileformat, F = weio.detectFormat(filename)
-            # Reading the file with the appropriate class if necessary
-            if not isinstance(F, fileformat.constructor):
-                F=fileformat.constructor(filename=filename)
-            dfs = F.toDataFrame()
-        except weio.FileNotFoundError as e:
-            warn = 'Error: A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}\n'.format(filename, e.filename)
-        except IOError:
-            warn = 'Error: IO Error thrown while opening file: '+filename+'\n'
-        except MemoryError:
-            warn='Error: Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).\n'
-        except weio.EmptyFileError:
-            warn='Error: File empty!\n\nFile is empty: '+filename+'\n\nOpen a different file.\n'
-        except weio.FormatNotDetectedError:
-            warn='Error: File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list\n'
-        except weio.WrongFormatError as e:
-            warn='Error: Wrong file format!\n\nFile: '+filename+'\n\n'   \
-                    'The file parser for the selected format failed to open the file.\n\n'+   \
-                    'The reported error was:\n'+e.args[0]+'\n\n' +   \
-                    'Double-check your file format and report this error if you think it''s a bug.\n'
-        except weio.BrokenFormatError as e:
-            warn = 'Error: Inconsistency in the file format!\n\nFile: '+filename+'\n\n'   \
-                   'The reported error was:\n\n'+e.args[0]+'\n\n' +   \
-                   'Double-check your file format and report this error if you think it''s a bug.'
-        except:
-            raise
+
+        fileformatAllowedToFailOnReload = (fileformat is not None) and bReload
+        if fileformatAllowedToFailOnReload:
+            try:
+                F = None
+                if not isinstance(F, fileformat.constructor):
+                    F=fileformat.constructor(filename=filename)
+                dfs = F.toDataFrame()
+            except:
+                warnLoc = 'Failed to read file:\n\n   {}\n\nwith fileformat: {}\n\nIf you see this message, the reader tried again and succeeded with "auto"-fileformat.\n\n'.format(filename, fileformat.name)
+                tabs,warn = self._load_file_tabs(filename, fileformat=None, bReload=False)
+                return tabs, warnLoc+warn
+
+        else:
+
+            try:
+                #F = weio.read(filename, fileformat = fileformat)
+                # --- Expanded version of weio.read
+                F = None
+                if fileformat is None:
+                    fileformat, F = weio.detectFormat(filename)
+                # Reading the file with the appropriate class if necessary
+                if not isinstance(F, fileformat.constructor):
+                    F=fileformat.constructor(filename=filename)
+                dfs = F.toDataFrame()
+            except weio.FileNotFoundError as e:
+                warn = 'Error: A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}\n'.format(filename, e.filename)
+            except IOError:
+                warn = 'Error: IO Error thrown while opening file: '+filename+'\n'
+            except MemoryError:
+                warn='Error: Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).\n'
+            except weio.EmptyFileError:
+                warn='Error: File empty!\n\nFile is empty: '+filename+'\n\nOpen a different file.\n'
+            except weio.FormatNotDetectedError:
+                warn='Error: File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list\n'
+            except weio.WrongFormatError as e:
+                warn='Error: Wrong file format!\n\nFile: '+filename+'\n\n'   \
+                        'The file parser for the selected format failed to open the file.\n\n'+   \
+                        'The reported error was:\n'+e.args[0]+'\n\n' +   \
+                        'Double-check your file format and report this error if you think it''s a bug.\n'
+            except weio.BrokenFormatError as e:
+                warn = 'Error: Inconsistency in the file format!\n\nFile: '+filename+'\n\n'   \
+                       'The reported error was:\n\n'+e.args[0]+'\n\n' +   \
+                       'Double-check your file format and report this error if you think it''s a bug.'
+            except:
+                raise
         if len(warn)>0:
             return tabs, warn
 

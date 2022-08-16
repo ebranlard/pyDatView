@@ -165,6 +165,7 @@ class MainFrame(wx.Frame):
         self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)  
         self.comboMode.SetSelection(0)
         self.Bind(wx.EVT_COMBOBOX, self.onModeChange, self.comboMode )
+        self.Bind(wx.EVT_COMBOBOX, self.onFormatChange, self.comboFormats )
         tb.AddSeparator()
         tb.AddControl( wx.StaticText(tb, -1, 'Mode: ' ) )
         tb.AddControl( self.comboMode ) 
@@ -264,7 +265,7 @@ class MainFrame(wx.Frame):
         #filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
 
         # Load the tables
-        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd)
+        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload)
         if bReload:
             # Restore formulas that were previously added
             for tab in self.tabList:
@@ -543,6 +544,14 @@ class MainFrame(wx.Frame):
     def onReload(self, event=None):
         filenames, fileformats = self.tabList.filenames_and_formats
         if len(filenames)>0:
+            # If only one file, use the comboBox to decide which fileformat to use
+            if len(filenames)==1:
+                iFormat=self.comboFormats.GetSelection()
+                if iFormat==0: # auto-format
+                    fileformats = [None]
+                else:
+                    fileformats = [self.FILE_FORMATS[iFormat-1]]
+
             # Save formulas to restore them after reload with sorted tabs
             self.restore_formulas = {}
             for tab in self.tabList._tabs:
@@ -606,6 +615,12 @@ class MainFrame(wx.Frame):
         self.mainFrameUpdateLayout()
         # --- Trigger to check number of columns
         self.onTabSelectionChange()
+
+    def onFormatChange(self, event=None):
+        """ The user changed the format """
+        #if hasattr(self,'selPanel'):
+        #    ISel=self.selPanel.tabPanel.lbTab.GetSelections()
+        pass
 
     def mainFrameUpdateLayout(self, event=None):
         if hasattr(self,'selPanel'):
