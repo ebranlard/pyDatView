@@ -42,7 +42,7 @@ class FASTInputFile(File):
 
     @staticmethod
     def defaultExtensions():
-        return ['.dat','.fst','.txt','.fstf']
+        return ['.dat','.fst','.txt','.fstf','.dvr']
 
     @staticmethod
     def formatName():
@@ -1813,7 +1813,8 @@ class ExtPtfmFile(FASTInputFileBase):
 
 
 if __name__ == "__main__":
-    f = FASTInputFile()
+    f = FASTInputFile('tests/example_files/FASTIn_HD_SeaState.dat')
+    print(f)
     pass
     #B=FASTIn('Turbine.outb')
 

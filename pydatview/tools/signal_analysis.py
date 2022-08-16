@@ -360,6 +360,9 @@ def zero_crossings(y,x=None,direction=None):
     """
     if x is None:
         x=np.arange(len(y))
+    else:
+        x = np.asarray(x)
+    y = np.asarray(y)
 
     if np.any((x[1:] - x[0:-1]) <= 0.0):
         raise Exception('x values need to be in ascending order')
