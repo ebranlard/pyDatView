@@ -694,15 +694,26 @@ class ColumnPanel(wx.Panel):
             raise Exception('Error in Filt2Full')
         return self.columns[self.Filt2Full]
 
-    def setReadOnly(self, tabLabel='', cols=[]):
+
+    def _setReadOnly(self):
+        self.bReadOnly=True
+        self.comboX.Enable(False)
+        self.lbColumns.Enable(False)
+
+    def _unsetReadOnly(self):
+        self.bReadOnly=False
+        self.comboX.Enable(True)
+        self.lbColumns.Enable(True)
+
+    def setReadOnly(self, tabLabel=None, cols=[]):
         """ Set this list of columns as readonly and non selectable """
         self.tab=None
-        self.bReadOnly=True
-        self.lb.SetLabel(tabLabel)
+        if tabLabel is not None:
+            self.lb.SetLabel(tabLabel)
+        self._setReadOnly()
+        self.lbColumns.Enable(True)
         self.setColumns(columnNames=cols)
         self.setGUIColumns()
-        self.lbColumns.Enable(True)
-        self.comboX.Enable(False)
         self.lbColumns.SetSelection(-1)
         self.bt.Enable(False)
         self.bShowID=False
@@ -811,6 +822,11 @@ class ColumnPanel(wx.Panel):
         else:
             columnsY= columns
             columnsX= self.columns
+        if len(columnsY)==0:
+            columnsY=['No results']
+            self._setReadOnly()
+        else:
+            self._unsetReadOnly()
         self.lbColumns.Set(columnsY)   # potentially filterd
         #  Slow line for many columns
         # NOTE: limiting to 300 for now.. I'm not sure anywant would want to scroll more than that

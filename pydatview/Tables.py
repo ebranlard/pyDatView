@@ -50,7 +50,7 @@ class TableList(object): # todo inherit list
             if df is not None:
                 self.append(Table(data=df, name=name))
 
-    def load_tables_from_files(self, filenames=[], fileformats=None, bAdd=False, bReload=False):
+    def load_tables_from_files(self, filenames=[], fileformats=None, bAdd=False, bReload=False, statusFunction=None):
         """ load multiple files into table list"""
         if not bAdd:
             self.clean() # TODO figure it out
@@ -61,7 +61,9 @@ class TableList(object): # todo inherit list
 
         # Loop through files, appending tables within files
         warnList=[]
-        for f,ff in zip(filenames, fileformats):
+        for i, (f,ff) in enumerate(zip(filenames, fileformats)):
+            if statusFunction is not None:
+                statusFunction(i)
             if f in self.unique_filenames:
                 warnList.append('Warn: Cannot add a file already opened ' + f)
             elif len(f)==0:

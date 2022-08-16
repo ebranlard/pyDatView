@@ -42,6 +42,7 @@ PROG_VERSION='v0.3-local'
 SIDE_COL       = [160,160,300,420,530]
 SIDE_COL_LARGE = [200,200,360,480,600]
 BOT_PANL =85
+ISTAT = 0 # Index of Status bar where main status info is provided
 
 #matplotlib.rcParams['text.usetex'] = False
 # matplotlib.rcParams['font.sans-serif'] = 'DejaVu Sans'
@@ -183,7 +184,7 @@ class MainFrame(wx.Frame):
 
         # --- Status bar
         self.statusbar=self.CreateStatusBar(3, style=0)
-        self.statusbar.SetStatusWidths([200, -1, 70])
+        self.statusbar.SetStatusWidths([150, -1, 70])
 
         # --- Main Panel and Notebook
         self.MainPanel = wx.Panel(self)
@@ -247,6 +248,11 @@ class MainFrame(wx.Frame):
         if bReload:
             if hasattr(self,'selPanel'):
                 self.selPanel.saveSelection() # TODO move to tables
+        else:
+            self.statusbar.SetStatusText('Loading files...', ISTAT)
+
+        # A function to update the status bar while we load files
+        statusFunction = lambda i: self.statusbar.SetStatusText('Loading files {}/{}'.format(i+1,len(filenames)), ISTAT)
 
         if not bAdd:
             self.clean_memory(bReload=bReload)
@@ -265,7 +271,7 @@ class MainFrame(wx.Frame):
         #filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
 
         # Load the tables
-        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload)
+        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload, statusFunction=statusFunction)
         if bReload:
             # Restore formulas that were previously added
             for tab in self.tabList:
@@ -302,6 +308,8 @@ class MainFrame(wx.Frame):
 
         if (not bReload) and (not bAdd):
             self.cleanGUI()
+        if (bReload):
+            self.statusbar.SetStatusText('Done reloading.', ISTAT)
         self.Freeze()
         # Setting status bar
         self.setStatusBar()
@@ -363,21 +371,21 @@ class MainFrame(wx.Frame):
         if ISel is None:
             ISel = list(np.arange(nTabs))
         if nTabs<0:
-            self.statusbar.SetStatusText('', 0) # Format
-            self.statusbar.SetStatusText('', 1) # Filenames
-            self.statusbar.SetStatusText('', 2) # Shape
+            self.statusbar.SetStatusText('', ISTAT) # Format
+            self.statusbar.SetStatusText('', ISTAT+1) # Filenames
+            self.statusbar.SetStatusText('', ISTAT+2) # Shape
         elif nTabs==1:
-            self.statusbar.SetStatusText(self.tabList.get(0).fileformat_name,  0)
-            self.statusbar.SetStatusText(self.tabList.get(0).filename  ,  1)
-            self.statusbar.SetStatusText(self.tabList.get(0).shapestring, 2)
+            self.statusbar.SetStatusText(self.tabList.get(0).fileformat_name, ISTAT+0)
+            self.statusbar.SetStatusText(self.tabList.get(0).filename       , ISTAT+1)
+            self.statusbar.SetStatusText(self.tabList.get(0).shapestring    , ISTAT+2)
         elif len(ISel)==1:
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat_name , 0)
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename   , 1)
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring, 2)
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat_name , ISTAT+0)
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename        , ISTAT+1)
+            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring     , ISTAT+2)
         else:
-            self.statusbar.SetStatusText(''                                   ,0) 
-            self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),1)
-            self.statusbar.SetStatusText('',2)
+            self.statusbar.SetStatusText('{} tables loaded'.format(nTabs)                                                     ,ISTAT+0) 
+            self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),ISTAT+1)
+            self.statusbar.SetStatusText(''                                                             ,ISTAT+2)
 
     # --- Table Actions - TODO consider a table handler, or doing only the triggers
     def renameTable(self, iTab, newName):
@@ -543,6 +551,7 @@ class MainFrame(wx.Frame):
 
     def onReload(self, event=None):
         filenames, fileformats = self.tabList.filenames_and_formats
+        self.statusbar.SetStatusText('Reloading...', ISTAT)
         if len(filenames)>0:
             # If only one file, use the comboBox to decide which fileformat to use
             if len(filenames)==1:
