@@ -19,8 +19,12 @@ def fileFormats(userpath=None, ignoreErrors=False, verbose=False):
 
     """
     global _FORMATS
+    errors=[]
     if _FORMATS is not None:
-        return _FORMATS
+        if ignoreErrors:
+            return _FORMATS, errors
+        else:
+            return _FORMATS
     # --- Library formats
     from .fast_input_file         import FASTInputFile
     from .fast_output_file        import FASTOutputFile
