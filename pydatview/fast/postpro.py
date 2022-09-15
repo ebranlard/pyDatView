@@ -1311,7 +1311,7 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
             raise Exception('The sensor `Azimuth_[deg]` does not appear to be in the output file. You cannot use the averaging method by `periods`, use `constantwindow` instead.')
         # NOTE: potentially we could average over each period and then average
         psi=df['Azimuth_[deg]'].values
-        _,iBef = _zero_crossings(psi-psi[-10],direction='up')
+        _,iBef = _zero_crossings(psi-psi[-2],direction='up')
         if len(iBef)==0:
             _,iBef = _zero_crossings(psi-180,direction='up')
         if len(iBef)==0:
@@ -1401,6 +1401,9 @@ def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKee
                    Default: None, full simulation length is used
     """
     result=None
+    if len(outFiles)==0:
+        raise Exception('No outFiles provided')
+
     invalidFiles =[]
     # Loop trough files and populate result
     for i,f in enumerate(outFiles):
@@ -1424,9 +1427,9 @@ def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKee
         result.reset_index(drop=True,inplace=True) 
 
     if len(invalidFiles)==len(outFiles):
-        raise Exception('None of the files can be read (or exist)!')
+        raise Exception('None of the files can be read (or exist)!. For instance, cannot find: {}'.format(invalidFiles[0]))
     elif len(invalidFiles)>0:
-        print('[WARN] There were {} missing/invalid files: {}'.format(len(invalidFiles),invalidFiles))
+        print('[WARN] There were {} missing/invalid files: \n {}'.format(len(invalidFiles),'\n'.join(invalidFiles)))
 
 
     return result 

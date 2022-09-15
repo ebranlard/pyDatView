@@ -317,18 +317,16 @@ class TablePopup(wx.Menu):
         commonCol        = None
         ICommonColPerTab = None
         samplDict        = None
-        if nCommonCols>=1:
+        if nCommonCols>=2: # NOTE: index will always be a duplicated...
             # We use the first one
             # TODO Menu to figure out which column to chose and how to merge (interp?)
             keepAllX = True
             #samplDict ={'name':'Replace', 'param':[], 'paramName':'New x'}
             # Index of common column for each table
-            ICommonColPerTab = [I[0] for I in IKeepPerTab]
+            ICommonColPerTab = [I[1] for I in IKeepPerTab]
         else:
             # we'll merge based on index..
             pass
-
-            
 
         # Merge tables and add it to the list
         self.tabList.mergeTabs(self.ISel, ICommonColPerTab, samplDict=samplDict)
@@ -429,14 +427,14 @@ class ColumnPopup(wx.Menu):
                         break
                 else:
                     raise ValueError('No formula found at {0} for table {1}!'.format(self.ISel[0], sTab))
-        self.showFormulaDialog('Edit column', sName, sFormula)
+        self.showFormulaDialog('Edit column', sName, sFormula, edit=True)
 
     def OnDeleteColumn(self, event):
         main=self.parent.mainframe
         iX = self.parent.comboX.GetSelection()
         ITab,STab=main.selPanel.getSelectedTables()
         # TODO adapt me for Sim. tables mode
-        IFull = [self.parent.Filt2Full[iFilt]-1 for iFilt in self.ISel]
+        IFull = [self.parent.Filt2Full[iFilt] for iFilt in self.ISel]
         IFull = [iFull for iFull in IFull if iFull>=0]
         if main.tabList.haveSameColumns(ITab):
             for iTab,sTab in zip(ITab,STab):
@@ -451,7 +449,7 @@ class ColumnPopup(wx.Menu):
         main=self.parent.mainframe
         self.showFormulaDialog('Add a new column')
 
-    def showFormulaDialog(self, title, name='', formula=''):
+    def showFormulaDialog(self, title, name='', formula='', edit=False):
         bValid=False
         bCancelled=False
         main=self.parent.mainframe
@@ -491,10 +489,12 @@ class ColumnPopup(wx.Menu):
                 for iTab,sTab in zip(ITab,STab):
                     if haveSameColumns or self.parent.tab.active_name == sTab:
                         # apply formula to all tables with same columns, otherwise only to active table
-                        if title.startswith('Edit'):
+                        if edit:
                             bValid=main.tabList.get(iTab).setColumnByFormula(sName,sFormula,iFull)
+                            iOffset = 0 # we'll stay on this column that we are editing
                         else:
                             bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,iFull)
+                            iOffset = 1 # we'll select this newly created column
                         if not bValid:
                             sError+='The formula didn''t eval for table {}\n'.format(sTab)
                             nError+=1
@@ -509,7 +509,7 @@ class ColumnPopup(wx.Menu):
         if bValid:
             iX = self.parent.comboX.GetSelection()
             self.parent.setColumns()
-            self.parent.setGUIColumns(xSel=iX,ySel=[iFull+1])
+            self.parent.setGUIColumns(xSel=iX,ySel=[iFull+iOffset])
             main.redraw()
 
 
@@ -782,7 +782,7 @@ class ColumnPanel(wx.Panel):
             columns=self.columns
         else:
             # Populating based on table (safest if table was updated)
-            columns=['Index']+self.tab.columns
+            columns=self.tab.columns
         # Storing columns, considered as "Full"
         self.columns=np.array(columns)
 
@@ -1216,7 +1216,7 @@ class SelectionPanel(wx.Panel):
 
 
 
-        colNames = ['Index'] + [tabs[0].columns[i] for i in IKeepPerTab[0]]
+        colNames = [tabs[0].columns[i] for i in IKeepPerTab[0]]
 
         # restore selection 
         xSel = -1
@@ -1372,18 +1372,10 @@ class SelectionPanel(wx.Panel):
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     IKeep=self.IKeepPerTab[i]
                     for j,(iiy,ssy) in enumerate(zip(IY1,SY1)):
-                        if iiy==0:
-                            iy =  0
-                            sy =  ssy
-                        else:
-                            iy =  IKeep[iiy-1]+1
-                            sy =  self.tabList.get(itab).columns[IKeep[iiy-1]]
-                        if iiX1==0:
-                            iX1 =  0
-                            sX1 = ssX1
-                        else:
-                            iX1 =  IKeep[iiX1-1]+1
-                            sX1 =  self.tabList.get(itab).columns[IKeep[iiX1-1]]
+                        iy =  IKeep[iiy]
+                        sy =  self.tabList.get(itab).columns[IKeep[iiy]]
+                        iX1 =  IKeep[iiX1]
+                        sX1 =  self.tabList.get(itab).columns[IKeep[iiX1]]
                         ID.append([itab,iX1,iy,sX1,sy,stab])
             else:
                 iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()

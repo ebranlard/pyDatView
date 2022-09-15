@@ -35,6 +35,9 @@ class TableList(object): # todo inherit list
     def __len__(self):
         return len(self._tabs)
 
+    def len(self):
+        return len(self._tabs)
+
     def append(self, t):
         if isinstance(t,list):
             self._tabs += t
@@ -89,9 +92,7 @@ class TableList(object): # todo inherit list
         fileformatAllowedToFailOnReload = (fileformat is not None) and bReload
         if fileformatAllowedToFailOnReload:
             try:
-                F = None
-                if not isinstance(F, fileformat.constructor):
-                    F=fileformat.constructor(filename=filename)
+                F = fileformat.constructor(filename=filename)
                 dfs = F.toDataFrame()
             except:
                 warnLoc = 'Failed to read file:\n\n   {}\n\nwith fileformat: {}\n\nIf you see this message, the reader tried again and succeeded with "auto"-fileformat.\n\n'.format(filename, fileformat.name)
@@ -151,8 +152,6 @@ class TableList(object): # todo inherit list
         # TODO remove me later
         return self._tabs
 
-    def len(self):
-        return len(self._tabs)
 
     def haveSameColumns(self,I=None):
         if I is None:
@@ -413,6 +412,11 @@ class Table(object):
         else:
             # --- Pandas DataFrame 
             self.data    = data 
+            # Adding index
+            if data.columns[0].lower().find('index')>=0:
+                pass
+            else:
+                data.insert(0, 'Index', np.arange(self.data.shape[0]))
             self.columns = self.columnsFromDF(data)
             # --- Trying to figure out how to name this table
             if name is None or len(str(name))==0:
@@ -471,8 +475,6 @@ class Table(object):
 
     def applyMaskString(self,maskString,bAdd=True):
         df = self.data
-        Index = np.array(range(df.shape[0]))
-        sMask=maskString.replace('{Index}','Index')
         for i,c in enumerate(self.columns):
             c_no_unit = no_unit(c).strip()
             c_in_df   = df.columns[i]
@@ -529,7 +531,7 @@ class Table(object):
 
 
     def radialAvg(self,avgMethod, avgParam):
-        import pydatview.fast.fastlib as fastlib
+        import pydatview.fast.postpro as fastlib
         import pydatview.fast.fastfarm as fastfarm
         df = self.data
         base,out_ext = os.path.splitext(self.filename)
@@ -616,7 +618,7 @@ class Table(object):
         self.columns[iCol]=newName
         self.data.columns.values[iCol]=newName
 
-    def deleteColumns(self,ICol):
+    def deleteColumns(self, ICol):
         """ Delete columns by index, not column names which can have duplicates"""
         IKeep =[i for i in np.arange(self.data.shape[1]) if i not in ICol]
         self.data = self.data.iloc[:, IKeep] # Drop won't work for duplicates
@@ -633,12 +635,13 @@ class Table(object):
     def rename(self,new_name):
         self.name='>'+new_name
 
-    def addColumn(self,sNewName,NewCol,i=-1,sFormula=''):
+    def addColumn(self, sNewName, NewCol, i=-1, sFormula=''):
+        print('>>> adding Column')
         if i<0:
             i=self.data.shape[1]
         elif i>self.data.shape[1]+1:
             i=self.data.shape[1]
-        self.data.insert(int(i),sNewName,NewCol)
+        self.data.insert(int(i+1),sNewName,NewCol)
         self.columns=self.columnsFromDF(self.data)
         for f in self.formulas:
             if f['pos'] > i:
@@ -648,53 +651,42 @@ class Table(object):
     def setColumn(self,sNewName,NewCol,i,sFormula=''):
         if i<1:
             raise ValueError('Cannot set column at position ' + str(i))
-        self.data = self.data.drop(columns=self.data.columns[i-1])
-        self.data.insert(int(i-1),sNewName,NewCol)
+        self.data = self.data.drop(columns=self.data.columns[i])
+        self.data.insert(int(i),sNewName,NewCol)
         self.columns=self.columnsFromDF(self.data)
         for f in self.formulas:
             if f['pos'] == i:
                 f['name'] = sNewName
                 f['formula'] = sFormula
         
-    def getColumn(self,i):
-        """ Return column of data, where i=0 is the index column
+    def getColumn(self, i):
+        """ Return column of data
         If a mask exist, the mask is applied
 
         TODO TODO TODO get rid of this!
         """
-        if i <= 0 :
-            x = np.array(range(self.data.shape[0]))
-            if self.mask is not None:
-                x=x[self.mask]
-
-            c = None
-            isString = False
-            isDate   = False
+        if self.mask is not None:
+            c = self.data.iloc[self.mask, i]
+            x = self.data.iloc[self.mask, i].values
         else:
-            if self.mask is not None:
-                c = self.data.iloc[self.mask, i-1]
-                x = self.data.iloc[self.mask, i-1].values
-            else:
-                c = self.data.iloc[:, i-1]
-                x = self.data.iloc[:, i-1].values
+            c = self.data.iloc[:, i]
+            x = self.data.iloc[:, i].values
 
-            isString = c.dtype == np.object and isinstance(c.values[0], str)
-            if isString:
-                x=x.astype(str)
-            isDate   = np.issubdtype(c.dtype, np.datetime64)
-            if isDate:
-                dt=getDt(x)
-                if dt>1:
-                    x=x.astype('datetime64[s]')
-                else:
-                    x=x.astype('datetime64')
+        isString = c.dtype == np.object and isinstance(c.values[0], str)
+        if isString:
+            x=x.astype(str)
+        isDate   = np.issubdtype(c.dtype, np.datetime64)
+        if isDate:
+            dt=getDt(x)
+            if dt>1:
+                x=x.astype('datetime64[s]')
+            else:
+                x=x.astype('datetime64')
         return x,isString,isDate,c
 
 
     def evalFormula(self,sFormula):
         df = self.data
-        Index = np.array(range(df.shape[0]))
-        sFormula=sFormula.replace('{Index}','Index')
         for i,c in enumerate(self.columns):
             c_no_unit = no_unit(c).strip()
             c_in_df   = df.columns[i]
@@ -722,9 +714,10 @@ class Table(object):
             return True
 
 
-    def export(self,path):
+    def export(self, path):
         if isinstance(self.data, pd.DataFrame):
-            self.data.to_csv(path,sep=',',index=False) #python3
+            df = self.data.drop('Index', axis=1)
+            df.to_csv(path, sep=',', index=False)
         else:
             raise NotImplementedError('Export of data that is not a dataframe')
 
