@@ -14,10 +14,10 @@ class TestChangeUnits(unittest.TestCase):
         df = pd.DataFrame(data=data, columns=['om [rad/s]','F [N]', 'angle_[rad]'])
         tab=Table(data=df)
         changeUnits(tab, flavor='WE')
-        np.testing.assert_almost_equal(tab.data.values[:,0],[1])
-        np.testing.assert_almost_equal(tab.data.values[:,1],[2])
-        np.testing.assert_almost_equal(tab.data.values[:,2],[10])
-        self.assertEqual(tab.columns, ['om [rpm]', 'F [kN]', 'angle [deg]'])
+        np.testing.assert_almost_equal(tab.data.values[:,1],[1])
+        np.testing.assert_almost_equal(tab.data.values[:,2],[2])
+        np.testing.assert_almost_equal(tab.data.values[:,3],[10])
+        self.assertEqual(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle [deg]'])
 
 
 if __name__ == '__main__':

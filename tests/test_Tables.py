@@ -46,7 +46,7 @@ class TestTable(unittest.TestCase):
         tab2=Table(data=pd.DataFrame(data={'ID': np.arange(1,4),'ColB': [11,12,13]}))
         tablist = TableList([tab1,tab2])
         #
-        name, df = tablist.mergeTabs(ICommonColPerTab=[0,0], extrap='nan')
+        name, df = tablist.mergeTabs(ICommonColPerTab=[1,1], extrap='nan')
         np.testing.assert_almost_equal(df['ID']   , [0      , 0.5    , 1.0 , 1.5  , 2.0 , 2.5  , 3.0])
         np.testing.assert_almost_equal(df['ColA'] , [10     , 10.5   , 11  , 11.5 , 12  , 12.5 , np.nan] )
         np.testing.assert_almost_equal(df['ColB'] , [np.nan , np.nan , 11  , 11.5 , 12  , 12.5 , 13.0] )
@@ -80,10 +80,10 @@ class TestTable(unittest.TestCase):
         df = pd.DataFrame(data=data, columns=['om [rad/s]','F [N]', 'angle_[rad]'])
         tab=Table(data=df)
         tab.changeUnits()
-        np.testing.assert_almost_equal(tab.data.values[:,0],[1])
-        np.testing.assert_almost_equal(tab.data.values[:,1],[2])
-        np.testing.assert_almost_equal(tab.data.values[:,2],[10])
-        self.assertEqual(tab.columns, ['om [rpm]', 'F [kN]', 'angle [deg]'])
+        np.testing.assert_almost_equal(tab.data.values[:,1],[1])
+        np.testing.assert_almost_equal(tab.data.values[:,2],[2])
+        np.testing.assert_almost_equal(tab.data.values[:,3],[10])
+        self.assertEqual(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle [deg]'])
 
 
 if __name__ == '__main__':
