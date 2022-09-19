@@ -727,7 +727,9 @@ class Table(object):
 
     def export(self, path):
         if isinstance(self.data, pd.DataFrame):
-            df = self.data.drop('Index', axis=1)
+            df = self.data
+            if 'Index' in df.columns.values:
+                df = df.drop(['Index'], axis=1)
             df.to_csv(path, sep=',', index=False)
         else:
             raise NotImplementedError('Export of data that is not a dataframe')

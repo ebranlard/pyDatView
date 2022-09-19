@@ -403,12 +403,11 @@ class ColumnPopup(wx.Menu):
             ITab,STab=main.selPanel.getSelectedTables()
             # TODO adapt me for Sim. tables mode
             iFull = self.parent.Filt2Full[iFilt]
-            if iFull>0: # Important since -1 would rename last column of table
-                if main.tabList.haveSameColumns(ITab):
-                    for iTab,sTab in zip(ITab,STab):
-                        main.tabList.get(iTab).renameColumn(iFull-1,newName)
-                else:
-                    self.parent.tab.renameColumn(iFull-1,newName)
+            if main.tabList.haveSameColumns(ITab):
+                for iTab,sTab in zip(ITab,STab):
+                    main.tabList.get(iTab).renameColumn(iFull,newName)
+            else:
+                self.parent.tab.renameColumn(iFull,newName)
             self.parent.updateColumn(iFilt,newName) #faster
             self.parent.selPanel.updateLayout()
             # a trigger for the plot is required but skipped for now
