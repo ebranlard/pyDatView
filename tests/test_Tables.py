@@ -50,6 +50,7 @@ class TestTable(unittest.TestCase):
         np.testing.assert_almost_equal(df['ID']   , [0      , 0.5    , 1.0 , 1.5  , 2.0 , 2.5  , 3.0])
         np.testing.assert_almost_equal(df['ColA'] , [10     , 10.5   , 11  , 11.5 , 12  , 12.5 , np.nan] )
         np.testing.assert_almost_equal(df['ColB'] , [np.nan , np.nan , 11  , 11.5 , 12  , 12.5 , 13.0] )
+        np.testing.assert_almost_equal(df['Index'], [0,1,2,3,4,5,6])
 
 
     def test_resample(self):

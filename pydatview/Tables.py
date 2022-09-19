@@ -194,6 +194,7 @@ class TableList(object): # todo inherit list
         dfs = [self._tabs[i].data for i in I]
         if ICommonColPerTab is None:
             # --- Option 0 - Index concatenation 
+            print('Using dataframe index concatenation...')
             df = pd.concat(dfs, axis=1)
             # Remove duplicated columns
             #df = df.loc[:,~df.columns.duplicated()].copy()
@@ -212,10 +213,14 @@ class TableList(object): # todo inherit list
             dfs_new = []
             for i, (col, df_old) in enumerate(zip(cols, dfs)):
                 df = interpDF(x_new, col, df_old, extrap=extrap)
+                if 'Index' in df.columns:
+                    df = df.drop(['Index'], axis=1)
                 if i>0:
-                    df = df.loc[:, df.columns!=col] # We remove the common columns
+                    df = df.drop([col], axis=1)
                 dfs_new.append(df)
             df = pd.concat(dfs_new, axis=1)
+            # Reindex at the end
+            df.insert(0, 'Index', np.arange(df.shape[0]))
         newName = self._tabs[I[0]].name+'_merged'
         self.append(Table(data=df, name=newName))
         return newName, df
