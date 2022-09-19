@@ -867,13 +867,14 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
                 print('[WARN] The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
                 #raise Exception('The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
             else:
-                R           = fst.ED['TipRad']
-                r_hub       = fst.ED['HubRad']
-                if fst.ED.hasNodal:
-                    _, r_ED = ED_BldStations(fst.ED)
-                    IR_ED =None
-                else:
-                    r_ED, IR_ED = ED_BldGag(fst.ED)
+                if fst.ED is not None:
+                    R           = fst.ED['TipRad']
+                    r_hub       = fst.ED['HubRad']
+                    if fst.ED.hasNodal:
+                        _, r_ED = ED_BldStations(fst.ED)
+                        IR_ED =None
+                    else:
+                        r_ED, IR_ED = ED_BldGag(fst.ED)
 
             # --- BeamDyn
             if  fst.BD is not None:
