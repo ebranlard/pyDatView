@@ -319,7 +319,7 @@ class TableList(object): # todo inherit list
         errors=[]
         for i,t in enumerate(self._tabs):
 #             try:
-            df_new, name_new = t.applyResampling(iCol,sampDict, bAdd=bAdd)
+            df_new, name_new = t.applyResampling(iCol, sampDict, bAdd=bAdd)
             if df_new is not None: 
                 # we don't append when string is empty
                 dfs_new.append(df_new)
@@ -505,9 +505,11 @@ class Table(object):
         from pydatview.tools.signal_analysis import applySamplerDF
         if iCol==0:
             raise Exception('Cannot resample based on index')
-        colName=self.data.columns[iCol-1]
+        colName=self.data.columns[iCol]
         df_new =applySamplerDF(self.data, colName, sampDict=sampDict)
-        df_new
+        # Reindex afterwards
+        if df_new.columns[0]=='Index':
+            df_new['Index'] = np.arange(0,len(df_new))
         if bAdd:
             name_new=self.raw_name+'_resampled'
         else:

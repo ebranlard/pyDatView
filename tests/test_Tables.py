@@ -51,6 +51,23 @@ class TestTable(unittest.TestCase):
         np.testing.assert_almost_equal(df['ColA'] , [10     , 10.5   , 11  , 11.5 , 12  , 12.5 , np.nan] )
         np.testing.assert_almost_equal(df['ColB'] , [np.nan , np.nan , 11  , 11.5 , 12  , 12.5 , 13.0] )
 
+
+    def test_resample(self):
+        tab1=Table(data=pd.DataFrame(data={'BlSpn': [0,1,2],'Chord': [1,2,1]}))
+        tablist = TableList([tab1])
+        #print(tablist)
+        #print(tab1.data)
+        
+        # Test Insertion of new values into table
+        icol=1
+        opt = {'name': 'Insert', 'param': np.array([0.5, 1.5])}
+        dfs, names, errors = tablist.applyResampling(icol, opt, bAdd=True)
+        np.testing.assert_almost_equal(dfs[0]['Index'], [0,1,2,3,4])
+        np.testing.assert_almost_equal(dfs[0]['BlSpn'], [0,0.5,1.0,1.5,2.0])
+        np.testing.assert_almost_equal(dfs[0]['Chord'], [1,1.5,2.0,1.5,1.0])
+        print(dfs)
+
+
     def test_load_files_misc_formats(self):
         tablist = TableList()
         files =[
@@ -88,7 +105,8 @@ class TestTable(unittest.TestCase):
 
 if __name__ == '__main__':
 #     TestTable.setUpClass()
-    TestTable().test_merge()
+#     TestTable().test_merge()
+    TestTable().test_resample()
 #     tt= TestTable()
 #     tt.test_load_files_misc_formats()
 #     unittest.main()
