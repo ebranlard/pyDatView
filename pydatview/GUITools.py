@@ -112,6 +112,7 @@ class OutlierToolPanel(GUIToolPanel):
         self.tMD.SetValue(self.parent.plotDataOptions['OutliersMedianDeviation'])
         self.tMD.SetRange(0.0, 1000)
         self.tMD.SetIncrement(0.5)
+        self.tMD.SetDigits(1)
 
         self.lb = wx.StaticText( self, -1, '')
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
