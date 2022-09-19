@@ -355,6 +355,9 @@ class FilterToolPanel(GUIToolPanel):
         if len(errors)>0:
             raise Exception('Error: The resampling failed on some tables:\n\n'+'\n'.join(errors))
 
+        # We stop applying
+        self.onToggleApply()
+
     def onPlot(self, event=None):
         """ 
         Overlay on current axis the filter
@@ -610,6 +613,9 @@ class ResampleToolPanel(GUIToolPanel):
         if len(errors)>0:
             raise Exception('Error: The resampling failed on some tables:\n\n'+'\n'.join(errors))
 
+        # We stop applying
+        self.onToggleApply()
+
     def onPlot(self,event=None):
         from pydatview.tools.signal_analysis import applySampler
         if len(self.parent.plotData)!=1:
@@ -815,6 +821,10 @@ class MaskToolPanel(GUIToolPanel):
             else:
                 mainframe.redraw()
         self.updateTabList()
+
+        # We stop applying
+        if bAdd:
+            self.onToggleApplyMask()
 
 
     def updateTabList(self,event=None):

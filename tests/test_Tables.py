@@ -65,7 +65,6 @@ class TestTable(unittest.TestCase):
         np.testing.assert_almost_equal(dfs[0]['Index'], [0,1,2,3,4])
         np.testing.assert_almost_equal(dfs[0]['BlSpn'], [0,0.5,1.0,1.5,2.0])
         np.testing.assert_almost_equal(dfs[0]['Chord'], [1,1.5,2.0,1.5,1.0])
-        print(dfs)
 
 
     def test_load_files_misc_formats(self):
@@ -106,7 +105,7 @@ class TestTable(unittest.TestCase):
 if __name__ == '__main__':
 #     TestTable.setUpClass()
 #     TestTable().test_merge()
-    TestTable().test_resample()
+#     TestTable().test_resample()
 #     tt= TestTable()
 #     tt.test_load_files_misc_formats()
-#     unittest.main()
+    unittest.main()
