@@ -10,9 +10,9 @@ import pandas as pd
 
 # --- List of available filters
 FILTERS=[
-    {'name':'Moving average','param':100,'paramName':'Window Size','paramRange':[0,100000],'increment':1},
-    {'name':'Low pass 1st order','param':1.0,'paramName':'Cutoff Freq.','paramRange':[0.0001,100000],'increment':0.1},
-    {'name':'High pass 1st order','param':1.0,'paramName':'Cutoff Freq.','paramRange':[0.0001,100000],'increment':0.1},
+    {'name':'Moving average'      , 'param':100 , 'paramName':'Window Size'  , 'paramRange':[1      , 100000] , 'increment':1  , 'digits':0} , 
+    {'name':'Low pass 1st order'  , 'param':1.0, 'paramName':'Cutoff Freq.' , 'paramRange':[0.0001 , 100000] , 'increment':0.1, 'digits':4} , 
+    {'name':'High pass 1st order' , 'param':0.1 , 'paramName':'Cutoff Freq.' , 'paramRange':[0.0001 , 100000] , 'increment':0.1, 'digits':4} , 
 ]
 
 SAMPLERS=[

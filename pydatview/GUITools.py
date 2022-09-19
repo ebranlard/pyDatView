@@ -211,7 +211,8 @@ class FilterToolPanel(GUIToolPanel):
         self.cbFilters = wx.ComboBox(self, choices=[filt['name'] for filt in self._DEFAULT_FILTERS], style=wx.CB_READONLY)
         self.lbParamName = wx.StaticText(self, -1, '            :')
         self.cbFilters.SetSelection(0)
-        self.tParam = wx.SpinCtrlDouble(self, value='11', size=wx.Size(60,-1))
+#         self.tParam = wx.TextCtrl(self, wx.ID_ANY, '', style= wx.TE_PROCESS_ENTER, size=wx.Size(60,-1))
+        self.tParam = wx.SpinCtrlDouble(self, value='11', size=wx.Size(80,-1))
         self.lbInfo = wx.StaticText( self, -1, '')
 
 
@@ -251,9 +252,12 @@ class FilterToolPanel(GUIToolPanel):
         self.cbFilters.Bind(wx.EVT_COMBOBOX, self.onSelectFilt)
         self.Bind(wx.EVT_SPINCTRLDOUBLE, self.onParamChangeArrow, self.tParam)
         self.Bind(wx.EVT_TEXT_ENTER,     self.onParamChangeEnter, self.tParam)
+        try:
+            self.spintxt = self.tParam.Children[0]
+        except:
+            self.spintxt = None
         if platform.system()=='Windows':
             # See issue https://github.com/wxWidgets/Phoenix/issues/1762
-            self.spintxt = self.tParam.Children[0]
             assert isinstance(self.spintxt, wx.TextCtrl)
             self.spintxt.Bind(wx.EVT_CHAR_HOOK, self.onParamChangeChar)
 
@@ -273,8 +277,11 @@ class FilterToolPanel(GUIToolPanel):
         iFilt = self.cbFilters.GetSelection()
         filt = self._DEFAULT_FILTERS[iFilt]
         self.lbParamName.SetLabel(filt['paramName']+':')
-        self.tParam.SetRange(filt['paramRange'][0], filt['paramRange'][1])
+        #self.tParam.SetRange(filt['paramRange'][0], filt['paramRange'][1])
+        # NOTE: if min value for range is not 0, the Ctrl prevents you to enter 0.01
+        self.tParam.SetRange(0, filt['paramRange'][1])
         self.tParam.SetIncrement(filt['increment'])
+        self.tParam.SetDigits(filt['digits'])
 
         parentFilt=self.parent.plotDataOptions['Filter']
         # Value
@@ -282,6 +289,8 @@ class FilterToolPanel(GUIToolPanel):
             self.tParam.SetValue(parentFilt['param'])
         else:
             self.tParam.SetValue(filt['param'])
+        # Trigger plot if applied
+        self.onParamChange(self)
 
     def _GUI2Data(self):
         iFilt = self.cbFilters.GetSelection()
@@ -290,6 +299,11 @@ class FilterToolPanel(GUIToolPanel):
             filt['param']=np.float(self.spintxt.Value)
         except:
             print('[WARN] pyDatView: Issue on Mac: GUITools.py/_GUI2Data. Help needed.')
+            filt['param']=np.float(self.tParam.Value)
+        if filt['param']<filt['paramRange'][0]:
+            filt['param']=filt['paramRange'][0]
+            self.tParam.SetValue(filt['paramRange'][0])
+
         return filt
 
     def onToggleApply(self, event=None, init=False):
