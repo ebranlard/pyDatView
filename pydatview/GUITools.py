@@ -710,7 +710,7 @@ class MaskToolPanel(GUIToolPanel):
         self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
         self.cbTabs.SetSelection(0)
 
-        self.textMask = wx.TextCtrl(self, wx.ID_ANY, allMask)
+        self.textMask = wx.TextCtrl(self, wx.ID_ANY, allMask, style = wx.TE_PROCESS_ENTER)
         #self.textMask.SetValue('({Time}>100) & ({Time}<400)')
         #self.textMask.SetValue("{Date} > '2018-10-01'")
 
@@ -734,7 +734,10 @@ class MaskToolPanel(GUIToolPanel):
         self.sizer.Add(btSizer      ,0, flag = wx.LEFT           ,border = 5)
         self.sizer.Add(vert_sizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = TOOL_BORDER)
         self.SetSizer(self.sizer)
+        # Bindings
+        # NOTE: getBtBitmap and getToggleBtBitmap already specify the binding
         self.Bind(wx.EVT_COMBOBOX, self.onTabChange, self.cbTabs )
+        self.textMask.Bind(wx.EVT_TEXT_ENTER, self.onParamChangeAndPressEnter)
 
     def onTabChange(self,event=None):
         tabList = self.parent.selPanel.tabList
@@ -750,13 +753,16 @@ class MaskToolPanel(GUIToolPanel):
         #    self.textMask.SetValue(self.guessMask) # no known mask
           
     def guessMask(self,tabList):
-        cols=[c.lower() for c in tabList.get(0).columns_clean]
-        if 'time' in cols:
+        cols=tabList.get(0).columns_clean
+        if 'Time' in cols:
             return '{Time} > 100'
-        elif 'date' in cols:
+        elif 'Date' in cols:
             return "{Date} > '2017-01-01"
         else:
-            return '' 
+            if len(cols)>1:
+                return '{'+cols[1]+'}>0'
+            else:
+                return ''
 
     def onClear(self,event=None):
         iSel      = self.cbTabs.GetSelection()
@@ -769,6 +775,13 @@ class MaskToolPanel(GUIToolPanel):
 
         mainframe.redraw()
         self.onTabChange()
+
+    def onParamChangeAndPressEnter(self, event=None):
+        # We apply
+        if self.applied:
+            self.onApply(self,bAdd=False)
+        else:
+            self.onToggleApplyMask(self)
 
     def onToggleApplyMask(self,event=None):
         self.applied = not self.applied

@@ -297,6 +297,7 @@ class TableList(object): # todo inherit list
             t.clearMask()
 
     def applyCommonMaskString(self,maskString,bAdd=True):
+        # Apply mask on tablist
         dfs_new   = []
         names_new = []
         errors=[]
@@ -473,7 +474,8 @@ class Table(object):
         self.maskString=''
         self.mask=None
 
-    def applyMaskString(self,maskString,bAdd=True):
+    def applyMaskString(self, sMask, bAdd=True):
+        # Apply mask on Table
         df = self.data
         for i,c in enumerate(self.columns):
             c_no_unit = no_unit(c).strip()
@@ -495,9 +497,12 @@ class Table(object):
                     name_new=self.raw_name+'_masked'
                 else:
                     self.mask=mask
-                    self.maskString=maskString
+                    self.maskString=sMask
             except:
                 raise Exception('Error: The mask failed for table: '+self.name)
+            if sum(mask)==0:
+                self.clearMask()
+                raise Exception('Error: The mask returned no value for table: '+self.name)
         return df_new, name_new
 
     # --- Important manipulation TODO MOVE THIS OUT OF HERE OR UNIFY
