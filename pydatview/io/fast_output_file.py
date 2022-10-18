@@ -43,11 +43,32 @@ class FASTOutputFile(File):
 
     @staticmethod
     def defaultExtensions():
-        return ['.out','.outb','.elm','.elev']
+        return ['.out','.outb','.elm','.elev','.dbg','.dbg2']
 
     @staticmethod
     def formatName():
         return 'FAST output file'
+
+    def __init__(self, filename=None, **kwargs):
+        """ Class constructor. If a `filename` is given, the file is read. """
+        self.filename = filename
+        if filename:
+            self.read(**kwargs)
+
+    def read(self, filename=None, **kwargs):
+        """ Reads the file self.filename, or `filename` if provided """
+        
+        # --- Standard tests and exceptions (generic code)
+        if filename:
+            self.filename = filename
+        if not self.filename:
+            raise Exception('No filename provided')
+        if not os.path.isfile(self.filename):
+            raise OSError(2,'File not found:',self.filename)
+        if os.stat(self.filename).st_size == 0:
+            raise EmptyFileError('File is empty:',self.filename)
+        # --- Calling (children) function to read
+        self._read(**kwargs)
 
     def _read(self):
         def readline(iLine):
@@ -62,7 +83,7 @@ class FASTOutputFile(File):
         self.info={}
         self['binary']=False
         try:
-            if ext in ['.out','.elev']:
+            if ext in ['.out','.elev','.dbg','.dbg2']:
                 self.data, self.info = load_ascii_output(self.filename)
             elif ext=='.outb':
                 self.data, self.info = load_binary_output(self.filename)
@@ -101,9 +122,16 @@ class FASTOutputFile(File):
                 # TODO better..
                 f.write('\n'.join(['\t'.join(['{:10.4f}'.format(y[0])]+['{:10.3e}'.format(x) for x in y[1:]]) for y in self.data]))
 
-    def _toDataFrame(self):
+    def toDataFrame(self):
+        """ Returns object into one DataFrame, or a dictionary of DataFrames"""
+        # --- Example (returning one DataFrame):
+        #  return pd.DataFrame(data=np.zeros((10,2)),columns=['Col1','Col2'])
         if self.info['attribute_units'] is not None:
-            cols=[n+'_['+u.replace('sec','s')+']' for n,u in zip(self.info['attribute_names'],self.info['attribute_units'])]
+            if len(self.info['attribute_names'])!=len(self.info['attribute_units']):
+                cols=self.info['attribute_names']
+                print('[WARN] not all columns have units! Skipping units')
+            else:
+                cols=[n+'_['+u.replace('sec','s')+']' for n,u in zip(self.info['attribute_names'],self.info['attribute_units'])]
         else:
             cols=self.info['attribute_names']
         if isinstance(self.data, pd.DataFrame):

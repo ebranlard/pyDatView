@@ -1602,7 +1602,8 @@ class ADPolarFile(FASTInputFileBase):
 
             # Linear Cn
             try:
-                CnLin = self['C_nalpha'+labOffset]*(alpha-self['alpha0'+labOffset]*np.pi/180.)
+                CnLin_ = self['C_nalpha'+labOffset]*(alpha-self['alpha0'+labOffset]*np.pi/180.)
+                CnLin = CnLin_.copy()
                 CnLin[alpha<-20*np.pi/180]=np.nan
                 CnLin[alpha> 30*np.pi/180]=np.nan
                 df['Cn_pot_[-]'] = CnLin
@@ -1619,6 +1620,12 @@ class ADPolarFile(FASTInputFileBase):
                 CnPoints[iBef1:iBef1+2] = Cn[iBef1:iBef1+2]
                 CnPoints[iBef0:iBef0+2] = Cn[iBef0:iBef0+2]
                 df['Cn_012_[-]'] = CnPoints
+            except:
+                pass
+
+            # Cnf
+            try:
+                df['Cn_f_[-]'] = CnLin_ * ((1 + np.sqrt(0.7)) / 2) ** 2
             except:
                 pass
 
