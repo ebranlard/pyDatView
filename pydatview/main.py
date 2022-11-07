@@ -767,6 +767,13 @@ pyDatView help:
             else:
                 msg = 'Unable to create GUI' # TODO: more description is needed for wxMSW...
             raise SystemExit(msg)
+    def InitLocale(self):
+        if sys.platform.startswith('win') and sys.version_info > (3,8):
+            # See Bug #128 - Issue with wxPython 4.1 on Windows
+            import locale
+            locale.setlocale(locale.LC_ALL, "C")
+            print('[INFO] Setting locale to C')
+            #self.SetAssertMode(wx.APP_ASSERT_SUPPRESS) # Try this
 
 # --------------------------------------------------------------------------------}
 # --- Mains 
