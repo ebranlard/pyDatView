@@ -1,3 +1,15 @@
+""" 
+Tools to read/write OpenFAST output files
+
+Main content:
+
+- class FASTOutputFile()
+- data, info = def load_output(filename)
+- data, info = def load_ascii_output(filename)
+- data, info = def load_binary_output(filename, use_buffer=True)
+- def writeDataFrame(df, filename, binary=True)
+- def writeBinary(fileName, channels, chanNames, chanUnits, fileID=2, descStr='')
+"""
 from itertools import takewhile
 import numpy as np
 import pandas as pd
@@ -144,6 +156,13 @@ class FASTOutputFile(File):
 
     def writeDataFrame(self, df, filename, binary=True):
         writeDataFrame(df, filename, binary=binary)
+
+    def __repr__(self):
+        s='<{} object> with attributes:\n'.format(type(self).__name__)
+        s+=' - info ({})\n'.format(type(self.info))
+        s+=' - data ({})\n'.format(type(self.data))
+        s+='and keys: {}\n'.format(self.keys())
+        return s
 
 # --------------------------------------------------------------------------------
 # --- Helper low level functions 

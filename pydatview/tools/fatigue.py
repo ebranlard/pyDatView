@@ -31,6 +31,48 @@ import numpy as np
 __all__  = ['rainflow_astm', 'rainflow_windap','eq_load','eq_load_and_cycles','cycle_matrix','cycle_matrix2']
 
 
+def equivalent_load(signal, m=3, Teq=1, nBins=46, method='rainflow_windap'):
+    """Equivalent load calculation
+
+    Calculate the equivalent loads for a list of Wohler exponent
+
+    Parameters
+    ----------
+    signals : array-like, the signal
+    m :    Wohler exponent (default is 3)
+    Teq : The equivalent number of load cycles (default is 1, but normally the time duration in seconds is used)
+    nBins : Number of bins in rainflow count histogram
+    method: 'rainflow_windap, rainflow_astm, fatpack
+
+    Returns
+    -------
+    Leq : the equivalent load for given m and Tea
+    """
+    signal = np.asarray(signal)
+
+    rainflow_func_dict = {'rainflow_windap':rainflow_windap, 'rainflow_astm':rainflow_astm}
+    if method in rainflow_func_dict.keys():
+        # Call wetb function for one m
+        Leq = eq_load(signal, m=[m], neq=Teq, no_bins=nBins, rainflow_func=rainflow_func_dict[method])[0][0]
+
+    elif method=='fatpack':
+        import fatpack
+        # find rainflow ranges
+        ranges = fatpack.find_rainflow_ranges(signal)
+        # find range count and bin
+        Nrf, Srf = fatpack.find_range_count(ranges, nBins)
+        # get DEL
+        DELs = Srf**m * Nrf / Teq
+        Leq = DELs.sum() ** (1/m)
+
+    else:
+        raise NotImplementedError(method)
+
+    return Leq
+
+ 
+
+
 def check_signal(signal):
     # check input data validity
     if not type(signal).__name__ == 'ndarray':

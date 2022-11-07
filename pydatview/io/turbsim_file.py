@@ -53,7 +53,7 @@ class TurbSimFile(File):
     def formatName():
         return 'TurbSim binary'
 
-    def __init__(self,filename=None, **kwargs):
+    def __init__(self, filename=None, **kwargs):
         self.filename = None
         if filename:
             self.read(filename, **kwargs)
@@ -174,13 +174,32 @@ class TurbSimFile(File):
     # --- Convenient properties (matching Mann Box interface as well)
     # --------------------------------------------------------------------------------{
     @property
-    def z(self): return self['z']
+    def z(self): return self['z'] # np.arange(nz)*dz +zBottom
 
     @property
-    def y(self): return self['y']
+    def y(self): return self['y'] # np.arange(ny)*dy  - np.mean( np.arange(ny)*dy )
+ 
+    @property
+    def t(self): return self['t'] # np.arange(nt)*dt
+
+    # NOTE: it would be best to use dz and dy as given in the file to avoid numerical issues
+    @property
+    def dz(self): return self['z'][1]-self['z'][0]
 
     @property
-    def t(self): return self['t']
+    def dy(self): return self['y'][1]-self['y'][0]
+
+    @property
+    def dt(self): return self['t'][1]-self['t'][0]
+
+    @property
+    def nz(self): return len(self.z)
+
+    @property
+    def ny(self): return len(self.y)
+
+    @property
+    def nt(self): return len(self.t)
 
     # --------------------------------------------------------------------------------}
     # --- Extracting relevant "Line" data at one point
@@ -660,6 +679,52 @@ class TurbSimFile(File):
 
 
     # Useful converters
+    def fromAMRWind(self, filename, dt, nt):
+        """
+        Convert current TurbSim file into one generated from AMR-Wind LES sampling data in .nc format
+        Assumes:
+          --  u, v, w (nt, nx * ny * nz)
+          --  u is aligned with x-axis (flow is not rotated) - this consideration needs to be added
+
+        INPUTS:
+          - filename: (string) full path to .nc sampling data file
+          - plane_label: (string) name of sampling plane group from .inp file (e.g. "p_sw2")
+          - dt: timestep size [s]
+          - nt: number of timesteps (sequential) you want to read in, starting at the first timestep available
+          - y: user-defined vector of coordinate positions in y
+          - z: user-defined vector of coordinate positions in z
+          - uref: (float) reference mean velocity (e.g. 8.0 hub height mean velocity from input file)
+          - zref: (float) hub height (e.t. 150.0)
+        """
+        import xarray as xr
+        
+        # read in sampling data plane
+        ds = xr.open_dataset(filename,
+                              engine='netcdf4',
+                              group=plane_label)
+        ny, nz, _ = ds.attrs['ijk_dims']
+        noffsets  = len(ds.attrs['offsets'])
+        t         = np.arange(0, dt*(nt-0.5), dt)
+        print('max time [s] = ', t[-1])
+
+        self['u']=np.ndarray((3,nt,ny,nz)) #, buffer=shm.buf)
+        # read in AMRWind velocity data
+        self['u'][0,:,:,:] = ds['velocityx'].isel(num_time_steps=slice(0,nt)).values.reshape(nt,noffsets,ny,nz)[:,1,:,:] # last index = 1 refers to 2nd offset plane at -1200 m
+        self['u'][1,:,:,:] = ds['velocityy'].isel(num_time_steps=slice(0,nt)).values.reshape(nt,noffsets,ny,nz)[:,1,:,:]
+        self['u'][2,:,:,:] = ds['velocityz'].isel(num_time_steps=slice(0,nt)).values.reshape(nt,noffsets,ny,nz)[:,1,:,:]
+        self['t']  = t
+        self['y']  = y
+        self['z']  = z
+        self['dt'] = dt
+        # TODO
+        self['ID'] = 7 # ...
+        self['info'] = 'Converted from AMRWind fields {:s}.'.format(time.strftime('%d-%b-%Y at %H:%M:%S', time.localtime()))
+#         self['zTwr'] = np.array([])
+#         self['uTwr'] = np.array([])
+        self['zRef'] = zref #None
+        self['uRef'] = uref #None
+        self['zRef'], self['uRef'], bHub = self.hubValues()
+
     def fromMannBox(self, u, v, w, dx, U, y, z, addU=None):
         """ 
         Convert current TurbSim file into one generated from MannBox
@@ -781,6 +846,91 @@ class TurbSimFile(File):
         u = u[0,:]
         u_fit, pfit, model =  fit_powerlaw_u_alpha(z, u, z_ref=z_ref, p0=(U_guess, alpha_guess))
         return u_fit, pfit, model, z_ref
+
+# Functions from BTS_File.py to be ported here
+#     def TI(self,y=None,z=None,j=None,k=None):       
+#         """
+#         If no argument is given, compute TI over entire grid and return array of size (ny,nz). Else, compute TI at the specified point.
+#         
+#         Parameters
+#         ----------
+#         y : float,
+#             cross-stream position [m]
+#         z : float,
+#             vertical position AGL [m]
+#         j : int,
+#             grid index along cross-stream
+#         k : int,
+#             grid index along vertical
+#         """
+#         if ((y==None) & (j==None)):
+#             return np.std(self.U,axis=0) / np.mean(self.U,axis=0)
+#         if ((y==None) & (j!=None)):
+#             return (np.std(self.U[:,j,k])/np.mean(self.U[:,j,k]))
+#         if ((y!=None) & (j==None)):
+#             uSeries = self.U[:,self.y2j(y),self.z2k(z)]
+#             return np.std(uSeries)/np.mean(uSeries)
+#     
+#     def visualize(self,component='U',time=0):
+#         """
+#         Quick peak at the data for a given component, at a specific time.
+#         """
+#         data    = getattr(self,component)[time,:,:]
+#         plt.figure() ; 
+#         plt.imshow(data) ; 
+#         plt.colorbar()   
+#         plt.show()
+#      
+#     def spectrum(self,component='u',y=None,z=None):
+#         """
+#         Calculate spectrum of a specific component, given time series at ~ hub.
+#         
+#         Parameters
+#         ----------
+#         component : string,
+#             which component to use
+#         y : float,
+#             y coordinate [m] of specific location
+#         z : float,
+#             z coordinate [m] of specific location
+# 
+#         """
+#         if y==None:
+#             k = self.kHub
+#             j = self.jHub
+#         data    = getattr(self,component)      
+#         data    = data[:,j,k]
+#         N       = data.size
+#         freqs   = fftpack.fftfreq(N,self.dT)[1:N/2]
+#         psd     = (np.abs(fftpack.fft(data,N)[1:N/2]))**2
+#         return [freqs, psd]        
+# 
+#     def getRotorPoints(self):
+#         """
+#         In the square y-z slice, return which points are at the edge of the rotor in the horizontal and vertical directions.
+#         
+#         Returns
+#         -------
+#         jLeft : int,
+#             index for grid point that matches the left side of the rotor (when looking towards upstream)
+#         jRight : int,
+#             index for grid point that matches the right side of the rotor (when looking towards upstream)
+#         kBot : int,
+#             index for grid point that matches the bottom of the rotor
+#         kTop : int,
+#             index for grid point that matches the top of the rotor
+#         """
+#         self.zBotRotor      = self.zHub - self.R
+#         self.zTopRotor      = self.zHub + self.R
+#         self.yLeftRotor     = self.yHub - self.R
+#         self.yRightRotor    = self.yHub + self.R        
+#         self.jLeftRotor  = self.y2j(self.yLeftRotor)
+#         self.jRightRotor = self.y2j(self.yRightRotor)
+#         self.kBotRotor   = self.z2k(self.zBotRotor)
+#         self.kTopRotor   = self.z2k(self.zTopRotor)
+#         
+
+
 
 def fit_powerlaw_u_alpha(x, y, z_ref=100, p0=(10,0.1)):
     """ 

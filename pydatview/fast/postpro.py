@@ -163,8 +163,9 @@ def BD_BldStations(BD, BDBld):
           This will NOT match the "Initial Nodes" reported  in the summary file.
     INPUTS:
        - BD: either:
-           - a filename of a ElastoDyn input file
+           - a filename of a BeamDyn input file
            - an instance of FileCl, as returned by reading the file, BD = weio.read(BD_filename)
+       - BDBld: same as BD but for the BeamDyn blade file
     OUTPUTS:
         - r_nodes: spanwise position from the balde root of the Blade stations
     """
@@ -175,7 +176,6 @@ def BD_BldStations(BD, BDBld):
     if hasattr(BDBld,'startswith'): # if string
         BDBld = FASTInputFile(BDBld)
         #  BD['BldFile'].replace('"',''))
-
 
 
     # --- Extract relevant info from BD files
@@ -210,9 +210,7 @@ def BD_BldStations(BD, BDBld):
         r    = np.concatenate( (rStations, rmid))
         r    = np.unique(np.sort(r))
     else:
-
-        raise NotImplementedError('BeamDyn with Gaussian quadrature points')
-
+        raise NotImplementedError('Only Gauss and Trap quadrature implemented')
     return r
 
 def BD_BldGag(BD):
@@ -867,14 +865,13 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
                 print('[WARN] The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
                 #raise Exception('The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
             else:
-                if fst.ED is not None:
-                    R           = fst.ED['TipRad']
-                    r_hub       = fst.ED['HubRad']
-                    if fst.ED.hasNodal:
-                        _, r_ED = ED_BldStations(fst.ED)
-                        IR_ED =None
-                    else:
-                        r_ED, IR_ED = ED_BldGag(fst.ED)
+                R           = fst.ED['TipRad']
+                r_hub       = fst.ED['HubRad']
+                if fst.ED.hasNodal:
+                    _, r_ED = ED_BldStations(fst.ED)
+                    IR_ED =None
+                else:
+                    r_ED, IR_ED = ED_BldGag(fst.ED)
 
             # --- BeamDyn
             if  fst.BD is not None:

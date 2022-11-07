@@ -116,7 +116,7 @@ class HAWC2HTCFile(File):
                 if not os.path.exists(H2_stfile):
                     print('[WARN] st file referenced in htc file was not found. St file: {}, htc file {}'.format(H2_stfile, self.filename))
                 else:
-                    dfs_st = HAWC2StFile(H2_stfile).toDataFrame()
+                    dfs_st = HAWC2StFile(H2_stfile).toDataFrame(extraCols=False)
                     if 'set' in tim.keys():
                         mset = tim.set[0]
                         iset = tim.set[1]
