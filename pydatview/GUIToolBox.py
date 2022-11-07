@@ -3,7 +3,7 @@ import wx
 import matplotlib
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.backend_bases import NavigationToolbar2
-from matplotlib.widgets import Cursor, MultiCursor
+from matplotlib.widgets import Cursor, MultiCursor, Widget
 # from matplotlib.widgets import AxesWidget
 
 def GetKeyString(evt):
@@ -125,51 +125,38 @@ def TBAddTool(tb, label, defaultBitmap=None, callback=None, Type=None):
 # --------------------------------------------------------------------------------}
 # --- Plot Panel 
 # --------------------------------------------------------------------------------{
-# class MyCursor(Cursor):
-#     def onmove(self, event):
-#         """on mouse motion draw the cursor if visible"""
-#         if self.ignore(event):
-#             return
-#         # MANU: Disabling lock below so that we can have cross hairwith zoom
-#         #if not self.canvas.widgetlock.available(self):
-#         #    return
-#         if event.inaxes != self.ax:
-#             self.linev.set_visible(False)
-#             self.lineh.set_visible(False)
-# 
-#             if self.needclear:
-#                 self.canvas.draw()
-#                 self.needclear = False
-#             return
-#         self.needclear = True
-#         if not self.visible:
-#             return
-#         self.linev.set_xdata((event.xdata, event.xdata))
-# 
-#         self.lineh.set_ydata((event.ydata, event.ydata))
-#         self.linev.set_visible(self.visible and self.vertOn)
-#         self.lineh.set_visible(self.visible and self.horizOn)
-# 
-#         self._update()
-
-class MyMultiCursor(MultiCursor):
-    def __init__(self, canvas, axes, useblit=True, horizOn=False, vertOn=True, horizLocal=True,
+class MyMultiCursor(Widget):
+    """ 
+    Copy pasted from matplotlib.widgets.MultiCursor, version 3.6
+    A change of interface occured between 3.5 and 3.6, it's simpler to just copy paste the whole class
+    The main changes are indicated with "MANU" below:
+      - adding a flag horizLocal (the horizontal cross hair is based on a given local axis (when having subplots))
+      - setting the hlines and vlines per axes 
+      - not returning when the zoom "widgetlock" is on to keep the cross hair in zoomed mode
+    """
+    def __init__(self, canvas, axes, useblit=True, horizOn=False, vertOn=True,
+            horizLocal=True, # MANU
                  **lineprops):
-        # Taken from matplotlib/widget.py but added horizLocal
-        super(MyMultiCursor,self).__init__(canvas, axes, useblit, horizOn, vertOn, **lineprops)
-        self.canvas = canvas
         self.axes = axes
         self.horizOn = horizOn
         self.vertOn = vertOn
+
+        self._canvas_infos = {
+            ax.figure.canvas: {"cids": [], "background": None} for ax in axes}
+
         self.visible = True
-        self.useblit = useblit and self.canvas.supports_blit
-        self.background = None
+        self.useblit = (
+            useblit
+            and all(canvas.supports_blit for canvas in self._canvas_infos))
         self.needclear = False
+
         if self.useblit:
             lineprops['animated'] = True
+
+        # MANU: xid and ymid are per axis basis
+        self.horizLocal = horizLocal
         self.vlines = []
         self.hlines = []
-        # MANU: xid and ymid are per axis basis
         for ax in axes:
             xmin, xmax = ax.get_xlim()
             ymin, ymax = ax.get_ylim()
@@ -181,17 +168,38 @@ class MyMultiCursor(MultiCursor):
                 self.hlines.append(ax.axhline(ymid, visible=False, **lineprops))
 
         self.connect()
-        # ---
-        self.horizLocal = horizLocal
 
-    def onmove(self, event):
+    def connect(self):
+        """Connect events."""
+        for canvas, info in self._canvas_infos.items():
+            info["cids"] = [
+                canvas.mpl_connect('motion_notify_event', self.onmove),
+                canvas.mpl_connect('draw_event', self.clear),
+            ]
+
+    def disconnect(self):
+        """Disconnect events."""
+        for canvas, info in self._canvas_infos.items():
+            for cid in info["cids"]:
+                canvas.mpl_disconnect(cid)
+            info["cids"].clear()
+
+    def clear(self, event):
+        """Clear the cursor."""
         if self.ignore(event):
             return
-        if event.inaxes is None:
+        if self.useblit:
+            for canvas, info in self._canvas_infos.items():
+                info["background"] = canvas.copy_from_bbox(canvas.figure.bbox)
+        for line in self.vlines + self.hlines:
+            line.set_visible(False)
+
+    def onmove(self, event):
+        if (self.ignore(event)
+                or event.inaxes not in self.axes):
+            # MANU: Disabling lock below so that we can have cross hairwith zoom
+        #        or not event.canvas.widgetlock.available(self)):
             return
-        # MANU: Disabling lock below so that we can have cross hairwith zoom
-        # if not self.canvas.widgetlock.available(self):
-        # return
         self.needclear = True
         if not self.visible:
             return
@@ -203,12 +211,15 @@ class MyMultiCursor(MultiCursor):
             for line in self.hlines:
                 line.set_ydata((event.ydata, event.ydata))
                 line.set_visible(self.visible)
+        #self._update()
         # MANU: adding current axes
         self._update(currentaxes=event.inaxes)
-    def _update(self,currentaxes=None):
+
+    def _update(self, currentaxes=None):
         if self.useblit:
-            if self.background is not None:
-                self.canvas.restore_region(self.background)
+            for canvas, info in self._canvas_infos.items():
+                if info["background"]:
+                    canvas.restore_region(info["background"])
             if self.vertOn:
                 for ax, line in zip(self.axes, self.vlines):
                     ax.draw_artist(line)
@@ -217,9 +228,13 @@ class MyMultiCursor(MultiCursor):
                 for ax, line in zip(self.axes, self.hlines):
                     if (self.horizLocal and currentaxes == ax) or (not self.horizLocal):
                         ax.draw_artist(line)
-            self.canvas.blit(self.canvas.figure.bbox)
+
+            for canvas in self._canvas_infos:
+                canvas.blit()
         else:
-            self.canvas.draw_idle()
+            for canvas in self._canvas_infos:
+                canvas.draw_idle()
+
 
 
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
