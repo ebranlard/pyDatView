@@ -174,6 +174,13 @@ class FASTInputFileBase(File):
         f.write('AeroDyn_Changed.dat')
 
     """
+    @staticmethod
+    def defaultExtensions():
+        return ['.dat','.fst','.txt','.fstf','.dvr']
+
+    @staticmethod
+    def formatName():
+        return 'FAST input file Base'
 
     def __init__(self, filename=None, **kwargs):
         self._size=None
@@ -243,9 +250,12 @@ class FASTInputFileBase(File):
             if self.data[i]['tabType'] != TABTYPE_NOT_A_TAB:
                 # For tables, we automatically update variable that stores the dimension 
                 nRows   = len(item)
-                dimVar  = self.data[i]['tabDimVar']
-                iDimVar = self.getID(dimVar)
-                self.data[iDimVar]['value'] = nRows # Avoiding a recursive call to __setitem__ here
+                if 'tabDimVar' in self.data[i].keys():
+                    dimVar  = self.data[i]['tabDimVar']
+                    iDimVar = self.getID(dimVar)
+                    self.data[iDimVar]['value'] = nRows # Avoiding a recursive call to __setitem__ here
+                else:
+                    pass
             self.data[i]['value'] = item
 
     def __getitem__(self,key):
@@ -765,8 +775,10 @@ class FASTInputFileBase(File):
             elif d['tabType']==TABTYPE_NUM_SUBDYNOUT:
                 data = d['value']
                 s+='{}\n'.format(' '.join(['{:15s}'.format(s) for s in d['tabColumnNames']]))
-                s+='{}\n'.format(' '.join(['{:15s}'.format(s) for s in d['tabUnits']]))
-                s+='\n'.join('\t'.join('{:15.0f}'.format(x) for x in y) for y in data)
+                s+='{}'.format(' '.join(['{:15s}'.format(s) for s in d['tabUnits']]))
+                if np.size(d['value'],0) > 0 :
+                    s+='\n'
+                    s+='\n'.join('\t'.join('{:15.0f}'.format(x) for x in y) for y in data)
             else:
                 raise Exception('Unknown table type for variable {}'.format(d))
             if i<len(self.data)-1:
@@ -1133,13 +1145,10 @@ def parseFASTInputLine(line_raw,i,allowSpaceSeparatedList=False):
 def parseFASTOutList(lines,iStart):
     OutList=[]
     i = iStart
-    MAX=200
-    while i<len(lines) and lines[i].upper().find('END')!=0:
+    while i<len(lines) and lines[i].upper().find('END')!=0 and lines[i].upper().find('---')!=0 and lines[i].upper().find('===')!=0:
         OutList.append(lines[i]) #TODO better parsing
         #print('OutList',lines[i])
         i += 1
-        if i-iStart>MAX :
-            raise Exception('More that 200 lines found in outlist')
         if i>=len(lines):
             print('[WARN] End of file reached while reading Outlist')
     #i=min(i+1,len(lines))
@@ -1443,7 +1452,7 @@ class ADBladeFile(FASTInputFileBase):
         # TODO double check this calculation with gradient
         dr = np.gradient(aeroNodes[:,0])
         dx = np.gradient(aeroNodes[:,1])
-        crvAng = np.degrees(np.arctan2(dx,dr))*np.pi/180
+        crvAng = np.degrees(np.arctan2(dx,dr))
         if np.mean(np.abs(crvAng-aeroNodes[:,3]))>0.1:
             print('[WARN] BlCrvAng might not be computed correctly')
 
@@ -1512,6 +1521,10 @@ class ADBladeFile(FASTInputFileBase):
 # --- AeroDyn Polar 
 # --------------------------------------------------------------------------------{
 class ADPolarFile(FASTInputFileBase):
+    @staticmethod
+    def formatName():
+        return 'FAST AeroDyn polar file'
+
     @classmethod
     def from_fast_input_file(cls, parent):
         self = cls()

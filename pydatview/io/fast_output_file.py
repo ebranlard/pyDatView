@@ -17,11 +17,12 @@ import struct
 import os
 import re
 try:
-    from .file import File, WrongFormatError, BrokenReaderError, EmptyFileError
+    from .file import File, WrongFormatError, BrokenReaderError, EmptyFileError, BrokenFormatError
 except:
     File = dict
     class WrongFormatError(Exception): pass
     class WrongReaderError(Exception): pass
+    class BrokenFormatError(Exception): pass
     class EmptyFileError(Exception): pass
 try:
     from .csv_file import CSVFile
@@ -150,6 +151,8 @@ class FASTOutputFile(File):
             df= self.data
             df.columns=cols
         else:
+            if len(cols)!=self.data.shape[1]:
+                raise BrokenFormatError('Inconstistent number of columns between headers ({}) and data ({}) for file {}'.format(len(cols), self.data.shape[1], self.filename))
             df = pd.DataFrame(data=self.data,columns=cols)
 
         return df
@@ -206,7 +209,8 @@ def load_ascii_output(filename):
             l = f.readline()
             if not l:
                 raise Exception('Error finding the end of FAST out file header. Keyword Time missing.')
-            in_header= (l+' dummy').lower().split()[0] != 'time'
+            first_word = (l+' dummy').lower().split()[0]
+            in_header=  (first_word != 'time') and  (first_word != 'alpha')
             if in_header:
                 header.append(l)
             else:
