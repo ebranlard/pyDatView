@@ -218,6 +218,7 @@ If the `pythonmac` commands fails, contact the developer, and in the meantime tr
 ```
 where `/anaconda3/bin/` is the path that would be returned by the command `which conda`. Note the `.app` at the end. If you don't have `python.app`, try installing it with `conda install -c anaconda python.app`
 
+Note also that several users have been struggling to run pyDatView on the mac Terminal in new macOS systems. If you encounter the same issues, we recommend using the integrated zsh terminal from [VSCode](https://code.visualstudio.com) or using a more advanced terminal like [iterm2](https://iterm2.com/downloads.html) and perform the installation steps there. Also, make sure to stick to the base anaconda environment.
 
 ### Easy access
 To easily access the program later, you can add an alias to your `.bashrc` or install the pydatview module:
