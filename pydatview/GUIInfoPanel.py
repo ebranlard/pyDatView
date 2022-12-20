@@ -272,6 +272,24 @@ class InfoPanel(wx.Panel):
         self.SetSizer(sizer)
         self.SetMaxSize((-1, 50))
 
+    # --- GUI Data
+    def saveData(self, data):
+        data['ColumnsRegular'] = [c['name'] for c in self.ColsReg if c['s']]
+        data['ColumnsFFT']     = [c['name'] for c in self.ColsFFT if c['s']]
+        data['ColumnsMinMax']  = [c['name'] for c in self.ColsMinMax if c['s']]
+        data['ColumnsPDF']     = [c['name'] for c in self.ColsPDF if c['s']]
+        data['ColumnsCmp']     = [c['name'] for c in self.ColsCmp if c['s']]
+
+    @staticmethod
+    def defaultData():
+        data={}
+        data['ColumnsRegular'] = ['Column','Mean','Std','Min','Max','Range','dx','n']
+        data['ColumnsFFT']     = ['Column','Mean','Std','Min','Max','Min(FFT)','Max(FFT)',u'\u222By(FFT)','dx(FFT)','xMax(FFT)','n(FFT)','n']
+        data['ColumnsMinMax']  = ['Column','Mean','Std','Min','Max','Mean(MinMax)','Std(MinMax)',u'\u222By(MinMax)','n']
+        data['ColumnsPDF']     = ['Column','Mean','Std','Min','Max','Min(PDF)','Max(PDF)',u'\u222By(PDF)','n(PDF)']
+        data['ColumnsCmp']     = ['Column','Mean(Cmp)','Std(Cmp)','Min(Cmp)','Max(Cmp)','n(Cmp)']
+        return data
+
     def CopyToClipBoard(self, event):
         nCols=self.tbStats.GetColumnCount()
         headerLine='\t'.join([self.tbStats.GetColumn(j).GetText() for j in np.arange(nCols)] )

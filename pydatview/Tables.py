@@ -14,11 +14,25 @@ import pydatview.io as weio # File Formats and File Readers
 # --- TabList 
 # --------------------------------------------------------------------------------{
 class TableList(object): # todo inherit list
-    def __init__(self, tabs=None):
+
+    def __init__(self, tabs=None, options=None):
         if tabs is None:
             tabs =[]
         self._tabs  = tabs
-        self.Naming = 'Ellude'
+
+        self.options = self.defaultOptions() if options is None else options
+
+    # --- Options 
+    def saveOptions(self, optionts):
+        options['naming']   = self.options['naming']
+        options['dayfirst'] = self.options['dayfirst']
+        
+    @staticmethod
+    def defaultOptions():
+        options={}
+        options['naming']   = 'Ellude'
+        options['dayfirst'] = False
+        return options
 
     # --- behaves like a list...
     def __iter__(self):
@@ -51,7 +65,7 @@ class TableList(object): # todo inherit list
         # Returning a list of tables 
         for df,name in zip(dataframes, names):
             if df is not None:
-                self.append(Table(data=df, name=name))
+                self.append(Table(data=df, name=name, dayfirst=self.options['dayfirst']))
 
     def load_tables_from_files(self, filenames=[], fileformats=None, bAdd=False, bReload=False, statusFunction=None):
         """ load multiple files into table list"""
@@ -139,11 +153,11 @@ class TableList(object): # todo inherit list
             pass
         elif not isinstance(dfs,dict):
             if len(dfs)>0:
-                tabs=[Table(data=dfs, filename=filename, fileformat=fileformat)]
+                tabs=[Table(data=dfs, filename=filename, fileformat=fileformat, dayfirst=self.options['dayfirst'])]
         else:
             for k in list(dfs.keys()):
                 if len(dfs[k])>0:
-                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=fileformat))
+                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=fileformat, dayfirst=self.options['dayfirst']))
         if len(tabs)<=0:
             warn='Warn: No dataframe found in file: '+filename+'\n'
         return tabs, warn
@@ -233,10 +247,10 @@ class TableList(object): # todo inherit list
             t.active_name=tn
 
     def setNaming(self,naming):
-        self.Naming=naming
+        self.options['naming']=naming
 
     def getDisplayTabNames(self):
-        if self.Naming=='Ellude':
+        if self.options['naming']=='Ellude':
             # Temporary hack, using last names if all last names are unique
             names = [t.raw_name for t in self._tabs]
             last_names=[n.split('|')[-1] for n in names]
@@ -244,10 +258,10 @@ class TableList(object): # todo inherit list
                 return  ellude_common(last_names)
             else:
                 return  ellude_common(names)
-        elif self.Naming=='FileNames':
+        elif self.options['naming']=='FileNames':
             return [os.path.splitext(os.path.basename(t.filename))[0] for t in self._tabs]
         else:
-            raise Exception('Table naming unknown: {}'.format(self.Naming))
+            raise Exception('Table naming unknown: {}'.format(self.options['naming']))
 
     # --- Properties
     @property
@@ -399,7 +413,7 @@ class Table(object):
     #    active_name : 
     #    raw_name    : 
     #    filename    : 
-    def __init__(self,data=None,name='',filename='',columns=[], fileformat=None):
+    def __init__(self,data=None,name='',filename='',columns=[], fileformat=None, dayfirst=False):
         # Default init
         self.maskString=''
         self.mask=None
@@ -431,7 +445,7 @@ class Table(object):
 
         self.setupName(name=str(name))
         
-        self.convertTimeColumns()
+        self.convertTimeColumns(dayfirst=dayfirst)
 
 
     def setupName(self,name=''):
@@ -588,7 +602,7 @@ class Table(object):
         from pydatview.plugins.data_standardizeUnits import changeUnits
         changeUnits(self, flavor=flavor)
 
-    def convertTimeColumns(self):
+    def convertTimeColumns(self, dayfirst=False):
         if len(self.data)>0:
             for i,c in enumerate(self.data.columns.values):
                 y = self.data.iloc[:,i]
@@ -596,7 +610,7 @@ class Table(object):
                     if isinstance(y.values[0], str):
                         # tring to convert to date
                         try:
-                            parser.parse(y.values[0])
+                            vals = parser.parse(y.values[0])
                             isDate=True
                         except:
                             if y.values[0]=='NaT':
@@ -605,8 +619,8 @@ class Table(object):
                                 isDate=False
                         if isDate:
                             try:
-                                self.data[c]=pd.to_datetime(self.data[c].values).to_pydatetime()
-                                print('Column {} converted to datetime'.format(c))
+                                self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst).to_pydatetime()
+                                print('Column {} converted to datetime, dayfirst: {}'.format(c, dayfirst))
                             except:
                                 # Happens if values are e.g. "Monday, Tuesday"
                                 print('Conversion to datetime failed, column {} inferred as string'.format(c))

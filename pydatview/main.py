@@ -77,6 +77,23 @@ class FileDropTarget(wx.FileDropTarget):
       return True
 
 
+# --------------------------------------------------------------------------------}
+# --- Loader Menu 
+# --------------------------------------------------------------------------------{
+class LoaderMenuPopup(wx.Menu):
+    def __init__(self, parent, data):
+        wx.Menu.__init__(self)
+        self.parent = parent 
+        self.data = data 
+
+        # Populate menu
+        item = wx.MenuItem(self, -1, "Date format: dayfirst", kind=wx.ITEM_CHECK)
+        self.Append(item)
+        self.Bind(wx.EVT_MENU, lambda ev: self.setCheck(ev, 'dayfirst') )
+        self.Check(item.GetId(), self.data['dayfirst']) # Checking the menu box
+
+    def setCheck(self, event, label):
+        self.data['dayfirst'] = not self.data['dayfirst']
 
 
 # --------------------------------------------------------------------------------}
@@ -89,10 +106,10 @@ class MainFrame(wx.Frame):
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
         # --- Data
-        self.tabList=TableList()
         self.restore_formulas = []
         self.systemFontSize = self.GetFont().GetPointSize()
         self.data = loadAppData(self)
+        self.tabList=TableList(options=self.data['loaderOptions'])
         self.datareset = False
         # Global variables...
         setFontSize(self.data['fontSize'])
@@ -173,6 +190,11 @@ class MainFrame(wx.Frame):
         tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Format: ' ) )
         tb.AddControl(self.comboFormats ) 
+        # Menu for loader options
+        self.btLoaderMenu = wx.Button(tb, wx.ID_ANY, CHAR['menu'], style=wx.BU_EXACTFIT)
+        tb.AddControl(self.btLoaderMenu)
+        self.loaderMenu = LoaderMenuPopup(tb, self.data['loaderOptions'])
+        tb.Bind(wx.EVT_BUTTON, self.onShowLoaderMenu, self.btLoaderMenu)
         tb.AddSeparator()
         TBAddTool(tb, "Open"  , 'ART_FILE_OPEN', self.onLoad)
         TBAddTool(tb, "Reload", 'ART_REDO'     , self.onReload)
@@ -325,7 +347,7 @@ class MainFrame(wx.Frame):
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, self)
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, self, data=self.data['plotPanel'])
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -631,6 +653,11 @@ class MainFrame(wx.Frame):
         #if hasattr(self,'selPanel'):
         #    ISel=self.selPanel.tabPanel.lbTab.GetSelections()
         pass
+
+    def onShowLoaderMenu(self, event=None):
+        #pos = (self.btLoaderMenu.GetPosition()[0], self.btLoaderMenu.GetPosition()[1] + self.btLoaderMenu.GetSize()[1])
+        self.PopupMenu(self.loaderMenu) #, pos)
+
 
     def mainFrameUpdateLayout(self, event=None):
         if hasattr(self,'selPanel'):

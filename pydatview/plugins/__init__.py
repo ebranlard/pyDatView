@@ -24,6 +24,7 @@ def _data_binning(mainframe, event=None, label=''):
 
 
 dataPlugins=[
+        # Name/label             , callback              , is a Panel
         ('Bin data'              , _data_binning         , True ),
         ('Standardize Units (SI)', _data_standardizeUnits, False),
         ('Standardize Units (WE)', _data_standardizeUnits, False),

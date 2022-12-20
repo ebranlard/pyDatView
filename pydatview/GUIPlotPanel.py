@@ -376,7 +376,7 @@ class EstheticsPanel(wx.Panel):
 
 
 class PlotPanel(wx.Panel):
-    def __init__(self, parent, selPanel,infoPanel=None, mainframe=None):
+    def __init__(self, parent, selPanel, infoPanel=None, mainframe=None, data=None):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
@@ -409,12 +409,11 @@ class PlotPanel(wx.Panel):
         self.mainframe= mainframe
         self.plotData = []
         self.plotDataOptions=dict()
-        try:
-            self.data  = mainframe.data['plotPanel']
-        except:
+        if data is not None:
+            self.data  = data
+        else:
             print('>>> Using default settings for plot panel')
-            from .appdata import defaultPlotPanelData
-            self.data = defaultPlotPanelData()
+            self.data = self.defaultData()
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour
             self.SetBackgroundColour(bg) # sowhow, our parent has a wrong color
@@ -570,6 +569,31 @@ class PlotPanel(wx.Panel):
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
         self.set_subplot_spacing(init=True)
+
+
+    # --- GUI DATA
+    def saveData(self, data):
+        data['Grid']      = self.cbGrid.IsChecked()
+        data['CrossHair'] = self.cbXHair.IsChecked()
+        data['plotStyle']['Font']           = self.esthPanel.cbFont.GetValue()
+        data['plotStyle']['LegendFont']     = self.esthPanel.cbLgdFont.GetValue()
+        data['plotStyle']['LegendPosition'] = self.esthPanel.cbLegend.GetValue()
+        data['plotStyle']['LineWidth']      = self.esthPanel.cbLW.GetValue()
+        data['plotStyle']['MarkerSize']     = self.esthPanel.cbMS.GetValue()
+        
+    @staticmethod
+    def defaultData():
+        data={}
+        data['CrossHair']=True
+        data['Grid']=False
+        plotStyle = dict()
+        plotStyle['Font']           = '11'
+        plotStyle['LegendFont']     = '11'
+        plotStyle['LegendPosition'] = 'Upper right'
+        plotStyle['LineWidth']      = '1.5'
+        plotStyle['MarkerSize']     = '2'
+        data['plotStyle']= plotStyle
+        return data
 
     def onEsthToggle(self,event):
         self.esthToggle=not self.esthToggle
@@ -1449,7 +1473,7 @@ if __name__ == '__main__':
 
     selpanel=FakeSelPanel(self)
     #     selpanel.SetBackgroundColour('blue')
-    p1=PlotPanel(self,selpanel)
+    p1=PlotPanel(self, selpanel, data=None)
     p1.load_and_draw()
     #p1=SpectralCtrlPanel(self)
     sizer = wx.BoxSizer(wx.VERTICAL)
