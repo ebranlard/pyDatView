@@ -100,7 +100,6 @@ class FASTInputFile(File):
             #print('>>>>>>>>>>>> NO FILEFORMAT', KEYS)
             return self.basefile
 
-
     def read(self, filename=None):
         return self.fixedfile.read(filename)
 
@@ -116,8 +115,8 @@ class FASTInputFile(File):
     def keys(self):
         return self.fixedfile.keys()
 
-    def toGraph(self):
-        return self.fixedfile.toGraph()
+    def toGraph(self, **kwargs):
+        return self.fixedfile.toGraph(**kwargs)
 
     @property
     def filename(self):
@@ -883,9 +882,9 @@ class FASTInputFileBase(File):
             dfs=dfs[list(dfs.keys())[0]]
         return dfs
 
-    def toGraph(self):
+    def toGraph(self, **kwargs):
         from .fast_input_file_graph import fastToGraph
-        return fastToGraph(self)
+        return fastToGraph(self, **kwargs)
         
 
 
@@ -1511,6 +1510,10 @@ class ADBladeFile(FASTInputFileBase):
         df['c2_Crv_Approx_[m]'] = prebend
         df['c2_Swp_Approx_[m]'] = sweep
         df['AC_Approx_[-]'] = ACloc
+        # --- Calc CvrAng
+        dr = np.gradient(aeroNodes[:,0])
+        dx = np.gradient(aeroNodes[:,1])
+        df['CrvAng_Calc_[-]'] =  np.degrees(np.arctan2(dx,dr))
         return df
 
     @property

@@ -246,9 +246,6 @@ class TableList(object): # todo inherit list
         for t,tn in zip(self._tabs,names):
             t.active_name=tn
 
-    def setNaming(self,naming):
-        self.options['naming']=naming
-
     def getDisplayTabNames(self):
         if self.options['naming']=='Ellude':
             # Temporary hack, using last names if all last names are unique
@@ -290,6 +287,17 @@ class TableList(object): # todo inherit list
                 filenames.append(t.filename)
                 fileformats.append(t.fileformat)
         return filenames, fileformats
+
+    @property
+    def naming(self):
+        return self.options['naming']
+
+    @naming.setter
+    def naming(self, naming):
+        if naming not in ['FileNames', 'Ellude']:
+            raise NotImplementedError('Naming',naming)
+        self.options['naming']=naming
+
 
     def clean(self):
         del self._tabs
@@ -385,6 +393,15 @@ class TableList(object): # todo inherit list
     def get(self,i):
         return self._tabs[i]
 
+
+
+    @staticmethod
+    def createDummyList(nTab=3):
+        tabs=[]
+        for iTab in range(nTab):
+            tabs.append( Table.createDummy() )
+        tablist = TableList(tabs)
+        return tablist
 
 
 # --------------------------------------------------------------------------------}
@@ -791,6 +808,23 @@ class Table(object):
     @property
     def nRows(self):
         return len(self.data.iloc[:,0]) # TODO if not panda
+    
+    @staticmethod
+    def createDummy(n=5, lab=''):
+        """ create a dummy table of length n"""
+        t = np.arange(0,0.5*n,0.5)
+        x = t+10
+        alpha_d = np.linspace(0, 360, n)
+        P = np.random.normal(0,100,n)+5000
+        RPM = np.random.normal(-0.2,0.2,n) + 12.
+
+        d={'Time_[s]':t,  
+                'x{}_[m]'.format(lab): x, 
+                'alpha{}_[deg]'.format(lab):alpha_d,
+                'P{}_[W]'.format(lab):P, 
+                'RotSpeed{}_[rpm]'.format(lab):RPM}
+        df = pd.DataFrame(data=d)
+        return Table(data=df)
 
 
 if __name__ == '__main__':

@@ -114,7 +114,11 @@ class HAWC2HTCFile(File):
                 tim = bdy.timoschenko_input
                 H2_stfile = os.path.join(simdir, tim.filename[0])
                 if not os.path.exists(H2_stfile):
-                    print('[WARN] st file referenced in htc file was not found. St file: {}, htc file {}'.format(H2_stfile, self.filename))
+                    # Try with a parent directory..
+                    H2_stfile = os.path.join(simdir, '../',tim.filename[0])
+
+                if not os.path.exists(H2_stfile):
+                    print('[WARN] st file referenced in htc file was not found for body {}.\nSt file: {}\nhtc file {}'.format(name, H2_stfile, self.filename))
                 else:
                     dfs_st = HAWC2StFile(H2_stfile).toDataFrame(extraCols=False)
                     if 'set' in tim.keys():

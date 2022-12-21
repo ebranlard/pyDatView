@@ -204,15 +204,24 @@ class HTCFile(HTCContents, HTCDefaults, HTCExtensions):
 
                 if self.modelpath == 'unknown':
                     p = os.path.dirname(self.filename)
-                    lu = [os.path.isfile(os.path.abspath(os.path.join(p, "../" * i, filename.replace("\\", "/"))))
-                          for i in range(4)].index(True)
-                    filename = os.path.join(p, "../" * lu, filename)
+                    try:
+                        lu = [os.path.isfile(os.path.abspath(os.path.join(p, "../" * i, filename.replace("\\", "/"))))
+                              for i in range(4)].index(True)
+                        filename = os.path.join(p, "../" * lu, filename)
+                    except ValueError:
+                        print('[FAIL] Cannot continue in file: {}'.format(filename))
+                        filename = None
                 else:
                     filename = os.path.join(self.modelpath, filename)
-                for line in self.readlines(filename):
-                    if line.lstrip().lower().startswith('exit'):
-                        break
-                    htc_lines.append(line)
+                    if not os.path.isfile(filename):
+                        print('[FAIL] Cannot continue in file: {}'.format(filename))
+                        filename=None
+                if filename is not None:
+                    #print('[INFO] Continuing in file: {}'.format(filename))
+                    for line in self.readlines(filename):
+                        if line.lstrip().lower().startswith('exit'):
+                            break
+                        htc_lines.append(line)
             else:
                 htc_lines.append(l)
         return htc_lines

@@ -269,7 +269,7 @@ class TablePopup(wx.Menu):
             self.itNameFile = wx.MenuItem(self, -1, "Naming: by file names", kind=wx.ITEM_CHECK)
             self.Append(self.itNameFile)
             self.Bind(wx.EVT_MENU, self.OnNaming, self.itNameFile)
-            self.Check(self.itNameFile.GetId(), self.parent.GetParent().tabList.Naming=='FileNames') # Checking the menu box
+            self.Check(self.itNameFile.GetId(), self.parent.GetParent().tabList.naming=='FileNames') # Checking the menu box
 
             item = wx.MenuItem(self, -1, "Sort by name")
             self.Append(item)
@@ -291,7 +291,7 @@ class TablePopup(wx.Menu):
             self.Bind(wx.EVT_MENU, self.OnDeleteTabs, item)
 
         if len(self.ISel)==1:
-            if self.tabPanel.tabList.Naming!='FileNames':
+            if self.tabPanel.tabList.naming!='FileNames':
                 item = wx.MenuItem(self, -1, "Rename")
                 self.Append(item)
                 self.Bind(wx.EVT_MENU, self.OnRenameTab, item)
@@ -303,9 +303,9 @@ class TablePopup(wx.Menu):
 
     def OnNaming(self, event=None):
         if self.itNameFile.IsChecked():
-            self.tabPanel.tabList.setNaming('FileNames')
+            self.tabPanel.tabList.naming='FileNames'
         else:
-            self.tabPanel.tabList.setNaming('Ellude')
+            self.tabPanel.tabList.naming='Ellude'
 
         self.tabPanel.updateTabNames()
 
