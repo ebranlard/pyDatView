@@ -24,6 +24,7 @@ from .GUIPlotPanel import PlotPanel
 from .GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
 from .GUISelectionPanel import ColumnPopup,TablePopup
 from .GUIInfoPanel import InfoPanel
+from .GUIPipelinePanel import PipelinePanel
 from .GUIToolBox import GetKeyString, TBAddTool
 from .Tables import TableList, Table
 # Helper
@@ -31,6 +32,7 @@ from .common import *
 from .GUICommon import *
 import pydatview.io as weio # File Formats and File Readers
 # Pluggins
+from .pipeline import Pipeline
 from .plugins import dataPlugins
 from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
@@ -110,6 +112,7 @@ class MainFrame(wx.Frame):
         self.systemFontSize = self.GetFont().GetPointSize()
         self.data = loadAppData(self)
         self.tabList=TableList(options=self.data['loaderOptions'])
+        self.pipeline=Pipeline(data = self.data['pipeline'])
         self.datareset = False
         # Global variables...
         setFontSize(self.data['fontSize'])
@@ -208,6 +211,9 @@ class MainFrame(wx.Frame):
         self.statusbar=self.CreateStatusBar(3, style=0)
         self.statusbar.SetStatusWidths([150, -1, 70])
 
+        # --- Pipeline
+        self.pipePanel = PipelinePanel(self, self.pipeline)
+
         # --- Main Panel and Notebook
         self.MainPanel = wx.Panel(self)
         #self.MainPanel = wx.Panel(self, style=wx.RAISED_BORDER)
@@ -230,6 +236,7 @@ class MainFrame(wx.Frame):
         slSep = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         self.FrameSizer.Add(slSep         ,0, flag=wx.EXPAND|wx.BOTTOM,border=0)
         self.FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND,border=0)
+        self.FrameSizer.Add(self.pipePanel,0, flag=wx.EXPAND,border=0)
         self.SetSizer(self.FrameSizer)
 
         self.SetSize(self.data['windowSize'])
@@ -488,6 +495,13 @@ class MainFrame(wx.Frame):
                 return
         raise NotImplementedError('Tool: ',toolName)
 
+    # --- Pipeline
+    def addAction(self, action):
+        self.pipePanel.append(action)
+    def removeAction(self, action):
+        self.pipePanel.remove(action)
+    def applyPipeline(self, *args, **kwargs):
+        self.pipePanel.apply(*args, **kwargs)
 
     def onSashChangeMain(self, event=None):
         pass

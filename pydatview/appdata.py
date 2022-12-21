@@ -7,6 +7,7 @@ from .GUICommon import getFontSize, getMonoFontSize
 from .GUIPlotPanel import PlotPanel
 from .GUIInfoPanel import InfoPanel
 from .Tables import TableList
+from .pipeline import Pipeline
 
 
 def configFilePath():
@@ -81,6 +82,8 @@ def saveAppData(mainFrame, data):
             mainFrame.infoPanel.saveData(data['infoPanel'])
         if hasattr(mainFrame, 'tablist'):
             mainFrame.tablist.saveOptions(data['loaderOptions'])
+        if hasattr(mainFrame, 'pipeline'):
+            mainFrame.pipeline.saveData(data['pipeline'])
 
     # --- Write config file
     configFile = configFilePath()
@@ -104,6 +107,7 @@ def defaultAppData(mainframe):
     # Loader/Table
     data['loaderOptions'] = TableList.defaultOptions()
     # Pipeline
+    data['pipeline'] = Pipeline.defaultData()
     #SIDE_COL       = [160,160,300,420,530]
     #SIDE_COL_LARGE = [200,200,360,480,600]
     #BOT_PANL =85
