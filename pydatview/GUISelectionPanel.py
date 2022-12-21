@@ -257,6 +257,7 @@ class FormulaDialog(wx.Dialog):
 class TablePopup(wx.Menu):
     """ Popup Menu when right clicking on the table list """
     def __init__(self, parent, tabPanel, selPanel=None, mainframe=None, fullmenu=False):
+        # TODO remove mainframe for TablePopup, handle most of it with Tables and some callbacks
         wx.Menu.__init__(self)
         self.parent    = parent    # parent is listbox
         self.tabPanel  = tabPanel
@@ -333,8 +334,12 @@ class TablePopup(wx.Menu):
         # Updating tables
         self.selPanel.update_tabs(self.tabList)
         # TODO select latest
-        if self.mainframe:
-            self.mainframe.mergeTabsTrigger()
+        # Select the newly created table
+        self.selPanel.tabPanel.lbTab.SetSelection(-1) # Empty selection
+        self.selPanel.tabPanel.lbTab.SetSelection(len(self.tabList)-1) # Select new/last table
+        # Trigger a replot
+        self.selPanel.onTabSelectionChange()
+
 
     def OnDeleteTabs(self, event):
         self.mainframe.deleteTabs(self.ISel)
@@ -351,7 +356,11 @@ class TablePopup(wx.Menu):
         self.mainframe.exportTab(self.ISel[0]);
 
     def OnSort(self, event):
-        self.mainframe.sortTabs()
+        self.tabList.sort(method=method)
+        # Updating tables
+        self.update_tabs(self.tabList)
+        # Trigger a replot
+        self.onTabSelectionChange()
 
 class ColumnPopup(wx.Menu):
     """ Popup Menu when right clicking on the column list """
@@ -433,9 +442,9 @@ class ColumnPopup(wx.Menu):
         # TODO adapt me for Sim. tables mode
         IFull = [self.parent.Filt2Full[iFilt] for iFilt in self.ISel]
         IFull = [iFull for iFull in IFull if iFull>=0]
-        if self.tabList.haveSameColumns(ITab):
+        if self.selPanel.tabList.haveSameColumns(ITab):
             for iTab,sTab in zip(ITab,STab):
-                self.tabList.get(iTab).deleteColumns(IFull)
+                self.selPanel.tabList.get(iTab).deleteColumns(IFull)
         else:
             self.parent.tab.deleteColumns(IFull)
         self.parent.setColumns()
@@ -515,6 +524,7 @@ class ColumnPopup(wx.Menu):
 class TablePanel(wx.Panel):
     """ Display list of tables """
     def __init__(self, parent, selPanel, mainframe, tabList):
+        # TODO get rid of mainframe
         # Superclass constructor
         super(TablePanel,self).__init__(parent)
         # DATA
@@ -576,13 +586,12 @@ class TablePanel(wx.Panel):
 # --------------------------------------------------------------------------------{
 class ColumnPanel(wx.Panel):
     """ A list of columns for x and y axis """
-    def __init__(self, parent, selPanel, mainframe):
+    def __init__(self, parent, selPanel):
         # Superclass constructor
         super(ColumnPanel,self).__init__(parent)
         self.selPanel = selPanel;
         # Data
         self.tab=None
-        self.mainframe=mainframe
         self.columns=[] # All the columns available (may be different from the displayed ones)
         self.Filt2Full=None # Index of GUI columns in self.columns
         self.bShowID=False
@@ -940,7 +949,6 @@ class SelectionPanel(wx.Panel):
         # Superclass constructor
         super(SelectionPanel,self).__init__(parent)
         # DATA
-        self.mainframe     = mainframe
         self.tabList       = None
         self.itabForCol    = None
         self.parent        = parent
@@ -953,17 +961,18 @@ class SelectionPanel(wx.Panel):
         self.nSplits = -1
         self.IKeepPerTab=None
         # Useful callBacks to be set by callee
-        self.redrawCallback=None
-        self.colSelectionChangeCallback=None
-        self.tabSelectionChangeCallback=None
+        self.redrawCallback             = None # called when new data is selected
+        self.colSelectionChangeCallback = None # called after a column selection has changed
+        self.tabSelectionChangeCallback = None # called after a table selection has changed
+        self.updateLayoutCallback       = None # called after the panel changes its Layout (TODO maybe knoledge of the parentt sizer is enough?)
 
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
         self.splitter.SetMinimumPaneSize(70)
         self.tabPanel  = TablePanel (self.splitter, self, mainframe, tabList)
-        self.colPanel1 = ColumnPanel(self.splitter, self, mainframe);
-        self.colPanel2 = ColumnPanel(self.splitter, self, mainframe);
-        self.colPanel3 = ColumnPanel(self.splitter, self, mainframe);
+        self.colPanel1 = ColumnPanel(self.splitter, self);
+        self.colPanel2 = ColumnPanel(self.splitter, self);
+        self.colPanel3 = ColumnPanel(self.splitter, self);
         self.tabPanel.Hide()
         self.colPanel1.Hide()
         self.colPanel2.Hide()
@@ -997,9 +1006,17 @@ class SelectionPanel(wx.Panel):
     def setRedrawCallback(self, callBack):
         self.redrawCallback = callBack
 
+    def setUpdateLayoutCallback(self, callBack):
+        self.updateLayoutCallback = callBack
+
+    # --- Important Signals
     def redraw(self):
         if self.redrawCallback is not None:
             self.redrawCallback()
+
+    def parentUpdateLayout(self):
+        if self.updateLayoutCallback is not None:
+            self.updateLayoutCallback()
 
     def onColSelectionChange(self, event=None):
         # Letting selection panel handle the change
@@ -1082,8 +1099,7 @@ class SelectionPanel(wx.Panel):
             if self.tabList.len()>1:
                 self.splitter.AppendWindow(self.tabPanel) 
         self.splitter.AppendWindow(self.colPanel1) 
-        if  self.mainframe is not None:
-            self.mainframe.mainFrameUpdateLayout()
+        self.parentUpdateLayout()
         if self.tabList is not None:
             if self.tabList.len()<=1:
                 self.nSplits=0
@@ -1099,8 +1115,8 @@ class SelectionPanel(wx.Panel):
         self.splitter.AppendWindow(self.colPanel2) 
         self.splitter.AppendWindow(self.colPanel1) 
         self.splitter.setEquiSash()
-        if self.nSplits<2 and self.mainframe is not None:
-            self.mainframe.mainFrameUpdateLayout()
+        if self.nSplits<2:
+            self.parentUpdateLayout()
         self.nSplits=2
 
     def twoColumnsMode(self):
@@ -1112,8 +1128,8 @@ class SelectionPanel(wx.Panel):
         self.splitter.AppendWindow(self.colPanel2) 
         self.splitter.AppendWindow(self.colPanel1) 
         self.splitter.setEquiSash()
-        if self.nSplits<2 and self.mainframe is not None:
-            self.mainframe.mainFrameUpdateLayout()
+        if self.nSplits<2:
+            self.parentUpdateLayout()
         self.nSplits=2
 
     def threeColumnsMode(self):
@@ -1126,8 +1142,7 @@ class SelectionPanel(wx.Panel):
         self.splitter.AppendWindow(self.colPanel2) 
         self.splitter.AppendWindow(self.colPanel1) 
         self.splitter.setEquiSash()
-        if self.mainframe is not None:
-            self.mainframe.mainFrameUpdateLayout()
+        self.parentUpdateLayout()
         self.nSplits=3
 
     def setTables(self,tabList,update=False):

@@ -420,21 +420,6 @@ class MainFrame(wx.Frame):
         oldName = self.tabList.renameTable(iTab, newName)
         self.selPanel.renameTable(iTab, oldName, newName)
 
-    def sortTabs(self, method='byName'):
-        self.tabList.sort(method=method)
-        # Updating tables
-        self.selPanel.update_tabs(self.tabList)
-        # Trigger a replot
-        self.onTabSelectionChange()
-
-    def mergeTabsTrigger(self):
-        if hasattr(self,'selPanel'):
-            # Select the newly created table
-            self.selPanel.tabPanel.lbTab.SetSelection(-1) # Empty selection
-            self.selPanel.tabPanel.lbTab.SetSelection(len(self.tabList)-1) # Select new/last table
-            # Trigger a replot
-            self.onTabSelectionChange()
-
     def deleteTabs(self, I):
         self.tabList.deleteTabs(I)
         if len(self.tabList)==0:
@@ -451,7 +436,6 @@ class MainFrame(wx.Frame):
         self.selPanel.update_tabs(self.tabList)
         # Trigger a replot
         self.onTabSelectionChange()
-
 
     def exportTab(self, iTab):
         tab=self.tabList.get(iTab)

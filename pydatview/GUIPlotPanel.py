@@ -376,7 +376,7 @@ class EstheticsPanel(wx.Panel):
 
 
 class PlotPanel(wx.Panel):
-    def __init__(self, parent, selPanel, infoPanel=None, mainframe=None, data=None):
+    def __init__(self, parent, selPanel, infoPanel=None, data=None):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
@@ -407,7 +407,6 @@ class PlotPanel(wx.Panel):
         if self.infoPanel is not None:
             self.infoPanel.setPlotMatrixCallbacks(self._onPlotMatrixLeftClick, self._onPlotMatrixRightClick)
         self.parent   = parent
-        self.mainframe= mainframe
         self.plotData = []
         self.plotDataOptions=dict()
         if data is not None:
@@ -1468,56 +1467,28 @@ if __name__ == '__main__':
     from Tables import Table,TableList
     from pydatview.Tables import TableList
     from pydatview.GUISelectionPanel import SelectionPanel
-    from pydatview.common import DummyMainFrame
-    tabList   = TableList.createDummy(1)
 
+    # --- Data
+    tabList   = TableList.createDummy(1)
     app = wx.App(False)
     self=wx.Frame(None,-1,"GUI Plot Panel Demo")
 
-    #self.SetBackgroundColour('red')
-    class FakeSelPanel(wx.Panel):
-        def __init__(self, parent):
-            super(FakeSelPanel,self).__init__(parent)
-            d ={'ColA': np.linspace(0,1,100)+1,'ColB': np.random.normal(0,1,100)+0,'ColC':np.random.normal(0,1,100)+1}
-            df = pd.DataFrame(data=d)
-            self.tabList=TableList([Table(data=df)])
-
-        def getPlotDataSelection(self):
-            ID=[]
-            ID.append([0,0,2,'x','ColB','tab'])
-            ID.append([0,0,3,'x','ColC','tab'])
-            return ID,True
-
-    mainframe = DummyMainFrame(self)
-    # --- Selection Panel
-    #selpanel = FakeSelPanel(self)
-    selPanel = SelectionPanel(self, tabList, mode='auto', mainframe=mainframe)
-    # selpanel.SetBackgroundColour('blue')
-    self.selPanel=selPanel
-
-
-    # --- Plot Panel
-    plotPanel=PlotPanel(self, selPanel, data=None)
-    plotPanel.load_and_draw()
-    self.plotPanel = plotPanel
+    # --- Panels
+    self.selPanel  = SelectionPanel(self, tabList, mode='auto')
+    self.plotPanel = PlotPanel(self, self.selPanel)
+    self.plotPanel.load_and_draw() # <<< Important
 
     # --- Binding the two
-    selPanel.setRedrawCallback(self.plotPanel.load_and_draw)
+    self.selPanel.setRedrawCallback(self.plotPanel.load_and_draw)
 
     # --- Finalize GUI
     sizer = wx.BoxSizer(wx.HORIZONTAL)
-    sizer.Add(selPanel ,0, flag = wx.EXPAND|wx.ALL,border = 10)
-    sizer.Add(plotPanel,1, flag = wx.EXPAND|wx.ALL,border = 10)
+    sizer.Add(self.selPanel ,0, flag = wx.EXPAND|wx.ALL,border = 5)
+    sizer.Add(self.plotPanel,1, flag = wx.EXPAND|wx.ALL,border = 5)
     self.SetSizer(sizer)
-
     self.Center()
-    self.Layout()
-    self.SetSize((800, 600))
+    self.SetSize((900, 600))
     self.Show()
-    self.SendSizeEvent()
-
-    #p1.showStats(None,[tab],[0],[0,1],tab.columns,0,erase=False)
-
     app.MainLoop()
 
 
