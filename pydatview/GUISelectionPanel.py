@@ -355,9 +355,10 @@ class TablePopup(wx.Menu):
 
 class ColumnPopup(wx.Menu):
     """ Popup Menu when right clicking on the column list """
-    def __init__(self, parent, fullmenu=False):
+    def __init__(self, parent, selPanel, fullmenu=False):
         wx.Menu.__init__(self)
         self.parent = parent # parent is ColumnPanel
+        self.selPanel = selPanel # we need a selPanel
         self.ISel = self.parent.lbColumns.GetSelections()
 
         self.itShowID = wx.MenuItem(self, -1, "Show ID", kind=wx.ITEM_CHECK)
@@ -399,13 +400,12 @@ class ColumnPopup(wx.Menu):
         dlg.CentreOnParent()
         if dlg.ShowModal() == wx.ID_OK:
             newName=dlg.GetValue()
-            main=self.parent.mainframe
-            ITab,STab=main.selPanel.getSelectedTables()
+            ITab,STab=self.selPanel.getSelectedTables()
             # TODO adapt me for Sim. tables mode
             iFull = self.parent.Filt2Full[iFilt]
-            if main.tabList.haveSameColumns(ITab):
+            if self.tabList.haveSameColumns(ITab):
                 for iTab,sTab in zip(ITab,STab):
-                    main.tabList.get(iTab).renameColumn(iFull,newName)
+                    self.tabList.get(iTab).renameColumn(iFull,newName)
             else:
                 self.parent.tab.renameColumn(iFull,newName)
             self.parent.updateColumn(iFilt,newName) #faster
@@ -413,13 +413,12 @@ class ColumnPopup(wx.Menu):
             # a trigger for the plot is required but skipped for now
 
     def OnEditColumn(self, event):
-        main=self.parent.mainframe
         if len(self.ISel) != 1:
             raise ValueError('Only one signal can be edited!')
-        ITab, STab = main.selPanel.getSelectedTables()
+        ITab, STab = self.selPanel.getSelectedTables()
         for iTab,sTab in zip(ITab,STab):
             if sTab == self.parent.tab.active_name:
-                for f in main.tabList.get(iTab).formulas:
+                for f in self.tabList.get(iTab).formulas:
                     if f['pos'] == self.ISel[0]:
                         sName = f['name']
                         sFormula = f['formula']
@@ -429,29 +428,26 @@ class ColumnPopup(wx.Menu):
         self.showFormulaDialog('Edit column', sName, sFormula, edit=True)
 
     def OnDeleteColumn(self, event):
-        main=self.parent.mainframe
         iX = self.parent.comboX.GetSelection()
-        ITab,STab=main.selPanel.getSelectedTables()
+        ITab,STab=self.selPanel.getSelectedTables()
         # TODO adapt me for Sim. tables mode
         IFull = [self.parent.Filt2Full[iFilt] for iFilt in self.ISel]
         IFull = [iFull for iFull in IFull if iFull>=0]
-        if main.tabList.haveSameColumns(ITab):
+        if self.tabList.haveSameColumns(ITab):
             for iTab,sTab in zip(ITab,STab):
-                main.tabList.get(iTab).deleteColumns(IFull)
+                self.tabList.get(iTab).deleteColumns(IFull)
         else:
             self.parent.tab.deleteColumns(IFull)
         self.parent.setColumns()
         self.parent.setGUIColumns(xSel=iX)
-        main.redraw()
+        self.redraw()
 
     def OnAddColumn(self, event):
-        main=self.parent.mainframe
         self.showFormulaDialog('Add a new column')
 
     def showFormulaDialog(self, title, name='', formula='', edit=False):
         bValid=False
         bCancelled=False
-        main=self.parent.mainframe
         sName=name
         sFormula=formula
 
@@ -480,19 +476,19 @@ class ColumnPopup(wx.Menu):
                 else:
                     iFull = -1
 
-                ITab,STab=main.selPanel.getSelectedTables()
+                ITab,STab = self.selPanel.getSelectedTables()
                 #if main.tabList.haveSameColumns(ITab):
                 sError=''
                 nError=0
-                haveSameColumns=main.tabList.haveSameColumns(ITab)
+                haveSameColumns= self.selPanel.tabList.haveSameColumns(ITab)
                 for iTab,sTab in zip(ITab,STab):
                     if haveSameColumns or self.parent.tab.active_name == sTab:
                         # apply formula to all tables with same columns, otherwise only to active table
                         if edit:
-                            bValid=main.tabList.get(iTab).setColumnByFormula(sName,sFormula,iFull)
+                            bValid=self.selPanel.tabList.get(iTab).setColumnByFormula(sName,sFormula,iFull)
                             iOffset = 0 # we'll stay on this column that we are editing
                         else:
-                            bValid=main.tabList.get(iTab).addColumnByFormula(sName,sFormula,iFull)
+                            bValid=self.selPanel.tabList.get(iTab).addColumnByFormula(sName,sFormula,iFull)
                             iOffset = 1 # we'll select this newly created column
                         if not bValid:
                             sError+='The formula didn''t eval for table {}\n'.format(sTab)
@@ -509,7 +505,7 @@ class ColumnPopup(wx.Menu):
             iX = self.parent.comboX.GetSelection()
             self.parent.setColumns()
             self.parent.setGUIColumns(xSel=iX,ySel=[iFull+iOffset])
-            main.redraw()
+            self.selPanel.redraw()
 
 
 
@@ -639,13 +635,13 @@ class ColumnPanel(wx.Panel):
     def showColumnMenu(self,event):
         if not self.bReadOnly:
             pos = (self.bt.GetPosition()[0], self.bt.GetPosition()[1] + self.bt.GetSize()[1])
-            menu = ColumnPopup(self,fullmenu=True)
+            menu = ColumnPopup(self, selPanel=self.selPanel, fullmenu=True)
             self.PopupMenu(menu, pos)
             menu.Destroy()
         
     def OnColPopup(self,event):
         if not self.bReadOnly:
-            menu = ColumnPopup(self)
+            menu = ColumnPopup(self, selPanel=self.selPanel)
             self.PopupMenu(menu, event.GetPosition())
             menu.Destroy()
 
@@ -956,6 +952,10 @@ class SelectionPanel(wx.Panel):
         self.currentMode   = None
         self.nSplits = -1
         self.IKeepPerTab=None
+        # Useful callBacks to be set by callee
+        self.redrawCallback=None
+        self.colSelectionChangeCallback=None
+        self.tabSelectionChangeCallback=None
 
         # GUI DATA
         self.splitter  = MultiSplit(self, style=wx.SP_LIVE_UPDATE)
@@ -975,8 +975,55 @@ class SelectionPanel(wx.Panel):
         VertSizer.Add(self.splitter, 2, flag=wx.EXPAND, border=0)
         self.SetSizer(VertSizer)
 
+        # BINDINGS
+        self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel1.comboX   )
+        self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.colPanel1.lbColumns)
+        self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel2.comboX   )
+        self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.colPanel2.lbColumns)
+        self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel3.comboX   )
+        self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.colPanel3.lbColumns)
+        self.Bind(wx.EVT_LISTBOX,  self.onTabSelectionChange, self.tabPanel.lbTab)
+
         # TRIGGERS
         self.setTables(tabList)
+
+    # --- Callbacks
+    def setColSelectionChangeCallback(self, callback):
+        self.colSelectionChangeCallback = callback
+
+    def setTabSelectionChangeCallback(self, callback):
+        self.tabSelectionChangeCallback = callback
+
+    def setRedrawCallback(self, callBack):
+        self.redrawCallback = callBack
+
+    def redraw(self):
+        if self.redrawCallback is not None:
+            self.redrawCallback()
+
+    def onColSelectionChange(self, event=None):
+        # Letting selection panel handle the change
+        self.colSelectionChanged()
+        # We call the callback if it was set
+        if self.colSelectionChangeCallback is not None:
+            self.colSelectionChangeCallback()
+        # We redraw
+        self.redraw()
+
+    def onTabSelectionChange(self, event=None):
+        ISel=self.tabPanel.lbTab.GetSelections()
+        if len(ISel)>0:
+            # Letting seletion panel handle the change
+            self.tabSelectionChanged()
+
+            # We call the callback if it was set
+            if self.tabSelectionChangeCallback is not None:
+                self.tabSelectionChangeCallback()
+
+            # We trigger a column selection change...
+            self.onColSelectionChange(event=None)
+
+
 
     def updateLayout(self, mode=None):
         self.Freeze()

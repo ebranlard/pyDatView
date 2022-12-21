@@ -293,7 +293,7 @@ class MainFrame(wx.Frame):
         #filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
 
         # Load the tables
-        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload, statusFunction=statusFunction)
+        newTabs, warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload, statusFunction=statusFunction)
         if bReload:
             # Restore formulas that were previously added
             for tab in self.tabList:
@@ -366,13 +366,12 @@ class MainFrame(wx.Frame):
             self.MainPanel.SetSizer(sizer)
             self.FrameSizer.Layout()
 
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel1.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel1.lbColumns)
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel2.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel2.lbColumns)
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel3.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel3.lbColumns)
-            self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.tabPanel.lbTab)
+
+            # --- Bind 
+            # The selPanel does the binding, but the callback is stored here because it involves plotPanel... TODO, rethink it
+            #self.selPanel.bindColSelectionChange(self.onColSelectionChangeCallBack)
+            self.selPanel.setTabSelectionChangeCallback(self.onTabSelectionChangeTrigger)
+            self.selPanel.setRedrawCallback(self.redrawCallback)
             self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
 
         # plot trigger
@@ -490,36 +489,40 @@ class MainFrame(wx.Frame):
         raise NotImplementedError('Tool: ',toolName)
 
 
-    def onSashChangeMain(self,event=None):
+    def onSashChangeMain(self, event=None):
         pass
         # doent work because size is not communicated yet
         #if hasattr(self,'selPanel'):
         #    print('ON SASH')
         #    self.selPanel.setEquiSash(event)
 
-    def onTabSelectionChange(self,event=None):
-        # TODO This can be cleaned-up
-        ISel=self.selPanel.tabPanel.lbTab.GetSelections()
-        if len(ISel)>0:
-            # Letting seletion panel handle the change
-            self.selPanel.tabSelectionChanged()
-            # Update of status bar
-            self.setStatusBar(ISel)
-            # Trigger the colSelection Event
-            self.onColSelectionChange(event=None)
 
-    def onColSelectionChange(self,event=None):
-        if hasattr(self,'plotPanel'):
-            # Letting selection panel handle the change
-            self.selPanel.colSelectionChanged()
-            # Redrawing
-            self.plotPanel.load_and_draw()
-            # --- Stats trigger
-            #self.showStats()
+    def onTabSelectionChange(self, event=None):
+        # TODO get rid of me
+        self.selPanel.onTabSelectionChange()
+
+    def onColSelectionChange(self, event=None):
+        # TODO get rid of me
+        self.selPanel.onColSelectionChange()
 
     def redraw(self):
+        # TODO get rid of me
+        self.redrawCallback()
+
+    # --- CallBacks sent to panels
+    def onTabSelectionChangeTrigger(self, event=None):
+        # Update of status bar
+        ISel=self.selPanel.tabPanel.lbTab.GetSelections()
+        if len(ISel)>0:
+            self.setStatusBar(ISel)
+
+    def onColSelectionChangeTrigger(self, event=None):
+        pass
+
+    def redrawCallback(self):
         if hasattr(self,'plotPanel'):
             self.plotPanel.load_and_draw()
+
 #     def showStats(self):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
 

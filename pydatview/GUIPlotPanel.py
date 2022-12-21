@@ -38,12 +38,12 @@ from pandas.plotting import register_matplotlib_converters
 
 import gc
 
-from .common import * # unique, CHAR
-from .plotdata import PlotData, compareMultiplePD
-from .GUICommon import * 
-from .GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx, TBAddTool, TBAddCheckTool
-from .GUIMeasure import GUIMeasure
-from . import icons
+from pydatview.common import * # unique, CHAR
+from pydatview.plotdata import PlotData, compareMultiplePD
+from pydatview.GUICommon import * 
+from pydatview.GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx, TBAddTool, TBAddCheckTool
+from pydatview.GUIMeasure import GUIMeasure
+import pydatview.icons as icons
 
 font = {'size'   : 8}
 matplotlib_rc('font', **font)
@@ -404,7 +404,8 @@ class PlotPanel(wx.Panel):
         self.selPanel = selPanel # <<< dependency with selPanel should be minimum
         self.selMode  = '' 
         self.infoPanel=infoPanel
-        self.infoPanel.setPlotMatrixCallbacks(self._onPlotMatrixLeftClick, self._onPlotMatrixRightClick)
+        if self.infoPanel is not None:
+            self.infoPanel.setPlotMatrixCallbacks(self._onPlotMatrixLeftClick, self._onPlotMatrixRightClick)
         self.parent   = parent
         self.mainframe= mainframe
         self.plotData = []
@@ -650,7 +651,8 @@ class PlotPanel(wx.Panel):
             self.fig.subplots_adjust(top=0.97,bottom=bottom,left=left,right=0.98)
 
     def plot_matrix_select(self, event):
-        self.infoPanel.togglePlotMatrix(self.cbPlotMatrix.GetValue())
+        if self.infoPanel is not None:
+            self.infoPanel.togglePlotMatrix(self.cbPlotMatrix.GetValue())
         self.redraw_same_data()
 
     def measure_select(self, event):
@@ -725,11 +727,13 @@ class PlotPanel(wx.Panel):
                         self.cbAutoScale.SetValue(False)
                         return
                     if event.button == 1:
-                        self.infoPanel.setMeasurements((x, y), None)
+                        if self.infoPanel is not None:
+                            self.infoPanel.setMeasurements((x, y), None)
                         self.leftMeasure.set(ax_idx, x, y)
                         self.leftMeasure.plot(ax, ax_idx)
                     elif event.button == 3:
-                        self.infoPanel.setMeasurements(None, (x, y))
+                        if self.infoPanel is not None:
+                            self.infoPanel.setMeasurements(None, (x, y))
                         self.rightMeasure.set(ax_idx, x, y)
                         self.rightMeasure.plot(ax, ax_idx)
                     else:
@@ -783,12 +787,12 @@ class PlotPanel(wx.Panel):
         else:
             raise Exception('Unknown tool {}'.format(toolName))
 
-    def showToolPanel(self, panelClass):
+    def showToolPanel(self, action):
         """ Show a tool panel based on a panel class (should inherit from GUIToolPanel)"""
-        from .GUITools import TOOLS
+        panelClass = action.guiEditorClass
         self.Freeze()
         self.removeTools(Layout=False)
-        self.toolPanel=panelClass(parent=self) # calling the panel constructor
+        self.toolPanel=panelClass(parent=self, action=action) # calling the panel constructor
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
         self.Thaw()
@@ -980,7 +984,8 @@ class PlotPanel(wx.Panel):
         if self.cbMeasure.GetValue() is False:
             for measure in [self.leftMeasure, self.rightMeasure]:
                 measure.clear()
-                self.infoPanel.setMeasurements(None, None)
+                if self.infoPanel is not None:
+                    self.infoPanel.setMeasurements(None, None)
                 self.lbDeltaX.SetLabel('')
                 self.lbDeltaY.SetLabel('')
 
@@ -1035,11 +1040,15 @@ class PlotPanel(wx.Panel):
             self.set_axes_lim(PD, ax_left)
 
             # Actually plot
-            pm = self.infoPanel.getPlotMatrix(PD, self.cbSub.IsChecked())
+            if self.infoPanel is not None:
+                pm = self.infoPanel.getPlotMatrix(PD, self.cbSub.IsChecked())
+            else:
+                pm = None
             __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bStep, plot_options)
             ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bStep, plot_options)
 
-            self.infoPanel.setMeasurements(self.leftMeasure.get_xydata(), self.rightMeasure.get_xydata())
+            if self.infoPanel is not None:
+                self.infoPanel.setMeasurements(self.leftMeasure.get_xydata(), self.rightMeasure.get_xydata())
             for measure in [self.leftMeasure, self.rightMeasure]:
                 measure.plot(ax_left, axis_idx)
 
@@ -1233,11 +1242,15 @@ class PlotPanel(wx.Panel):
         bCompare  = self.pltTypePanel.cbCompare.GetValue() # NOTE bCompare somehow always 1Tab_nCols
         nSubPlots=1
         spreadBy='none'
-        self.infoPanel.setTabMode(mode)
+        if self.infoPanel is not None:
+            self.infoPanel.setTabMode(mode) # TODO get rid of me
         if mode=='1Tab_nCols':
             if bSubPlots:
                 if bCompare or len(uTabs)==1:
-                    nSubPlots = self.infoPanel.getNumberOfSubplots(PD, bSubPlots)
+                    if self.infoPanel is not None:
+                        nSubPlots = self.infoPanel.getNumberOfSubplots(PD, bSubPlots)
+                    else:
+                        nSubPlots=len(usy)
                 else:
                     nSubPlots=len(usy)
                 spreadBy='iy'
@@ -1453,10 +1466,14 @@ class PlotPanel(wx.Panel):
 if __name__ == '__main__':
     import pandas as pd;
     from Tables import Table,TableList
+    from pydatview.Tables import TableList
+    from pydatview.GUISelectionPanel import SelectionPanel
+    from pydatview.common import DummyMainFrame
+    tabList   = TableList.createDummy(1)
 
     app = wx.App(False)
-    self=wx.Frame(None,-1,"Title")
-    self.SetSize((800, 600))
+    self=wx.Frame(None,-1,"GUI Plot Panel Demo")
+
     #self.SetBackgroundColour('red')
     class FakeSelPanel(wx.Panel):
         def __init__(self, parent):
@@ -1471,14 +1488,26 @@ if __name__ == '__main__':
             ID.append([0,0,3,'x','ColC','tab'])
             return ID,True
 
-    selpanel=FakeSelPanel(self)
-    #     selpanel.SetBackgroundColour('blue')
-    p1=PlotPanel(self, selpanel, data=None)
-    p1.load_and_draw()
-    #p1=SpectralCtrlPanel(self)
-    sizer = wx.BoxSizer(wx.VERTICAL)
-    sizer.Add(selpanel,0, flag = wx.EXPAND|wx.ALL,border = 10)
-    sizer.Add(p1,1, flag = wx.EXPAND|wx.ALL,border = 10)
+    mainframe = DummyMainFrame(self)
+    # --- Selection Panel
+    #selpanel = FakeSelPanel(self)
+    selPanel = SelectionPanel(self, tabList, mode='auto', mainframe=mainframe)
+    # selpanel.SetBackgroundColour('blue')
+    self.selPanel=selPanel
+
+
+    # --- Plot Panel
+    plotPanel=PlotPanel(self, selPanel, data=None)
+    plotPanel.load_and_draw()
+    self.plotPanel = plotPanel
+
+    # --- Binding the two
+    selPanel.setRedrawCallback(self.plotPanel.load_and_draw)
+
+    # --- Finalize GUI
+    sizer = wx.BoxSizer(wx.HORIZONTAL)
+    sizer.Add(selPanel ,0, flag = wx.EXPAND|wx.ALL,border = 10)
+    sizer.Add(plotPanel,1, flag = wx.EXPAND|wx.ALL,border = 10)
     self.SetSizer(sizer)
 
     self.Center()

@@ -78,6 +78,7 @@ class TableList(object): # todo inherit list
 
         # Loop through files, appending tables within files
         warnList=[]
+        newTabs=[]
         for i, (f,ff) in enumerate(zip(filenames, fileformats)):
             if statusFunction is not None:
                 statusFunction(i)
@@ -91,11 +92,12 @@ class TableList(object): # todo inherit list
                 if len(warnloc)>0:
                     warnList.append(warnloc)
                 self.append(tabs)
+                newTabs +=tabs
         
-        return warnList
+        return newTabs, warnList
 
     def _load_file_tabs(self, filename, fileformat=None, bReload=False):
-        """ load a single file, adds table """
+        """ load a single file, returns a list (often of size one) of tables """
         # Returning a list of tables 
         tabs=[]
         warn=''
@@ -396,10 +398,10 @@ class TableList(object): # todo inherit list
 
 
     @staticmethod
-    def createDummyList(nTab=3):
+    def createDummy(nTab=3):
         tabs=[]
         for iTab in range(nTab):
-            tabs.append( Table.createDummy() )
+            tabs.append( Table.createDummy(lab='_'+str(iTab)) )
         tablist = TableList(tabs)
         return tablist
 
@@ -824,7 +826,7 @@ class Table(object):
                 'P{}_[W]'.format(lab):P, 
                 'RotSpeed{}_[rpm]'.format(lab):RPM}
         df = pd.DataFrame(data=d)
-        return Table(data=df)
+        return Table(data=df, name='Dummy '+lab)
 
 
 if __name__ == '__main__':

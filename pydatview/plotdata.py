@@ -643,6 +643,12 @@ class PlotData():
         elif var=='nFFT':
             return '','{:d}'.format(PD._Info.nFFT)
 
+    @staticmethod
+    def createDummy(n=30):
+        x = np.linspace(0,4*np.pi,n)
+        y = np.sin(x)
+        return PlotData(x=x, y=y, sx='time [s]', sy='Signal [m]')
+
 
 # --------------------------------------------------------------------------------}
 # ---  
