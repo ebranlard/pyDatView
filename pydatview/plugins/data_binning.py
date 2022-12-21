@@ -310,11 +310,15 @@ def bin_plot(x, y, opts):
 def bin_tab(tab, iCol, colName, opts, bAdd=True):
     # TODO, make it such as it's only handling a dataframe instead of a table
     from pydatview.tools.stats import bin_DF
-    colName = tab.data.columns[iCol-1]
+    colName = tab.data.columns[iCol]
     error=''
     xBins = np.linspace(opts['xMin'], opts['xMax'], opts['nBins']+1)
 #     try:
     df_new =bin_DF(tab.data, xbins=xBins, colBin=colName)
+    # Remove index if present
+    if df_new.columns[0].lower().find('index')>=0:
+        df_new = df_new.iloc[:, 1:] # We don't use "drop" in case of duplicate "index"
+
     # Setting bin column as first columns
     colNames = list(df_new.columns.values)
     colNames.remove(colName)
