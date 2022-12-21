@@ -28,7 +28,7 @@ def test_heavy():
         with PerfMon('Plot 1'):
             app = wx.App(False)
             frame = MainFrame()
-            frame.load_df(df)
+            frame.load_dfs([df])
             del df
         time.sleep(dt) 
         with PerfMon('Redraw 1'):

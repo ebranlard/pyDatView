@@ -7,24 +7,50 @@ import pandas as pd
 # For log dec tool
 from pydatview.GUITools import GUIToolPanel, TOOL_BORDER
 from pydatview.common import CHAR, Error, Info, pretty_num_short
+from pydatview.common import DummyMainFrame
 from pydatview.plotdata import PlotData
 # from pydatview.tools.damping import logDecFromDecay
 # from pydatview.tools.curve_fitting import model_fit, extract_key_miscnum, extract_key_num, MODELS, FITTERS, set_common_keys
 
+from pydatview.pipeline import PlotDataAction
 
 # --------------------------------------------------------------------------------}
-# --- GUI 
+# --- Action
+# --------------------------------------------------------------------------------{
+def binningAction(label, mainframe=None, data=None):
+    """
+    Return an "action" for the current plugin, to be used in the pipeline.
+    The action is also edited and created by the GUI Editor
+    """
+    if data is None:
+        data=_DEFAULT_DICT
+
+    action = PlotDataAction(
+            name=label,
+            guiEditorClass = BinningToolPanel,
+            data = data,
+            mainframe=mainframe
+            )
+    return action
+
+# --------------------------------------------------------------------------------}
+# --- GUI to Edit Plugin and control the Action
 # --------------------------------------------------------------------------------{
 class BinningToolPanel(GUIToolPanel):
-    def __init__(self, parent):
-        super(BinningToolPanel,self).__init__(parent)
+    def __init__(self, parent, action):
+        super(BinningToolPanel, self).__init__(parent)
 
+        # --- Creating "Fake data" for testing only!
+        if action is None:
+            print('[WARN] Calling GUI without an action! Creating one.')
+            mainframe = DummyMainFrame(parent)
+            action = binningAction(label='dummyAction', mainframe=mainframe)
         # --- Data from other modules
         self.parent = parent # parent is GUIPlotPanel
-        # Getting states from parent
-        if 'Binning' not in self.parent.plotDataOptions.keys() or self.parent.plotDataOptions['Binning'] is None:
-            self.parent.plotDataOptions['Binning'] =_DEFAULT_DICT.copy()
-        self.data = self.parent.plotDataOptions['Binning']
+        self.mainframe = action.mainframe
+
+        self.data = action.data
+        self.action = action
         self.data['selectionChangeCallBack'] = self.selectionChange
 
 
@@ -81,10 +107,9 @@ class BinningToolPanel(GUIToolPanel):
         vsizer.Add(msizer,0, flag = wx.TOP            ,border = 1)
         vsizer.Add(msizer2,0, flag = wx.TOP|wx.EXPAND ,border = 1)
 
-
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer.Add(btSizer  ,0, flag = wx.LEFT           ,border = 5)
-        self.sizer.Add(vsizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = TOOL_BORDER)
+        self.sizer.Add(btSizer  ,0, flag = wx.LEFT           , border = 5)
+        self.sizer.Add(vsizer   ,1, flag = wx.LEFT|wx.EXPAND , border = TOOL_BORDER)
         #self.sizer.Add(msizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = TOOL_BORDER)
         self.SetSizer(self.sizer)
 
@@ -146,14 +171,27 @@ class BinningToolPanel(GUIToolPanel):
             self.btPlot.Enable(False)
             self.btClear.Enable(False)
             self.btApply.SetLabel(CHAR['sun']+' Clear')
+            # We add our action to the pipeline
+            if self.mainframe is not None:
+                self.mainframe.addAction(self.action)
+            else:
+                print('[WARN] Running data_binning without a main frame')
         else:
-            self.parent.plotDataOptions['Binning'] = None
+            print('>>>> TODO Remove Action')
+            # We remove our action from the pipeline
+            if not init:
+                if self.mainframe is not None:
+                    self.mainframe.removeAction(self.action)
+                else:
+                    print('[WARN] Running data_binning without a main frame')
+            #self.data = None
+            #self.action = None
             self.btPlot.Enable(True)
             self.btClear.Enable(True)
             self.btApply.SetLabel(CHAR['cloud']+' Apply')
 
         if not init:
-            self.parent.plotDataOptions['Binning'] = self.data
+            # This is a "plotData" action, we don't need to do anything
             self.parent.load_and_draw() # Data will change based on plotData 
 
 
@@ -161,7 +199,6 @@ class BinningToolPanel(GUIToolPanel):
         from pydatview.tools.stats import bin_DF
         iSel          = self.cbTabs.GetSelection()
         tabList       = self.parent.selPanel.tabList
-        mainframe     = self.parent.mainframe
         icol, colname = self.parent.selPanel.xCol
         if self.parent.selPanel.currentMode=='simColumnsMode':
             # The difficulty here is that we have to use 
@@ -189,12 +226,12 @@ class BinningToolPanel(GUIToolPanel):
                     names_new.append(name_new)
                 else:
                     errors.append(tab.active_name)
-            mainframe.load_dfs(dfs_new, names_new, bAdd=True)
+            self.parent.addTables(dfs_new, names_new, bAdd=True)
         else:
             tab = tabList.get(iSel-1)
             df_new, name_new = bin_tab(tab, icol, colname, self.data, bAdd=True)
             if df_new is not None:
-                mainframe.load_df(df_new, name_new, bAdd=True)
+                self.parent.addTables([df_new], [name_new], bAdd=True)
             else:
                 errors.append(tab.active_name)
         self.updateTabList()
@@ -294,7 +331,6 @@ def bin_tab(tab, iCol, colName, opts, bAdd=True):
 
     return df_new, name_new
 
-
 _DEFAULT_DICT={
     'active':False, 
     'xMin':None, 
@@ -305,3 +341,38 @@ _DEFAULT_DICT={
     'selectionChangeCallBack':None,
 }
 
+
+if __name__ == '__main__':
+    from pydatview.Tables import TableList
+    from pydatview.plotdata import PlotData
+    from pydatview.GUIPlotPanel import PlotPanel
+    from pydatview.GUISelectionPanel import SelectionPanel
+
+
+    # --- Data
+    tabList   = TableList.createDummy(nTabs=2, n=100, addLabel=False)
+    app = wx.App(False)
+    self = wx.Frame(None,-1,"Data Binning GUI")
+
+    # --- Panels
+    self.selPanel = SelectionPanel(self, tabList, mode='auto')
+    self.plotPanel = PlotPanel(self, self.selPanel)
+    self.plotPanel.load_and_draw() # <<< Important
+    self.selPanel.setRedrawCallback(self.plotPanel.load_and_draw) #  Binding the two
+
+    p = BinningToolPanel(self.plotPanel, action=None)
+
+    sizer = wx.BoxSizer(wx.HORIZONTAL)
+    sizer.Add(self.selPanel ,0, wx.EXPAND|wx.ALL, border=5)
+    sizer.Add(self.plotPanel,1, wx.EXPAND|wx.ALL, border=5)
+    #sizer.Add(p)
+    self.SetSizer(sizer)
+    self.SetSize((900, 600))
+    self.Center()
+    self.Show()
+
+    self.plotPanel.showToolPanel(panel=p)
+
+    app.MainLoop()
+
+    

@@ -398,10 +398,13 @@ class TableList(object): # todo inherit list
 
 
     @staticmethod
-    def createDummy(nTab=3):
+    def createDummy(nTabs=3, n=30, addLabel=True):
         tabs=[]
-        for iTab in range(nTab):
-            tabs.append( Table.createDummy(lab='_'+str(iTab)) )
+        label=''
+        for iTab in range(nTabs):
+            if addLabel:
+                label='_'+str(iTab)
+            tabs.append( Table.createDummy(n=n, label=label))
         tablist = TableList(tabs)
         return tablist
 
@@ -812,21 +815,21 @@ class Table(object):
         return len(self.data.iloc[:,0]) # TODO if not panda
     
     @staticmethod
-    def createDummy(n=5, lab=''):
+    def createDummy(n, label=''):
         """ create a dummy table of length n"""
-        t = np.arange(0,0.5*n,0.5)
-        x = t+10
+        t = np.linspace(0, 4*np.pi, n)
+        x = np.sin(t)+10
         alpha_d = np.linspace(0, 360, n)
         P = np.random.normal(0,100,n)+5000
         RPM = np.random.normal(-0.2,0.2,n) + 12.
 
         d={'Time_[s]':t,  
-                'x{}_[m]'.format(lab): x, 
-                'alpha{}_[deg]'.format(lab):alpha_d,
-                'P{}_[W]'.format(lab):P, 
-                'RotSpeed{}_[rpm]'.format(lab):RPM}
+                'x{}_[m]'.format(label): x, 
+                'alpha{}_[deg]'.format(label):alpha_d,
+                'P{}_[W]'.format(label):P, 
+                'RotSpeed{}_[rpm]'.format(label):RPM}
         df = pd.DataFrame(data=d)
-        return Table(data=df, name='Dummy '+lab)
+        return Table(data=df, name='Dummy '+label)
 
 
 if __name__ == '__main__':

@@ -341,16 +341,15 @@ class FilterToolPanel(GUIToolPanel):
     def onAdd(self,event=None):
         iSel         = self.cbTabs.GetSelection()
         tabList      = self.parent.selPanel.tabList
-        mainframe    = self.parent.mainframe
         icol, colname = self.parent.selPanel.xCol
         opt = self._GUI2Data()
         errors=[]
         if iSel==0:
             dfs, names, errors = tabList.applyFiltering(icol, opt, bAdd=True)
-            mainframe.load_dfs(dfs,names,bAdd=True)
+            self.parent.addTables(dfs,names,bAdd=True)
         else:
             df, name = tabList.get(iSel-1).applyFiltering(icol, opt, bAdd=True)
-            mainframe.load_df(df,name,bAdd=True)
+            self.parent.addTables([df], [name], bAdd=True)
         self.updateTabList()
 
         if len(errors)>0:
@@ -598,17 +597,15 @@ class ResampleToolPanel(GUIToolPanel):
     def onAdd(self,event=None):
         iSel         = self.cbTabs.GetSelection()
         tabList      = self.parent.selPanel.tabList
-        mainframe    = self.parent.mainframe
         icol, colname = self.parent.selPanel.xCol
-        print(icol,colname)
         opt = self._GUI2Data()
         errors=[]
         if iSel==0:
             dfs, names, errors = tabList.applyResampling(icol, opt, bAdd=True)
-            mainframe.load_dfs(dfs,names,bAdd=True)
+            self.parent.addTables(dfs,names,bAdd=True)
         else:
             df, name = tabList.get(iSel-1).applyResampling(icol, opt, bAdd=True)
-            mainframe.load_df(df,name,bAdd=True)
+            self.parent.addTables([df],[name], bAdd=True)
         self.updateTabList()
 
         if len(errors)>0:
@@ -774,13 +771,12 @@ class MaskToolPanel(GUIToolPanel):
     def onClear(self,event=None):
         iSel      = self.cbTabs.GetSelection()
         tabList   = self.parent.selPanel.tabList
-        mainframe = self.parent.mainframe
         if iSel==0:
             tabList.clearCommonMask()
         else:
             tabList.get(iSel-1).clearMask()
 
-        mainframe.redraw()
+        self.parent.load_and_draw()
         self.onTabChange()
 
     def onParamChangeAndPressEnter(self, event=None):
@@ -806,21 +802,20 @@ class MaskToolPanel(GUIToolPanel):
         maskString = self.textMask.GetLineText(0)
         iSel         = self.cbTabs.GetSelection()
         tabList      = self.parent.selPanel.tabList
-        mainframe    = self.parent.mainframe
         if iSel==0:
             dfs, names, errors = tabList.applyCommonMaskString(maskString, bAdd=bAdd)
             if bAdd:
-                mainframe.load_dfs(dfs,names,bAdd=bAdd)
+                self.parent.addTables(dfs,names,bAdd=bAdd)
             else:
-                mainframe.redraw()
+                self.parent.load_and_draw()
             if len(errors)>0:
                 raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
         else:
             dfs, name = tabList.get(iSel-1).applyMaskString(maskString, bAdd=bAdd)
             if bAdd:
-                mainframe.load_df(df,name,bAdd=bAdd)
+                self.parent.addTables([df],[name], bAdd=bAdd)
             else:
-                mainframe.redraw()
+                self.parent.load_and_draw()
         self.updateTabList()
 
         # We stop applying
@@ -897,15 +892,14 @@ class RadialToolPanel(GUIToolPanel):
         iSel         = self.cbTabs.GetSelection()
         avgMethod   = AVG_METHODS[self.cbMethod.GetSelection()]
         tabList      = self.parent.selPanel.tabList
-        mainframe    = self.parent.mainframe
         if iSel==0:
             dfs, names, errors = tabList.radialAvg(avgMethod,avgParam)
-            mainframe.load_dfs(dfs,names,bAdd=True)
+            self.parent.addTables(dfs,names,bAdd=True)
             if len(errors)>0:
                 raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
         else:
             dfs, names = tabList.get(iSel-1).radialAvg(avgMethod,avgParam)
-            mainframe.load_dfs(dfs,names,bAdd=True)
+            self.parent.addTables([dfs],[names], bAdd=True)
 
         self.updateTabList()
 
@@ -1148,7 +1142,7 @@ class CurveFitToolPanel(GUIToolPanel):
         name='model_fit'
         if self.x is not None and self.y_fit is not None:
             df=pd.DataFrame({self.sx:self.x, self.sy:self.y_fit})
-            self.parent.mainframe.load_df(df,name,bAdd=True)
+            self.parent.addTables([df], [name], bAdd=True)
 
     def onHelp(self,event=None):
         Info(self,"""Curve fitting is still in beta.

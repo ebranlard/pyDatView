@@ -14,18 +14,33 @@ Register your plugins in this file:
 See working examples in this file and this directory.
 """
 
-def _data_standardizeUnits(mainframe, event=None, label=''):
-    from .data_standardizeUnits import standardizeUnitsPlugin
-    standardizeUnitsPlugin(mainframe, event, label)
+def _data_standardizeUnitsSI(label, mainframe=None):
+    from .data_standardizeUnits import standardizeUnitsAction
+    return standardizeUnitsAction(label, mainframe, flavor='SI')
 
-def _data_binning(mainframe, event=None, label=''):
-    from .data_binning import BinningToolPanel
-    return BinningToolPanel
+def _data_standardizeUnitsWE(label, mainframe=None):
+    from .data_standardizeUnits import standardizeUnitsAction
+    return standardizeUnitsAction(label, mainframe, flavor='WE')
+
+def _data_binning(label, mainframe):
+    from .data_binning import binningAction
+    return binningAction(label, mainframe)
 
 
 dataPlugins=[
-        # Name/label             , callback              , is a Panel
-        ('Bin data'              , _data_binning         , True ),
-        ('Standardize Units (SI)', _data_standardizeUnits, False),
-        ('Standardize Units (WE)', _data_standardizeUnits, False),
+        # Name/label             , callback                , is a Panel
+        ('Bin data'              , _data_binning           , True ),
+        ('Standardize Units (SI)', _data_standardizeUnitsSI, False),
+        ('Standardize Units (WE)', _data_standardizeUnitsWE, False),
         ]
+
+
+
+
+
+# ---
+def getDataPluginsDict():
+    d={}
+    for toolName, function, isPanel in dataPlugins:
+        d[toolName]={'callback':function, 'isPanel':isPanel}
+    return d

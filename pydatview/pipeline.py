@@ -7,6 +7,7 @@ class Action():
             tableFunction=None, guiCallBack=None, 
             guiEditorClass=None,
             data=None,
+            mainframe=None,
             onPlotData=False, unique=True, removeNeedReload=False):
 
         self.name = name
@@ -17,6 +18,7 @@ class Action():
         self.guiEditorClass = guiEditorClass # Class that can be used to edit this action
 
         self.data = data if data is not None else {}
+        self.mainframe=mainframe # If possible, dont use that...
 
         self.applied=False # TODO this needs to be sotred per table
 

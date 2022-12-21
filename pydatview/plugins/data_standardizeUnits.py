@@ -1,21 +1,34 @@
 import unittest
 import numpy as np
 from pydatview.common import splitunit
+from pydatview.pipeline import Action, IrreversibleAction
 
-def standardizeUnitsPlugin(mainframe, event=None, label='Standardize Units (SI)'):
+def standardizeUnitsAction(label, mainframe=None, flavor='SI'):
     """ 
     Main entry point of the plugin
     """
-    flavor = label.split('(')[1][0:2]
+    guiCallBack=None
+    if mainframe is not None:
+        def guiCallBack():
+            if hasattr(mainframe,'selPanel'):
+                mainframe.selPanel.colPanel1.setColumns()
+                mainframe.selPanel.colPanel2.setColumns()
+                mainframe.selPanel.colPanel3.setColumns()
+                mainframe.onTabSelectionChange()             # trigger replot
+            if hasattr(mainframe,'pipePanel'):
+                pass
 
-    for t in mainframe.tabList:
-        changeUnits(t, flavor=flavor)
+    # Function that will be applied to all tables
+    tableFunction = lambda t: changeUnits(t, flavor=flavor)
 
-    if hasattr(mainframe,'selPanel'):
-        mainframe.selPanel.colPanel1.setColumns()
-        mainframe.selPanel.colPanel2.setColumns()
-        mainframe.selPanel.colPanel3.setColumns()
-        mainframe.onTabSelectionChange()             # trigger replot
+    action = IrreversibleAction(
+            name=label, 
+            tableFunction=tableFunction, 
+            guiCallBack=guiCallBack,
+            mainframe=mainframe, # shouldnt be needed
+            )
+
+    return action
 
 def changeUnits(tab, flavor='SI'):
     """ Change units of a table

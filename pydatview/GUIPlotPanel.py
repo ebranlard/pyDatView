@@ -422,7 +422,9 @@ class PlotPanel(wx.Panel):
         self.rightMeasure = GUIMeasure(2, 'darkgreen')
         self.xlim_prev = [[0, 1]]
         self.ylim_prev = [[0, 1]]
-        # GUI
+        self.addTablesCallback = None
+
+        # --- GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
         register_matplotlib_converters()
         self.canvas = FigureCanvas(self, -1, self.fig)
@@ -569,6 +571,16 @@ class PlotPanel(wx.Panel):
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
         self.set_subplot_spacing(init=True)
+
+    # --- Bindings/callback
+    def setAddTablesCallback(self, callback):
+        self.addTablesCallback = callback
+
+    def addTables(self, *args, **kwargs):
+        if self.addTablesCallback is not None:
+            self.addTablesCallback(*args, **kwargs)
+        else:
+            print('[WARN] callback to add tables to parent was not set.')
 
 
     # --- GUI DATA
@@ -779,19 +791,30 @@ class PlotPanel(wx.Panel):
         if Layout:
             self.plotsizer.Layout()
 
-    def showTool(self,toolName=''):
+    def showTool(self, toolName=''):
         from .GUITools import TOOLS
         if toolName in TOOLS.keys():
-            self.showToolPanel(TOOLS[toolName])
+            self.showToolPanel(panelClass=TOOLS[toolName])
         else:
             raise Exception('Unknown tool {}'.format(toolName))
 
-    def showToolPanel(self, action):
+    def showToolAction(self, action):
+        """ Show a tool panel based on an action"""
+        self.showToolPanel(panelClass=action.guiEditorClass, action=action)
+
+
+    def showToolPanel(self, panelClass=None, panel=None, action=None):
         """ Show a tool panel based on a panel class (should inherit from GUIToolPanel)"""
-        panelClass = action.guiEditorClass
         self.Freeze()
         self.removeTools(Layout=False)
-        self.toolPanel=panelClass(parent=self, action=action) # calling the panel constructor
+        if panel is not None:
+            self.toolPanel=panel # use the panel directly
+        else:
+            if action is None:
+                print('NOTE: calling a panel without action')
+                self.toolPanel=panelClass(parent=self) # calling the panel constructor
+            else:
+                self.toolPanel=panelClass(parent=self, action=action) # calling the panel constructor
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
         self.Thaw()
@@ -1477,9 +1500,7 @@ if __name__ == '__main__':
     self.selPanel  = SelectionPanel(self, tabList, mode='auto')
     self.plotPanel = PlotPanel(self, self.selPanel)
     self.plotPanel.load_and_draw() # <<< Important
-
-    # --- Binding the two
-    self.selPanel.setRedrawCallback(self.plotPanel.load_and_draw)
+    self.selPanel.setRedrawCallback(self.plotPanel.load_and_draw) #  Binding the two
 
     # --- Finalize GUI
     sizer = wx.BoxSizer(wx.HORIZONTAL)

@@ -301,6 +301,13 @@ class MainFrame(wx.Frame):
 
         # Load the tables
         newTabs, warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload, statusFunction=statusFunction)
+
+        # Apply postLoad pipeline
+        if bReload:
+            self.applyPipeline(self.tabList, force=True) # we force on reload
+        else:
+            self.applyPipeline(newTabs, force=True, applyToAll=True) # we apply only on newTabs
+
         if bReload:
             # Restore formulas that were previously added
             for tab in self.tabList:
@@ -315,18 +322,15 @@ class MainFrame(wx.Frame):
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=bPlot)
 
-    def load_df(self, df, name=None, bAdd=False, bPlot=True):
-        if bAdd:
-            self.tabList.append(Table(data=df, name=name))
-        else:
-            self.tabList = TableList( [Table(data=df, name=name)] )
-        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
-        if hasattr(self,'selPanel'):
-            self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
-
-    def load_dfs(self, dfs, names, bAdd=False):
+    def load_dfs(self, dfs, names=None, bAdd=False, bPlot=True):
+        """ Load one or multiple dataframes intoGUI """
+        # 
+        if not isinstance(dfs,list):
+            dfs=[dfs]
+        if not isinstance(names,list):
+            names=[names]
         self.tabList.from_dataframes(dataframes=dfs, names=names, bAdd=bAdd)
-        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=True)
+        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
 
@@ -354,7 +358,7 @@ class MainFrame(wx.Frame):
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, self, data=self.data['plotPanel'])
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, data=self.data['plotPanel'])
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -379,6 +383,9 @@ class MainFrame(wx.Frame):
             #self.selPanel.bindColSelectionChange(self.onColSelectionChangeCallBack)
             self.selPanel.setTabSelectionChangeCallback(self.onTabSelectionChangeTrigger)
             self.selPanel.setRedrawCallback(self.redrawCallback)
+            self.selPanel.setUpdateLayoutCallback(self.mainFrameUpdateLayout)
+            self.plotPanel.setAddTablesCallback(self.load_dfs)
+
             self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
 
         # plot trigger
@@ -471,11 +478,20 @@ class MainFrame(wx.Frame):
 
         for thisToolName, function, isPanel in dataPlugins:
             if toolName == thisToolName:
-                if isPanel:
-                    panelClass = function(self, event, toolName) # getting panelClass
-                    self.plotPanel.showToolPanel(panelClass)
+                if isPanel: # This is more of a "hasPanel"
+                    # Check to see if the pipeline already contains this action
+                    action = self.pipeline.find(toolName) # old action to edit
+                    if action is None:
+                        action = function(label=toolName, mainframe=self) # getting brand new action
+                    self.plotPanel.showToolAction(action)
+                    # The panel will have the responsability to apply/delete the action, updateGUI, etc
                 else:
-                    function(self, event, toolName) # calling the data function
+                    action = function(label=toolName, mainframe=self) # calling the data function
+                    # Here we apply the action directly
+                    action.apply(self.tabList) # the action will chose that to apply it on
+                    self.addAction(action)
+                    action.updateGUI()
+
                 return
         raise NotImplementedError('Tool: ',toolName)
 
