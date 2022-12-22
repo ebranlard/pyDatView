@@ -14,18 +14,6 @@ Register your plugins in this file:
 See working examples in this file and this directory.
 """
 
-def _data_standardizeUnitsSI(label, mainframe=None):
-    from .data_standardizeUnits import standardizeUnitsAction
-    return standardizeUnitsAction(label, mainframe, flavor='SI')
-
-def _data_standardizeUnitsWE(label, mainframe=None):
-    from .data_standardizeUnits import standardizeUnitsAction
-    return standardizeUnitsAction(label, mainframe, flavor='WE')
-
-def _data_binning(label, mainframe):
-    from .data_binning import binningAction
-    return binningAction(label, mainframe)
-
 def _data_filter(label, mainframe):
     from .data_filter import filterAction
     return filterAction(label, mainframe)
@@ -34,8 +22,26 @@ def _data_sampler(label, mainframe):
     from .data_sampler import samplerAction
     return samplerAction(label, mainframe)
 
+def _data_binning(label, mainframe):
+    from .data_binning import binningAction
+    return binningAction(label, mainframe)
+
+def _data_removeOutliers(label, mainframe):
+    from .data_removeOutliers import removeOutliersAction
+    return removeOutliersAction(label, mainframe)
+
+def _data_standardizeUnitsSI(label, mainframe=None):
+    from .data_standardizeUnits import standardizeUnitsAction
+    return standardizeUnitsAction(label, mainframe, flavor='SI')
+
+def _data_standardizeUnitsWE(label, mainframe=None):
+    from .data_standardizeUnits import standardizeUnitsAction
+    return standardizeUnitsAction(label, mainframe, flavor='WE')
+
+
 dataPlugins=[
         # Name/label             , callback                , is a Panel
+        ('Remove Outliers'       , _data_removeOutliers    , True ),
         ('Filter'                , _data_filter            , True ),
         ('Resample'              , _data_sampler           , True ),
         ('Bin data'              , _data_binning           , True ),

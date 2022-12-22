@@ -93,98 +93,6 @@ class LogDecToolPanel(GUIToolPanel):
             self.lb.SetLabel('Failed. The signal needs to look like the decay of a first order system.')
         #self.parent.load_and_draw(); # DATA HAS CHANGED
 
-# --------------------------------------------------------------------------------}
-# --- Outliers 
-# --------------------------------------------------------------------------------{
-class OutlierToolPanel(GUIToolPanel):
-    """
-    A quick and dirty solution to manipulate plotData
-    I need to think of a better way to do that
-    """
-    def __init__(self, parent):
-        super(OutlierToolPanel,self).__init__(parent)
-        self.parent = parent # parent is GUIPlotPanel
-
-        # Setting default states to parent
-        if 'RemoveOutliers' not in self.parent.plotDataOptions.keys():
-            self.parent.plotDataOptions['RemoveOutliers']=False
-        if 'OutliersMedianDeviation' not in self.parent.plotDataOptions.keys():
-            self.parent.plotDataOptions['OutliersMedianDeviation']=5
-
-        btClose = self.getBtBitmap(self,'Close','close',self.destroy)
-        self.btComp  = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleCompute)
-
-        lb1 = wx.StaticText(self, -1, 'Median deviation:')
-#         self.tMD = wx.TextCtrl(self, wx.ID_ANY,, size = (30,-1), style=wx.TE_PROCESS_ENTER)
-        self.tMD = wx.SpinCtrlDouble(self, value='11', size=wx.Size(60,-1))
-        self.tMD.SetValue(self.parent.plotDataOptions['OutliersMedianDeviation'])
-        self.tMD.SetRange(0.0, 1000)
-        self.tMD.SetIncrement(0.5)
-        self.tMD.SetDigits(1)
-
-        self.lb = wx.StaticText( self, -1, '')
-        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer.Add(btClose    ,0,flag = wx.LEFT|wx.CENTER,border = 1)
-        self.sizer.Add(self.btComp,0,flag = wx.LEFT|wx.CENTER,border = 5)
-        self.sizer.Add(lb1        ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-        self.sizer.Add(self.tMD   ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-        self.sizer.Add(self.lb    ,0,flag = wx.LEFT|wx.CENTER,border = 5)
-        self.SetSizer(self.sizer)
-
-        self.Bind(wx.EVT_SPINCTRLDOUBLE, self.onMDChangeArrow, self.tMD)
-        self.Bind(wx.EVT_TEXT_ENTER,     self.onMDChangeEnter, self.tMD)
-
-        if platform.system()=='Windows':
-            # See issue https://github.com/wxWidgets/Phoenix/issues/1762
-            self.spintxt = self.tMD.Children[0]
-            assert isinstance(self.spintxt, wx.TextCtrl)
-            self.spintxt.Bind(wx.EVT_CHAR_HOOK, self.onMDChangeChar)
-
-        self.onToggleCompute(init=True)
-
-    def destroy(self,event=None):
-        self.parent.plotDataOptions['RemoveOutliers']=False
-        super(OutlierToolPanel,self).destroy()
-
-    def onToggleCompute(self,event=None, init=False):
-        self.parent.plotDataOptions['OutliersMedianDeviation'] = float(self.tMD.Value)
-
-        if not init:
-            self.parent.plotDataOptions['RemoveOutliers']= not self.parent.plotDataOptions['RemoveOutliers']
-
-        if self.parent.plotDataOptions['RemoveOutliers']:
-            self.lb.SetLabel('Outliers are now removed on the fly. Click "Clear" to stop.')
-            self.btComp.SetLabel(CHAR['sun']+' Clear')
-        else:
-            self.lb.SetLabel('Click on "Apply" to remove outliers on the fly for all new plot.')
-            self.btComp.SetLabel(CHAR['cloud']+' Apply')
-
-        if not init:
-            self.parent.load_and_draw() # Data will change
-
-    def onMDChange(self, event=None):
-        #print(self.tMD.Value)
-        self.parent.plotDataOptions['OutliersMedianDeviation'] = float(self.tMD.Value)
-        if self.parent.plotDataOptions['RemoveOutliers']:
-            self.parent.load_and_draw() # Data will change
-
-    def onMDChangeArrow(self, event):
-        self.onMDChange()
-        event.Skip()
-
-    def onMDChangeEnter(self, event):
-        self.onMDChange()
-        event.Skip()
-
-    def onMDChangeChar(self, event):
-        event.Skip()  
-        code = event.GetKeyCode()
-        if code in [wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER]:
-            #print(self.spintxt.Value)
-            self.tMD.SetValue(self.spintxt.Value)
-            self.onMDChangeEnter(event)
-
-
 
 # --------------------------------------------------------------------------------}
 # --- Mask
@@ -668,7 +576,6 @@ Buttons:
 
 TOOLS={
  'LogDec':    LogDecToolPanel,
- 'Outlier':   OutlierToolPanel,
  'Mask':      MaskToolPanel, 
  'FASTRadialAverage': RadialToolPanel,
  'CurveFitting': CurveFitToolPanel,

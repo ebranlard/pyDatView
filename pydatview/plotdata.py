@@ -34,7 +34,7 @@ class PlotData():
         if x is not None and y is not None:
             PD.fromXY(x,y,sx,sy)
 
-    def fromIDs(PD, tabs, i, idx, SameCol, Options=None, pipeline=None):
+    def fromIDs(PD, tabs, i, idx, SameCol, pipeline=None):
         """ Nasty initialization of plot data from "IDs" """
         PD.id = i
         PD.it = idx[0] # table index
@@ -51,7 +51,7 @@ class PlotData():
         PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
         PD.c =c  # raw values, used by PDF
 
-        PD._post_init(Options=Options, pipeline=pipeline)
+        PD._post_init(pipeline=pipeline)
 
     def fromXY(PD, x, y, sx='', sy=''):
         PD.x  = x
@@ -67,26 +67,9 @@ class PlotData():
         PD._post_init()
 
 
-    def _post_init(PD, Options=None, pipeline=None):
-        if Options is None:
-            Options = {}
-        # --- Perform data manipulation on the fly
-        #[print(k,v) for k,v in Options.items()]
-        keys=Options.keys()
-        # TODO setup an "Order"
-        if 'RemoveOutliers' in keys:
-            if Options['RemoveOutliers']:
-                from pydatview.tools.signal_analysis import reject_outliers
-                try:
-                    PD.x, PD.y = reject_outliers(PD.y, PD.x, m=Options['OutliersMedianDeviation'])
-                except:
-                    raise Exception('Warn: Outlier removal failed. Desactivate it or use a different signal. ')
-        if 'Filter' in keys:
-            if Options['Filter']:
-                from pydatview.tools.signal_analysis import applyFilter
-                PD.y = applyFilter(PD.x, PD.y, Options['Filter'])
+    def _post_init(PD, pipeline=None):
 
-        # --- Apply filters from pipeline
+        # --- Apply filters from pipeline on the fly
         if pipeline is not None:
             print('[PDat]', pipeline.__reprFilters__())
         if pipeline is not None:

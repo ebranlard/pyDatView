@@ -145,8 +145,6 @@ class MainFrame(wx.Frame):
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e, 'Mask')  , dataMenu.Append(wx.ID_ANY, 'Mask'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Outlier'), dataMenu.Append(wx.ID_ANY, 'Outliers removal'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Filter') , dataMenu.Append(wx.ID_ANY, 'Filter'))
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
         # --- Data Plugins

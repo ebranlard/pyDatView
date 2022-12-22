@@ -409,7 +409,6 @@ class PlotPanel(wx.Panel):
             self.infoPanel.setPlotMatrixCallbacks(self._onPlotMatrixLeftClick, self._onPlotMatrixRightClick)
         self.parent   = parent
         self.plotData = []
-        self.plotDataOptions=dict() # TODO remove me
         self.toolPanel=None
         if data is not None:
             self.data  = data
@@ -879,7 +878,7 @@ class PlotPanel(wx.Panel):
             for i,idx in enumerate(ID):
                 # Initialize each plotdata based on selected table and selected id channels
                 pd=PlotData();
-                pd.fromIDs(tabs, i, idx, SameCol, self.plotDataOptions, pipeline=self.pipeline) 
+                pd.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeline) 
                 # Possible change of data
                 if plotType=='MinMax':
                     self.setPD_MinMax(pd) 
