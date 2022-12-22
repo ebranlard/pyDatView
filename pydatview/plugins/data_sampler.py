@@ -260,7 +260,7 @@ class SamplerToolPanel(GUIToolPanel):
             dfs, names, errors = tabList.applyResampling(icol, self.data, bAdd=True)
             self.parent.addTables(dfs,names,bAdd=True)
         else:
-            df, name = tabList.get(iSel-1).applyResampling(icol, self.data, bAdd=True)
+            df, name = tabList[iSel-1].applyResampling(icol, self.data, bAdd=True)
             self.parent.addTables([df],[name], bAdd=True)
         self.updateTabList()
 

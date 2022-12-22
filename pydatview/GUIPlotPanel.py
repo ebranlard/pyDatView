@@ -872,7 +872,7 @@ class PlotPanel(wx.Panel):
         self.selMode=selMode # we store the selection mode
         del self.plotData
         self.plotData=[]
-        tabs=self.selPanel.tabList.getTabs() # TODO, selPanel should just return the PlotData...
+        tabs=self.selPanel.tabList
 
         try:
             for i,idx in enumerate(ID):

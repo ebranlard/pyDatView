@@ -77,7 +77,8 @@ class PlotDataAction(Action):
     def apply(self, *args, **kwargs):
         pass # not pretty
 
-    def applyOnPlotData(self, x, y):
+    def applyOnPlotData(self, x, y, tabID):
+        # TODO apply only based on tabID 
         x, y = self.plotDataFunction(x, y, self.data)
         return x, y
 
@@ -131,11 +132,11 @@ class Pipeline(object):
         self.collectErrors()
 
 
-    def applyOnPlotData(self, x, y):
+    def applyOnPlotData(self, x, y, tabID):
         x = np.copy(x)
         y = np.copy(y)
         for action in self.actionsPlotFilters:
-            x, y = action.applyOnPlotData(x, y)
+            x, y = action.applyOnPlotData(x, y, tabID)
         return x, y
 
 

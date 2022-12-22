@@ -35,6 +35,16 @@ class TableList(object): # todo inherit list
         return options
 
     # --- behaves like a list...
+    #def __delitem__(self, key):
+    #    self.__delattr__(key)
+
+    def __getitem__(self, key):
+        return self._tabs[key]
+
+    def __setitem__(self, key, value):
+        raise Exception('Setting not allowed')
+        self._tabs[key] = value
+
     def __iter__(self):
         self.__n = 0
         return self
@@ -163,11 +173,6 @@ class TableList(object): # todo inherit list
         if len(tabs)<=0:
             warn='Warn: No dataframe found in file: '+filename+'\n'
         return tabs, warn
-
-    def getTabs(self):
-        # TODO remove me later
-        return self._tabs
-
 
     def haveSameColumns(self,I=None):
         if I is None:
@@ -390,9 +395,9 @@ class TableList(object): # todo inherit list
                     names_new.append(n)
         return dfs_new, names_new, errors
 
-
     # --- Element--related functions
     def get(self,i):
+        print('.>> GET')
         return self._tabs[i]
 
 
@@ -419,7 +424,8 @@ class Table(object):
       - data
       - columns
       - name
-      - raw_name 
+      - raw_name      # Should be unique and can be used for identification
+      - ID            # Should be unique and can be used for identification
       - active_name
       - filename   
       - fileformat 

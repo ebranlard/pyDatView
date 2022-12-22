@@ -15,7 +15,7 @@ class PlotData():
     def __init__(PD, x=None, y=None, sx='', sy=''):
         """ Dummy init for now """
         PD.id=-1
-        PD.it=-1 # tablx index
+        PD.it=-1 # table index
         PD.ix=-1 # column index
         PD.iy=-1 # column index
         PD.sx='' # x label
@@ -24,6 +24,7 @@ class PlotData():
         PD.syl='' # y label for legend
         PD.filename = ''
         PD.tabname = ''
+        PD.tabID   = -1
         PD.x        =[]     # x data
         PD.y        =[]     # y data
         PD.xIsString=False  # true if strings
@@ -46,6 +47,7 @@ class PlotData():
         PD.st = idx[5] # table label
         PD.filename = tabs[PD.it].filename
         PD.tabname  = tabs[PD.it].active_name
+        PD.tabID   = -1 # TODO
         PD.SameCol  = SameCol
         PD.x, PD.xIsString, PD.xIsDate,_ = tabs[PD.it].getColumn(PD.ix)  # actual x data, with info
         PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
@@ -73,7 +75,7 @@ class PlotData():
         if pipeline is not None:
             print('[PDat]', pipeline.__reprFilters__())
         if pipeline is not None:
-            PD.x, PD.y = pipeline.applyOnPlotData(PD.x, PD.y)
+            PD.x, PD.y = pipeline.applyOnPlotData(PD.x, PD.y, PD.tabID) # TODO pass the tabID
 
 
         # --- Store stats

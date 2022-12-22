@@ -407,13 +407,13 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('', ISTAT+1) # Filenames
             self.statusbar.SetStatusText('', ISTAT+2) # Shape
         elif nTabs==1:
-            self.statusbar.SetStatusText(self.tabList.get(0).fileformat_name, ISTAT+0)
-            self.statusbar.SetStatusText(self.tabList.get(0).filename       , ISTAT+1)
-            self.statusbar.SetStatusText(self.tabList.get(0).shapestring    , ISTAT+2)
+            self.statusbar.SetStatusText(self.tabList[0].fileformat_name, ISTAT+0)
+            self.statusbar.SetStatusText(self.tabList[0].filename       , ISTAT+1)
+            self.statusbar.SetStatusText(self.tabList[0].shapestring    , ISTAT+2)
         elif len(ISel)==1:
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat_name , ISTAT+0)
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename        , ISTAT+1)
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring     , ISTAT+2)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].fileformat_name , ISTAT+0)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].filename        , ISTAT+1)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].shapestring     , ISTAT+2)
         else:
             self.statusbar.SetStatusText('{} tables loaded'.format(nTabs)                                                     ,ISTAT+0) 
             self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),ISTAT+1)
@@ -442,7 +442,7 @@ class MainFrame(wx.Frame):
         self.onTabSelectionChange()
 
     def exportTab(self, iTab):
-        tab=self.tabList.get(iTab)
+        tab=self.tabList[iTab]
         default_filename=tab.basename +'.csv'
         with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename,
                 style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:

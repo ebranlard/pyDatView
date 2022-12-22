@@ -287,7 +287,7 @@ class FilterToolPanel(GUIToolPanel):
             dfs, names, errors = tabList.applyFiltering(icol, self.data, bAdd=True)
             self.parent.addTables(dfs,names,bAdd=True)
         else:
-            df, name = tabList.get(iSel-1).applyFiltering(icol, self.data, bAdd=True)
+            df, name = tabList[iSel-1].applyFiltering(icol, self.data, bAdd=True)
             self.parent.addTables([df], [name], bAdd=True)
         self.updateTabList()
 

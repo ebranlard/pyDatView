@@ -156,9 +156,9 @@ class MaskToolPanel(GUIToolPanel):
         tabList = self.parent.selPanel.tabList
         iSel=self.cbTabs.GetSelection()
         if iSel==0:
-            maskString = tabList.commonMaskString
+            maskString = tabList.commonMaskString  # for "all"
         else:
-            maskString= tabList.get(iSel-1).maskString
+            maskString= tabList[iSel-1].maskString # -1, because "0" is for "all"
         if len(maskString)>0:
             self.textMask.SetValue(maskString)
         #else:
@@ -166,7 +166,7 @@ class MaskToolPanel(GUIToolPanel):
         #    self.textMask.SetValue(self.guessMask) # no known mask
           
     def guessMask(self,tabList):
-        cols=tabList.get(0).columns_clean
+        cols=tabList[0].columns_clean
         if 'Time' in cols:
             return '{Time} > 100'
         elif 'Date' in cols:
@@ -183,7 +183,7 @@ class MaskToolPanel(GUIToolPanel):
         if iSel==0:
             tabList.clearCommonMask()
         else:
-            tabList.get(iSel-1).clearMask()
+            tabList[iSel-1].clearMask()
 
         self.parent.load_and_draw()
         self.onTabChange()
@@ -220,9 +220,9 @@ class MaskToolPanel(GUIToolPanel):
             if len(errors)>0:
                 raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
         else:
-            dfs, name = tabList.get(iSel-1).applyMaskString(maskString, bAdd=bAdd)
+            dfs, name = tabList[iSel-1].applyMaskString(maskString, bAdd=bAdd)
             if bAdd:
-                self.parent.addTables([df],[name], bAdd=bAdd)
+                self.parent.addTables([dfs],[name], bAdd=bAdd)
             else:
                 self.parent.load_and_draw()
         self.updateTabList()
@@ -307,7 +307,7 @@ class RadialToolPanel(GUIToolPanel):
             if len(errors)>0:
                 raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
         else:
-            dfs, names = tabList.get(iSel-1).radialAvg(avgMethod,avgParam)
+            dfs, names = tabList[iSel-1].radialAvg(avgMethod,avgParam)
             self.parent.addTables([dfs],[names], bAdd=True)
 
         self.updateTabList()

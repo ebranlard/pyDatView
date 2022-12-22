@@ -302,7 +302,7 @@ class BinningToolPanel(GUIToolPanel):
                     errors.append(tab.active_name)
             self.parent.addTables(dfs_new, names_new, bAdd=True)
         else:
-            tab = tabList.get(iSel-1)
+            tab = tabList[iSel-1]
             df_new, name_new = bin_tab(tab, icol, colname, self.data, bAdd=True)
             if df_new is not None:
                 self.parent.addTables([df_new], [name_new], bAdd=True)
