@@ -7,7 +7,7 @@ class Action():
     def __init__(self, name, 
             tableFunction    = None,
             plotDataFunction = None,
-            guiCallBack=None, 
+            guiCallback=None, 
             guiEditorClass=None,
             data=None,
             mainframe=None,
@@ -24,7 +24,7 @@ class Action():
         self.tableFunction    = tableFunction    # applies to a full table
         self.plotDataFunction = plotDataFunction # applies to x,y arrays only
 
-        self.guiCallBack = guiCallBack       # callback to update GUI after the action, 
+        self.guiCallback = guiCallback       # callback to update GUI after the action, 
                                              # TODO remove me, replace with generic "redraw", "update tab list"
         self.guiEditorClass = guiEditorClass # Class that can be used to edit this action
         self.guiEditorObj   = None           # Instance of guiEditorClass that can be used to edit this action
@@ -60,9 +60,10 @@ class Action():
 
 
     def updateGUI(self):
-        if self.guiCallBack is not None:
+        """ Typically called by a calleed after append"""
+        if self.guiCallback is not None:
             print('>>> Calling GUI callback, action', self.name)
-            self.guiCallBack()
+            self.guiCallback()
 
     def __repr__(self):
         s='<Action {}>'.format(self.name)

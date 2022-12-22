@@ -7,9 +7,10 @@ def standardizeUnitsAction(label, mainframe=None, flavor='SI'):
     """ 
     Main entry point of the plugin
     """
-    guiCallBack=None
+    guiCallback=None
     if mainframe is not None:
-        def guiCallBack():
+        # TODO TODO TODO Clean this up
+        def guiCallback():
             if hasattr(mainframe,'selPanel'):
                 mainframe.selPanel.colPanel1.setColumns()
                 mainframe.selPanel.colPanel2.setColumns()
@@ -24,7 +25,7 @@ def standardizeUnitsAction(label, mainframe=None, flavor='SI'):
     action = IrreversibleAction(
             name=label, 
             tableFunction=tableFunction, 
-            guiCallBack=guiCallBack,
+            guiCallback=guiCallback,
             mainframe=mainframe, # shouldnt be needed
             )
 

@@ -409,7 +409,8 @@ class PlotPanel(wx.Panel):
             self.infoPanel.setPlotMatrixCallbacks(self._onPlotMatrixLeftClick, self._onPlotMatrixRightClick)
         self.parent   = parent
         self.plotData = []
-        self.plotDataOptions=dict()
+        self.plotDataOptions=dict() # TODO remove me
+        self.toolPanel=None
         if data is not None:
             self.data  = data
         else:
@@ -774,24 +775,11 @@ class PlotPanel(wx.Panel):
             s = '            '
         return s
 
-    def removeTools(self,event=None,Layout=True):
-        try:
-            self.toolPanel.destroy() # call the "destroy" function which might clean up data
-        except:
-            pass
-        try:
-            # Python3
-            self.toolSizer.Clear(delete_windows=True) # Delete Windows
-        except:
-            # Python2
-            if hasattr(self,'toolPanel'):
-                self.toolSizer.Remove(self.toolPanel)
-                if hasattr(self.toolPanel,'action'):
-                    self.toolPanel.action.guiEditorObj = None # Important
-                    self.toolPanel.action = None
-                self.toolPanel.Destroy()
-                del self.toolPanel
-            self.toolSizer.Clear() # Delete Windows
+    def removeTools(self, event=None, Layout=True):
+
+        if self.toolPanel is not None:
+            self.toolPanel.destroyData() # clean destroy of data (action callbacks)
+        self.toolSizer.Clear(delete_windows=True) # Delete Windows
         if Layout:
             self.plotsizer.Layout()
 

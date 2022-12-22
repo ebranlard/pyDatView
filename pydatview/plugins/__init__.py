@@ -26,9 +26,13 @@ def _data_binning(label, mainframe):
     from .data_binning import binningAction
     return binningAction(label, mainframe)
 
+def _data_sampler(label, mainframe):
+    from .data_sampler import samplerAction
+    return samplerAction(label, mainframe)
 
 dataPlugins=[
         # Name/label             , callback                , is a Panel
+        ('Resample'              , _data_sampler           , True ),
         ('Bin data'              , _data_binning           , True ),
         ('Standardize Units (SI)', _data_standardizeUnitsSI, False),
         ('Standardize Units (WE)', _data_standardizeUnitsWE, False),

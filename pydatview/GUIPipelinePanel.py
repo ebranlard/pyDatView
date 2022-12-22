@@ -195,8 +195,12 @@ class PipelinePanel(wx.Panel):
         if action.removeNeedReload:
             if not silent:
                 Info(self.parent, 'A reload is required now that the action "{}" has been removed.'.format(action.name))
-            # TODO trigger reload/reapply
-            # TODO trigger GUI update
+
+        # trigger GUI update (guiCallback)
+        action.updateGUI()
+
+
+        # Update list of errors
         self.ep.update()
 
 

@@ -86,13 +86,9 @@ class PlotData():
                 from pydatview.tools.signal_analysis import applyFilter
                 PD.y = applyFilter(PD.x, PD.y, Options['Filter'])
 
-        if 'Sampler' in keys:
-            if Options['Sampler']:
-                from pydatview.tools.signal_analysis import applySampler
-                PD.x, PD.y = applySampler(PD.x, PD.y, Options['Sampler'])
-
         # --- Apply filters from pipeline
-        print('[PDat]', pipeline.__reprFilters__())
+        if pipeline is not None:
+            print('[PDat]', pipeline.__reprFilters__())
         if pipeline is not None:
             PD.x, PD.y = pipeline.applyOnPlotData(PD.x, PD.y)
 

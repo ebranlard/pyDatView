@@ -1,19 +1,19 @@
 import wx
 import numpy as np
-import pandas as pd
-# import copy
-# import platform
-# from collections import OrderedDict
-# For log dec tool
 from pydatview.GUITools import GUIToolPanel, TOOL_BORDER
 from pydatview.common import CHAR, Error, Info, pretty_num_short
 from pydatview.common import DummyMainFrame
 from pydatview.plotdata import PlotData
-# from pydatview.tools.damping import logDecFromDecay
-# from pydatview.tools.curve_fitting import model_fit, extract_key_miscnum, extract_key_num, MODELS, FITTERS, set_common_keys
-
 from pydatview.pipeline import PlotDataAction
-
+# --------------------------------------------------------------------------------}
+# --- Data
+# --------------------------------------------------------------------------------{
+_DEFAULT_DICT={
+    'active':False, 
+    'xMin':None, 
+    'xMax':None, 
+    'nBins':50
+}
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
@@ -23,23 +23,72 @@ def binningAction(label, mainframe=None, data=None):
     The action is also edited and created by the GUI Editor
     """
     if data is None:
+        # NOTE: if we don't do copy below, we will end up remembering even after the action was deleted
+        #       its not a bad feature, but we might want to think it through
+        #       One issue is that "active" is kept in memory
         data=_DEFAULT_DICT
+        data['active'] = False #<<< Important
+
+    guiCallback=None
+    if mainframe is not None:
+        guiCallback = mainframe.redraw
 
     action = PlotDataAction(
             name=label,
             plotDataFunction = bin_plot,
             guiEditorClass = BinningToolPanel,
+            guiCallback = guiCallback,
             data = data,
             mainframe=mainframe
             )
     return action
+# --------------------------------------------------------------------------------}
+# --- Main method
+# --------------------------------------------------------------------------------{
+def bin_plot(x, y, opts):
+    from pydatview.tools.stats import bin_signal
+    xBins = np.linspace(opts['xMin'], opts['xMax'], opts['nBins']+1)
+    if xBins[0]>xBins[1]:
+        raise Exception('xmin must be lower than xmax')
+    x_new, y_new = bin_signal(x, y, xbins=xBins)
+    return x_new, y_new
+
+def bin_tab(tab, iCol, colName, opts, bAdd=True):
+    # TODO, make it such as it's only handling a dataframe instead of a table
+    from pydatview.tools.stats import bin_DF
+    colName = tab.data.columns[iCol]
+    error=''
+    xBins = np.linspace(opts['xMin'], opts['xMax'], opts['nBins']+1)
+#     try:
+    df_new =bin_DF(tab.data, xbins=xBins, colBin=colName)
+    # Remove index if present
+    if df_new.columns[0].lower().find('index')>=0:
+        df_new = df_new.iloc[:, 1:] # We don't use "drop" in case of duplicate "index"
+
+    # Setting bin column as first columns
+    colNames = list(df_new.columns.values)
+    colNames.remove(colName)
+    colNames.insert(0, colName)
+    df_new=df_new.reindex(columns=colNames)
+    if bAdd:
+        name_new=tab.raw_name+'_binned'
+    else:
+        name_new=None
+        tab.data=df_new
+#     except:
+#         df_new   = None
+#         name_new = None
+
+    return df_new, name_new
+
+
 
 # --------------------------------------------------------------------------------}
-# --- GUI to Edit Plugin and control the Action
+# --- GUI to edit plugin and control the action
 # --------------------------------------------------------------------------------{
 class BinningToolPanel(GUIToolPanel):
-    def __init__(self, parent, action):
-        super(BinningToolPanel, self).__init__(parent)
+    def __init__(self, parent, action=None):
+        GUIToolPanel.__init__(self, parent)
 
         # --- Creating "Fake data" for testing only!
         if action is None:
@@ -49,24 +98,24 @@ class BinningToolPanel(GUIToolPanel):
         # --- Data from other modules
         self.parent = parent # parent is GUIPlotPanel
         self.mainframe = action.mainframe
-
         self.data = action.data
         self.action = action
-        # self.data['selectionChangeCallBack'] = self.selectionChange # TODO
 
         # --- GUI elements
-        self.btClose    = self.getBtBitmap(self, 'Close','close', self.onClose)
+        self.btClose    = self.getBtBitmap(self, 'Close','close', self.destroy)
         self.btAdd      = self.getBtBitmap(self, 'Add','add'  , self.onAdd)
         self.btHelp     = self.getBtBitmap(self, 'Help','help', self.onHelp)
         self.btClear    = self.getBtBitmap(self, 'Clear Plot','sun', self.onClear)
+        self.btPlot     = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
+        self.btApply    = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
 
         #self.lb         = wx.StaticText( self, -1, """ Click help """)
         self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
+        self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
         self.scBins = wx.SpinCtrl(self, value='50', style=wx.TE_RIGHT, size=wx.Size(60,-1) )
         self.textXMin = wx.TextCtrl(self, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(70,-1))
         self.textXMax = wx.TextCtrl(self, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(70,-1))
-        self.btPlot     = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
-        self.btApply    = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
+
         self.btXRange = self.getBtBitmap(self, 'Default','compute', self.reset)
         self.lbDX     = wx.StaticText(self, -1, '')
         self.scBins.SetRange(3, 10000)
@@ -124,22 +173,12 @@ class BinningToolPanel(GUIToolPanel):
             self.setXRange(x=[self.data['xMin'], self.data['xMax']])
         else:
             self.setXRange()
-        self.scBins.SetValue(self.data['nBins'])
+        self._Data2GUI()
         self.onToggleApply(init=True)
         self.updateTabList()
         self.onParamChange()
 
-    # --- External Calls
-    def cancelAction(self, redraw=True):
-        """ do cancel the action"""
-        self.btPlot.Enable(True)
-        self.btClear.Enable(True)
-        self.btApply.SetLabel(CHAR['cloud']+' Apply')
-        self.btApply.SetValue(False)
-        self.data['active'] = False
-        if redraw:
-            self.parent.load_and_draw() # Data will change based on plotData 
-    # 
+    # --- Implementation specific
     def reset(self, event=None):
         self.setXRange()
         self.updateTabList() # might as well until we add a nice callback/button..
@@ -163,12 +202,48 @@ class BinningToolPanel(GUIToolPanel):
         print('>>> Binning selectionChange callback, TODO')
         self.setXRange()
 
+    # --- Table related
+    def onTabChange(self,event=None):
+        #tabList = self.parent.selPanel.tabList
+        #iSel=self.cbTabs.GetSelection()
+        pass
+
+    def updateTabList(self,event=None):
+        tabList = self.parent.selPanel.tabList
+        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
+        try:
+            iSel=np.max([np.min([self.cbTabs.GetSelection(),len(tabListNames)]),0])
+            self.cbTabs.Clear()
+            [self.cbTabs.Append(tn) for tn in tabListNames]
+            self.cbTabs.SetSelection(iSel)
+        except RuntimeError:
+            pass
+
+    # --- External Calls
+    def cancelAction(self, redraw=True):
+        """ do cancel the action"""
+        self.btPlot.Enable(True)
+        self.btClear.Enable(True)
+        self.btApply.SetLabel(CHAR['cloud']+' Apply')
+        self.btApply.SetValue(False)
+        self.data['active'] = False
+        if redraw:
+            self.parent.load_and_draw() # Data will change based on plotData 
+
+    # --- Fairly generic
     def _GUI2Data(self):
         def zero_if_empty(s):
             return 0 if len(s)==0 else s
         self.data['nBins'] = int  (self.scBins.Value)
         self.data['xMin']  = float(zero_if_empty(self.textXMin.Value))
         self.data['xMax']  = float(zero_if_empty(self.textXMax.Value))
+
+    def _Data2GUI(self):
+        if self.data['active']:
+            self.lbDX.SetLabel(pretty_num_short((self.data['xMax']- self.data['xMin'])/self.data['nBins']))
+            self.textXMin.SetValue(pretty_num_short(self.data['xMin']))
+            self.textXMax.SetValue(pretty_num_short(self.data['xMax']))
+        self.scBins.SetValue(self.data['nBins'])
 
     def onToggleApply(self, event=None, init=False):
         """
@@ -186,26 +261,14 @@ class BinningToolPanel(GUIToolPanel):
             # The action is now active we add it to the pipeline, unless it's already in it
             if self.mainframe is not None:
                 self.mainframe.addAction(self.action, cancelIfPresent=True)
-            else:
-                print('[WARN] Running data_binning without a main frame')
-
             if not init:
-                # This is a "plotData" action, we don't need to do anything
-                print('>>> redraw')
-                self.parent.load_and_draw() # Data will change based on plotData 
+                self.parent.load_and_draw() # filter will be applied in plotData.py
         else:
-            print('>>>> TODO Remove Action')
             # We remove our action from the pipeline
             if not init:
                 if self.mainframe is not None:
                     self.mainframe.removeAction(self.action)
-                else:
-                    print('[WARN] Running data_binning without a main frame')
-            #self.data = None
-            #self.action = None
             self.cancelAction(redraw=not init)
-
-
 
     def onAdd(self,event=None):
         from pydatview.tools.stats import bin_DF
@@ -225,7 +288,6 @@ class BinningToolPanel(GUIToolPanel):
 
         self._GUI2Data()
         errors=[]
-
         if iSel==0:
             # Looping on all tables and adding new table
             dfs_new   = []
@@ -272,27 +334,6 @@ class BinningToolPanel(GUIToolPanel):
         # Update Table list
         self.updateTabList()
 
-    def onTabChange(self,event=None):
-        #tabList = self.parent.selPanel.tabList
-        #iSel=self.cbTabs.GetSelection()
-        pass
-
-    def updateTabList(self,event=None):
-        tabList = self.parent.selPanel.tabList
-        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
-        try:
-            iSel=np.max([np.min([self.cbTabs.GetSelection(),len(tabListNames)]),0])
-            self.cbTabs.Clear()
-            [self.cbTabs.Append(tn) for tn in tabListNames]
-            self.cbTabs.SetSelection(iSel)
-        except RuntimeError:
-            pass
-
-    def onClose(self, event=None):
-        # cleanup action calls
-        self.action.guiEditorObj=None
-        self.destroy()
-
     def onHelp(self,event=None):
         Info(self,"""Binning.
 
@@ -313,52 +354,6 @@ To bin perform the following step:
 """)
 
 
-# --------------------------------------------------------------------------------}
-# --- DATA
-# --------------------------------------------------------------------------------{
-def bin_plot(x, y, opts):
-    from pydatview.tools.stats import bin_signal
-    xBins = np.linspace(opts['xMin'], opts['xMax'], opts['nBins']+1)
-    if xBins[0]>xBins[1]:
-        raise Exception('xmin must be lower than xmax')
-    x_new, y_new = bin_signal(x, y, xbins=xBins)
-    return x_new, y_new
-
-def bin_tab(tab, iCol, colName, opts, bAdd=True):
-    # TODO, make it such as it's only handling a dataframe instead of a table
-    from pydatview.tools.stats import bin_DF
-    colName = tab.data.columns[iCol]
-    error=''
-    xBins = np.linspace(opts['xMin'], opts['xMax'], opts['nBins']+1)
-#     try:
-    df_new =bin_DF(tab.data, xbins=xBins, colBin=colName)
-    # Remove index if present
-    if df_new.columns[0].lower().find('index')>=0:
-        df_new = df_new.iloc[:, 1:] # We don't use "drop" in case of duplicate "index"
-
-    # Setting bin column as first columns
-    colNames = list(df_new.columns.values)
-    colNames.remove(colName)
-    colNames.insert(0, colName)
-    df_new=df_new.reindex(columns=colNames)
-    if bAdd:
-        name_new=tab.raw_name+'_binned'
-    else:
-        name_new=None
-        tab.data=df_new
-#     except:
-#         df_new   = None
-#         name_new = None
-
-    return df_new, name_new
-
-_DEFAULT_DICT={
-    'active':False, 
-    'xMin':None, 
-    'xMax':None, 
-    'nBins':50, 
-    'dx':0, 
-}
 
 
 if __name__ == '__main__':
