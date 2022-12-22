@@ -267,7 +267,7 @@ class FilterToolPanel(GUIToolPanel):
             self.btApply.SetValue(True)
             # The action is now active we add it to the pipeline, unless it's already in it
             if self.mainframe is not None:
-                self.mainframe.addAction(self.action, cancelIfPresent=True)
+                self.mainframe.addAction(self.action, overwrite=True)
             if not init:
                 self.parent.load_and_draw() # filter will be applied in plotData.py
         else:
@@ -277,7 +277,7 @@ class FilterToolPanel(GUIToolPanel):
                     self.mainframe.removeAction(self.action)        
             self.cancelAction(redraw=not init)
 
-    def onAdd(self,event=None):
+    def onAdd(self, event=None):
         iSel         = self.cbTabs.GetSelection()
         tabList      = self.parent.selPanel.tabList
         icol, colname = self.parent.selPanel.xCol

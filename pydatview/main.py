@@ -144,7 +144,6 @@ class MainFrame(wx.Frame):
 
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e, 'Mask')  , dataMenu.Append(wx.ID_ANY, 'Mask'))
         self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
 
         # --- Data Plugins
@@ -397,6 +396,7 @@ class MainFrame(wx.Frame):
         #self.onShowTool(tool='Filter')
         #self.onShowTool(tool='Resample')
         #self.onDataPlugin(toolName='Bin data')
+        self.onDataPlugin(toolName='Mask')
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
@@ -487,18 +487,17 @@ class MainFrame(wx.Frame):
                 else:
                     action = function(label=toolName, mainframe=self) # calling the data function
                     # Here we apply the action directly
-                    action.apply(self.tabList) # the action will chose that to apply it on
-                    self.addAction(action)
-                    action.updateGUI()
+                    # We can't overwrite, so we'll delete by name..
+                    self.addAction(action, overwrite=False, apply=True, tabList=self.tabList, updateGUI=True)
 
                 return
         raise NotImplementedError('Tool: ',toolName)
 
     # --- Pipeline
-    def addAction(self, action, cancelIfPresent=False):
-        self.pipePanel.append(action, cancelIfPresent=cancelIfPresent)
-    def removeAction(self, action):
-        self.pipePanel.remove(action)
+    def addAction(self, action, **kwargs):
+        self.pipePanel.append(action, **kwargs)
+    def removeAction(self, action, **kwargs):
+        self.pipePanel.remove(action, **kwargs)
     def applyPipeline(self, *args, **kwargs):
         self.pipePanel.apply(*args, **kwargs)
 

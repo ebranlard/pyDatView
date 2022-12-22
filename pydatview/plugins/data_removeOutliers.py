@@ -161,7 +161,7 @@ class RemoveOutliersToolPanel(GUIToolPanel):
             self.btApply.SetValue(True)            
             # The action is now active we add it to the pipeline, unless it's already in it
             if self.mainframe is not None:
-                self.mainframe.addAction(self.action, cancelIfPresent=True)
+                self.mainframe.addAction(self.action, overwrite=True)
             if not init:
                 self.parent.load_and_draw() # filter will be applied in plotData.py
         else:

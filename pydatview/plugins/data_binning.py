@@ -95,7 +95,7 @@ class BinningToolPanel(GUIToolPanel):
             print('[WARN] Calling GUI without an action! Creating one.')
             mainframe = DummyMainFrame(parent)
             action = binningAction(label='dummyAction', mainframe=mainframe)
-        # --- Data from other modules
+        # --- Data
         self.parent = parent # parent is GUIPlotPanel
         self.mainframe = action.mainframe
         self.data = action.data
@@ -159,7 +159,6 @@ class BinningToolPanel(GUIToolPanel):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(btSizer  ,0, flag = wx.LEFT           , border = 5)
         self.sizer.Add(vsizer   ,1, flag = wx.LEFT|wx.EXPAND , border = TOOL_BORDER)
-        #self.sizer.Add(msizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = TOOL_BORDER)
         self.SetSizer(self.sizer)
 
         # --- Events
@@ -227,8 +226,8 @@ class BinningToolPanel(GUIToolPanel):
         self.btApply.SetLabel(CHAR['cloud']+' Apply')
         self.btApply.SetValue(False)
         self.data['active'] = False
-        if redraw:
-            self.parent.load_and_draw() # Data will change based on plotData 
+        #if redraw:
+        #    self.parent.load_and_draw() # Data will change based on plotData 
 
     # --- Fairly generic
     def _GUI2Data(self):
@@ -260,7 +259,7 @@ class BinningToolPanel(GUIToolPanel):
             self.btApply.SetValue(True)
             # The action is now active we add it to the pipeline, unless it's already in it
             if self.mainframe is not None:
-                self.mainframe.addAction(self.action, cancelIfPresent=True)
+                self.mainframe.addAction(self.action, overwrite=True)
             if not init:
                 self.parent.load_and_draw() # filter will be applied in plotData.py
         else:

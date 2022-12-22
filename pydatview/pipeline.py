@@ -4,8 +4,10 @@ pipelines and actions
 import numpy as np
 
 class Action(): 
+    # TODO: store data per table and for all
     def __init__(self, name, 
-            tableFunction    = None,
+            tableFunctionApply = None,
+            tableFunctionCancel = None,
             plotDataFunction = None,
             guiCallback=None, 
             guiEditorClass=None,
@@ -21,48 +23,53 @@ class Action():
 
         self.name = name
         # 
-        self.tableFunction    = tableFunction    # applies to a full table
-        self.plotDataFunction = plotDataFunction # applies to x,y arrays only
+        self.tableFunctionApply  = tableFunctionApply    # applies to a full table
+        self.tableFunctionCancel = tableFunctionCancel   # cancel action on a full table
+        self.plotDataFunction    = plotDataFunction      # applies to x,y arrays only
 
         self.guiCallback = guiCallback       # callback to update GUI after the action, 
                                              # TODO remove me, replace with generic "redraw", "update tab list"
         self.guiEditorClass = guiEditorClass # Class that can be used to edit this action
         self.guiEditorObj   = None           # Instance of guiEditorClass that can be used to edit this action
 
-        self.data = data if data is not None else {} # Data needed by the action, can be saved to file so that the action can be restored
         self.mainframe=mainframe # If possible, dont use that...
 
+        # TODO this needs to be stored per table 
+        self.data = data if data is not None else {} # Data needed by the action, can be saved to file so that the action can be restored
         self.applied=False # TODO this needs to be sotred per table
 
         # Behavior
-        self.onPlotData       = onPlotData
+        self.onPlotData       = onPlotData # True for plotDataActions...
         self.unique           = unique
         self.removeNeedReload = removeNeedReload
 
         self.errorList=[]
 
-    def apply(self, tablist, force=False, applyToAll=False):
+    def apply(self, tabList, force=False, applyToAll=False):
         self.errorList=[]
-        if self.tableFunction is None:
+        if self.tableFunctionApply is None:
             # NOTE: this does not applyt to plotdataActions..
             raise Exception('tableFunction was not specified for action: {}'.format(self.name))
 
-        for t in tablist:
+        if tabList is None:
+            raise Exception('{}: cannot apply on None tabList'.format(self))
+
+        for t in tabList:
             print('>>> Applying action', self.name, 'to', t.name)
             try:
-                self.tableFunction(t)
-            except e:
+                self.tableFunctionApply(t, data=self.data)
+            except:
                 err = 'Failed to apply action {} to table {}.'.format(self.name, t.name)
-                self.errorList.append(e)
+                self.errorList.append(err)
 
         self.applied = True
-        return tablist
+        return tabList
 
 
     def updateGUI(self):
-        """ Typically called by a calleed after append"""
+        """ Typically called by a callee after append"""
         if self.guiCallback is not None:
-            print('>>> Calling GUI callback, action', self.name)
+            print('>>> Action: Calling GUI callback, action', self.name)
             self.guiCallback()
 
     def __repr__(self):
@@ -70,41 +77,84 @@ class Action():
         return s
 
 
+# --------------------------------------------------------------------------------}
+# --- Plot data actions (applied on the fly)
+# --------------------------------------------------------------------------------{
+# TODO: handle how they generate new tables
+# TODO: handle how they are applied to few tables
 class PlotDataAction(Action): 
     def __init__(self, name, **kwargs):
         Action.__init__(self, name, onPlotData=True, **kwargs)
 
     def apply(self, *args, **kwargs):
-        pass # not pretty
+        pass # nothing to do
+
+    def cancel(self, *args, **kwargs):
+        pass # nothing to do
 
     def applyOnPlotData(self, x, y, tabID):
         # TODO apply only based on tabID 
         x, y = self.plotDataFunction(x, y, self.data)
         return x, y
 
-class IrreversibleAction(Action): 
+    def __repr__(self):
+        s='<PlotDataAction {}>'.format(self.name, self.applied)
+        return s
+# --------------------------------------------------------------------------------}
+# --- Table actions (apply on a full table)
+# --------------------------------------------------------------------------------{
+# TODO: store data per table and for all
+class IrreversibleTableAction(Action): 
 
     def __init__(self, name, **kwargs):
         Action.__init__(self, name, removeNeedReload=True, **kwargs)
 
-    def apply(self, tablist, force=False, applyToAll=False):
+    def apply(self, tabList, force=False, applyToAll=False):
         if force:
             self.applied = False
         if self.applied:
-            print('>>> Skipping irreversible action', self.name)
+            print('>>> Action: Skipping irreversible action', self.name)
             return
-        Action.apply(self, tablist)
+        Action.apply(self, tabList)
+
+    def cancel(self, *args, **kwargs):
+        print('>>> Action: Cancel: skipping irreversible action', self.name)
+        pass
     
     def __repr__(self):
-        s='<IrreversibleAction {}, applied: {}>'.format(self.name, self.applied)
+        s='<IrreversibleAction {} (applied:{})>'.format(self.name, self.applied)
         return s
 
-class FilterAction(Action): 
-    def cancel(self, tablist):
-        raise NotImplementedError()
-        return tablist
+class ReversibleTableAction(Action): 
+
+    def __init__(self, name, tableFunctionApply, tableFunctionCancel, **kwargs):
+        Action.__init__(self, name, tableFunctionApply=tableFunctionApply, tableFunctionCancel=tableFunctionCancel, **kwargs)
+
+    def apply(self, tabList, force=False, applyToAll=False):
+        if force:
+            self.applied = False
+        if self.applied:
+            print('>>> Action: Apply: Skipping irreversible action', self.name)
+            return
+        Action.apply(self, tabList)
+
+    def cancel(self, tabList):
+        self.errorList=[]
+        for t in tabList:
+            print('>>> Action: Cancel: ', self, 'to', t.name)
+            try:
+                self.tableFunctionCancel(t, data=self.data)
+            except:
+                self.errorList.append('Failed to apply action {} to table {}.'.format(self.name, t.name))
+    
+    def __repr__(self):
+        s='<ReversibleTableAction {} (applied:{})>'.format(self.name, self.applied)
+        return s
 
 
+# --------------------------------------------------------------------------------}
+# --- Pipeline 
+# --------------------------------------------------------------------------------{
 class Pipeline(object): 
 
     def __init__(self, data=[]):
@@ -117,17 +167,17 @@ class Pipeline(object):
     def actions(self):
         return self.actionsData+self.actionsPlotFilters # order matters
 
-    def apply(self, tablist, force=False, applyToAll=False):
+    def apply(self, tabList, force=False, applyToAll=False):
         """ 
-        Apply the pipeline to the tablist
+        Apply the pipeline to the tabList
         If "force", then actions that are "one time only" are still applied
-        If applyToAll, then the action is applied to all the tables, irrespectively of the tablist stored by the action
+        If applyToAll, then the action is applied to all the tables, irrespectively of the tabList stored by the action
         """
         for action in self.actionsData:
-            action.apply(tablist, force=force, applyToAll=applyToAll)
+            action.apply(tabList, force=force, applyToAll=applyToAll)
         # 
         for action in self.actionsPlotFilters:
-            action.apply(tablist, force=force, applyToAll=applyToAll)
+            action.apply(tabList, force=force, applyToAll=applyToAll)
         # 
         self.collectErrors()
 
@@ -139,50 +189,55 @@ class Pipeline(object):
             x, y = action.applyOnPlotData(x, y, tabID)
         return x, y
 
-
-
     def collectErrors(self):
         self.errorList=[]
         for action in self.actions:
             self.errorList+= action.errorList
 
-#     def setPlotFiltersData(self):
-#         print('>>> Setting plotFiltersData')
-#         self.plotFiltersData=[]
-#         for action in self.actionsPlotFilters:
-#             self.plotFiltersData.append(action.data)
-#             print(action.data)
-
     # --- Behave like a list..
-    def append(self, action, cancelIfPresent=False):
-        if cancelIfPresent:
-            i = self.index(action)
-            if i>=0:
-                print('>>> Not adding action, its already present')
-                return
-        if action.onPlotData:
-            self.actionsPlotFilters.append(action)
-            # Trigger
-#             self.setPlotFiltersData()
+    def append(self, action, overwrite=False, apply=True, updateGUI=True, tabList=None):
+        i = self.index(action)
+        if i>=0 and not overwrite:
+            print('[Pipe] Not adding action, its already present')
         else:
-            self.actionsData.append(action)
+            if action.onPlotData:
+                self.actionsPlotFilters.append(action)
+            else:
+                self.actionsData.append(action)
+
+        if apply:
+            action.apply(tabList=tabList, force=True)
+            self.collectErrors()
+
+        # trigger GUI update (guiCallback)
+        if updateGUI:
+            action.updateGUI()
 
 
-    def remove(self, a):
-        """ NOTE: the action is removed, not deleted fully (it might be readded to the pipeline later)"""
+    def remove(self, a, cancel=True, updateGUI=True, tabList=None):
+        """ NOTE: the action is removed, not deleted fully (it might be readded to the pipeline later)
+         -  If a GUI edtor is attached to this action, we make sure that it shows the action as cancelled
+        """
         try:
             i = self.actionsData.index(a)
             a = self.actionsData.pop(i)
         except ValueError:
             i = self.actionsPlotFilters.index(a)
             a = self.actionsPlotFilters.pop(i)
-            # Trigger
-#             self.setPlotFiltersData()
+
+        # Cancel the action
+        if cancel:
+            a.cancel(tabList)
+            self.collectErrors()
 
         # Cancel the action in Editor
         if a.guiEditorObj is not None:
-            print('>>> Canceling action in guiEditor')
-            a.guiEditorObj.cancelAction()
+            print('[Pipe] Canceling action in guiEditor because the action is removed')
+            a.guiEditorObj.cancelAction() # NOTE: should not trigger a plot
+
+        # trigger GUI update (guiCallback)
+        if updateGUI:
+            a.updateGUI()
 
         return a
 

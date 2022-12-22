@@ -168,37 +168,35 @@ class PipelinePanel(wx.Panel):
         self.ep.update()
         self.Sizer.Layout()
 
-    def append(self, action, cancelIfPresent=False):
-        if not cancelIfPresent:
+    def append(self, action, overwrite=True, apply=True, updateGUI=True, tabList=None):
+        if not overwrite:
             # Delete action is already present and if it's a "unique" action
             ac = self.pipeline.find(action.name)
             if ac is not None:
                 if ac.unique:
                     print('>>> Deleting unique action before inserting it again', ac.name)
-                    self.remove(ac, silent=True)
+                    self.remove(ac, silent=True, updateGUI=False)
         # Add to pipeline
-        print('>>> Adding action',action.name)
-        self.pipeline.append(action, cancelIfPresent=cancelIfPresent)
+        print('>>> GUIPipeline: Adding action',action.name)
+        self.pipeline.append(action, overwrite=overwrite, apply=apply, updateGUI=updateGUI, tabList=tabList)
         # Add to GUI
         self.populate() # NOTE: we populate because of the change of order between actionsData and actionsPlot..
         #self._addPanel(action)
         #self.Sizer.Layout()
+        # Update list of errors
+        self.ep.update()
 
-    def remove(self, action, silent=False):
+    def remove(self, action, silent=False, cancel=True, updateGUI=True, tabList=None):
         """ NOTE: the action is only removed from the pipeline, not deleted. """
-        print('>>> Deleting action',action.name)
+        print('>>> Deleting action', action.name)
         # Remove From Data
-        self.pipeline.remove(action)
+        self.pipeline.remove(action, cancel=cancel, updateGUI=updateGUI, tabList=tabList)
         # Remove From GUI
         self._deletePanel(action)
 
         if action.removeNeedReload:
             if not silent:
                 Info(self.parent, 'A reload is required now that the action "{}" has been removed.'.format(action.name))
-
-        # trigger GUI update (guiCallback)
-        action.updateGUI()
-
 
         # Update list of errors
         self.ep.update()

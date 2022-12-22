@@ -13,6 +13,9 @@ Register your plugins in this file:
 
 See working examples in this file and this directory.
 """
+def _data_mask(label, mainframe):
+    from .data_mask import maskAction
+    return maskAction(label, mainframe)
 
 def _data_filter(label, mainframe):
     from .data_filter import filterAction
@@ -41,6 +44,7 @@ def _data_standardizeUnitsWE(label, mainframe=None):
 
 dataPlugins=[
         # Name/label             , callback                , is a Panel
+        ('Mask'                  , _data_mask              , True ),
         ('Remove Outliers'       , _data_removeOutliers    , True ),
         ('Filter'                , _data_filter            , True ),
         ('Resample'              , _data_sampler           , True ),
