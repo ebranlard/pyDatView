@@ -1,4 +1,6 @@
 import json
+import numpy as np
+import pandas as pd
 import os
 from pydatview.io import defaultUserDataDir
 
@@ -85,6 +87,9 @@ def saveAppData(mainFrame, data):
         if hasattr(mainFrame, 'pipeline'):
             mainFrame.pipeline.saveData(data['pipeline'])
 
+    # --- Sanitize data
+    data = _sanitize(data)
+
     # --- Write config file
     configFile = configFilePath()
     #print('>>> Writing configFile', configFile)
@@ -97,6 +102,19 @@ def saveAppData(mainFrame, data):
             json.dump(data, f, indent=2)
     except:
         pass
+
+def _sanitize(data):
+    """
+    Replace numpy arrays with list 
+    TODO: remove any callbacks/lambda
+    """
+    # --- Level 1
+    for k1,v1 in data.items():
+        if type(v1) is dict:
+            data[k1] = _sanitize(v1)
+        elif isinstance(v1, (pd.core.series.Series,np.ndarray)):
+            data[k1]=list(v1)
+    return data
 
 def defaultAppData(mainframe):
     data={}
