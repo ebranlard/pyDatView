@@ -34,7 +34,7 @@ class PlotData():
         if x is not None and y is not None:
             PD.fromXY(x,y,sx,sy)
 
-    def fromIDs(PD, tabs, i, idx, SameCol, Options={}):
+    def fromIDs(PD, tabs, i, idx, SameCol, Options=None, pipeline=None):
         """ Nasty initialization of plot data from "IDs" """
         PD.id = i
         PD.it = idx[0] # table index
@@ -51,7 +51,7 @@ class PlotData():
         PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
         PD.c =c  # raw values, used by PDF
 
-        PD._post_init(Options=Options)
+        PD._post_init(Options=Options, pipeline=pipeline)
 
     def fromXY(PD, x, y, sx='', sy=''):
         PD.x  = x
@@ -67,7 +67,9 @@ class PlotData():
         PD._post_init()
 
 
-    def _post_init(PD, Options={}):
+    def _post_init(PD, Options=None, pipeline=None):
+        if Options is None:
+            Options = {}
         # --- Perform data manipulation on the fly
         #[print(k,v) for k,v in Options.items()]
         keys=Options.keys()
@@ -89,10 +91,11 @@ class PlotData():
                 from pydatview.tools.signal_analysis import applySampler
                 PD.x, PD.y = applySampler(PD.x, PD.y, Options['Sampler'])
 
-        if 'Binning' in keys:
-            if Options['Binning']:
-                if Options['Binning']['active']:
-                    PD.x, PD.y = Options['Binning']['applyCallBack'](PD.x, PD.y, Options['Binning'])
+        # --- Apply filters from pipeline
+        print('[PDat]', pipeline.__reprFilters__())
+        if pipeline is not None:
+            PD.x, PD.y = pipeline.applyOnPlotData(PD.x, PD.y)
+
 
         # --- Store stats
         n=len(PD.y)

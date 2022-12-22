@@ -27,6 +27,7 @@ def binningAction(label, mainframe=None, data=None):
 
     action = PlotDataAction(
             name=label,
+            plotDataFunction = bin_plot,
             guiEditorClass = BinningToolPanel,
             data = data,
             mainframe=mainframe
@@ -51,11 +52,10 @@ class BinningToolPanel(GUIToolPanel):
 
         self.data = action.data
         self.action = action
-        self.data['selectionChangeCallBack'] = self.selectionChange
-
+        # self.data['selectionChangeCallBack'] = self.selectionChange # TODO
 
         # --- GUI elements
-        self.btClose    = self.getBtBitmap(self, 'Close','close', self.destroy)
+        self.btClose    = self.getBtBitmap(self, 'Close','close', self.onClose)
         self.btAdd      = self.getBtBitmap(self, 'Add','add'  , self.onAdd)
         self.btHelp     = self.getBtBitmap(self, 'Help','help', self.onHelp)
         self.btClear    = self.getBtBitmap(self, 'Clear Plot','sun', self.onClear)
@@ -129,6 +129,17 @@ class BinningToolPanel(GUIToolPanel):
         self.updateTabList()
         self.onParamChange()
 
+    # --- External Calls
+    def cancelAction(self, redraw=True):
+        """ do cancel the action"""
+        self.btPlot.Enable(True)
+        self.btClear.Enable(True)
+        self.btApply.SetLabel(CHAR['cloud']+' Apply')
+        self.btApply.SetValue(False)
+        self.data['active'] = False
+        if redraw:
+            self.parent.load_and_draw() # Data will change based on plotData 
+    # 
     def reset(self, event=None):
         self.setXRange()
         self.updateTabList() # might as well until we add a nice callback/button..
@@ -171,11 +182,17 @@ class BinningToolPanel(GUIToolPanel):
             self.btPlot.Enable(False)
             self.btClear.Enable(False)
             self.btApply.SetLabel(CHAR['sun']+' Clear')
-            # We add our action to the pipeline
+            self.btApply.SetValue(True)
+            # The action is now active we add it to the pipeline, unless it's already in it
             if self.mainframe is not None:
-                self.mainframe.addAction(self.action)
+                self.mainframe.addAction(self.action, cancelIfPresent=True)
             else:
                 print('[WARN] Running data_binning without a main frame')
+
+            if not init:
+                # This is a "plotData" action, we don't need to do anything
+                print('>>> redraw')
+                self.parent.load_and_draw() # Data will change based on plotData 
         else:
             print('>>>> TODO Remove Action')
             # We remove our action from the pipeline
@@ -186,13 +203,8 @@ class BinningToolPanel(GUIToolPanel):
                     print('[WARN] Running data_binning without a main frame')
             #self.data = None
             #self.action = None
-            self.btPlot.Enable(True)
-            self.btClear.Enable(True)
-            self.btApply.SetLabel(CHAR['cloud']+' Apply')
+            self.cancelAction(redraw=not init)
 
-        if not init:
-            # This is a "plotData" action, we don't need to do anything
-            self.parent.load_and_draw() # Data will change based on plotData 
 
 
     def onAdd(self,event=None):
@@ -276,6 +288,11 @@ class BinningToolPanel(GUIToolPanel):
         except RuntimeError:
             pass
 
+    def onClose(self, event=None):
+        # cleanup action calls
+        self.action.guiEditorObj=None
+        self.destroy()
+
     def onHelp(self,event=None):
         Info(self,"""Binning.
 
@@ -341,8 +358,6 @@ _DEFAULT_DICT={
     'xMax':None, 
     'nBins':50, 
     'dx':0, 
-    'applyCallBack':bin_plot,
-    'selectionChangeCallBack':None,
 }
 
 

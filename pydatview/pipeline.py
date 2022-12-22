@@ -1,23 +1,35 @@
 """
 pipelines and actions
 """
+import numpy as np
 
 class Action(): 
     def __init__(self, name, 
-            tableFunction=None, guiCallBack=None, 
+            tableFunction    = None,
+            plotDataFunction = None,
+            guiCallBack=None, 
             guiEditorClass=None,
             data=None,
             mainframe=None,
             onPlotData=False, unique=True, removeNeedReload=False):
+        """ 
+        tableFunction:    signature: f(tab)               # TODO that's inplace
+        plotDataFunction: signature: xnew, ynew = f(x, y, data) 
+        # TODO 
+
+        """
 
         self.name = name
         # 
-        self.tableFunction = tableFunction
+        self.tableFunction    = tableFunction    # applies to a full table
+        self.plotDataFunction = plotDataFunction # applies to x,y arrays only
 
-        self.guiCallBack = guiCallBack
+        self.guiCallBack = guiCallBack       # callback to update GUI after the action, 
+                                             # TODO remove me, replace with generic "redraw", "update tab list"
         self.guiEditorClass = guiEditorClass # Class that can be used to edit this action
+        self.guiEditorObj   = None           # Instance of guiEditorClass that can be used to edit this action
 
-        self.data = data if data is not None else {}
+        self.data = data if data is not None else {} # Data needed by the action, can be saved to file so that the action can be restored
         self.mainframe=mainframe # If possible, dont use that...
 
         self.applied=False # TODO this needs to be sotred per table
@@ -32,6 +44,7 @@ class Action():
     def apply(self, tablist, force=False, applyToAll=False):
         self.errorList=[]
         if self.tableFunction is None:
+            # NOTE: this does not applyt to plotdataActions..
             raise Exception('tableFunction was not specified for action: {}'.format(self.name))
 
         for t in tablist:
@@ -44,6 +57,7 @@ class Action():
 
         self.applied = True
         return tablist
+
 
     def updateGUI(self):
         if self.guiCallBack is not None:
@@ -59,13 +73,17 @@ class PlotDataAction(Action):
     def __init__(self, name, **kwargs):
         Action.__init__(self, name, onPlotData=True, **kwargs)
 
-    def applyOnPlotData(self):
-        print('>>> Apply On Plot Data')
+    def apply(self, *args, **kwargs):
+        pass # not pretty
+
+    def applyOnPlotData(self, x, y):
+        x, y = self.plotDataFunction(x, y, self.data)
+        return x, y
 
 class IrreversibleAction(Action): 
 
     def __init__(self, name, **kwargs):
-        Action.__init__(self, name, deleteNeedReload=True, **kwargs)
+        Action.__init__(self, name, removeNeedReload=True, **kwargs)
 
     def apply(self, tablist, force=False, applyToAll=False):
         if force:
@@ -89,12 +107,13 @@ class Pipeline(object):
 
     def __init__(self, data=[]):
         self.actionsData = []
-        self.actionsPlot = []
+        self.actionsPlotFilters = []
         self.errorList   = []
+        self.plotFiltersData=[] # list of data for plot data filters, that plotData.py will use
 
     @property
     def actions(self):
-        return self.actionsData+self.actionsPlot # order matters
+        return self.actionsData+self.actionsPlotFilters # order matters
 
     def apply(self, tablist, force=False, applyToAll=False):
         """ 
@@ -105,22 +124,47 @@ class Pipeline(object):
         for action in self.actionsData:
             action.apply(tablist, force=force, applyToAll=applyToAll)
         # 
-        for action in self.actionsPlot:
+        for action in self.actionsPlotFilters:
             action.apply(tablist, force=force, applyToAll=applyToAll)
         # 
         self.collectErrors()
+
+
+    def applyOnPlotData(self, x, y):
+        x = np.copy(x)
+        y = np.copy(y)
+        for action in self.actionsPlotFilters:
+            x, y = action.applyOnPlotData(x, y)
+        return x, y
+
+
 
     def collectErrors(self):
         self.errorList=[]
         for action in self.actions:
             self.errorList+= action.errorList
 
+#     def setPlotFiltersData(self):
+#         print('>>> Setting plotFiltersData')
+#         self.plotFiltersData=[]
+#         for action in self.actionsPlotFilters:
+#             self.plotFiltersData.append(action.data)
+#             print(action.data)
+
     # --- Behave like a list..
-    def append(self, action):
+    def append(self, action, cancelIfPresent=False):
+        if cancelIfPresent:
+            i = self.index(action)
+            if i>=0:
+                print('>>> Not adding action, its already present')
+                return
         if action.onPlotData:
-            self.actionsPlot.append(action)
+            self.actionsPlotFilters.append(action)
+            # Trigger
+#             self.setPlotFiltersData()
         else:
             self.actionsData.append(action)
+
 
     def remove(self, a):
         """ NOTE: the action is removed, not deleted fully (it might be readded to the pipeline later)"""
@@ -128,8 +172,16 @@ class Pipeline(object):
             i = self.actionsData.index(a)
             a = self.actionsData.pop(i)
         except ValueError:
-            i = self.actionsPlot.index(a)
-            a = self.actionsPlot.pop(i)
+            i = self.actionsPlotFilters.index(a)
+            a = self.actionsPlotFilters.pop(i)
+            # Trigger
+#             self.setPlotFiltersData()
+
+        # Cancel the action in Editor
+        if a.guiEditorObj is not None:
+            print('>>> Canceling action in guiEditor')
+            a.guiEditorObj.cancelAction()
+
         return a
 
     def find(self, name):
@@ -137,6 +189,13 @@ class Pipeline(object):
             if action.name==name:
                 return action
         return None
+
+    def index(self, action_):
+        for i, action in enumerate(self.actions):
+            if action==action_:
+                return i
+        else:
+            return -1
 
     # --- Data/Options 
     def loadFromFile(self, filename):
@@ -150,11 +209,11 @@ class Pipeline(object):
 
     def saveData(self, data):
         data['actionsData'] = {}
-        data['actionsPlot'] = {}
+        data['actionsPlotFilters'] = {}
         for ac in self.actionsData:
             data['actionsData'][ac.name] = ac.data
         for ac in self.actions:
-            data['actionsPlot'][ac.name] = ac.data
+            data['actionsPlotFilters'][ac.name] = ac.data
         #data[] = self.Naming
         
     @staticmethod
@@ -165,7 +224,12 @@ class Pipeline(object):
         s='<Pipeline>: '
         s+=' > '.join([ac.name for ac in self.actionsData])
         s+=' + '
-        s+=' > '.join([ac.name for ac in self.actionsPlot])
+        s+=' > '.join([ac.name for ac in self.actionsPlotFilters])
         return s
+    def __reprFilters__(self):
+        s='<PipelineFilters>: '
+        s+=' > '.join([ac.name for ac in self.actionsPlotFilters])
+        return s
+
 
 

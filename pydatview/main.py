@@ -358,7 +358,7 @@ class MainFrame(wx.Frame):
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, data=self.data['plotPanel'])
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeline=self.pipeline, data=self.data['plotPanel'])
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -483,8 +483,10 @@ class MainFrame(wx.Frame):
                     action = self.pipeline.find(toolName) # old action to edit
                     if action is None:
                         action = function(label=toolName, mainframe=self) # getting brand new action
+                    else:
+                        print('>>> The action already exists, we use it for the GUI')
                     self.plotPanel.showToolAction(action)
-                    # The panel will have the responsability to apply/delete the action, updateGUI, etc
+                    # The panel will have the responsibility to apply/delete the action, updateGUI, etc
                 else:
                     action = function(label=toolName, mainframe=self) # calling the data function
                     # Here we apply the action directly
@@ -496,8 +498,8 @@ class MainFrame(wx.Frame):
         raise NotImplementedError('Tool: ',toolName)
 
     # --- Pipeline
-    def addAction(self, action):
-        self.pipePanel.append(action)
+    def addAction(self, action, cancelIfPresent=False):
+        self.pipePanel.append(action, cancelIfPresent=cancelIfPresent)
     def removeAction(self, action):
         self.pipePanel.remove(action)
     def applyPipeline(self, *args, **kwargs):

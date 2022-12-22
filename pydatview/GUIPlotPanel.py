@@ -376,7 +376,7 @@ class EstheticsPanel(wx.Panel):
 
 
 class PlotPanel(wx.Panel):
-    def __init__(self, parent, selPanel, infoPanel=None, data=None):
+    def __init__(self, parent, selPanel, pipeline=None, infoPanel=None, data=None):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
@@ -402,6 +402,7 @@ class PlotPanel(wx.Panel):
                 break
         # data
         self.selPanel = selPanel # <<< dependency with selPanel should be minimum
+        self.pipeline = pipeline #
         self.selMode  = '' 
         self.infoPanel=infoPanel
         if self.infoPanel is not None:
@@ -785,6 +786,9 @@ class PlotPanel(wx.Panel):
             # Python2
             if hasattr(self,'toolPanel'):
                 self.toolSizer.Remove(self.toolPanel)
+                if hasattr(self.toolPanel,'action'):
+                    self.toolPanel.action.guiEditorObj = None # Important
+                    self.toolPanel.action = None
                 self.toolPanel.Destroy()
                 del self.toolPanel
             self.toolSizer.Clear() # Delete Windows
@@ -815,6 +819,7 @@ class PlotPanel(wx.Panel):
                 self.toolPanel=panelClass(parent=self) # calling the panel constructor
             else:
                 self.toolPanel=panelClass(parent=self, action=action) # calling the panel constructor
+                action.guiEditorObj = self.toolPanel
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
         self.Thaw()
@@ -874,16 +879,19 @@ class PlotPanel(wx.Panel):
             self.setPD_FFT(PD) 
 
     def getPlotData(self,plotType):
+
         ID,SameCol,selMode=self.selPanel.getPlotDataSelection()
+
         self.selMode=selMode # we store the selection mode
         del self.plotData
         self.plotData=[]
         tabs=self.selPanel.tabList.getTabs() # TODO, selPanel should just return the PlotData...
+
         try:
             for i,idx in enumerate(ID):
                 # Initialize each plotdata based on selected table and selected id channels
                 pd=PlotData();
-                pd.fromIDs(tabs,i,idx,SameCol, self.plotDataOptions) 
+                pd.fromIDs(tabs, i, idx, SameCol, self.plotDataOptions, pipeline=self.pipeline) 
                 # Possible change of data
                 if plotType=='MinMax':
                     self.setPD_MinMax(pd) 

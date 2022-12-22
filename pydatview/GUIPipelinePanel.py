@@ -168,19 +168,21 @@ class PipelinePanel(wx.Panel):
         self.ep.update()
         self.Sizer.Layout()
 
-    def append(self, action):
-        # Delete action is already present and if it's a "unique" action
-        ac = self.pipeline.find(action.name)
-        if ac is not None:
-            if ac.unique:
-                print('>>> Deleting unique action before inserting it again', ac.name)
-                self.delete(ac, silent=True)
+    def append(self, action, cancelIfPresent=False):
+        if not cancelIfPresent:
+            # Delete action is already present and if it's a "unique" action
+            ac = self.pipeline.find(action.name)
+            if ac is not None:
+                if ac.unique:
+                    print('>>> Deleting unique action before inserting it again', ac.name)
+                    self.remove(ac, silent=True)
         # Add to pipeline
         print('>>> Adding action',action.name)
-        self.pipeline.append(action)
+        self.pipeline.append(action, cancelIfPresent=cancelIfPresent)
         # Add to GUI
-        self._addPanel(action)
-        self.Sizer.Layout()
+        self.populate() # NOTE: we populate because of the change of order between actionsData and actionsPlot..
+        #self._addPanel(action)
+        #self.Sizer.Layout()
 
     def remove(self, action, silent=False):
         """ NOTE: the action is only removed from the pipeline, not deleted. """
