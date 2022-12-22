@@ -63,7 +63,8 @@ class SamplerToolPanel(GUIToolPanel):
             print('[WARN] Calling GUI without an action! Creating one.')
             mainframe = DummyMainFrame(parent)
             action = binningAction(label='dummyAction', mainframe=mainframe)
-        # --- Data from other modules
+            
+        # --- Data
         self.parent = parent # parent is GUIPlotPanel
         self.mainframe = action.mainframe
         self.data = action.data
@@ -80,7 +81,6 @@ class SamplerToolPanel(GUIToolPanel):
         self.btPlot     = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
         self.btApply    = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
 
-        #self.lb         = wx.StaticText( self, -1, """ Click help """)
         self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
         self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
         self.cbMethods  = wx.ComboBox(self, -1, choices=[s['name'] for s in self._SAMPLERS_DEFAULT], style=wx.CB_READONLY)
@@ -165,6 +165,7 @@ class SamplerToolPanel(GUIToolPanel):
             #    self.textNewX.SetValue(str(opt['param'])[2:-2])
         self.onParamChange()
 
+    # --- Bindings for plot triggers on parameters changes
     def onParamChange(self, event=None):
         self._GUI2Data()
         if self.data['active']:
@@ -246,6 +247,7 @@ class SamplerToolPanel(GUIToolPanel):
                 if self.mainframe is not None:
                     self.mainframe.removeAction(self.action)
             self.cancelAction(redraw=not init)
+            
         self.setCurrentX()
 
     def onAdd(self,event=None):
@@ -269,7 +271,6 @@ class SamplerToolPanel(GUIToolPanel):
         self.onToggleApply()
 
     def onPlot(self,event=None):
-        from pydatview.tools.signal_analysis import applySampler
         if len(self.parent.plotData)!=1:
             Error(self,'Plotting only works for a single plot. Plot less data.')
             return
