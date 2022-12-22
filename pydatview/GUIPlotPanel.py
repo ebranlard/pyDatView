@@ -376,7 +376,7 @@ class EstheticsPanel(wx.Panel):
 
 
 class PlotPanel(wx.Panel):
-    def __init__(self, parent, selPanel, pipeline=None, infoPanel=None, data=None):
+    def __init__(self, parent, selPanel, pipeLike=None, infoPanel=None, data=None):
 
         # Superclass constructor
         super(PlotPanel,self).__init__(parent)
@@ -402,7 +402,7 @@ class PlotPanel(wx.Panel):
                 break
         # data
         self.selPanel = selPanel # <<< dependency with selPanel should be minimum
-        self.pipeline = pipeline #
+        self.pipeLike = pipeLike #
         self.selMode  = '' 
         self.infoPanel=infoPanel
         if self.infoPanel is not None:
@@ -805,7 +805,7 @@ class PlotPanel(wx.Panel):
                 print('NOTE: calling a panel without action')
                 self.toolPanel=panelClass(parent=self) # calling the panel constructor
             else:
-                self.toolPanel=panelClass(parent=self, action=action) # calling the panel constructor
+                self.toolPanel=panelClass(parent=self, action=action, plotPanel=self, pipeLike=self.pipeLike) # calling the panel constructor
                 action.guiEditorObj = self.toolPanel
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()
@@ -878,7 +878,7 @@ class PlotPanel(wx.Panel):
             for i,idx in enumerate(ID):
                 # Initialize each plotdata based on selected table and selected id channels
                 pd=PlotData();
-                pd.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeline) 
+                pd.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
                 # Possible change of data
                 if plotType=='MinMax':
                     self.setPD_MinMax(pd) 

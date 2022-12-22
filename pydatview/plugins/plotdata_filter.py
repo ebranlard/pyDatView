@@ -1,9 +1,8 @@
 import wx
 import numpy as np
-from pydatview.GUITools import GUIToolPanel, TOOL_BORDER
-from pydatview.common import CHAR, Error, Info, pretty_num_short
-from pydatview.common import DummyMainFrame
-from pydatview.plotdata import PlotData
+from pydatview.GUITools import TOOL_BORDER
+from pydatview.plugins.plotdata_default_plugin import PlotDataActionEditor
+from pydatview.common import Error, Info
 from pydatview.pipeline import PlotDataAction
 import platform
 # --------------------------------------------------------------------------------}
@@ -39,72 +38,50 @@ def filterAction(label, mainframe=None, data=None):
         guiCallback = mainframe.redraw
 
     action = PlotDataAction(
-            name=label,
+            name             = label,
+            tableFunctionAdd = filterTabAdd,
             plotDataFunction = filterXY,
-            guiEditorClass = FilterToolPanel,
-            guiCallback = guiCallback,
-            data = data,
-            mainframe=mainframe
+            guiEditorClass   = FilterToolPanel,
+            guiCallback      = guiCallback,
+            data             = data,
+            mainframe        = mainframe
             )
     return action
 # --------------------------------------------------------------------------------}
 # --- Main method
 # --------------------------------------------------------------------------------{
 def filterXY(x, y, opts):
+    """ Apply action on a x and y array """
     from pydatview.tools.signal_analysis import applyFilter
     y_new = applyFilter(x, y, opts)
     return x, y_new
 
+def filterTabAdd(tab, opts):
+    """ Apply action on a a table and return a new one with a new name 
+    df_new, name_new = f(t, opts)
+    """
+    return tab.applyFiltering(opts['icol'], opts, bAdd=True)
+
 # --------------------------------------------------------------------------------}
 # --- GUI to edit plugin and control the action
 # --------------------------------------------------------------------------------{
-class FilterToolPanel(GUIToolPanel):
+class FilterToolPanel(PlotDataActionEditor):
 
-    def __init__(self, parent, action=None):
-        GUIToolPanel.__init__(self, parent)
+    def __init__(self, parent, action, plotPanel, pipeLike, **kwargs):
+        PlotDataActionEditor.__init__(self, parent, action, plotPanel, pipeLike, tables=True)
 
-        # --- Creating "Fake data" for testing only!
-        if action is None:
-            print('[WARN] Calling GUI without an action! Creating one.')
-            mainframe = DummyMainFrame(parent)
-            action = binningAction(label='dummyAction', mainframe=mainframe)
-            
         # --- Data
-        self.parent = parent # parent is GUIPlotPanel
-        self.mainframe = action.mainframe
-        self.data = action.data
-        self.action = action
         from pydatview.tools.signal_analysis import FILTERS
         self._FILTERS_USER=FILTERS .copy()
 
         # --- GUI elements
-        self.btClose = self.getBtBitmap(self,'Close','close',self.destroy)
-        self.btAdd   = self.getBtBitmap(self, 'Add','add'  , self.onAdd)
-        self.btHelp  = self.getBtBitmap(self, 'Help','help', self.onHelp)
-        self.btClear = self.getBtBitmap(self, 'Clear Plot','sun'   , self.onClear)
-        self.btPlot  = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
-        self.btApply = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
-
-        self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
-        self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
         self.cbFilters = wx.ComboBox(self, choices=[filt['name'] for filt in self._FILTERS_USER], style=wx.CB_READONLY)
         self.lbParamName = wx.StaticText(self, -1, '            :')
         self.cbFilters.SetSelection(0)
-#         self.tParam = wx.TextCtrl(self, wx.ID_ANY, '', style= wx.TE_PROCESS_ENTER, size=wx.Size(60,-1))
         self.tParam = wx.SpinCtrlDouble(self, value='11', size=wx.Size(80,-1))
         self.lbInfo = wx.StaticText( self, -1, '')
 
-
         # --- Layout
-        btSizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
-        btSizer.Add(self.btClose                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btClear                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btAdd                  , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btPlot                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btHelp                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btApply                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-
-
         horzSizerT = wx.BoxSizer(wx.HORIZONTAL)
         horzSizerT.Add(wx.StaticText(self, -1, 'Table:')  , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 5)
         horzSizerT.Add(self.cbTabs                        , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 1)
@@ -121,13 +98,13 @@ class FilterToolPanel(GUIToolPanel):
         vertSizer.Add(horzSizerT   ,1, flag = wx.LEFT|wx.EXPAND,border = 1)
         vertSizer.Add(horzSizer    ,1, flag = wx.LEFT|wx.EXPAND,border = 1)
 
-        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 1)
+        # self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 1)
         self.sizer.Add(vertSizer    ,1, flag = wx.EXPAND|wx.LEFT          ,border = 1)
-        self.SetSizer(self.sizer)
+        self.sizer.Layout()
+
 
         # --- Events
-        self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
         self.cbFilters.Bind(wx.EVT_COMBOBOX, self.onSelectFilt)
         self.Bind(wx.EVT_SPINCTRLDOUBLE, self.onParamChangeArrow, self.tParam)
         self.Bind(wx.EVT_TEXT_ENTER,     self.onParamChangeEnter, self.tParam)
@@ -142,13 +119,12 @@ class FilterToolPanel(GUIToolPanel):
 
         # --- Init triggers
         self._Data2GUI()
-        self.updateTabList()
-        self.onSelectFilt()
         self.onToggleApply(init=True)
+        self.onSelectFilt()
         
     # --- Implementation specific
     def onSelectFilt(self, event=None):
-        """ Select the filter, but does not applied it to the plotData 
+        """ Select the filter, but does not apply it to the plotData 
             parentFilt is unchanged
             But if the parent already has 
         """
@@ -170,59 +146,49 @@ class FilterToolPanel(GUIToolPanel):
         # Trigger plot if applied
         self.onParamChange(self)
 
-    # --- Bindings for plot triggers on parameters changes
-    def onParamChange(self, event=None):
-        self._GUI2Data()
-        if self.data['active']:
-            self.parent.load_and_draw() # Data will change
-
-    def onParamChangeArrow(self, event):
-        self.onParamChange()
-        event.Skip()
-
-    def onParamChangeEnter(self, event):
-        self.onParamChange()
-        event.Skip()
-
-    def onParamChangeChar(self, event):
-        event.Skip()  
-        code = event.GetKeyCode()
-        if code in [wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER]:
-            #print(self.spintxt.Value)
-            self.tParam.SetValue(self.spintxt.Value)
-            self.onParamChangeEnter(event)
-            
-    # --- Table related
-    def onTabChange(self,event=None):
-        #tabList = self.parent.selPanel.tabList
-        #iSel=self.cbTabs.GetSelection()
-        pass
-
-    def updateTabList(self,event=None):
-        tabList = self.parent.selPanel.tabList
-        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
-        try:
-            iSel=np.max([np.min([self.cbTabs.GetSelection(),len(tabListNames)]),0])
-            self.cbTabs.Clear()
-            [self.cbTabs.Append(tn) for tn in tabListNames]
-            self.cbTabs.SetSelection(iSel)
-        except RuntimeError:
-            pass
-
+#     # --- Bindings for plot triggers on parameters changes
+#     def onParamChange(self, event=None):
+#         self._GUI2Data()
+#         if self.data['active']:
+#             self.parent.load_and_draw() # Data will change
+# 
+#     def onParamChangeArrow(self, event):
+#         self.onParamChange()
+#         event.Skip()
+# 
+#     def onParamChangeEnter(self, event):
+#         if not self.data['active']:
+#             self.onToggleApply()
+#         else:
+#             self.onParamChange()
+#         event.Skip()
+# 
+#     def onParamChangeChar(self, event):
+#         event.Skip()  
+#         code = event.GetKeyCode()
+#         if code in [wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER]:
+#             #print(self.spintxt.Value)
+#             self.tParam.SetValue(self.spintxt.Value)
+#             self.onParamChangeEnter(event)
+#             
     # --- External Calls
-    def cancelAction(self, redraw=True):
-        """ do cancel the action"""
+    def cancelAction(self):
+        """ set the GUI state when the action is cancelled"""
+        # Call parent class
+        PlotDataActionEditor.cancelAction(self)
+        # Update GUI
         self.lbInfo.SetLabel(
                     'Click on "Apply" to set filter on the fly for all plots. '+
                     'Click on "Plot" to try a filter on the current plot.'
                     )        
-        self.btPlot.Enable(True)
-        self.btClear.Enable(True)
-        self.btApply.SetLabel(CHAR['cloud']+' Apply')
-        self.btApply.SetValue(False)
-        self.data['active'] = False     
-        if redraw:
-            self.parent.load_and_draw() # Data will change based on plotData 
+    def guiActionAppliedState(self):
+        """ set the GUI state when the action is applied"""
+        # Call parent class
+        PlotDataActionEditor.guiActionAppliedState(self)
+        # Update GUI
+        self.lbInfo.SetLabel(
+                'Filter is now applied on the fly. Change parameter live. Click "Clear" to stop. '
+                )
 
     # --- Fairly generic
     def _GUI2Data(self):
@@ -248,77 +214,14 @@ class FilterToolPanel(GUIToolPanel):
         self.tParam.SetIncrement(self.data['increment'])
         self.tParam.SetDigits(self.data['digits'])
 
-    def onToggleApply(self, event=None, init=False):
-        """
-        apply Filter based on GUI Data
-        """
-        if not init:
-            self.data['active'] = not self.data['active']
-
-        if self.data['active']:
-            self._GUI2Data()
-
-            self.lbInfo.SetLabel(
-                    'Filter is now applied on the fly. Change parameter live. Click "Clear" to stop. '
-                    )
-            self.btPlot.Enable(False)
-            self.btClear.Enable(False)
-            self.btApply.SetLabel(CHAR['sun']+' Clear')
-            self.btApply.SetValue(True)
-            # The action is now active we add it to the pipeline, unless it's already in it
-            if self.mainframe is not None:
-                self.mainframe.addAction(self.action, overwrite=True)
-            if not init:
-                self.parent.load_and_draw() # filter will be applied in plotData.py
-        else:
-            # We remove our action from the pipeline
-            if not init:
-                if self.mainframe is not None:
-                    self.mainframe.removeAction(self.action)        
-            self.cancelAction(redraw=not init)
-
     def onAdd(self, event=None):
-        iSel         = self.cbTabs.GetSelection()
-        tabList      = self.parent.selPanel.tabList
-        icol, colname = self.parent.selPanel.xCol
-        self._GUI2Data()
-        errors=[]
-        if iSel==0:
-            dfs, names, errors = tabList.applyFiltering(icol, self.data, bAdd=True)
-            self.parent.addTables(dfs,names,bAdd=True)
-        else:
-            df, name = tabList[iSel-1].applyFiltering(icol, self.data, bAdd=True)
-            self.parent.addTables([df], [name], bAdd=True)
-        self.updateTabList()
+        # TODO put this in GUI2Data???
+        iSel          = self.cbTabs.GetSelection()
+        icol, colname = self.plotPanel.selPanel.xCol
+        self.data['icol'] = icol
 
-        if len(errors)>0:
-            raise Exception('Error: The resampling failed on some tables:\n\n'+'\n'.join(errors))
-
-        # We stop applying
-        self.onToggleApply()
-
-    def onPlot(self, event=None):
-        """ 
-        Overlay on current axis the filter
-        """
-
-        if len(self.parent.plotData)!=1:
-            Error(self,'Plotting only works for a single plot. Plot less data.')
-            return
-        self._GUI2Data()
-        PD = self.parent.plotData[0]
-        x_new, y_new = filterXY(PD.x0, PD.y0, self.data)
-        
-        ax = self.parent.fig.axes[0]
-        PD_new = PlotData()
-        PD_new.fromXY(x_new, y_new)
-        self.parent.transformPlotData(PD_new)
-        ax.plot(PD_new.x, PD_new.y, '-')
-        self.parent.canvas.draw()
-
-    def onClear(self, event):
-        self.parent.load_and_draw() # Data will change
-
+        # Call parent class
+        PlotDataActionEditor.onAdd(self)
 
     def onHelp(self,event=None):
         Info(self,"""Filtering.
@@ -346,4 +249,7 @@ To filter perform the following step:
 
 
 
+if __name__ == '__main__':
+    from pydatview.plugins.plotdata_default_plugin import demoPlotDataActionPanel
 
+    demoPlotDataActionPanel(FilterToolPanel, plotDataFunction=filterXY, data=_DEFAULT_DICT, tableFunctionAdd=filterTabAdd)

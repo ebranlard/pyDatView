@@ -32,7 +32,6 @@ from .common import *
 from .GUICommon import *
 import pydatview.io as weio # File Formats and File Readers
 # Pluggins
-from .pipeline import Pipeline
 from .plugins import dataPlugins
 from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
@@ -112,7 +111,6 @@ class MainFrame(wx.Frame):
         self.systemFontSize = self.GetFont().GetPointSize()
         self.data = loadAppData(self)
         self.tabList=TableList(options=self.data['loaderOptions'])
-        self.pipeline=Pipeline(data = self.data['pipeline'])
         self.datareset = False
         # Global variables...
         setFontSize(self.data['fontSize'])
@@ -208,7 +206,7 @@ class MainFrame(wx.Frame):
         self.statusbar.SetStatusWidths([150, -1, 70])
 
         # --- Pipeline
-        self.pipePanel = PipelinePanel(self, self.pipeline)
+        self.pipePanel = PipelinePanel(self, data=self.data['pipeline'], tabList=self.tabList)
 
         # --- Main Panel and Notebook
         self.MainPanel = wx.Panel(self)
@@ -354,7 +352,7 @@ class MainFrame(wx.Frame):
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeline=self.pipeline, data=self.data['plotPanel'])
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeLike=self.pipePanel, data=self.data['plotPanel'])
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -395,8 +393,10 @@ class MainFrame(wx.Frame):
         # Hack
         #self.onShowTool(tool='Filter')
         #self.onShowTool(tool='Resample')
+        #self.onDataPlugin(toolName='Mask')
         #self.onDataPlugin(toolName='Bin data')
-        self.onDataPlugin(toolName='Mask')
+        #self.onDataPlugin(toolName='Remove Outliers')
+        #self.onDataPlugin(toolName='Filter')
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
@@ -477,7 +477,7 @@ class MainFrame(wx.Frame):
             if toolName == thisToolName:
                 if isPanel: # This is more of a "hasPanel"
                     # Check to see if the pipeline already contains this action
-                    action = self.pipeline.find(toolName) # old action to edit
+                    action = self.pipePanel.find(toolName) # old action to edit
                     if action is None:
                         action = function(label=toolName, mainframe=self) # getting brand new action
                     else:

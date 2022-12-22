@@ -1,9 +1,8 @@
 import wx
 import numpy as np
-from pydatview.GUITools import GUIToolPanel, TOOL_BORDER
-from pydatview.common import CHAR, Error, Info, pretty_num_short
-from pydatview.common import DummyMainFrame
-from pydatview.plotdata import PlotData
+from pydatview.GUITools import TOOL_BORDER
+from pydatview.plugins.plotdata_default_plugin import PlotDataActionEditor
+from pydatview.common import Error, Info
 from pydatview.pipeline import PlotDataAction
 # --------------------------------------------------------------------------------}
 # --- Data
@@ -35,12 +34,13 @@ def samplerAction(label, mainframe=None, data=None):
         guiCallback = mainframe.redraw
 
     action = PlotDataAction(
-            name=label,
+            name             = label,
+            tableFunctionAdd = samplerTabAdd,
             plotDataFunction = samplerXY,
-            guiEditorClass = SamplerToolPanel,
-            guiCallback = guiCallback,
-            data = data,
-            mainframe=mainframe
+            guiEditorClass   = SamplerToolPanel,
+            guiCallback      = guiCallback,
+            data             = data,
+            mainframe        = mainframe
             )
     return action
 # --------------------------------------------------------------------------------}
@@ -51,38 +51,26 @@ def samplerXY(x, y, opts):
     x_new, y_new = applySampler(x, y, opts)
     return x_new, y_new
 
+def samplerTabAdd(tab, opts):
+    """ Apply action on a a table and return a new one with a new name 
+    df_new, name_new = f(t, opts)
+    """
+    return tab.applyResampling(opts['icol'], opts, bAdd=True)
+
 # --------------------------------------------------------------------------------}
 # --- GUI to edit plugin and control the action
 # --------------------------------------------------------------------------------{
-class SamplerToolPanel(GUIToolPanel):
-    def __init__(self, parent, action=None):
-        GUIToolPanel.__init__(self, parent)
+class SamplerToolPanel(PlotDataActionEditor):
 
-        # --- Creating "Fake data" for testing only!
-        if action is None:
-            print('[WARN] Calling GUI without an action! Creating one.')
-            mainframe = DummyMainFrame(parent)
-            action = binningAction(label='dummyAction', mainframe=mainframe)
-            
+    def __init__(self, parent, action, plotPanel, pipeLike, **kwargs):
+        PlotDataActionEditor.__init__(self, parent, action, plotPanel, pipeLike, tables=True)
+
         # --- Data
-        self.parent = parent # parent is GUIPlotPanel
-        self.mainframe = action.mainframe
-        self.data = action.data
-        self.action = action
         from pydatview.tools.signal_analysis import SAMPLERS
         self._SAMPLERS_DEFAULT = SAMPLERS.copy()
         self._SAMPLERS_USER    = SAMPLERS.copy()
 
         # --- GUI elements
-        self.btClose    = self.getBtBitmap(self, 'Close','close', self.destroy)
-        self.btAdd      = self.getBtBitmap(self, 'Add','add'  , self.onAdd)
-        self.btHelp     = self.getBtBitmap(self, 'Help','help', self.onHelp)
-        self.btClear    = self.getBtBitmap(self, 'Clear Plot','sun', self.onClear)
-        self.btPlot     = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot)
-        self.btApply    = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply)
-
-        self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
-        self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
         self.cbMethods  = wx.ComboBox(self, -1, choices=[s['name'] for s in self._SAMPLERS_DEFAULT], style=wx.CB_READONLY)
 
         self.lbNewX   = wx.StaticText(self, -1, 'New x:  ')
@@ -91,14 +79,6 @@ class SamplerToolPanel(GUIToolPanel):
         self.textOldX.Enable(False)
 
         # --- Layout
-        btSizer  = wx.FlexGridSizer(rows=3, cols=2, hgap=2, vgap=0)
-        btSizer.Add(self.btClose                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btClear                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btAdd                  , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btPlot                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btHelp                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btApply                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-
         msizer  = wx.FlexGridSizer(rows=2, cols=4, hgap=2, vgap=0)
         msizer.Add(wx.StaticText(self, -1, 'Table:')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
         msizer.Add(self.cbTabs                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
@@ -110,21 +90,20 @@ class SamplerToolPanel(GUIToolPanel):
         msizer.Add(self.textNewX                        , 1, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND, 1)
         msizer.AddGrowableCol(3,1)
 
-        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer.Add(btSizer  ,0, flag = wx.LEFT           ,border = 5)
+        #self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        #self.sizer.Add(btSizer  ,0, flag = wx.LEFT           ,border = 5)
         self.sizer.Add(msizer   ,1, flag = wx.LEFT|wx.EXPAND ,border = TOOL_BORDER)
         self.SetSizer(self.sizer)
 
         # --- Events
-        self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
         self.cbMethods.Bind(wx.EVT_COMBOBOX, self.onMethodChange)
-        self.textNewX.Bind(wx.EVT_TEXT_ENTER,self.onParamChange)
+        self.textNewX.Bind(wx.EVT_TEXT_ENTER,self.onParamChangeEnter)
 
         # --- Init triggers
         self._Data2GUI()
         self.onMethodChange(init=True)
         self.onToggleApply(init=True)
-        self.updateTabList()
+        self.setCurrentX()
 
     # --- Implementation specific
     def getSamplerIndex(self, name):
@@ -135,7 +114,7 @@ class SamplerToolPanel(GUIToolPanel):
 
     def setCurrentX(self, x=None):
         if x is None:
-            x= self.parent.plotData[0].x
+            x= self.plotPanel.plotData[0].x
         if len(x)<50:
             s=np.array2string(x, separator=', ')
         else:
@@ -172,34 +151,6 @@ class SamplerToolPanel(GUIToolPanel):
             self.parent.load_and_draw() # Data will change
             self.setCurrentX()
 
-    # --- Table related
-    def onTabChange(self,event=None):
-        #tabList = self.parent.selPanel.tabList
-        #iSel=self.cbTabs.GetSelection()
-        pass
-
-    def updateTabList(self,event=None):
-        tabList = self.parent.selPanel.tabList
-        tabListNames = ['All opened tables']+tabList.getDisplayTabNames()
-        try:
-            iSel=np.max([np.min([self.cbTabs.GetSelection(),len(tabListNames)]),0])
-            self.cbTabs.Clear()
-            [self.cbTabs.Append(tn) for tn in tabListNames]
-            self.cbTabs.SetSelection(iSel)
-        except RuntimeError:
-            pass
-
-    # --- External Calls
-    def cancelAction(self, redraw=True):
-        """ do cancel the action"""
-        self.btPlot.Enable(True)
-        self.btClear.Enable(True)
-        self.btApply.SetLabel(CHAR['cloud']+' Apply')
-        self.btApply.SetValue(False)
-        self.data['active'] = False     
-        if redraw:
-            self.parent.load_and_draw() # Data will change based on plotData 
-
     # --- Fairly generic
     def _GUI2Data(self):
         iOpt = self.cbMethods.GetSelection()
@@ -223,76 +174,21 @@ class SamplerToolPanel(GUIToolPanel):
         param = self.data['param']
         self.textNewX.SetValue(str(param).lstrip('[').rstrip(']'))
 
+
     def onToggleApply(self, event=None, init=False):
-        """
-        apply sampler based on GUI Data
-        """
-        if not init:
-            self.data['active'] = not self.data['active']
-
-        if self.data['active']:
-            self._GUI2Data()
-            self.btPlot.Enable(False)
-            self.btClear.Enable(False)
-            self.btApply.SetLabel(CHAR['sun']+' Clear')
-            self.btApply.SetValue(True)
-            # The action is now active we add it to the pipeline, unless it's already in it
-            if self.mainframe is not None:
-                self.mainframe.addAction(self.action, overwrite=True)
-            if not init:
-                self.parent.load_and_draw() # filter will be applied in plotData.py
-        else:
-            # We remove our action from the pipeline
-            if not init:
-                if self.mainframe is not None:
-                    self.mainframe.removeAction(self.action)
-            self.cancelAction(redraw=not init)
-            
         self.setCurrentX()
+        # Call parent class
+        PlotDataActionEditor.onToggleApply(self, event=event, init=init)
 
-    def onAdd(self,event=None):
-        iSel         = self.cbTabs.GetSelection()
-        tabList      = self.parent.selPanel.tabList
-        icol, colname = self.parent.selPanel.xCol
-        self._GUI2Data()
-        errors=[]
-        if iSel==0:
-            dfs, names, errors = tabList.applyResampling(icol, self.data, bAdd=True)
-            self.parent.addTables(dfs,names,bAdd=True)
-        else:
-            df, name = tabList[iSel-1].applyResampling(icol, self.data, bAdd=True)
-            self.parent.addTables([df],[name], bAdd=True)
-        self.updateTabList()
 
-        if len(errors)>0:
-            raise Exception('Error: The resampling failed on some tables:\n\n'+'\n'.join(errors))
+    def onAdd(self, event=None):
+        # TODO put this in GUI2Data???
+        iSel          = self.cbTabs.GetSelection()
+        icol, colname = self.plotPanel.selPanel.xCol
+        self.data['icol'] = icol
 
-        # We stop applying
-        self.onToggleApply()
-
-    def onPlot(self,event=None):
-        if len(self.parent.plotData)!=1:
-            Error(self,'Plotting only works for a single plot. Plot less data.')
-            return
-        self._GUI2Data()
-        PD = self.parent.plotData[0]
-        x_new, y_new = samplerXY(PD.x0, PD.y0, self.data)
-
-        ax = self.parent.fig.axes[0]
-        PD_new = PlotData()
-        PD_new.fromXY(x_new, y_new)
-        self.parent.transformPlotData(PD_new)
-        ax.plot(PD_new.x, PD_new.y, '-')
-        self.setCurrentX(x_new)
-
-        self.parent.canvas.draw()
-
-    def onClear(self,event=None):
-        self.parent.load_and_draw() # Data will change
-        # Update Current X
-        self.setCurrentX()
-        # Update Table list
-        self.updateTabList()
+        # Call parent class
+        PlotDataActionEditor.onAdd(self)
 
     def onHelp(self,event=None):
         Info(self,"""Resampling.
@@ -320,3 +216,8 @@ To resample perform the following step:
           signals. This process might take some time.
           Select a table or choose all (default)
 """)
+
+if __name__ == '__main__':
+    from pydatview.plugins.plotdata_default_plugin import demoPlotDataActionPanel
+
+    demoPlotDataActionPanel(SamplerToolPanel, plotDataFunction=samplerXY, data=_DEFAULT_DICT, tableFunctionAdd=samplerTabAdd)

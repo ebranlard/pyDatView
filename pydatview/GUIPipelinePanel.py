@@ -1,5 +1,6 @@
 import wx
 
+from pydatview.pipeline import Pipeline
 from pydatview.common import CHAR, Info
 import wx.lib.agw.hyperlink as hl
 
@@ -60,7 +61,6 @@ class ErrorPanel(wx.Panel):
         wx.Panel.__init__(self, parent, -1, style=style)
         #self.SetBackgroundColour((100,0,0))
         # --- Data
-        self.parent=parent
         self.pipeline=pipeline
         # --- GUI
         lke  = hl.HyperLinkCtrl(self, -1, 'Errors (0)')
@@ -87,25 +87,29 @@ class ErrorPanel(wx.Panel):
             message='\n'.join(self.pipeline.errorList)
         else:
             message='No errors'
-        Info(self.parent, message, caption = 'Errors when applying the pipeline actions:')
+        Info(self, message, caption = 'Errors when applying the pipeline actions:')
 
     def update(self):
         self.lke.SetLabel('Errors ({})'.format(len(self.pipeline.errorList)))
         self.sizer.Layout()
 
 
-class PipelinePanel(wx.Panel):
+# --------------------------------------------------------------------------------}
+# --- PipelinePanel 
+# --------------------------------------------------------------------------------{
+class PipelinePanel(wx.Panel, Pipeline):
     """ Display the pipeline of actions, allow user to edit it """
 
-    def __init__(self, parent, pipeline, style=wx.TAB_TRAVERSAL):
-        #style=wx.RAISED_BORDER
+    def __init__(self, parent, data=None, tabList=None, style=wx.TAB_TRAVERSAL):
+        # Init parent classes
         wx.Panel.__init__(self, parent, -1, style=style)
+        Pipeline.__init__(self, data=data)
         #self.SetBackgroundColour(wx.BLUE)
 
-        # --- Data
-        self.parent = parent
-        self.pipeline = pipeline
+        # --- Important GUI Data
+        self.tabList = tabList
         self.actionPanels=[]
+        self.ep = ErrorPanel(self, pipeline=self)
 
         # --- GUI
         #self.btSave  = wx.Button(self, wx.ID_ANY, 'Save', style=wx.BU_EXACTFIT)
@@ -120,7 +124,6 @@ class PipelinePanel(wx.Panel):
 
         self.wrapSizer = wx.WrapSizer(orient=wx.HORIZONTAL)
 
-        self.ep = ErrorPanel(self, self.pipeline)
 
         self.Sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.Sizer.Add(leftSizer     , 0, wx.ALIGN_CENTER_VERTICAL|wx.LEFT , 1)
@@ -137,7 +140,7 @@ class PipelinePanel(wx.Panel):
         self.wrapSizer.Add(wx.StaticText(self, -1, ' '), wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL, 0)
 
         # Add all actions to panel
-        for ia, action in enumerate(self.pipeline.actions):
+        for ia, action in enumerate(self.actions):
             self._addPanel(action)
         self.ep.update()
         self.wrapSizer.Layout()
@@ -159,26 +162,28 @@ class PipelinePanel(wx.Panel):
         self.Sizer.Layout()
 
     def onCloseAction(self, event, action=None, actionPanel=None):
-        self.remove(action)
+        self.remove(action, tabList=self.tabList) # TODO
 
     # --- Wrap the data class
     def apply(self, tablist, force=False, applyToAll=False):
-        self.pipeline.apply(tablist, force=force, applyToAll=applyToAll)
-
+        # Call parent class (data)
+        Pipeline.apply(self, tablist, force=force, applyToAll=applyToAll)
+        # Update GUI
         self.ep.update()
         self.Sizer.Layout()
 
     def append(self, action, overwrite=True, apply=True, updateGUI=True, tabList=None):
         if not overwrite:
             # Delete action is already present and if it's a "unique" action
-            ac = self.pipeline.find(action.name)
+            ac = self.find(action.name)
             if ac is not None:
                 if ac.unique:
                     print('>>> Deleting unique action before inserting it again', ac.name)
                     self.remove(ac, silent=True, updateGUI=False)
         # Add to pipeline
         print('>>> GUIPipeline: Adding action',action.name)
-        self.pipeline.append(action, overwrite=overwrite, apply=apply, updateGUI=updateGUI, tabList=tabList)
+        # Call parent class (data)
+        Pipeline.append(self, action, overwrite=overwrite, apply=apply, updateGUI=updateGUI, tabList=tabList)
         # Add to GUI
         self.populate() # NOTE: we populate because of the change of order between actionsData and actionsPlot..
         #self._addPanel(action)
@@ -189,14 +194,14 @@ class PipelinePanel(wx.Panel):
     def remove(self, action, silent=False, cancel=True, updateGUI=True, tabList=None):
         """ NOTE: the action is only removed from the pipeline, not deleted. """
         print('>>> Deleting action', action.name)
-        # Remove From Data
-        self.pipeline.remove(action, cancel=cancel, updateGUI=updateGUI, tabList=tabList)
+        # Call parent class (data)
+        Pipeline.remove(self, action, cancel=cancel, updateGUI=updateGUI, tabList=tabList)
         # Remove From GUI
         self._deletePanel(action)
 
         if action.removeNeedReload:
             if not silent:
-                Info(self.parent, 'A reload is required now that the action "{}" has been removed.'.format(action.name))
+                Info(self, 'A reload is required now that the action "{}" has been removed.'.format(action.name))
 
         # Update list of errors
         self.ep.update()
@@ -204,20 +209,19 @@ class PipelinePanel(wx.Panel):
 
 if __name__ == '__main__':
     """ """
-    from pydatview.pipeline import Pipeline, Action, IrreversibleAction, PlotDataAction
+    from pydatview.pipeline import Pipeline, Action, IrreversibleTableAction, PlotDataAction
 
-    pl = Pipeline()
 
     app = wx.App(False)
     self=wx.Frame(None,-1,"GUIPipelinePanel main")
 
-    p = PipelinePanel(self, pl)
-    p.append(PlotDataAction('PlotData Do X'))
-    p.append(PlotDataAction('PlotData Do Y'))
-    p.append(Action('Change units'))
-    p.append(IrreversibleAction('Rename columns'))
+    p = PipelinePanel(self)
+    p.append(PlotDataAction('PlotData Do X'), apply=False)
+    p.append(PlotDataAction('PlotData Do Y'), apply=False)
+    p.append(Action('Change units'),          apply=False)
+    p.append(IrreversibleTableAction('Rename columns'), apply=False)
 
-    pl.errorList=['This is a first error','This is a second error']
+    p.errorList=['This is a first error','This is a second error']
 
     p.populate()
 

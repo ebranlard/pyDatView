@@ -54,10 +54,10 @@ def removeMask(tab, data):
     #    tabList.clearCommonMask()
 
 # --------------------------------------------------------------------------------}
-# --- Mask
+# --- GUI to edit plugin and control a plot data action
 # --------------------------------------------------------------------------------{
 class MaskToolPanel(GUIToolPanel):
-    def __init__(self, parent, action):
+    def __init__(self, parent, action, plotPanel, pipeLike):
         GUIToolPanel.__init__(self, parent)
 
         # --- Creating "Fake data" for testing only!
@@ -66,32 +66,35 @@ class MaskToolPanel(GUIToolPanel):
             action = maskAction(label='dummyAction', mainframe=DummyMainFrame(parent))
 
         # --- Data
-        self.data = action.data
-        self.action = action
+        self.data      = action.data
+        self.action    = action
+        self.plotPanel = plotPanel
+        self.pipeLike  = pipeLike
+        self.tabList   = plotPanel.selPanel.tabList # a bit unfortunate
 
-        # --- Unfortunate data
-        self.tabList            = action.mainframe.tabList       # <<<
-        self.addTablesHandle    = action.mainframe.load_dfs      # <<<
-        self.addActionHandle    = action.mainframe.addAction     # <<<
-        self.removeActionHandle = action.mainframe.removeAction
-        self.redrawHandle       = action.mainframe.redraw        # or GUIPanel.load_and_draw()
+        # --- Unfortunate data to remove/manage
+        self.addTablesHandle    = action.mainframe.load_dfs     
+        self.addActionHandle    = pipeLike.append
+        self.removeActionHandle = pipeLike.remove
+        self.redrawHandle       = plotPanel.load_and_draw  # or action.guiCallback
+
+        # Register ourselves to the action to be safe
+        self.action.guiEditorObj = self
 
         # --- GUI elements
-        tabListNames = ['All opened tables']+self.tabList.getDisplayTabNames()
-
         self.btClose = self.getBtBitmap(self, 'Close','close', self.destroy)
         self.btAdd   = self.getBtBitmap(self, u'Mask (add)','add'  , self.onAdd)
-        self.btApply = self.getToggleBtBitmap(self, 'Clear','sun', self.onToggleApply)
+        self.btApply = self.getToggleBtBitmap(self, 'Apply','cloud', self.onToggleApply)
+
+        self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
+        self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
 
         self.lb         = wx.StaticText( self, -1, """(Example of mask: "({Time}>100) && ({Time}<50) && ({WS}==5)"    or    "{Date} > '2018-10-01'")""")
-        self.cbTabs     = wx.ComboBox(self, choices=tabListNames, style=wx.CB_READONLY)
-        self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
-        self.cbTabs.SetSelection(0)
-
         self.textMask = wx.TextCtrl(self, wx.ID_ANY, 'Dummy', style = wx.TE_PROCESS_ENTER)
         #self.textMask.SetValue('({Time}>100) & ({Time}<400)')
         #self.textMask.SetValue("{Date} > '2018-10-01'")
 
+        # --- Layout
         btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
         btSizer.Add(self.btClose                ,0,flag = wx.ALL|wx.EXPAND, border = 1)
         btSizer.Add(wx.StaticText(self, -1, '') ,0,flag = wx.ALL|wx.EXPAND, border = 1)
@@ -115,11 +118,13 @@ class MaskToolPanel(GUIToolPanel):
 
         # --- Events
         # NOTE: getBtBitmap and getToggleBtBitmap already specify the binding
-        self.Bind(wx.EVT_COMBOBOX, self.onTabChange, self.cbTabs )
+        self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
         self.textMask.Bind(wx.EVT_TEXT_ENTER, self.onParamChangeAndPressEnter)
 
         # --- Init triggers
         self._Data2GUI()
+        self.onToggleApply(init=True)
+        self.updateTabList()
 
     # --- Implementation specific
     def guessMask(self):
@@ -166,13 +171,14 @@ class MaskToolPanel(GUIToolPanel):
         #    pass
           
     # --- External Calls
-    def cancelAction(self, redraw=True):
-        """ do cancel the action"""
+    def cancelAction(self):
+        """ set the GUI state when the action is cancelled"""
         self.btApply.SetLabel(CHAR['cloud']+' Mask')
         self.btApply.SetValue(False)
         self.data['active'] = False
 
-    def guiApplyAction(self, redraw=True):
+    def guiActionAppliedState(self):
+        """ set the GUI state when the action is applied"""
         self.btApply.SetLabel(CHAR['sun']+' Clear')
         self.btApply.SetValue(True)
         self.data['active'] = True
@@ -189,28 +195,26 @@ class MaskToolPanel(GUIToolPanel):
         self.textMask.SetValue(self.data['maskString'])
 
     def onToggleApply(self, event=None, init=False):
-        self.data['active'] = not self.data['active']
-        print('')
-        print('')
-        print('')
+        if not init:
+            self.data['active'] = not self.data['active']
+
         if self.data['active']:
             self._GUI2Data()
             # We update the GUI
-            self.guiApplyAction()
+            self.guiActionAppliedState()
             # Add action to pipeline, apply it, update the GUI
             self.addActionHandle(self.action, overwrite=True, apply=True, tabList=self.tabList, updateGUI=True)
-            #if iSel==0:
-            #    dfs, names, errors = tabList.applyCommonMaskString(maskString, bAdd=False)
-            #    if len(errors)>0:
-            #        raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
-            #else:
-            #    dfs, name = tabList[iSel-1].applyMaskString(maskString, bAdd=False)
         else:
             if not init:
-            # Remove action from pipeline, cancel it, update the GUI
+                # Remove action from pipeline, cancel it, update the GUI
                 self.removeActionHandle(self.action, cancel=True, tabList=self.tabList, updateGUI=True)
+            else:
+                self.cancelAction()
 
     def onAdd(self, event=None):
+        """ 
+        Apply tableFunction on all selected tables, create new tables, add them to the GUI
+        """
         self._GUI2Data()
         iSel         = self.cbTabs.GetSelection()
         # TODO this should be handled by the action
@@ -218,7 +222,7 @@ class MaskToolPanel(GUIToolPanel):
         if len(errors)>0:
             raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
 
-        # We stop applying if we were applying it:
+        # We stop applying if we were applying it (NOTE: doing this before adding table due to redraw trigger of the whole panel)
         if self.data['active']:
             self.onToggleApply()
 

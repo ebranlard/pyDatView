@@ -84,8 +84,8 @@ def saveAppData(mainFrame, data):
             mainFrame.infoPanel.saveData(data['infoPanel'])
         if hasattr(mainFrame, 'tablist'):
             mainFrame.tablist.saveOptions(data['loaderOptions'])
-        if hasattr(mainFrame, 'pipeline'):
-            mainFrame.pipeline.saveData(data['pipeline'])
+        if hasattr(mainFrame, 'pipePanel'):
+            mainFrame.pipePanel.saveData(data['pipeline'])
 
     # --- Sanitize data
     data = _sanitize(data)

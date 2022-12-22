@@ -8,6 +8,7 @@ class Action():
     def __init__(self, name, 
             tableFunctionApply = None,
             tableFunctionCancel = None,
+            tableFunctionAdd   = None,
             plotDataFunction = None,
             guiCallback=None, 
             guiEditorClass=None,
@@ -23,6 +24,7 @@ class Action():
 
         self.name = name
         # 
+        self.tableFunctionAdd    = tableFunctionAdd      # applies to a full table, create a new one
         self.tableFunctionApply  = tableFunctionApply    # applies to a full table
         self.tableFunctionCancel = tableFunctionCancel   # cancel action on a full table
         self.plotDataFunction    = plotDataFunction      # applies to x,y arrays only
@@ -64,6 +66,30 @@ class Action():
 
         self.applied = True
         return tabList
+
+
+    def applyAndAdd(self, tabList):
+        """ 
+        Loop through tabList, perform the action and create new tables
+        """
+        if self.tableFunctionAdd is None:
+            raise Exception('tableFunctionAdd was not specified for action: {}'.format(self.name))
+
+        dfs_new   = []
+        names_new = []
+        errors=[]
+        for i,t in enumerate(tabList):
+#             try:
+            df_new, name_new = self.tableFunctionAdd(t, self.data)
+            if df_new is not None: 
+                # we don't append when string is empty
+                dfs_new.append(df_new)
+                names_new.append(name_new)
+#             except:
+#                 errors.append('Resampling failed for table: '+t.active_name) # TODO
+        return dfs_new, names_new, errors
+
+
 
 
     def updateGUI(self):
@@ -140,6 +166,9 @@ class ReversibleTableAction(Action):
 
     def cancel(self, tabList):
         self.errorList=[]
+        if tabList is None:
+            print('[WARN] Cannot cancel action {} on None tablist'.format(self))
+            return
         for t in tabList:
             print('>>> Action: Cancel: ', self, 'to', t.name)
             try:
@@ -231,6 +260,7 @@ class Pipeline(object):
             self.collectErrors()
 
         # Cancel the action in Editor
+        print('>>> GUI EDITOR', a.guiEditorObj)
         if a.guiEditorObj is not None:
             print('[Pipe] Canceling action in guiEditor because the action is removed')
             a.guiEditorObj.cancelAction() # NOTE: should not trigger a plot

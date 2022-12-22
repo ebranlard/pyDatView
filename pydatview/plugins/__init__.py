@@ -17,22 +17,24 @@ def _data_mask(label, mainframe):
     from .data_mask import maskAction
     return maskAction(label, mainframe)
 
+# --- plotDataActions
 def _data_filter(label, mainframe):
-    from .data_filter import filterAction
+    from .plotdata_filter import filterAction
     return filterAction(label, mainframe)
 
 def _data_sampler(label, mainframe):
-    from .data_sampler import samplerAction
+    from .plotdata_sampler import samplerAction
     return samplerAction(label, mainframe)
 
 def _data_binning(label, mainframe):
-    from .data_binning import binningAction
+    from .plotdata_binning import binningAction
     return binningAction(label, mainframe)
 
 def _data_removeOutliers(label, mainframe):
-    from .data_removeOutliers import removeOutliersAction
+    from .plotdata_removeOutliers import removeOutliersAction
     return removeOutliersAction(label, mainframe)
 
+# --- Irreversible actions
 def _data_standardizeUnitsSI(label, mainframe=None):
     from .data_standardizeUnits import standardizeUnitsAction
     return standardizeUnitsAction(label, mainframe, flavor='SI')
