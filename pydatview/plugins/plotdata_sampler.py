@@ -17,7 +17,7 @@ _DEFAULT_DICT={
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
-def samplerAction(label, mainframe=None, data=None):
+def samplerAction(label, mainframe, data=None):
     """
     Return an "action" for the current plugin, to be used in the pipeline.
     The action is also edited and created by the GUI Editor
@@ -29,9 +29,7 @@ def samplerAction(label, mainframe=None, data=None):
         data=_DEFAULT_DICT
         data['active'] = False #<<< Important
 
-    guiCallback=None
-    if mainframe is not None:
-        guiCallback = mainframe.redraw
+    guiCallback = mainframe.redraw
 
     action = PlotDataAction(
             name             = label,
@@ -62,8 +60,8 @@ def samplerTabAdd(tab, opts):
 # --------------------------------------------------------------------------------{
 class SamplerToolPanel(PlotDataActionEditor):
 
-    def __init__(self, parent, action, plotPanel, pipeLike, **kwargs):
-        PlotDataActionEditor.__init__(self, parent, action, plotPanel, pipeLike, tables=True)
+    def __init__(self, parent, action, **kwargs):
+        PlotDataActionEditor.__init__(self, parent, action, tables=True)
 
         # --- Data
         from pydatview.tools.signal_analysis import SAMPLERS

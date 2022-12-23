@@ -28,9 +28,7 @@ def binningAction(label, mainframe=None, data=None):
         data=_DEFAULT_DICT
         data['active'] = False #<<< Important
 
-    guiCallback=None
-    if mainframe is not None:
-        guiCallback = mainframe.redraw
+    guiCallback = mainframe.redraw
 
     action = PlotDataAction(
             name=label,
@@ -89,8 +87,8 @@ def binTabAdd(tab, data):
 # --------------------------------------------------------------------------------{
 class BinningToolPanel(PlotDataActionEditor):
 
-    def __init__(self, parent, action, plotPanel, pipeLike, **kwargs):
-        PlotDataActionEditor.__init__(self, parent, action, plotPanel, pipeLike, tables=True)
+    def __init__(self, parent, action, **kwargs):
+        PlotDataActionEditor.__init__(self, parent, action, tables=True)
 
         # --- GUI elements
         self.scBins = wx.SpinCtrl(self, value='50', style=wx.TE_RIGHT, size=wx.Size(60,-1) )

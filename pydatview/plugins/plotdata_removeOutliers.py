@@ -15,7 +15,7 @@ _DEFAULT_DICT={
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
-def removeOutliersAction(label, mainframe=None, data=None):
+def removeOutliersAction(label, mainframe, data=None):
     """
     Return an "action" for the current plugin, to be used in the pipeline.
     The action is also edited and created by the GUI Editor
@@ -27,9 +27,7 @@ def removeOutliersAction(label, mainframe=None, data=None):
         data=_DEFAULT_DICT
         data['active'] = False #<<< Important
 
-    guiCallback=None
-    if mainframe is not None:
-        guiCallback = mainframe.redraw
+    guiCallback = mainframe.redraw
 
     action = PlotDataAction(
             name             = label,

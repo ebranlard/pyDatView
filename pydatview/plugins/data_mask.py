@@ -16,7 +16,7 @@ _DEFAULT_DICT={
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
-def maskAction(label, mainframe=None, data=None):
+def maskAction(label, mainframe, data=None):
     """
     Return an "action" for the current plugin, to be used in the pipeline.
     The action is also edited and created by the GUI Editor
@@ -28,9 +28,7 @@ def maskAction(label, mainframe=None, data=None):
         data=_DEFAULT_DICT
         data['active'] = False #<<< Important
 
-    guiCallback=None
-    if mainframe is not None:
-        guiCallback = mainframe.redraw
+    guiCallback = mainframe.redraw
 
     action = ReversibleTableAction(
             name=label,
@@ -57,7 +55,7 @@ def removeMask(tab, data):
 # --- GUI to edit plugin and control a plot data action
 # --------------------------------------------------------------------------------{
 class MaskToolPanel(GUIToolPanel):
-    def __init__(self, parent, action, plotPanel, pipeLike):
+    def __init__(self, parent, action):
         GUIToolPanel.__init__(self, parent)
 
         # --- Creating "Fake data" for testing only!
@@ -68,15 +66,15 @@ class MaskToolPanel(GUIToolPanel):
         # --- Data
         self.data      = action.data
         self.action    = action
-        self.plotPanel = plotPanel
-        self.pipeLike  = pipeLike
-        self.tabList   = plotPanel.selPanel.tabList # a bit unfortunate
+        self.plotPanel = action.mainframe.plotPanel
+        self.pipeLike  = action.mainframe.plotPanel.pipeLike
+        self.tabList   = action.mainframe.plotPanel.selPanel.tabList # a bit unfortunate
 
         # --- Unfortunate data to remove/manage
+        self.addActionHandle    = self.pipeLike.append
+        self.removeActionHandle = self.pipeLike.remove
         self.addTablesHandle    = action.mainframe.load_dfs     
-        self.addActionHandle    = pipeLike.append
-        self.removeActionHandle = pipeLike.remove
-        self.redrawHandle       = plotPanel.load_and_draw  # or action.guiCallback
+        self.redrawHandle       = action.mainframe.plotPanel.load_and_draw  # or action.guiCallback
 
         # Register ourselves to the action to be safe
         self.action.guiEditorObj = self

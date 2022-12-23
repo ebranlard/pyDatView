@@ -805,7 +805,7 @@ class PlotPanel(wx.Panel):
                 print('NOTE: calling a panel without action')
                 self.toolPanel=panelClass(parent=self) # calling the panel constructor
             else:
-                self.toolPanel=panelClass(parent=self, action=action, plotPanel=self, pipeLike=self.pipeLike) # calling the panel constructor
+                self.toolPanel=panelClass(parent=self, action=action) # calling the panel constructor
                 action.guiEditorObj = self.toolPanel
         self.toolSizer.Add(self.toolPanel, 0, wx.EXPAND|wx.ALL, 5)
         self.plotsizer.Layout()

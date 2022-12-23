@@ -12,7 +12,7 @@ from pydatview.pipeline import PlotDataAction
 # --------------------------------------------------------------------------------{
 class PlotDataActionEditor(GUIToolPanel):
 
-    def __init__(self, parent, action, plotPanel, pipeLike, buttons=None, tables=True):
+    def __init__(self, parent, action, buttons=None, tables=True):
         """ 
         """
         GUIToolPanel.__init__(self, parent)
@@ -20,15 +20,15 @@ class PlotDataActionEditor(GUIToolPanel):
         # --- Data
         self.data      = action.data
         self.action    = action
-        self.plotPanel = plotPanel
-        self.pipeLike  = pipeLike
-        self.tabList   = plotPanel.selPanel.tabList # a bit unfortunate
+        self.plotPanel = action.mainframe.plotPanel # NOTE: we need mainframe if plotPlanel is respawned..
+        self.pipeLike  = action.mainframe.plotPanel.pipeLike
+        self.tabList   = action.mainframe.plotPanel.selPanel.tabList # a bit unfortunate
 
         # --- Unfortunate data to remove/manage
+        self.addActionHandle    = self.pipeLike.append
+        self.removeActionHandle = self.pipeLike.remove
         self.addTablesHandle    = action.mainframe.load_dfs     
-        self.addActionHandle    = pipeLike.append
-        self.removeActionHandle = pipeLike.remove
-        self.redrawHandle       = plotPanel.load_and_draw  # or action.guiCallback
+        self.redrawHandle       = action.mainframe.plotPanel.load_and_draw  # or action.guiCallback
 
         # Register ourselves to the action to be safe
         self.action.guiEditorObj = self
@@ -249,6 +249,7 @@ def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableF
 
     # --- Dummy mainframe and action..
     mainframe = DummyMainFrame(self)
+    mainframe.plotPanel = self.plotPanel
     guiCallback = self.plotPanel.load_and_draw
     action = PlotDataAction(
             name             = 'Dummy Action',
@@ -261,7 +262,7 @@ def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableF
             )
 
     # --- Create main object to be tested
-    p = panelClass(self.plotPanel, action=action, plotPanel=self.plotPanel, pipeLike=pipeline, tables=False)
+    p = panelClass(self.plotPanel, action=action, tables=False)
 
     # --- Finalize GUI
     sizer = wx.BoxSizer(wx.HORIZONTAL)
