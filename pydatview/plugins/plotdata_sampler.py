@@ -65,11 +65,10 @@ class SamplerToolPanel(PlotDataActionEditor):
 
         # --- Data
         from pydatview.tools.signal_analysis import SAMPLERS
-        self._SAMPLERS_DEFAULT = SAMPLERS.copy()
         self._SAMPLERS_USER    = SAMPLERS.copy()
 
         # --- GUI elements
-        self.cbMethods  = wx.ComboBox(self, -1, choices=[s['name'] for s in self._SAMPLERS_DEFAULT], style=wx.CB_READONLY)
+        self.cbMethods  = wx.ComboBox(self, -1, choices=[s['name'] for s in self._SAMPLERS_USER], style=wx.CB_READONLY)
 
         self.lbNewX   = wx.StaticText(self, -1, 'New x:  ')
         self.textNewX = wx.TextCtrl(self, wx.ID_ANY, '', style      = wx.TE_PROCESS_ENTER)
@@ -110,17 +109,16 @@ class SamplerToolPanel(PlotDataActionEditor):
                 return i
         return -1
 
-    def setCurrentX(self, x=None):
-        if x is None:
-            x= self.plotPanel.plotData[0].x
+    def setCurrentX(self):
+        if len(self.plotPanel.plotData)==0:
+            return
+        x= np.array(self.plotPanel.plotData[0].x).astype(str)
         if len(x)<50:
-            s=np.array2string(x, separator=', ')
+            s=', '.join(x)
         else:
-            s =np.array2string(x[[0,1,2,3]], separator=', ') 
+            s=', '.join(x[[0,1,2,3]])
             s+=', ...,  '
-            s+=np.array2string(x[[-3,-2,-1]], separator=', ') 
-        s=s.replace('[','').replace(']','').replace(' ','').replace(',',', ')
-
+            s+=', '.join(x[[-3,-2,-1]])
         self.textOldX.SetValue(s)
 
     def onMethodChange(self, event=None, init=True):
@@ -129,23 +127,18 @@ class SamplerToolPanel(PlotDataActionEditor):
             But if the user already has some options, they are used
         """
         iOpt = self.cbMethods.GetSelection()
-        opt_default = self._SAMPLERS_DEFAULT[iOpt]
-        opt_user    = self._SAMPLERS_USER[iOpt]
-        self.lbNewX.SetLabel(opt_default['paramName']+':')
-
-        # Value
-        if len(self.textNewX.Value)==0:
-            self.textNewX.SetValue(str(opt_user['param'])[1:-1])
-            #if type(parentOpt)==dict:
-            #    self.textNewX.SetValue(str(parentOpt['param'])[1:-1])
-            #else:
-            #    self.textNewX.SetValue(str(opt['param'])[2:-2])
+        opts   = self._SAMPLERS_USER[iOpt]
+        # check if selection is the same as the one currently used
+        if self.data['name'] == opts['name']:
+            opts['param'] = self.data['param']
+        self._Data2GUI(opts)
+        # Trigger plot if applied
         self.onParamChange()
 
     # --- Bindings for plot triggers on parameters changes
     def onParamChange(self, event=None):
-        self._GUI2Data()
         if self.data['active']:
+            self._GUI2Data()
             self.parent.load_and_draw() # Data will change
             self.setCurrentX()
 
@@ -156,27 +149,31 @@ class SamplerToolPanel(PlotDataActionEditor):
         opt = self._SAMPLERS_USER[iOpt]
         s= self.textNewX.Value.strip().replace('[','').replace(']','')
         if len(s)>0:
-            if s.find(','):
-                opt['param']=np.array(s.split(',')).astype(float)
+            if s.find(',')>=0:
+                opt['param']=np.array([v for v in s.split(',') if len(v)>0]).astype(float)
             else:
-                opt['param']=np.array(s.split('')).astype(float)
+                opt['param']=np.array([v for v in s.split() if len(v)>0]).astype(float)
         # Then update our main data dictionary
         self.data.update(opt) 
         return opt
 
-    def _Data2GUI(self):
-        i = self.getSamplerIndex(self.data['name'])
+    def _Data2GUI(self, data=None):
+        if data is None:
+            data = self.data
+        i = self.getSamplerIndex(data['name'])
         if i==-1:
-            raise Exception('Unknown sampling method ', self.data['name'])
+            raise Exception('Unknown sampling method ', data['name'])
+        self.lbNewX.SetLabel(data['paramName']+':')
         self.cbMethods.SetSelection(i)
-        param = self.data['param']
-        self.textNewX.SetValue(str(param).lstrip('[').rstrip(']'))
-
+        param = data['param']
+        sParam = ', '.join(list(np.atleast_1d(param).astype(str)))
+        self.textNewX.SetValue(sParam)
 
     def onToggleApply(self, event=None, init=False):
-        self.setCurrentX()
         # Call parent class
         PlotDataActionEditor.onToggleApply(self, event=event, init=init)
+        #
+        self.setCurrentX()
 
 
     def onAdd(self, event=None):

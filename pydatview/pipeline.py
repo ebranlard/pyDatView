@@ -95,8 +95,10 @@ class Action():
     def updateGUI(self):
         """ Typically called by a callee after append"""
         if self.guiCallback is not None:
-            print('>>> Action: Calling GUI callback, action', self.name)
-            self.guiCallback()
+            try:
+                self.guiCallback()
+            except:
+                print('[FAIL] Action: failed to call GUI callback, action', self.name)
 
     def __repr__(self):
         s='<Action {}>'.format(self.name)
@@ -226,7 +228,7 @@ class Pipeline(object):
     # --- Behave like a list..
     def append(self, action, overwrite=False, apply=True, updateGUI=True, tabList=None):
         i = self.index(action)
-        if i>=0 and not overwrite:
+        if i>=0 and overwrite:
             print('[Pipe] Not adding action, its already present')
         else:
             if action.onPlotData:
@@ -247,6 +249,14 @@ class Pipeline(object):
         """ NOTE: the action is removed, not deleted fully (it might be readded to the pipeline later)
          -  If a GUI edtor is attached to this action, we make sure that it shows the action as cancelled
         """
+        # Cancel the action in Editor
+        if a.guiEditorObj is not None:
+            try:
+                print('[Pipe] Canceling action in guiEditor because the action is removed')
+                a.guiEditorObj.cancelAction() # NOTE: should not trigger a plot
+            except:
+                print('[FAIL] Pipeline: Failed to call cancelAction() in GUI.')
+
         try:
             i = self.actionsData.index(a)
             a = self.actionsData.pop(i)
@@ -258,12 +268,6 @@ class Pipeline(object):
         if cancel:
             a.cancel(tabList)
             self.collectErrors()
-
-        # Cancel the action in Editor
-        print('>>> GUI EDITOR', a.guiEditorObj)
-        if a.guiEditorObj is not None:
-            print('[Pipe] Canceling action in guiEditor because the action is removed')
-            a.guiEditorObj.cancelAction() # NOTE: should not trigger a plot
 
         # trigger GUI update (guiCallback)
         if updateGUI:

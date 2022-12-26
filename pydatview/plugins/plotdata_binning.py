@@ -88,10 +88,10 @@ def binTabAdd(tab, data):
 class BinningToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
-        PlotDataActionEditor.__init__(self, parent, action, tables=True)
+        PlotDataActionEditor.__init__(self, parent, action, tables=True, **kwargs)
 
         # --- GUI elements
-        self.scBins = wx.SpinCtrl(self, value='50', style=wx.TE_RIGHT, size=wx.Size(60,-1) )
+        self.scBins = wx.SpinCtrl(self,      value='50', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(60,-1) )
         self.textXMin = wx.TextCtrl(self, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(70,-1))
         self.textXMax = wx.TextCtrl(self, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(70,-1))
 
@@ -133,8 +133,9 @@ class BinningToolPanel(PlotDataActionEditor):
         self.SetSizer(self.sizer)
 
         # --- Events
+        self.scBins.Bind  (wx.EVT_SPINCTRL      , self.onParamChangeArrow)
         self.scBins.Bind  (wx.EVT_SPINCTRLDOUBLE, self.onParamChangeArrow)
-        self.scBins.Bind  (wx.EVT_TEXT_ENTER, self.onParamChangeEnter)
+        self.scBins.Bind  (wx.EVT_TEXT_ENTER, self.onParamChangeEnter)    
         self.cbTabs.Bind  (wx.EVT_COMBOBOX, self.onTabChange)
         self.textXMin.Bind(wx.EVT_TEXT_ENTER, self.onParamChangeEnter)
         self.textXMax.Bind(wx.EVT_TEXT_ENTER, self.onParamChangeEnter)
@@ -146,7 +147,6 @@ class BinningToolPanel(PlotDataActionEditor):
             self.setXRange()
         self._Data2GUI()
         self.onToggleApply(init=True)
-        #self.updateTabList()
 
     # --- Implementation specific
     def reset(self, event=None):
@@ -164,15 +164,22 @@ class BinningToolPanel(PlotDataActionEditor):
     # --- Bindings for plot triggers on parameters changes
     def onParamChange(self, event=None):
         PlotDataActionEditor.onParamChange(self)
-        self.lbDX.SetLabel(pretty_num_short((self.data['xMax']- self.data['xMin'])/self.data['nBins']))
+        data = {}
+        data = self._GUI2Data(data)
+        #if data['nBins']<3:
+        #    self.scBins.SetValue(3) # NOTE: this does not work, we might need to access the text?
+        self.lbDX.SetLabel(pretty_num_short((data['xMax']- data['xMin'])/data['nBins']))
 
     # --- Fairly generic
-    def _GUI2Data(self):
+    def _GUI2Data(self, data=None):
+        if data is None:
+            data = self.data
         def zero_if_empty(s):
             return 0 if len(s)==0 else s
-        self.data['nBins'] = int  (self.scBins.Value)
-        self.data['xMin']  = float(zero_if_empty(self.textXMin.Value))
-        self.data['xMax']  = float(zero_if_empty(self.textXMax.Value))
+        data['nBins'] = int  (self.scBins.Value)
+        data['xMin']  = float(zero_if_empty(self.textXMin.Value))
+        data['xMax']  = float(zero_if_empty(self.textXMax.Value))
+        return data
 
     def _Data2GUI(self):
         if self.data['active']:

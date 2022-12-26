@@ -66,7 +66,7 @@ def filterTabAdd(tab, opts):
 class FilterToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
-        PlotDataActionEditor.__init__(self, parent, action, tables=True)
+        PlotDataActionEditor.__init__(self, parent, action, tables=True, **kwargs)
 
         # --- Data
         from pydatview.tools.signal_analysis import FILTERS
@@ -123,53 +123,19 @@ class FilterToolPanel(PlotDataActionEditor):
     # --- Implementation specific
     def onSelectFilt(self, event=None):
         """ Select the filter, but does not apply it to the plotData 
-            parentFilt is unchanged
-            But if the parent already has 
+            self.data should be unchanged!
+            Uses the action data only if the selection is the same.
         """
         iFilt = self.cbFilters.GetSelection()
-        filt = self._FILTERS_USER[iFilt]
-        self.lbParamName.SetLabel(filt['paramName']+':')
-        #self.tParam.SetRange(filt['paramRange'][0], filt['paramRange'][1])
-        # NOTE: if min value for range is not 0, the Ctrl prevents you to enter 0.01
-        self.tParam.SetRange(0, filt['paramRange'][1])
-        self.tParam.SetIncrement(filt['increment'])
-        self.tParam.SetDigits(filt['digits'])
-
-        parentFilt=self.data
-        # Value
-        if type(parentFilt)==dict and parentFilt['name']==filt['name']:
-            self.tParam.SetValue(parentFilt['param'])
-        else:
-            self.tParam.SetValue(filt['param'])
+        opts = self._FILTERS_USER[iFilt]
+        # check if selection is the same as the one currently used
+        if self.data['name']==opts['name']:
+            opts['param'] = self.data['param']
+        self._Data2GUI(opts)
         # Trigger plot if applied
         self.onParamChange(self)
 
-#     # --- Bindings for plot triggers on parameters changes
-#     def onParamChange(self, event=None):
-#         self._GUI2Data()
-#         if self.data['active']:
-#             self.parent.load_and_draw() # Data will change
-# 
-#     def onParamChangeArrow(self, event):
-#         self.onParamChange()
-#         event.Skip()
-# 
-#     def onParamChangeEnter(self, event):
-#         if not self.data['active']:
-#             self.onToggleApply()
-#         else:
-#             self.onParamChange()
-#         event.Skip()
-# 
-#     def onParamChangeChar(self, event):
-#         event.Skip()  
-#         code = event.GetKeyCode()
-#         if code in [wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER]:
-#             #print(self.spintxt.Value)
-#             self.tParam.SetValue(self.spintxt.Value)
-#             self.onParamChangeEnter(event)
-#             
-    # --- External Calls
+   # --- External Calls
     def cancelAction(self):
         """ set the GUI state when the action is cancelled"""
         # Call parent class
@@ -184,9 +150,7 @@ class FilterToolPanel(PlotDataActionEditor):
         # Call parent class
         PlotDataActionEditor.guiActionAppliedState(self)
         # Update GUI
-        self.lbInfo.SetLabel(
-                'Filter is now applied on the fly. Change parameter live. Click "Clear" to stop. '
-                )
+        self.lbInfo.SetLabel( 'Filter is now applied on the fly. Change parameter live. Click "Clear" to stop. ')
 
     # --- Fairly generic
     def _GUI2Data(self):
@@ -204,13 +168,16 @@ class FilterToolPanel(PlotDataActionEditor):
 
         return opt
         
-    def _Data2GUI(self):
-        self.lbParamName.SetLabel(self.data['paramName']+':')
+    def _Data2GUI(self, data=None):
+        if data is None:
+            data = self.data
+        self.lbParamName.SetLabel(data['paramName']+':')
         #self.tParam.SetRange(filt['paramRange'][0], filt['paramRange'][1])
         # NOTE: if min value for range is not 0, the Ctrl prevents you to enter 0.01
-        self.tParam.SetRange(0, self.data['paramRange'][1])
-        self.tParam.SetIncrement(self.data['increment'])
-        self.tParam.SetDigits(self.data['digits'])
+        self.tParam.SetRange(0, data['paramRange'][1])
+        self.tParam.SetIncrement(data['increment'])
+        self.tParam.SetDigits(data['digits'])
+        self.tParam.SetValue(self.data['param'])
 
     def onAdd(self, event=None):
         # TODO put this in GUI2Data???

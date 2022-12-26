@@ -72,8 +72,8 @@ class PlotData():
     def _post_init(PD, pipeline=None):
 
         # --- Apply filters from pipeline on the fly
-        if pipeline is not None:
-            print('[PDat]', pipeline.__reprFilters__())
+        #if pipeline is not None:
+        #    print('[PDat]', pipeline.__reprFilters__())
         if pipeline is not None:
             PD.x, PD.y = pipeline.applyOnPlotData(PD.x, PD.y, PD.tabID) # TODO pass the tabID
 

@@ -5,8 +5,6 @@ from pydatview.common import CHAR, Info
 import wx.lib.agw.hyperlink as hl
 
 
-
-
 class ActionPanel(wx.Panel):
     def __init__(self, parent, action, style=wx.TAB_TRAVERSAL):
         wx.Panel.__init__(self, parent, -1, style=style)
@@ -17,16 +15,17 @@ class ActionPanel(wx.Panel):
         name = action.name
 
         # --- GUI
-        ##lko = wx.Button(self, wx.ID_ANY, name, style=wx.BU_EXACTFIT)
-        lko = wx.StaticText(self, -1, name)
-        ##lko  = hl.HyperLinkCtrl(self, -1, name)
-        ##lko.AutoBrowse(False)
-        ##lko.SetUnderlines(False, False, False)
-        ##lko.SetColours(wx.BLACK, wx.BLACK, wx.BLACK)
-        ##lko.DoPopup(False)
-        ###lko.SetBold(True)
-        ##lko.SetToolTip(wx.ToolTip('Change "'+name+'"'))
-        ##lko.UpdateLink() # To update text properties
+        if action.guiEditorClass is None:
+            lko = wx.StaticText(self, -1, name)
+        else:
+            lko  = hl.HyperLinkCtrl(self, -1, name)
+            lko.AutoBrowse(False)
+            lko.SetUnderlines(False, False, False)
+            lko.SetColours(wx.BLACK, wx.BLACK, wx.BLACK)
+            lko.DoPopup(False)
+            #lko.SetBold(True)
+            lko.SetToolTip(wx.ToolTip('Change "'+name+'"'))
+            lko.UpdateLink() # To update text properties
 
         lkc  = hl.HyperLinkCtrl(self, -1, 'x')
         lkc.AutoBrowse(False)
@@ -50,7 +49,9 @@ class ActionPanel(wx.Panel):
 
         self.SetSizer(sizer)
 
-        self.Bind(hl.EVT_HYPERLINK_LEFT, lambda ev: parent.onCloseAction(ev, action, self) , lkc)
+        self.Bind(hl.EVT_HYPERLINK_LEFT, lambda ev: parent.onCloseAction(ev, action) , lkc)
+        if action.guiEditorClass is not None:
+            self.Bind(hl.EVT_HYPERLINK_LEFT, lambda ev: parent.onOpenAction(ev, action) , lko)
 
     def __repr__(self):
         s='<ActionPanel for action {}>\n'.format(self.action.name)
@@ -136,7 +137,7 @@ class PipelinePanel(wx.Panel, Pipeline):
 
     def populate(self):
         # Delete everything in wrapSizer
-        self.wrapSizer.Clear(True)
+        self.wrapSizer.Clear(delete_windows=True)
         self.wrapSizer.Add(wx.StaticText(self, -1, ' '), wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL, 0)
 
         # Add all actions to panel
@@ -161,8 +162,18 @@ class PipelinePanel(wx.Panel, Pipeline):
         self.wrapSizer.Layout()
         self.Sizer.Layout()
 
-    def onCloseAction(self, event, action=None, actionPanel=None):
+    def onCloseAction(self, event, action=None):
         self.remove(action, tabList=self.tabList) # TODO
+        try:
+            action.mainframe.plotPanel.removeTools()
+        except:
+            print('[FAIL] removing tool from plotPanel')
+
+    def onOpenAction(self, event, action=None):
+        """ Opens the Action GUI Editor """
+        event.Skip()
+        action.mainframe.plotPanel.showToolAction(action)
+        
 
     # --- Wrap the data class
     def apply(self, tablist, force=False, applyToAll=False):
@@ -173,6 +184,7 @@ class PipelinePanel(wx.Panel, Pipeline):
         self.Sizer.Layout()
 
     def append(self, action, overwrite=True, apply=True, updateGUI=True, tabList=None):
+        i = self.index(action)
         if not overwrite:
             # Delete action is already present and if it's a "unique" action
             ac = self.find(action.name)
@@ -185,7 +197,9 @@ class PipelinePanel(wx.Panel, Pipeline):
         # Call parent class (data)
         Pipeline.append(self, action, overwrite=overwrite, apply=apply, updateGUI=updateGUI, tabList=tabList)
         # Add to GUI
-        self.populate() # NOTE: we populate because of the change of order between actionsData and actionsPlot..
+        if i<0:
+            # NOTE: populating when "modifying" can result to some kind of segfault (likely due to the window deletion)
+            self.populate() # NOTE: we populate because of the change of order between actionsData and actionsPlot..
         #self._addPanel(action)
         #self.Sizer.Layout()
         # Update list of errors
@@ -197,7 +211,10 @@ class PipelinePanel(wx.Panel, Pipeline):
         # Call parent class (data)
         Pipeline.remove(self, action, cancel=cancel, updateGUI=updateGUI, tabList=tabList)
         # Remove From GUI
-        self._deletePanel(action)
+        try:
+            self._deletePanel(action)
+        except:
+            print('[FAIL] GUIPipeline: could not delete action')
 
         if action.removeNeedReload:
             if not silent:

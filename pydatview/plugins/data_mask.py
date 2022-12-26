@@ -66,15 +66,11 @@ class MaskToolPanel(GUIToolPanel):
         # --- Data
         self.data      = action.data
         self.action    = action
-        self.plotPanel = action.mainframe.plotPanel
-        self.pipeLike  = action.mainframe.plotPanel.pipeLike
-        self.tabList   = action.mainframe.plotPanel.selPanel.tabList # a bit unfortunate
 
         # --- Unfortunate data to remove/manage
         self.addActionHandle    = self.pipeLike.append
         self.removeActionHandle = self.pipeLike.remove
         self.addTablesHandle    = action.mainframe.load_dfs     
-        self.redrawHandle       = action.mainframe.plotPanel.load_and_draw  # or action.guiCallback
 
         # Register ourselves to the action to be safe
         self.action.guiEditorObj = self
@@ -123,6 +119,16 @@ class MaskToolPanel(GUIToolPanel):
         self._Data2GUI()
         self.onToggleApply(init=True)
         self.updateTabList()
+
+    # --- unfortunate data
+    @property
+    def plotPanel(self): return self.action.mainframe.plotPanel # NOTE: we need mainframe if plotPlanel is respawned..
+    @property
+    def redrawHandle(self): return self.action.mainframe.plotPanel.load_and_draw  # or action.guiCallback
+    @property
+    def pipeLike(self): return self.action.mainframe.plotPanel.pipeLike
+    @property
+    def tabList(self): return self.action.mainframe.plotPanel.selPanel.tabList # a bit unfortunate
 
     # --- Implementation specific
     def guessMask(self):
@@ -195,6 +201,9 @@ class MaskToolPanel(GUIToolPanel):
     def onToggleApply(self, event=None, init=False):
         if not init:
             self.data['active'] = not self.data['active']
+
+        # Check if action is already in pipeline
+        i = self.pipeLike.index(self.action)
 
         if self.data['active']:
             self._GUI2Data()

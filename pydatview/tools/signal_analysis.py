@@ -213,15 +213,15 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
             raise Exception('Error: `dx` cannot be 0')
         if len(param)==1:
             # NOTE: not using min/max if data loops (like airfoil)
-            xmin =  np.min(x_old) 
-            xmax =  np.max(x_old) + dx/2
+            xmin =  np.nanmin(x_old) 
+            xmax =  np.nanmax(x_old) + dx/2
         elif len(param)==3:
             xmin  = param[1]
             xmax  = param[2]
-            if xmin is np.nan:
-                xmin =  np.min(x_old) 
-            if xmax is np.nan:
-                xmax =  np.max(x_old) + dx/2
+            if np.isnan(xmin):
+                xmin =  np.nanmin(x_old) 
+            if np.isnan(xmax):
+                xmax =  np.nanmax(x_old) + dx/2
         else:
             raise Exception('Error: the sampling parameters should be a list of three values `dx, xmin, xmax`')
         x_new = np.arange(xmin, xmax, dx)

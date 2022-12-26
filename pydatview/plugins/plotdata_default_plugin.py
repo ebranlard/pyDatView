@@ -20,15 +20,10 @@ class PlotDataActionEditor(GUIToolPanel):
         # --- Data
         self.data      = action.data
         self.action    = action
-        self.plotPanel = action.mainframe.plotPanel # NOTE: we need mainframe if plotPlanel is respawned..
-        self.pipeLike  = action.mainframe.plotPanel.pipeLike
-        self.tabList   = action.mainframe.plotPanel.selPanel.tabList # a bit unfortunate
-
         # --- Unfortunate data to remove/manage
         self.addActionHandle    = self.pipeLike.append
         self.removeActionHandle = self.pipeLike.remove
         self.addTablesHandle    = action.mainframe.load_dfs     
-        self.redrawHandle       = action.mainframe.plotPanel.load_and_draw  # or action.guiCallback
 
         # Register ourselves to the action to be safe
         self.action.guiEditorObj = self
@@ -83,15 +78,22 @@ class PlotDataActionEditor(GUIToolPanel):
             self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
 
         ## --- Init triggers
-        #self._Data2GUI()
-        #self.onSelectFilt()
-        #self.onToggleApply(init=True)
         #self.updateTabList()
+    
+    # --- unfortunate data
+    @property
+    def plotPanel(self): return self.action.mainframe.plotPanel # NOTE: we need mainframe if plotPlanel is respawned..
+    @property
+    def redrawHandle(self): return self.action.mainframe.plotPanel.load_and_draw  # or action.guiCallback
+    @property
+    def pipeLike(self): return self.action.mainframe.plotPanel.pipeLike
+    @property
+    def tabList(self): return self.action.mainframe.plotPanel.selPanel.tabList # a bit unfortunate
         
     # --- Bindings for plot triggers on parameters changes
     def onParamChange(self, event=None):
-        self._GUI2Data()
         if self.data['active']:
+            self._GUI2Data()
             self.redrawHandle()
 
     def onParamChangeArrow(self, event):
@@ -100,10 +102,9 @@ class PlotDataActionEditor(GUIToolPanel):
 
     def onParamChangeEnter(self, event):
         """ Action when the user presses Enter: we activate the action """
+        self.onParamChange()
         if not self.data['active']:
             self.onToggleApply()
-        else:
-            self.onParamChange()
         event.Skip()
 
     def onParamChangeChar(self, event):
@@ -161,16 +162,20 @@ class PlotDataActionEditor(GUIToolPanel):
     def onToggleApply(self, event=None, init=False):
         if not init:
             self.data['active'] = not self.data['active']
+
+        # Check if action is already in pipeline
+        i = self.pipeLike.index(self.action)
             
         if self.data['active']:
             self._GUI2Data()
             # We update the GUI
-            self.guiActionAppliedState() # TODO remove me
+            self.guiActionAppliedState()
             # Add action to pipeline, no need to apply it, update the GUI (redraw)
-            self.addActionHandle(self.action, overwrite=True, apply=False, updateGUI=True)
+            if i<0:
+                self.addActionHandle(self.action, overwrite=True, apply=False, updateGUI=True)
         else:
             if not init:
-                # Remove action from pipeline, no need to cancel it, update the GUI
+                # Remove action from pipeline, no need to cancel it, update the GUI (redraw)
                 self.removeActionHandle(self.action, cancel=False, updateGUI=True)
             else:
                 self.cancelAction()

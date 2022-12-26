@@ -54,8 +54,8 @@ def removeOutliersXY(x, y, opts):
 # --------------------------------------------------------------------------------{
 class RemoveOutliersToolPanel(PlotDataActionEditor):
 
-    def __init__(self, parent, action, plotPanel, pipeLike, **kwargs):
-        PlotDataActionEditor.__init__(self, parent, action, plotPanel, pipeLike, tables=False, buttons=[''])
+    def __init__(self, parent, action, **kwargs):
+        PlotDataActionEditor.__init__(self, parent, action, tables=False, buttons=[''], **kwargs)
 
         # --- GUI elements
         #self.btClose = self.getBtBitmap(self,'Close','close',self.destroy)
