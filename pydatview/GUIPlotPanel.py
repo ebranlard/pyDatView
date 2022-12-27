@@ -775,7 +775,6 @@ class PlotPanel(wx.Panel):
         return s
 
     def removeTools(self, event=None, Layout=True):
-
         if self.toolPanel is not None:
             self.toolPanel.destroyData() # clean destroy of data (action callbacks)
         self.toolSizer.Clear(delete_windows=True) # Delete Windows
@@ -784,15 +783,17 @@ class PlotPanel(wx.Panel):
 
     def showTool(self, toolName=''):
         from pydatview.plugins import TOOLS
+        from pydatview.plugins import DATA_TOOLS # TODO remove me
         if toolName in TOOLS.keys():
             self.showToolPanel(panelClass=TOOLS[toolName])
+        elif toolName in DATA_TOOLS.keys():
+            self.showToolPanel(panelClass=DATA_TOOLS[toolName])
         else:
             raise Exception('Unknown tool {}'.format(toolName))
 
     def showToolAction(self, action):
         """ Show a tool panel based on an action"""
         self.showToolPanel(panelClass=action.guiEditorClass, action=action)
-
 
     def showToolPanel(self, panelClass=None, panel=None, action=None):
         """ Show a tool panel based on a panel class (should inherit from GUIToolPanel)"""

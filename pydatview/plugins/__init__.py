@@ -6,13 +6,25 @@ Register your plugins in this file:
        and call the main function of your package. Your are free
        to use the signature your want for your package
 
-    2) add a tuple to the variable dataPlugins of the form 
+    2) add a tuple to the variable DATA_PLUGINS of the form 
          (string, _function_name)
 
        where string will be displayed under the data menu of pyDatView.
 
 See working examples in this file and this directory.
+
+NOTE:
+ - data plugins constructors should return an Action with a GUI Editor class
+
+ - simple data plugins constructors should return an Action
+
+ - tool plugins constructor should return a Panel class
+
+
 """
+from collections import OrderedDict
+
+
 def _data_mask(label, mainframe):
     from .data_mask import maskAction
     return maskAction(label, mainframe)
@@ -53,36 +65,32 @@ def _tool_curvefitting(*args, **kwargs):
     from .tool_curvefitting import CurveFitToolPanel
     return CurveFitToolPanel(*args, **kwargs)
 
+# --- TODO Action
 def _tool_radialavg(*args, **kwargs):
     from .tool_radialavg import RadialToolPanel
     return RadialToolPanel(*args, **kwargs)
 
+# --- Ordered dictionaries with key="Tool Name", value="Constructor"
 
-dataPlugins=[
-        # Name/label             , callback                , is a Panel
-        ('Mask'                  , _data_mask              , True ),
-        ('Remove Outliers'       , _data_removeOutliers    , True ),
-        ('Filter'                , _data_filter            , True ),
-        ('Resample'              , _data_sampler           , True ),
-        ('Bin data'              , _data_binning           , True ),
-        ('Standardize Units (SI)', _data_standardizeUnitsSI, False),
-        ('Standardize Units (WE)', _data_standardizeUnitsWE, False),
-        ]
+DATA_PLUGINS_WITH_EDITOR=OrderedDict([
+    ('Mask'                  , _data_mask              ),
+    ('Remove Outliers'       , _data_removeOutliers    ),
+    ('Filter'                , _data_filter            ),
+    ('Resample'              , _data_sampler           ),
+    ('Bin data'              , _data_binning           ),
+    ])
 
-
-TOOLS={
- 'LogDec':            _tool_logdec,
- 'FASTRadialAverage': _tool_radialavg,
- 'CurveFitting':      _tool_curvefitting,
-}
+DATA_PLUGINS_SIMPLE=OrderedDict([
+    ('Standardize Units (SI)', _data_standardizeUnitsSI),
+    ('Standardize Units (WE)', _data_standardizeUnitsWE),
+    ])
 
 
+DATA_TOOLS=OrderedDict([ # TODO
+    ('FAST - Radial Average', _tool_radialavg),
+    ])
 
-
-
-# ---
-def getDataPluginsDict():
-    d={}
-    for toolName, function, isPanel in dataPlugins:
-        d[toolName]={'callback':function, 'isPanel':isPanel}
-    return d
+TOOLS=OrderedDict([
+    ('Damping from decay',_tool_logdec),
+    ('Curve fitting',     _tool_curvefitting),
+    ])

@@ -17,18 +17,17 @@ class TestPipeline(unittest.TestCase):
 
 if __name__ == '__main__':
 
-    from pydatview.plugins import getDataPluginsDict
+    from pydatview.plugins import DATA_PLUGINS_SIMPLE
 
-    DPD = getDataPluginsDict()
+    DPD = DATA_PLUGINS_SIMPLE
 
-
-    tablist = TableList.createDummyList(1)
+    tablist = TableList.createDummy(1)
     print(tablist._tabs[0].data)
 
     pipeline = Pipeline()
 
-    action = DPD['Standardize Units (SI)']['callback']()
-    pipeline.append(action)
+    action = DPD['Standardize Units (SI)'](label='Standardize Units (SI)')
+    pipeline.append(action, apply=False)
 
     print(pipeline) 
 
@@ -41,8 +40,8 @@ if __name__ == '__main__':
 
 
 
-    action = DPD['Standardize Units (WE)']['callback']()
-    pipeline.append(action)
+    action = DPD['Standardize Units (WE)'](label='Standardize Units (WE)')
+    pipeline.append(action, apply=False)
 
     pipeline.apply(tablist)
     print(tablist._tabs[0].data)

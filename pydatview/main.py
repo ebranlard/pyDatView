@@ -32,7 +32,7 @@ from .common import *
 from .GUICommon import *
 import pydatview.io as weio # File Formats and File Readers
 # Pluggins
-from .plugins import dataPlugins
+from .plugins import DATA_PLUGINS_WITH_EDITOR, DATA_PLUGINS_SIMPLE, DATA_TOOLS, TOOLS
 from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
 # --------------------------------------------------------------------------------}
@@ -140,18 +140,24 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU,self.onExport,exptMenuItem)
         self.Bind(wx.EVT_MENU,self.onSave  ,saveMenuItem)
 
+        # --- Data Plugins
+        # NOTE: very important, need "s_loc" otherwise the lambda function take the last toolName
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
+        for toolName in DATA_TOOLS.keys(): # TODO remove me, should be an action
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
 
-        # --- Data Plugins
-        for string, function, isPanel in dataPlugins:
-            self.Bind(wx.EVT_MENU, lambda e, s_loc=string: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, string))
+        for toolName in DATA_PLUGINS_WITH_EDITOR.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
 
+        for toolName in DATA_PLUGINS_SIMPLE.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
+
+        # --- Tools Plugins
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
-        self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'CurveFitting'), toolMenu.Append(wx.ID_ANY, 'Curve fitting'))
-        self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'LogDec')      , toolMenu.Append(wx.ID_ANY, 'Damping from decay'))
+        for toolName in TOOLS.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), toolMenu.Append(wx.ID_ANY, toolName))
 
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
@@ -452,7 +458,7 @@ class MainFrame(wx.Frame):
                 return     # the user changed their mind
             tab.export(dlg.GetPath())
 
-    def onShowTool(self, event=None, tool=''):
+    def onShowTool(self, event=None, toolName=''):
         """ 
         Show tool
         tool in 'Outlier', 'Filter', 'LogDec','FASTRadialAverage', 'Mask', 'CurveFitting'
@@ -460,7 +466,7 @@ class MainFrame(wx.Frame):
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
             return
-        self.plotPanel.showTool(tool)
+        self.plotPanel.showTool(toolName)
 
     def onDataPlugin(self, event=None, toolName=''):
         """ 
@@ -473,25 +479,25 @@ class MainFrame(wx.Frame):
             Error(self,'Plot some data first')
             return
 
-        for thisToolName, function, isPanel in dataPlugins:
-            if toolName == thisToolName:
-                if isPanel: # This is more of a "hasPanel"
-                    # Check to see if the pipeline already contains this action
-                    action = self.pipePanel.find(toolName) # old action to edit
-                    if action is None:
-                        action = function(label=toolName, mainframe=self) # getting brand new action
-                    else:
-                        print('>>> The action already exists, we use it for the GUI')
-                    self.plotPanel.showToolAction(action)
-                    # The panel will have the responsibility to apply/delete the action, updateGUI, etc
-                else:
-                    action = function(label=toolName, mainframe=self) # calling the data function
-                    # Here we apply the action directly
-                    # We can't overwrite, so we'll delete by name..
-                    self.addAction(action, overwrite=False, apply=True, tabList=self.tabList, updateGUI=True)
-
-                return
-        raise NotImplementedError('Tool: ',toolName)
+        if toolName in DATA_PLUGINS_WITH_EDITOR.keys():
+            # Check to see if the pipeline already contains this action
+            action = self.pipePanel.find(toolName) # old action to edit
+            if action is None:
+                function = DATA_PLUGINS_WITH_EDITOR[toolName]
+                action = function(label=toolName, mainframe=self) # getting brand new action
+            else:
+                print('>>> The action already exists, we use it for the GUI')
+            self.plotPanel.showToolAction(action)
+            # The panel will have the responsibility to apply/delete the action, updateGUI, etc
+        elif toolName in DATA_PLUGINS_SIMPLE.keys():
+            print('>>> toolName')
+            function = DATA_PLUGINS_SIMPLE[toolName]
+            action = function(label=toolName, mainframe=self) # calling the data function
+            # Here we apply the action directly
+            # We can't overwrite, so we'll delete by name..
+            self.addAction(action, overwrite=False, apply=True, tabList=self.tabList, updateGUI=True)
+        else:
+            raise NotImplementedError('Tool: ',toolName)
 
     # --- Pipeline
     def addAction(self, action, **kwargs):

@@ -115,9 +115,11 @@ class PlotDataAction(Action):
         Action.__init__(self, name, onPlotData=True, **kwargs)
 
     def apply(self, *args, **kwargs):
+        #print('[INFO] Action: Skipping apply (plotdata)')
         pass # nothing to do
 
     def cancel(self, *args, **kwargs):
+        #print('[INFO] Action: Skipping cancel (plotdata)')
         pass # nothing to do
 
     def applyOnPlotData(self, x, y, tabID):

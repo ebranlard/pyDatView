@@ -511,6 +511,7 @@ class Table(object):
         s+=' - fileformat_name : {}\n'.format(self.fileformat_name)
         s+=' - columns    : {}\n'.format(self.columns)
         s+=' - nCols x nRows: {}x{}\n'.format(self.nCols, self.nRows)
+        s+=' - maskString: {}\n'.format(self.maskString)
         return s
 
     def columnsFromDF(self,df):
@@ -624,11 +625,13 @@ class Table(object):
             names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
         return dfs_new, names_new
 
-    def changeUnits(self, flavor='WE'):
+    def changeUnits(self, data=None):
         """ Change units of the table """
+        if data is None:
+            data={'flavor':'WE'}
         # NOTE: moved to a plugin, but interface kept
         from pydatview.plugins.data_standardizeUnits import changeUnits
-        changeUnits(self, flavor=flavor)
+        changeUnits(self, data=data)
 
     def convertTimeColumns(self, dayfirst=False):
         if len(self.data)>0:

@@ -1,7 +1,6 @@
 import wx
 import numpy as np
-from pydatview.plugins.base_plugin import GUIToolPanel, TOOL_BORDER
-from pydatview.plugins.plotdata_default_plugin import PlotDataActionEditor
+from pydatview.plugins.base_plugin import PlotDataActionEditor, TOOL_BORDER
 from pydatview.common import Error, Info, pretty_num_short
 from pydatview.pipeline import PlotDataAction
 # --------------------------------------------------------------------------------}
@@ -229,6 +228,6 @@ To bin perform the following step:
 
 
 if __name__ == '__main__':
-    from pydatview.plugins.plotdata_default_plugin import demoPlotDataActionPanel
+    from pydatview.plugins.base_plugin import demoPlotDataActionPanel
 
     demoPlotDataActionPanel(BinningToolPanel, plotDataFunction=bin_plot, data=_DEFAULT_DICT, tableFunctionAdd=binTabAdd)

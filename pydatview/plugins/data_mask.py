@@ -1,6 +1,6 @@
 import wx
 import numpy as np
-from pydatview.plugins.base_plugin import GUIToolPanel, TOOL_BORDER
+from pydatview.plugins.base_plugin import ActionEditor, TOOL_BORDER
 from pydatview.common import CHAR, Error, Info, pretty_num_short
 from pydatview.common import DummyMainFrame
 from pydatview.pipeline import ReversibleTableAction
@@ -32,6 +32,7 @@ def maskAction(label, mainframe, data=None):
 
     action = ReversibleTableAction(
             name=label,
+            tableFunctionAdd   = addTabMask,
             tableFunctionApply = applyMask,
             tableFunctionCancel = removeMask,
             guiEditorClass = MaskToolPanel,
@@ -41,39 +42,35 @@ def maskAction(label, mainframe, data=None):
             )
     return action
 # --------------------------------------------------------------------------------}
-# --- Main method
+# --- Main methods
 # --------------------------------------------------------------------------------{
 def applyMask(tab, data):
     #    dfs, names, errors = tabList.applyCommonMaskString(maskString, bAdd=False)
     dfs, name = tab.applyMaskString(data['maskString'], bAdd=False)
 
 def removeMask(tab, data):
+    print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> CLEAR MASK')
     tab.clearMask()
     #    tabList.clearCommonMask()
 
+def addTabMask(tab, opts):
+    """ Apply action on a a table and return a new one with a new name 
+    df_new, name_new = f(t, opts)
+    """
+    df_new, name_new = tab.applyMaskString(opts['maskString'], bAdd=True)
+    return df_new, name_new 
+
 # --------------------------------------------------------------------------------}
-# --- GUI to edit plugin and control a plot data action
+# --- GUI to edit plugin and control the mask action
 # --------------------------------------------------------------------------------{
-class MaskToolPanel(GUIToolPanel):
+class MaskToolPanel(ActionEditor):
     def __init__(self, parent, action):
-        GUIToolPanel.__init__(self, parent)
+        ActionEditor.__init__(self, parent, action=action)
 
         # --- Creating "Fake data" for testing only!
         if action is None:
             print('[WARN] Calling GUI without an action! Creating one.')
             action = maskAction(label='dummyAction', mainframe=DummyMainFrame(parent))
-
-        # --- Data
-        self.data      = action.data
-        self.action    = action
-
-        # --- Unfortunate data to remove/manage
-        self.addActionHandle    = self.pipeLike.append
-        self.removeActionHandle = self.pipeLike.remove
-        self.addTablesHandle    = action.mainframe.load_dfs     
-
-        # Register ourselves to the action to be safe
-        self.action.guiEditorObj = self
 
         # --- GUI elements
         self.btClose = self.getBtBitmap(self, 'Close','close', self.destroy)
@@ -119,16 +116,6 @@ class MaskToolPanel(GUIToolPanel):
         self._Data2GUI()
         self.onToggleApply(init=True)
         self.updateTabList()
-
-    # --- unfortunate data
-    @property
-    def plotPanel(self): return self.action.mainframe.plotPanel # NOTE: we need mainframe if plotPlanel is respawned..
-    @property
-    def redrawHandle(self): return self.action.mainframe.plotPanel.load_and_draw  # or action.guiCallback
-    @property
-    def pipeLike(self): return self.action.mainframe.plotPanel.pipeLike
-    @property
-    def tabList(self): return self.action.mainframe.plotPanel.selPanel.tabList # a bit unfortunate
 
     # --- Implementation specific
     def guessMask(self):
@@ -197,46 +184,4 @@ class MaskToolPanel(GUIToolPanel):
         if len(self.data['maskString'])==0:
             self.data['maskString'] = self.guessMask() # no known mask, we guess one to help the user
         self.textMask.SetValue(self.data['maskString'])
-
-    def onToggleApply(self, event=None, init=False):
-        if not init:
-            self.data['active'] = not self.data['active']
-
-        # Check if action is already in pipeline
-        i = self.pipeLike.index(self.action)
-
-        if self.data['active']:
-            self._GUI2Data()
-            # We update the GUI
-            self.guiActionAppliedState()
-            # Add action to pipeline, apply it, update the GUI
-            self.addActionHandle(self.action, overwrite=True, apply=True, tabList=self.tabList, updateGUI=True)
-        else:
-            if not init:
-                # Remove action from pipeline, cancel it, update the GUI
-                self.removeActionHandle(self.action, cancel=True, tabList=self.tabList, updateGUI=True)
-            else:
-                self.cancelAction()
-
-    def onAdd(self, event=None):
-        """ 
-        Apply tableFunction on all selected tables, create new tables, add them to the GUI
-        """
-        self._GUI2Data()
-        iSel         = self.cbTabs.GetSelection()
-        # TODO this should be handled by the action
-        dfs, names, errors = self.tabList.applyCommonMaskString(self.data['maskString'], bAdd=True)
-        if len(errors)>0:
-            raise Exception('Error: The mask failed on some tables:\n\n'+'\n'.join(errors))
-
-        # We stop applying if we were applying it (NOTE: doing this before adding table due to redraw trigger of the whole panel)
-        if self.data['active']:
-            self.onToggleApply()
-
-        self.addTablesHandle(dfs, names, bAdd=True, bPlot=False) # Triggers a redraw of the whole panel...
-        #if iSel==0:
-        #else:
-        #    dfs, name = tabList[iSel-1].applyMaskString(self.data['maskString'], bAdd=True)
-        #    self.parent.addTables([dfs],[name], bAdd=True)
-        #self.updateTabList()
 
