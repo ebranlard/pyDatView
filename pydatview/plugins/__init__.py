@@ -44,6 +44,20 @@ def _data_standardizeUnitsWE(label, mainframe=None):
     return standardizeUnitsAction(label, mainframe, flavor='WE')
 
 
+# --- Tools
+def _tool_logdec(*args, **kwargs):
+    from .tool_logdec import LogDecToolPanel
+    return LogDecToolPanel(*args, **kwargs)
+
+def _tool_curvefitting(*args, **kwargs):
+    from .tool_curvefitting import CurveFitToolPanel
+    return CurveFitToolPanel(*args, **kwargs)
+
+def _tool_radialavg(*args, **kwargs):
+    from .tool_radialavg import RadialToolPanel
+    return RadialToolPanel(*args, **kwargs)
+
+
 dataPlugins=[
         # Name/label             , callback                , is a Panel
         ('Mask'                  , _data_mask              , True ),
@@ -54,6 +68,13 @@ dataPlugins=[
         ('Standardize Units (SI)', _data_standardizeUnitsSI, False),
         ('Standardize Units (WE)', _data_standardizeUnitsWE, False),
         ]
+
+
+TOOLS={
+ 'LogDec':            _tool_logdec,
+ 'FASTRadialAverage': _tool_radialavg,
+ 'CurveFitting':      _tool_curvefitting,
+}
 
 
 

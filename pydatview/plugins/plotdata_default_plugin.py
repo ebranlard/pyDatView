@@ -1,6 +1,6 @@
 import wx
 import numpy as np
-from pydatview.GUITools import GUIToolPanel, TOOL_BORDER
+from pydatview.plugins.base_plugin import GUIToolPanel, TOOL_BORDER
 from pydatview.common import CHAR, Error, Info, pretty_num_short
 from pydatview.common import DummyMainFrame
 from pydatview.plotdata import PlotData

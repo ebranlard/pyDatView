@@ -1,6 +1,6 @@
 import wx
 import numpy as np
-from pydatview.GUITools import TOOL_BORDER
+from pydatview.plugins.base_plugin import GUIToolPanel, TOOL_BORDER
 from pydatview.plugins.plotdata_default_plugin import PlotDataActionEditor
 from pydatview.common import Error, Info
 from pydatview.pipeline import PlotDataAction
@@ -159,7 +159,7 @@ class FilterToolPanel(PlotDataActionEditor):
         try:
             opt['param']=np.float(self.spintxt.Value)
         except:
-            print('[WARN] pyDatView: Issue on Mac: GUITools.py/_GUI2Data. Help needed.')
+            print('[WARN] pyDatView: Issue on Mac: plotdata_filter.py/_GUI2Data. Help needed.')
             opt['param']=np.float(self.tParam.Value)
         if opt['param']<opt['paramRange'][0]:
             opt['param']=opt['paramRange'][0]

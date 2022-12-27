@@ -783,7 +783,7 @@ class PlotPanel(wx.Panel):
             self.plotsizer.Layout()
 
     def showTool(self, toolName=''):
-        from .GUITools import TOOLS
+        from pydatview.plugins import TOOLS
         if toolName in TOOLS.keys():
             self.showToolPanel(panelClass=TOOLS[toolName])
         else:

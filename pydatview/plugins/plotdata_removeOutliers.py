@@ -1,6 +1,6 @@
 import wx
 import numpy as np
-from pydatview.GUITools import TOOL_BORDER
+from pydatview.plugins.base_plugin import GUIToolPanel, TOOL_BORDER
 from pydatview.plugins.plotdata_default_plugin import PlotDataActionEditor
 from pydatview.common import Error, Info
 from pydatview.pipeline import PlotDataAction
