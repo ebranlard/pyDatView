@@ -199,7 +199,7 @@ class TableList(object): # todo inherit list
         else:
             raise Exception('Sorting method unknown: `{}`'.format(method))
 
-    def mergeTabs(self, I=None, ICommonColPerTab=None, samplDict=None, extrap='nan'):
+    def mergeTabs(self, I=None, ICommonColPerTab=None, extrap='nan'):
         """ 
         Merge table together.
         TODO: add options for how interpolation/merging is done

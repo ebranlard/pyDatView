@@ -1,4 +1,12 @@
-import wx
+try:
+    import wx
+    HAS_WX=True
+except:
+    # Creating a fake wx package just so that this package can be imported without failing 
+    # and plugins can be tested without GUI
+    print('[FAIL] cannot import wx')
+    wx=type('wx', (object,), {'Panel':object})
+    HAS_WX=False
 import numpy as np
 from pydatview.common import CHAR, Error, Info
 from pydatview.plotdata import PlotData

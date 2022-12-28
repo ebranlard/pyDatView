@@ -1,4 +1,3 @@
-import wx
 import numpy as np
 from pydatview.plugins.base_plugin import PlotDataActionEditor, TOOL_BORDER
 from pydatview.common import Error, Info
@@ -60,6 +59,7 @@ def samplerTabAdd(tab, opts):
 class SamplerToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
+        import wx
         PlotDataActionEditor.__init__(self, parent, action, tables=True)
 
         # --- Data

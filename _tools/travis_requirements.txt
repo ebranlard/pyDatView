@@ -5,3 +5,4 @@ pyarrow # for parquet files
 matplotlib 
 chardet
 scipy
+attrdict3
