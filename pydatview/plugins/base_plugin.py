@@ -327,7 +327,7 @@ class PlotDataActionEditor(ActionEditor):
         self.plotPanel.canvas.draw()
 
 
-def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableFunctionAdd=None):
+def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableFunctionAdd=None, mainLoop=True, title='Demo'):
     """ Function to demonstrate behavior of a plotdata plugin"""
     from pydatview.pipeline import PlotDataAction
     from pydatview.common import DummyMainFrame
@@ -344,7 +344,7 @@ def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableF
     # --- Data
     tabList   = TableList.createDummy(nTabs=2, n=100, addLabel=False)
     app = wx.App(False)
-    self = wx.Frame(None,-1,"Data Binning GUI")
+    self = wx.Frame(None,-1, title)
     pipeline = Pipeline()
 
     # --- Panels
@@ -368,7 +368,7 @@ def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableF
             )
 
     # --- Create main object to be tested
-    p = panelClass(self.plotPanel, action=action, tables=False)
+    p = panelClass(self.plotPanel, action=action)
 
     # --- Finalize GUI
     sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -377,9 +377,11 @@ def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableF
     self.SetSizer(sizer)
     self.SetSize((900, 600))
     self.Center()
-    self.Show()
     self.plotPanel.showToolPanel(panel=p) # <<< Show
-    app.MainLoop()
+
+    if mainLoop:
+        self.Show()
+        app.MainLoop()
 
 if __name__ == '__main__':
 

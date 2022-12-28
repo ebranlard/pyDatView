@@ -728,7 +728,7 @@ class Table(object):
             c = self.data.iloc[:, i]
             x = self.data.iloc[:, i].values
 
-        isString = c.dtype == np.object and isinstance(c.values[0], str)
+        isString = c.dtype == object and isinstance(c.values[0], str)
         if isString:
             x=x.astype(str)
         isDate   = np.issubdtype(c.dtype, np.datetime64)

@@ -413,7 +413,7 @@ class PlotPanel(wx.Panel):
         if data is not None:
             self.data  = data
         else:
-            print('>>> Using default settings for plot panel')
+            #print('>>> Using default settings for plot panel')
             self.data = self.defaultData()
         if self.selPanel is not None:
             bg=self.selPanel.BackgroundColour

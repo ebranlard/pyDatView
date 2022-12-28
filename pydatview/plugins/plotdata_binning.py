@@ -140,10 +140,7 @@ class BinningToolPanel(PlotDataActionEditor):
         self.textXMax.Bind(wx.EVT_TEXT_ENTER, self.onParamChangeEnter)
 
         # --- Init triggers
-        if self.data['active']:
-            self.setXRange(x=[self.data['xMin'], self.data['xMax']])
-        else:
-            self.setXRange()
+        self.setXRange()
         self._Data2GUI()
         self.onToggleApply(init=True)
 
@@ -154,7 +151,10 @@ class BinningToolPanel(PlotDataActionEditor):
 
     def setXRange(self, x=None):
         if x is None:
-            x= self.plotPanel.plotData[0].x0
+            if self.data['active']:
+                x=[self.data['xMin'], self.data['xMax']]
+            else:
+                x= self.plotPanel.plotData[0].x0
         xmin, xmax = np.nanmin(x), np.nanmax(x)
         self.textXMin.SetValue(pretty_num_short(xmin))
         self.textXMax.SetValue(pretty_num_short(xmax))
