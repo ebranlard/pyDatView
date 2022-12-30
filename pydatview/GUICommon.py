@@ -41,6 +41,18 @@ def getMonoFont(widget):
     font.SetPointSize(_MONOFONTSIZE)
     return font
 
+
+class DummyPanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent, -1)
+        self.SetBackgroundColour((0,100,0))
+        txt = wx.StaticText(self, -1, 'This is a dummy panel')
+
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(txt, 0, wx.ALL , 10)
+        sizer.AddSpacer(3) 
+        self.SetSizer(sizer)
+
 # --------------------------------------------------------------------------------}
 # --- Helper functions
 # --------------------------------------------------------------------------------{

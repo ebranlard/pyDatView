@@ -24,6 +24,7 @@ from .GUIPlotPanel import PlotPanel
 from .GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
 from .GUISelectionPanel import ColumnPopup,TablePopup
 from .GUIInfoPanel import InfoPanel
+from .GUIPipelinePanel import PipelinePanel
 from .GUIToolBox import GetKeyString, TBAddTool
 from .Tables import TableList, Table
 # Helper
@@ -31,7 +32,7 @@ from .common import *
 from .GUICommon import *
 import pydatview.io as weio # File Formats and File Readers
 # Pluggins
-from .plugins import dataPlugins
+from .plugins import DATA_PLUGINS_WITH_EDITOR, DATA_PLUGINS_SIMPLE, DATA_TOOLS, TOOLS
 from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
 # --------------------------------------------------------------------------------}
@@ -139,22 +140,24 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU,self.onExport,exptMenuItem)
         self.Bind(wx.EVT_MENU,self.onSave  ,saveMenuItem)
 
+        # --- Data Plugins
+        # NOTE: very important, need "s_loc" otherwise the lambda function take the last toolName
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e, 'Mask')  , dataMenu.Append(wx.ID_ANY, 'Mask'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Outlier'), dataMenu.Append(wx.ID_ANY, 'Outliers removal'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Filter') , dataMenu.Append(wx.ID_ANY, 'Filter'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Resample') , dataMenu.Append(wx.ID_ANY, 'Resample'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
+        for toolName in DATA_TOOLS.keys(): # TODO remove me, should be an action
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
 
-        # --- Data Plugins
-        for string, function, isPanel in dataPlugins:
-            self.Bind(wx.EVT_MENU, lambda e, s_loc=string: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, string))
+        for toolName in DATA_PLUGINS_WITH_EDITOR.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
 
+        for toolName in DATA_PLUGINS_SIMPLE.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
+
+        # --- Tools Plugins
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
-        self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'CurveFitting'), toolMenu.Append(wx.ID_ANY, 'Curve fitting'))
-        self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'LogDec')      , toolMenu.Append(wx.ID_ANY, 'Damping from decay'))
+        for toolName in TOOLS.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), toolMenu.Append(wx.ID_ANY, toolName))
 
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
@@ -208,6 +211,9 @@ class MainFrame(wx.Frame):
         self.statusbar=self.CreateStatusBar(3, style=0)
         self.statusbar.SetStatusWidths([150, -1, 70])
 
+        # --- Pipeline
+        self.pipePanel = PipelinePanel(self, data=self.data['pipeline'], tabList=self.tabList)
+
         # --- Main Panel and Notebook
         self.MainPanel = wx.Panel(self)
         #self.MainPanel = wx.Panel(self, style=wx.RAISED_BORDER)
@@ -230,6 +236,7 @@ class MainFrame(wx.Frame):
         slSep = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         self.FrameSizer.Add(slSep         ,0, flag=wx.EXPAND|wx.BOTTOM,border=0)
         self.FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND,border=0)
+        self.FrameSizer.Add(self.pipePanel,0, flag=wx.EXPAND,border=0)
         self.SetSizer(self.FrameSizer)
 
         self.SetSize(self.data['windowSize'])
@@ -293,7 +300,14 @@ class MainFrame(wx.Frame):
         #filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
 
         # Load the tables
-        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload, statusFunction=statusFunction)
+        newTabs, warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload, statusFunction=statusFunction)
+
+        # Apply postLoad pipeline
+        if bReload:
+            self.applyPipeline(self.tabList, force=True) # we force on reload
+        else:
+            self.applyPipeline(newTabs, force=True, applyToAll=True) # we apply only on newTabs
+
         if bReload:
             # Restore formulas that were previously added
             for tab in self.tabList:
@@ -308,18 +322,15 @@ class MainFrame(wx.Frame):
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=bPlot)
 
-    def load_df(self, df, name=None, bAdd=False, bPlot=True):
-        if bAdd:
-            self.tabList.append(Table(data=df, name=name))
-        else:
-            self.tabList = TableList( [Table(data=df, name=name)] )
-        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
-        if hasattr(self,'selPanel'):
-            self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
-
-    def load_dfs(self, dfs, names, bAdd=False):
+    def load_dfs(self, dfs, names=None, bAdd=False, bPlot=True):
+        """ Load one or multiple dataframes intoGUI """
+        # 
+        if not isinstance(dfs,list):
+            dfs=[dfs]
+        if not isinstance(names,list):
+            names=[names]
         self.tabList.from_dataframes(dataframes=dfs, names=names, bAdd=bAdd)
-        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=True)
+        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
 
@@ -347,7 +358,7 @@ class MainFrame(wx.Frame):
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, self, data=self.data['plotPanel'])
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeLike=self.pipePanel, data=self.data['plotPanel'])
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -366,13 +377,15 @@ class MainFrame(wx.Frame):
             self.MainPanel.SetSizer(sizer)
             self.FrameSizer.Layout()
 
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel1.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel1.lbColumns)
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel2.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel2.lbColumns)
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel3.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel3.lbColumns)
-            self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.tabPanel.lbTab)
+
+            # --- Bind 
+            # The selPanel does the binding, but the callback is stored here because it involves plotPanel... TODO, rethink it
+            #self.selPanel.bindColSelectionChange(self.onColSelectionChangeCallBack)
+            self.selPanel.setTabSelectionChangeCallback(self.onTabSelectionChangeTrigger)
+            self.selPanel.setRedrawCallback(self.redrawCallback)
+            self.selPanel.setUpdateLayoutCallback(self.mainFrameUpdateLayout)
+            self.plotPanel.setAddTablesCallback(self.load_dfs)
+
             self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
 
         # plot trigger
@@ -386,7 +399,10 @@ class MainFrame(wx.Frame):
         # Hack
         #self.onShowTool(tool='Filter')
         #self.onShowTool(tool='Resample')
+        #self.onDataPlugin(toolName='Mask')
         #self.onDataPlugin(toolName='Bin data')
+        #self.onDataPlugin(toolName='Remove Outliers')
+        #self.onDataPlugin(toolName='Filter')
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
@@ -397,13 +413,13 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('', ISTAT+1) # Filenames
             self.statusbar.SetStatusText('', ISTAT+2) # Shape
         elif nTabs==1:
-            self.statusbar.SetStatusText(self.tabList.get(0).fileformat_name, ISTAT+0)
-            self.statusbar.SetStatusText(self.tabList.get(0).filename       , ISTAT+1)
-            self.statusbar.SetStatusText(self.tabList.get(0).shapestring    , ISTAT+2)
+            self.statusbar.SetStatusText(self.tabList[0].fileformat_name, ISTAT+0)
+            self.statusbar.SetStatusText(self.tabList[0].filename       , ISTAT+1)
+            self.statusbar.SetStatusText(self.tabList[0].shapestring    , ISTAT+2)
         elif len(ISel)==1:
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat_name , ISTAT+0)
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename        , ISTAT+1)
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring     , ISTAT+2)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].fileformat_name , ISTAT+0)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].filename        , ISTAT+1)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].shapestring     , ISTAT+2)
         else:
             self.statusbar.SetStatusText('{} tables loaded'.format(nTabs)                                                     ,ISTAT+0) 
             self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),ISTAT+1)
@@ -413,21 +429,6 @@ class MainFrame(wx.Frame):
     def renameTable(self, iTab, newName):
         oldName = self.tabList.renameTable(iTab, newName)
         self.selPanel.renameTable(iTab, oldName, newName)
-
-    def sortTabs(self, method='byName'):
-        self.tabList.sort(method=method)
-        # Updating tables
-        self.selPanel.update_tabs(self.tabList)
-        # Trigger a replot
-        self.onTabSelectionChange()
-
-    def mergeTabsTrigger(self):
-        if hasattr(self,'selPanel'):
-            # Select the newly created table
-            self.selPanel.tabPanel.lbTab.SetSelection(-1) # Empty selection
-            self.selPanel.tabPanel.lbTab.SetSelection(len(self.tabList)-1) # Select new/last table
-            # Trigger a replot
-            self.onTabSelectionChange()
 
     def deleteTabs(self, I):
         self.tabList.deleteTabs(I)
@@ -446,9 +447,8 @@ class MainFrame(wx.Frame):
         # Trigger a replot
         self.onTabSelectionChange()
 
-
     def exportTab(self, iTab):
-        tab=self.tabList.get(iTab)
+        tab=self.tabList[iTab]
         default_filename=tab.basename +'.csv'
         with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename,
                 style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
@@ -458,7 +458,7 @@ class MainFrame(wx.Frame):
                 return     # the user changed their mind
             tab.export(dlg.GetPath())
 
-    def onShowTool(self, event=None, tool=''):
+    def onShowTool(self, event=None, toolName=''):
         """ 
         Show tool
         tool in 'Outlier', 'Filter', 'LogDec','FASTRadialAverage', 'Mask', 'CurveFitting'
@@ -466,7 +466,7 @@ class MainFrame(wx.Frame):
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
             return
-        self.plotPanel.showTool(tool)
+        self.plotPanel.showTool(toolName)
 
     def onDataPlugin(self, event=None, toolName=''):
         """ 
@@ -479,47 +479,68 @@ class MainFrame(wx.Frame):
             Error(self,'Plot some data first')
             return
 
-        for thisToolName, function, isPanel in dataPlugins:
-            if toolName == thisToolName:
-                if isPanel:
-                    panelClass = function(self, event, toolName) # getting panelClass
-                    self.plotPanel.showToolPanel(panelClass)
-                else:
-                    function(self, event, toolName) # calling the data function
-                return
-        raise NotImplementedError('Tool: ',toolName)
+        if toolName in DATA_PLUGINS_WITH_EDITOR.keys():
+            # Check to see if the pipeline already contains this action
+            action = self.pipePanel.find(toolName) # old action to edit
+            if action is None:
+                function = DATA_PLUGINS_WITH_EDITOR[toolName]
+                action = function(label=toolName, mainframe=self) # getting brand new action
+            else:
+                print('>>> The action already exists, we use it for the GUI')
+            self.plotPanel.showToolAction(action)
+            # The panel will have the responsibility to apply/delete the action, updateGUI, etc
+        elif toolName in DATA_PLUGINS_SIMPLE.keys():
+            print('>>> toolName')
+            function = DATA_PLUGINS_SIMPLE[toolName]
+            action = function(label=toolName, mainframe=self) # calling the data function
+            # Here we apply the action directly
+            # We can't overwrite, so we'll delete by name..
+            self.addAction(action, overwrite=False, apply=True, tabList=self.tabList, updateGUI=True)
+        else:
+            raise NotImplementedError('Tool: ',toolName)
 
+    # --- Pipeline
+    def addAction(self, action, **kwargs):
+        self.pipePanel.append(action, **kwargs)
+    def removeAction(self, action, **kwargs):
+        self.pipePanel.remove(action, **kwargs)
+    def applyPipeline(self, *args, **kwargs):
+        self.pipePanel.apply(*args, **kwargs)
 
-    def onSashChangeMain(self,event=None):
+    def onSashChangeMain(self, event=None):
         pass
         # doent work because size is not communicated yet
         #if hasattr(self,'selPanel'):
         #    print('ON SASH')
         #    self.selPanel.setEquiSash(event)
 
-    def onTabSelectionChange(self,event=None):
-        # TODO This can be cleaned-up
-        ISel=self.selPanel.tabPanel.lbTab.GetSelections()
-        if len(ISel)>0:
-            # Letting seletion panel handle the change
-            self.selPanel.tabSelectionChanged()
-            # Update of status bar
-            self.setStatusBar(ISel)
-            # Trigger the colSelection Event
-            self.onColSelectionChange(event=None)
 
-    def onColSelectionChange(self,event=None):
-        if hasattr(self,'plotPanel'):
-            # Letting selection panel handle the change
-            self.selPanel.colSelectionChanged()
-            # Redrawing
-            self.plotPanel.load_and_draw()
-            # --- Stats trigger
-            #self.showStats()
+    def onTabSelectionChange(self, event=None):
+        # TODO get rid of me
+        self.selPanel.onTabSelectionChange()
+
+    def onColSelectionChange(self, event=None):
+        # TODO get rid of me
+        self.selPanel.onColSelectionChange()
 
     def redraw(self):
+        # TODO get rid of me
+        self.redrawCallback()
+
+    # --- CallBacks sent to panels
+    def onTabSelectionChangeTrigger(self, event=None):
+        # Update of status bar
+        ISel=self.selPanel.tabPanel.lbTab.GetSelections()
+        if len(ISel)>0:
+            self.setStatusBar(ISel)
+
+    def onColSelectionChangeTrigger(self, event=None):
+        pass
+
+    def redrawCallback(self):
         if hasattr(self,'plotPanel'):
             self.plotPanel.load_and_draw()
+
 #     def showStats(self):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
 

@@ -13,7 +13,7 @@ class TestChangeUnits(unittest.TestCase):
         data[:,2] *= 10*np.pi/180  # rad
         df = pd.DataFrame(data=data, columns=['om [rad/s]','F [N]', 'angle_[rad]'])
         tab=Table(data=df)
-        changeUnits(tab, flavor='WE')
+        changeUnits(tab, data={'flavor':'WE'})
         np.testing.assert_almost_equal(tab.data.values[:,1],[1])
         np.testing.assert_almost_equal(tab.data.values[:,2],[2])
         np.testing.assert_almost_equal(tab.data.values[:,3],[10])

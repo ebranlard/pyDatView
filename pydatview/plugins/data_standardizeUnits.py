@@ -1,38 +1,59 @@
 import unittest
 import numpy as np
 from pydatview.common import splitunit
+from pydatview.pipeline import IrreversibleTableAction
 
-def standardizeUnitsPlugin(mainframe, event=None, label='Standardize Units (SI)'):
+# --------------------------------------------------------------------------------}
+# --- Action
+# --------------------------------------------------------------------------------{
+def standardizeUnitsAction(label, mainframe=None, flavor='SI'):
     """ 
-    Main entry point of the plugin
+    Return an "action" for the current plugin, to be used in the pipeline.
     """
-    flavor = label.split('(')[1][0:2]
+    data = {'flavor':flavor}
 
-    for t in mainframe.tabList:
-        changeUnits(t, flavor=flavor)
+    guiCallback=None
+    if mainframe is not None:
+        # TODO TODO TODO Clean this up
+        def guiCallback():
+            if hasattr(mainframe,'selPanel'):
+                mainframe.selPanel.colPanel1.setColumns()
+                mainframe.selPanel.colPanel2.setColumns()
+                mainframe.selPanel.colPanel3.setColumns()
+                mainframe.onTabSelectionChange()             # trigger replot
+            if hasattr(mainframe,'pipePanel'):
+                pass
+    # Function that will be applied to all tables
 
-    if hasattr(mainframe,'selPanel'):
-        mainframe.selPanel.colPanel1.setColumns()
-        mainframe.selPanel.colPanel2.setColumns()
-        mainframe.selPanel.colPanel3.setColumns()
-        mainframe.onTabSelectionChange()             # trigger replot
+    action = IrreversibleTableAction(
+            name=label, 
+            tableFunctionApply=changeUnits, 
+            guiCallback=guiCallback,
+            mainframe=mainframe, # shouldnt be needed
+            data = data 
+            )
 
-def changeUnits(tab, flavor='SI'):
+    return action
+
+# --------------------------------------------------------------------------------}
+# --- Main method
+# --------------------------------------------------------------------------------{
+def changeUnits(tab, data):
     """ Change units of a table
     NOTE: it relies on the Table class, which may change interface in the future..
     """
-    if flavor=='WE':
+    if data['flavor']=='WE':
         for i, colname in enumerate(tab.columns):
             colname, tab.data.iloc[:,i] = change_units_to_WE(colname, tab.data.iloc[:,i])
             tab.columns[i]      = colname # TODO, use a dataframe everywhere..
         tab.data.columns = tab.columns
-    elif flavor=='SI':
+    elif data['flavor']=='SI':
         for i, colname in enumerate(tab.columns):
             colname, tab.data.iloc[:,i] = change_units_to_SI(colname, tab.data.iloc[:,i])
             tab.columns[i]      = colname # TODO, use a dataframe everywhere..
         tab.data.columns = tab.columns
     else:
-        raise NotImplementedError(flavor)
+        raise NotImplementedError(data['flavor'])
 
 
 def change_units_to_WE(s, c):
@@ -95,7 +116,7 @@ class TestChangeUnits(unittest.TestCase):
         data[:,2] *= 10*np.pi/180  # rad
         df = pd.DataFrame(data=data, columns=['om [rad/s]','F [N]', 'angle_[rad]'])
         tab=Table(data=df)
-        changeUnits(tab, flavor='WE')
+        changeUnits(tab, {'flavor':'WE'})
         np.testing.assert_almost_equal(tab.data.values[:,0],[1])
         np.testing.assert_almost_equal(tab.data.values[:,1],[2])
         np.testing.assert_almost_equal(tab.data.values[:,2],[10])

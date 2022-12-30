@@ -35,6 +35,16 @@ class TableList(object): # todo inherit list
         return options
 
     # --- behaves like a list...
+    #def __delitem__(self, key):
+    #    self.__delattr__(key)
+
+    def __getitem__(self, key):
+        return self._tabs[key]
+
+    def __setitem__(self, key, value):
+        raise Exception('Setting not allowed')
+        self._tabs[key] = value
+
     def __iter__(self):
         self.__n = 0
         return self
@@ -78,6 +88,7 @@ class TableList(object): # todo inherit list
 
         # Loop through files, appending tables within files
         warnList=[]
+        newTabs=[]
         for i, (f,ff) in enumerate(zip(filenames, fileformats)):
             if statusFunction is not None:
                 statusFunction(i)
@@ -91,11 +102,12 @@ class TableList(object): # todo inherit list
                 if len(warnloc)>0:
                     warnList.append(warnloc)
                 self.append(tabs)
+                newTabs +=tabs
         
-        return warnList
+        return newTabs, warnList
 
     def _load_file_tabs(self, filename, fileformat=None, bReload=False):
-        """ load a single file, adds table """
+        """ load a single file, returns a list (often of size one) of tables """
         # Returning a list of tables 
         tabs=[]
         warn=''
@@ -162,11 +174,6 @@ class TableList(object): # todo inherit list
             warn='Warn: No dataframe found in file: '+filename+'\n'
         return tabs, warn
 
-    def getTabs(self):
-        # TODO remove me later
-        return self._tabs
-
-
     def haveSameColumns(self,I=None):
         if I is None:
             I=list(range(len(self._tabs)))
@@ -192,7 +199,7 @@ class TableList(object): # todo inherit list
         else:
             raise Exception('Sorting method unknown: `{}`'.format(method))
 
-    def mergeTabs(self, I=None, ICommonColPerTab=None, samplDict=None, extrap='nan'):
+    def mergeTabs(self, I=None, ICommonColPerTab=None, extrap='nan'):
         """ 
         Merge table together.
         TODO: add options for how interpolation/merging is done
@@ -388,18 +395,21 @@ class TableList(object): # todo inherit list
                     names_new.append(n)
         return dfs_new, names_new, errors
 
-
     # --- Element--related functions
     def get(self,i):
+        print('.>> GET')
         return self._tabs[i]
 
 
 
     @staticmethod
-    def createDummyList(nTab=3):
+    def createDummy(nTabs=3, n=30, addLabel=True):
         tabs=[]
-        for iTab in range(nTab):
-            tabs.append( Table.createDummy() )
+        label=''
+        for iTab in range(nTabs):
+            if addLabel:
+                label='_'+str(iTab)
+            tabs.append( Table.createDummy(n=n, label=label))
         tablist = TableList(tabs)
         return tablist
 
@@ -414,7 +424,8 @@ class Table(object):
       - data
       - columns
       - name
-      - raw_name 
+      - raw_name      # Should be unique and can be used for identification
+      - ID            # Should be unique and can be used for identification
       - active_name
       - filename   
       - fileformat 
@@ -500,6 +511,7 @@ class Table(object):
         s+=' - fileformat_name : {}\n'.format(self.fileformat_name)
         s+=' - columns    : {}\n'.format(self.columns)
         s+=' - nCols x nRows: {}x{}\n'.format(self.nCols, self.nRows)
+        s+=' - maskString: {}\n'.format(self.maskString)
         return s
 
     def columnsFromDF(self,df):
@@ -613,11 +625,13 @@ class Table(object):
             names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
         return dfs_new, names_new
 
-    def changeUnits(self, flavor='WE'):
+    def changeUnits(self, data=None):
         """ Change units of the table """
+        if data is None:
+            data={'flavor':'WE'}
         # NOTE: moved to a plugin, but interface kept
         from pydatview.plugins.data_standardizeUnits import changeUnits
-        changeUnits(self, flavor=flavor)
+        changeUnits(self, data=data)
 
     def convertTimeColumns(self, dayfirst=False):
         if len(self.data)>0:
@@ -714,7 +728,7 @@ class Table(object):
             c = self.data.iloc[:, i]
             x = self.data.iloc[:, i].values
 
-        isString = c.dtype == np.object and isinstance(c.values[0], str)
+        isString = c.dtype == object and isinstance(c.values[0], str)
         if isString:
             x=x.astype(str)
         isDate   = np.issubdtype(c.dtype, np.datetime64)
@@ -810,21 +824,21 @@ class Table(object):
         return len(self.data.iloc[:,0]) # TODO if not panda
     
     @staticmethod
-    def createDummy(n=5, lab=''):
+    def createDummy(n, label=''):
         """ create a dummy table of length n"""
-        t = np.arange(0,0.5*n,0.5)
-        x = t+10
+        t = np.linspace(0, 4*np.pi, n)
+        x = np.sin(t)+10
         alpha_d = np.linspace(0, 360, n)
         P = np.random.normal(0,100,n)+5000
         RPM = np.random.normal(-0.2,0.2,n) + 12.
 
         d={'Time_[s]':t,  
-                'x{}_[m]'.format(lab): x, 
-                'alpha{}_[deg]'.format(lab):alpha_d,
-                'P{}_[W]'.format(lab):P, 
-                'RotSpeed{}_[rpm]'.format(lab):RPM}
+                'x{}_[m]'.format(label): x, 
+                'alpha{}_[deg]'.format(label):alpha_d,
+                'P{}_[W]'.format(label):P, 
+                'RotSpeed{}_[rpm]'.format(label):RPM}
         df = pd.DataFrame(data=d)
-        return Table(data=df)
+        return Table(data=df, name='Dummy '+label)
 
 
 if __name__ == '__main__':

@@ -4,6 +4,7 @@ import os
 import platform
 import datetime
 import re
+import inspect
 
 CHAR={
 'menu'     : u'\u2630',
@@ -438,3 +439,14 @@ def isString(x):
 def isDate(x):
     return np.issubdtype(x.dtype, np.datetime64)
 
+
+
+# Create a Dummy Main Frame Class for testing purposes (e.g. of plugins)
+
+class DummyMainFrame():
+    def __init__(self, parent): self.parent=parent; 
+    def addAction            (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+    def removeAction         (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+    def load_dfs             (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+    def mainFrameUpdateLayout(self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+    def redraw               (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
