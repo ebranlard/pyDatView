@@ -25,12 +25,17 @@ jobs:
       - name: Versioning
         id: versioning
         run: |
-          git fetch --unshallow
-          git fetch --tags
+          git fetch --unshallow   > /dev/null
+          git fetch --tags        > /dev/null
           export CURRENT_TAG="v0.3"
           export CURRENT_DEV_TAG="$CURRENT_TAG-dev"
+          # BRANCH FAILS
+          export BRANCH1=`git rev-parse --abbrev-ref HEAD`
+          export BRANCH="${GITHUB_REF#refs/heads/}"
           echo "GIT DESCRIBE:      `git describe`"
           echo "GITHUB_REF:        $GITHUB_REF"
+          echo "GIT BRANCH1:       $BRANCH1"
+          echo "GIT BRANCH:        $BRANCH"
           echo "Commits:           `git rev-list $CURRENT_TAG.. --count`"
           echo "Commits-dev:       `git rev-list $CURRENT_DEV_TAG.. --count`"
           # Check if current version corresponds to a tagged commit
@@ -44,8 +49,13 @@ jobs:
               export VERSION_TAG=$CURRENT_TAG 
               export VERSION_NAME="$CURRENT_TAG-`git rev-list $CURRENT_TAG.. --count`"
               export FULL_VERSION_NAME="version $VERSION_NAME"
+              #elif [[ $BRANCH == "dev" ]]; then 
+              #    echo ">>> This is not a tagged version, but on the dev branch"
+              #    export VERSION_TAG=$CURRENT_DEV_TAG ;
+              #    export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
+              #    export FULL_VERSION_NAME="latest dev. version $VERSION_NAME"
           else
-              echo ">>> This is not a tagged version"
+              echo ">>> This is not a tagged version, but on a special branch"
               export VERSION_TAG=$CURRENT_DEV_TAG ;
               export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
               export FULL_VERSION_NAME="latest dev. version $VERSION_NAME"
@@ -54,6 +64,7 @@ jobs:
           echo "VERSION_NAME:      $VERSION_NAME"
           echo "FULL_VERSION_NAME: $FULL_VERSION_NAME"
           # Save variables as github outputs
+          echo "BRANCH=$BRANCH"                       >> $GITHUB_OUTPUT
           echo "VERSION_TAG=$VERSION_TAG"             >> $GITHUB_OUTPUT
           echo "VERSION_NAME=$VERSION_NAME"           >> $GITHUB_OUTPUT
           echo "FULL_VERSION_NAME=$FULL_VERSION_NAME" >> $GITHUB_OUTPUT
@@ -93,20 +104,25 @@ jobs:
         env:
             PY_VERSION: ${{matrix.python-version}}
             GH_EVENT  : ${{github.event_name}}
+            BRANCH    : ${{steps.versioning.outputs.BRANCH}}
         run: |
           echo "GH_EVENT    :  $GH_EVENT"
           echo "PY_VERSION  :  $PY_VERSION"
+          echo "GIT BRANCH  :  $BRANCH"
           export OK=0
           # Only deploy for push events
           if [[ $PY_VERSION == "3.9" ]]; then
             if [[ $GH_EVENT == "push" ]]; then 
+              # BRANCH FAILS
+              if [[ $BRANCH == "main" ]] || [[ $BRANCH == "dev" ]] || [[ $BRANCH == "HEAD" ]] ; then 
                 export OK=1 ;
+              fi
             fi
           fi
           echo "DEPLOY      : $OK"
           if [[ $OK == "1" ]]; then
               echo ">>> Deployment WILL take place"
-            else
+          else
               echo ">>> Deployment WILL NOT take place"
           fi
           # Save variables as github outputs
