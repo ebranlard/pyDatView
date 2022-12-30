@@ -53,9 +53,10 @@ jobs:
           echo "VERSION_TAG        $VERSION_TAG"
           echo "VERSION_NAME:      $VERSION_NAME"
           echo "FULL_VERSION_NAME: $FULL_VERSION_NAME"
-          echo "::set-output name=FULL_VERSION_NAME::$FULL_VERSION_NAME"
-          echo "::set-output name=VERSION_NAME::$VERSION_NAME"
-          echo "::set-output name=VERSION_TAG::$VERSION_TAG"
+          # Save variables as github outputs
+          echo "VERSION_TAG=$VERSION_TAG"             >> $GITHUB_OUTPUT
+          echo "VERSION_NAME=$VERSION_NAME"           >> $GITHUB_OUTPUT
+          echo "FULL_VERSION_NAME=$FULL_VERSION_NAME" >> $GITHUB_OUTPUT
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
@@ -103,7 +104,13 @@ jobs:
             fi
           fi
           echo "DEPLOY      : $OK"
-          echo "::set-output name=GO::$OK"
+          if [[ $OK == "1" ]]; then
+              echo ">>> Deployment WILL take place"
+            else
+              echo ">>> Deployment WILL NOT take place"
+          fi
+          # Save variables as github outputs
+          echo "GO=$OK"  >> $GITHUB_OUTPUT
 
       # --- Run Deployments
       - name: Install system dependencies
