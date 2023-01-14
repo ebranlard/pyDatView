@@ -317,7 +317,6 @@ class TablePopup(wx.Menu):
         nCommonCols = len(IKeepPerTab[0])
         commonCol        = None
         ICommonColPerTab = None
-        samplDict        = None
         if nCommonCols>=2: # NOTE: index will always be a duplicated...
             # We use the first one
             # TODO Menu to figure out which column to chose and how to merge (interp?)
@@ -330,7 +329,7 @@ class TablePopup(wx.Menu):
             pass
 
         # Merge tables and add it to the list
-        self.tabList.mergeTabs(self.ISel, ICommonColPerTab, samplDict=samplDict)
+        self.tabList.mergeTabs(self.ISel, ICommonColPerTab)
         # Updating tables
         self.selPanel.update_tabs(self.tabList)
         # TODO select latest
