@@ -58,7 +58,11 @@ def equivalent_load(signal, m=3, Teq=1, nBins=46, method='rainflow_windap'):
     elif method=='fatpack':
         import fatpack
         # find rainflow ranges
-        ranges = fatpack.find_rainflow_ranges(signal)
+        try:
+            ranges = fatpack.find_rainflow_ranges(signal)
+        except IndexError:
+            # Typically fails for constant signal
+            return np.nan
         # find range count and bin
         Nrf, Srf = fatpack.find_range_count(ranges, nBins)
         # get DEL

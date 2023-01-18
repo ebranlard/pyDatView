@@ -609,12 +609,13 @@ class PlotData():
             return v,s
 
     def leq(PD,m):
-        from pydatview.tools.fatigue import eq_load
+        from pydatview.tools.fatigue import equivalent_load
         if PD.yIsString or  PD.yIsDate:
             return 'NA','NA'
         else:
             T,_=PD.xRange()
-            v=eq_load(PD.y, m=m, neq=T)[0][0]
+            v=equivalent_load(PD.y, m=m, Teq=T, nBins=46, method='rainflow_windap')
+            #v=equivalent_load(PD.y, m=m, Teq=T, nBins=46, method='fatpack')
             return v,pretty_num(v)
 
     def Info(PD,var):
