@@ -341,6 +341,8 @@ def pretty_time(t):
     return s
 
 def pretty_num(x):
+    if np.isnan(x):
+        return 'NA'
     if abs(x)<1000 and abs(x)>1e-4:
         return "{:9.4f}".format(x)
     else:

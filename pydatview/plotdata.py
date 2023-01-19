@@ -1,9 +1,8 @@
 import os
 import numpy as np
-from .common import no_unit, unit, inverse_unit, has_chinese_char
-from .common import isString, isDate, getDt
-from .common import unique, pretty_num, pretty_time
-from .GUIMeasure import find_closest # Should not depend on wx 
+from pydatview.common import no_unit, unit, inverse_unit, has_chinese_char
+from pydatview.common import isString, isDate, getDt
+from pydatview.common import unique, pretty_num, pretty_time
 
 class PlotData():
     """ 
@@ -31,6 +30,29 @@ class PlotData():
         PD.xIsDate  =False  # true if dates
         PD.yIsString=False  # true if strings
         PD.yIsDate  =False  # true if dates
+        # Misc data
+        PD._xMin = None
+        PD._xMax = None
+        PD._yMin = None
+        PD._yMax = None
+        PD._xAtYMin = None
+        PD._xAtYMax = None
+        # Backup data
+        PD._x0Min = None
+        PD._x0Max = None
+        PD._y0Min = None
+        PD._y0Max = None
+        PD._x0AtYMin = None
+        PD._x0AtYMax = None
+        PD._y0Std  = None
+        PD._y0Mean = None
+        PD._n0     = None
+        PD.x0 = None
+        PD.y0 = None
+        # Store xyMeas input values so we don't need to recompute xyMeas in case they didn't change
+        PD.xyMeasInput1 = (None, None)
+        PD.xyMeasInput2 = (None, None)
+        PD.xyMeas      = [(None,None)]*2 # 2 measures for now
 
         if x is not None and y is not None:
             PD.fromXY(x,y,sx,sy)
@@ -101,12 +123,10 @@ class PlotData():
         PD._n0     = (n,'{:d}'.format(n))
         PD.x0 =PD.x
         PD.y0 =PD.y
-        # Store xyMeas input values so we don't need to recompute xyMeas in case they didn't change
-        PD.xyMeasInput1, PD.xyMeasInput2 = None, None
-        PD.xyMeas1, PD.xyMeas2 = None, None
 
     def __repr__(s):
         s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}\n'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
+        #s1='id:{}, it:{}, sx:"{}", xyMeas:{}\n'.format(s.id,s.it,s.sx,s.xyMeas)
         return s1
 
     def toPDF(PD, nBins=30, smooth=False):
@@ -496,24 +516,25 @@ class PlotData():
             s=pretty_num(v)
         return v,s
 
-    def meas1(PD, xymeas1, xymeas2):
-        if PD.xyMeasInput1 is not None and PD.xyMeasInput1 == xymeas1:
-            yv = PD.xyMeas1[1]
+    # --------------------------------------------------------------------------------}
+    # --- Measure - TODO: cleanup
+    # --------------------------------------------------------------------------------{
+    def ymeas1(PD):
+        # NOTE: calculation happens in GUIMeasure..
+        if PD.xyMeas[0][0] is not None:
+            yv = PD.xyMeas[0][1]
             s = pretty_num(yv)
         else:
-            xv, yv, s = PD._meas(xymeas1)
-            PD.xyMeas1 = [xv, yv]
-            PD.xyMeasInput1 = xymeas1
+            return np.nan, 'NA'
         return yv, s
 
-    def meas2(PD, xymeas1, xymeas2):
-        if PD.xyMeasInput2 is not None and PD.xyMeasInput2 == xymeas2:
-            yv = PD.xyMeas2[1]
+    def ymeas2(PD):
+        # NOTE: calculation happens in GUIMeasure..
+        if PD.xyMeas[1][0] is not None:
+            yv = PD.xyMeas[1][1]
             s = pretty_num(yv)
         else:
-            xv, yv, s = PD._meas(xymeas2)
-            PD.xyMeas2 = [xv, yv]
-            PD.xyMeasInput2 = xymeas2
+            return np.nan, 'NA'
         return yv, s
 
     def yMeanMeas(PD):
@@ -531,31 +552,17 @@ class PlotData():
     def xAtYMaxMeas(PD):
         return PD._measCalc('xmax')
 
-    def _meas(PD, xymeas):
-        try:
-            xv, yv = 'NA', 'NA'
-            xy = np.array([PD.x, PD.y]).transpose()
-            points = find_closest(xy, [xymeas[0], xymeas[1]], False)
-            if points.ndim == 1:
-                xv, yv = points[0:2]
-                s = pretty_num(yv)
-            else:
-                xv, yv = points[0, 0], points[0, 1]
-                s = ' / '.join([str(p) for p in points[:, 1]])
-        except (IndexError, TypeError):
-            xv, yv = 'NA', 'NA'
-            s='NA'
-        return  xv, yv, s
-
     def _measCalc(PD, mode):
-        if PD.xyMeas1 is None or PD.xyMeas2 is None:
-            return 'NA', 'NA'
+        if PD.xyMeas[0][0] is None or PD.xyMeas[1][0] is None:
+            return np.nan, 'NA'
+        if np.isnan(PD.xyMeas[0][0]) or np.isnan(PD.xyMeas[1][0]):
+            return np.nan, 'NA'
         try:
-            v = 'NA'
-            left_index = np.where(PD.x == PD.xyMeas1[0])[0][0]
-            right_index = np.where(PD.x == PD.xyMeas2[0])[0][0]
+            v = np.nan
+            left_index  = np.argmin(np.abs(PD.x - PD.xyMeas[0][0]))
+            right_index = np.argmin(np.abs(PD.x - PD.xyMeas[1][0]))
             if left_index == right_index:
-                raise IndexError
+                return np.nan, 'Empty'
             if left_index > right_index:
                 left_index, right_index = right_index, left_index
             if mode == 'mean':
@@ -572,10 +579,13 @@ class PlotData():
                 raise NotImplementedError('Error: Mode ' + mode + ' not implemented')
             s = pretty_num(v)
         except (IndexError, TypeError):
-            v = 'NA'
+            v = np.nan
             s = 'NA'
         return v, s
 
+    # --------------------------------------------------------------------------------}
+    # --- Other Stats functions
+    # --------------------------------------------------------------------------------{
     def dx(PD):
         if len(PD.x)<=1:
             return 'NA','NA'

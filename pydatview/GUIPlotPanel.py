@@ -158,6 +158,7 @@ class SpectralCtrlPanel(wx.Panel):
 
     def onXlimChange(self,event=None):
         self.parent.redraw_same_data();
+
     def onSpecCtrlChange(self,event=None):
         if self.cbAveraging.GetStringSelection()=='None':
             self.scP2.Enable(False)
@@ -499,7 +500,6 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbGrid )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbStepPlot )
         self.Bind(wx.EVT_CHECKBOX, self.measure_select   , self.cbMeasure )
-        self.Bind(wx.EVT_CHECKBOX, self.measure_select   , self.cbMeasure )
         # LAYOUT
         cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=0, vgap=0)
         cb_sizer.Add(self.cbCurveType , 0, flag=wx.ALL, border=1)
@@ -669,7 +669,17 @@ class PlotPanel(wx.Panel):
 
     def measure_select(self, event):
         if self.cbMeasure.IsChecked():
-            self.cbAutoScale.SetValue(False)
+            pass
+            #self.cbAutoScale.SetValue(False)
+        else:
+            # We clear
+            for measure in [self.leftMeasure, self.rightMeasure]:
+                measure.clear()
+            if self.infoPanel is not None:
+                self.infoPanel.clearMeasurements()
+            self.lbDeltaX.SetLabel('')
+            self.lbDeltaY.SetLabel('')
+
         self.redraw_same_data()
 
     def redraw_event(self, event):
@@ -730,35 +740,32 @@ class PlotPanel(wx.Panel):
 
     def onMouseRelease(self, event):
         if self.cbMeasure.GetValue():
-            for ax, ax_idx in zip(self.fig.axes, range(len(self.fig.axes))):
+            # Loop on axes
+            for iax, ax in enumerate(self.fig.axes):
                 if event.inaxes == ax:
                     x, y = event.xdata, event.ydata
                     if self.clickLocation != (ax, x, y):
                         # Ignore measurements for zoom-actions. Possibly add small tolerance.
                         # Zoom-actions disable autoscale
-                        self.cbAutoScale.SetValue(False)
+                        #self.cbAutoScale.SetValue(False)
                         return
                     if event.button == 1:
+                        # Left click, measure 1 - set values, compute all intersections and plot
+                        self.leftMeasure.set(self.fig.axes, ax, x, y, self.plotData) # Set and plot
                         if self.infoPanel is not None:
-                            self.infoPanel.setMeasurements((x, y), None)
-                        self.leftMeasure.set(ax_idx, x, y)
-                        self.leftMeasure.plot(ax, ax_idx)
+                            self.infoPanel.showMeasure1()
                     elif event.button == 3:
+                        # Left click, measure 2 - set values, compute all intersections and plot
+                        self.rightMeasure.set(self.fig.axes, ax, x, y, self.plotData) # Set and plot
                         if self.infoPanel is not None:
-                            self.infoPanel.setMeasurements(None, (x, y))
-                        self.rightMeasure.set(ax_idx, x, y)
-                        self.rightMeasure.plot(ax, ax_idx)
+                            self.infoPanel.showMeasure2()
                     else:
                         return
                     if not self.cbAutoScale.IsChecked():
                         self._restore_limits()
-                        
-                    if self.leftMeasure.axis_idx == self.rightMeasure.axis_idx and self.leftMeasure.axis_idx != -1:
-                        self.lbDeltaX.SetLabel('dx=' + self.formatLabelValue(self.rightMeasure.x - self.leftMeasure.x))
-                        self.lbDeltaY.SetLabel('dy=' + self.formatLabelValue(self.rightMeasure.y - self.leftMeasure.y))
-                    else:
-                        self.lbDeltaX.SetLabel('')
-                        self.lbDeltaY.SetLabel('')
+                    # Update label
+                    self.lbDeltaX.SetLabel(self.rightMeasure.sDeltaX(self.leftMeasure))
+                    self.lbDeltaY.SetLabel(self.rightMeasure.sDeltaY(self.leftMeasure))
                     return
 
     def onDraw(self, event):
@@ -999,17 +1006,8 @@ class PlotPanel(wx.Panel):
     def plot_all(self, keep_limits=True):
         self.multiCursors=[]
 
-        if self.cbMeasure.GetValue() is False:
-            for measure in [self.leftMeasure, self.rightMeasure]:
-                measure.clear()
-                if self.infoPanel is not None:
-                    self.infoPanel.setMeasurements(None, None)
-                self.lbDeltaX.SetLabel('')
-                self.lbDeltaY.SetLabel('')
-
         axes=self.fig.axes
         PD=self.plotData
-
 
         # --- Plot options
         bStep    = self.cbStepPlot.IsChecked()
@@ -1064,11 +1062,6 @@ class PlotPanel(wx.Panel):
                 pm = None
             __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bStep, plot_options)
             ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bStep, plot_options)
-
-            if self.infoPanel is not None:
-                self.infoPanel.setMeasurements(self.leftMeasure.get_xydata(), self.rightMeasure.get_xydata())
-            for measure in [self.leftMeasure, self.rightMeasure]:
-                measure.plot(ax_left, axis_idx)
 
             # Log Axes
             if self.cbLogX.IsChecked():
@@ -1177,6 +1170,24 @@ class PlotPanel(wx.Panel):
                         for ax in axes:
                             ax.legend(fancybox=False, loc=lgdLoc, **font_options_legd)
 
+        # --- End loop on axes
+        # --- Measure
+        if self.cbMeasure.IsChecked():
+            # Compute and plot them
+            self.leftMeasure.plot (axes, self.plotData)
+            self.rightMeasure.plot(axes, self.plotData)
+            # Update dx,dy label
+            self.lbDeltaX.SetLabel(self.rightMeasure.sDeltaX(self.leftMeasure))
+            self.lbDeltaY.SetLabel(self.rightMeasure.sDeltaY(self.leftMeasure))
+            ## Update info panel
+            #if self.infoPanel is not None:
+            #    self.infoPanel.setMeasurements(self.leftMeasure.get_xydata(), self.rightMeasure.get_xydata())
+        else:
+            # Update dx,dy label
+            self.lbDeltaX.SetLabel('')
+            self.lbDeltaY.SetLabel('')
+
+        # --- xlabel
         axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx, **font_options)
 
         #print('sy :',[pd.sy for pd in PD])
@@ -1340,6 +1351,9 @@ class PlotPanel(wx.Panel):
                     axes[i].iPD.append(ipd)
             else:
                 raise Exception('Wrong spreadby value')
+        # Use PD
+        for ax in axes:
+            ax.PD=[self.plotData[i] for i in ax.iPD]
 
     def setLegendLabels(self,mode):
         """ Set labels for legend """
