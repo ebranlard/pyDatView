@@ -149,7 +149,7 @@ def readSubDynSum(self):
             pos    = pos[I,:]
         return disp, pos, INodes
 
-    def getModes(data, maxDisp=None, sortDim=2):
+    def getModes(data, maxDisp=None, sortDim=None):
         """ return Guyan and CB modes"""
         if maxDisp is None:
             #compute max disp such as it's 10% of maxdimension
@@ -181,11 +181,12 @@ def readSubDynSum(self):
         TODO: convert to graph and use graph.toJSON
 
         """
+        #return data.toGraph().toJSON(outfile)
 
-        dispGy, posGy, _, dispCB, posCB, _ = data.getModes()
+        dispGy, posGy, _, dispCB, posCB, _ = data.getModes(sortDim=None) # Sorting mess things up
 
-        Nodes    = self['Nodes']
-        Elements = self['Elements']
+        Nodes    = self['Nodes'].copy()
+        Elements = self['Elements'].copy()
         Elements[:,0]-=1
         Elements[:,1]-=1
         Elements[:,2]-=1
@@ -221,7 +222,7 @@ def readSubDynSum(self):
         return d
 
 
-    def subDynToDataFrame(data):
+    def subDynToDataFrame(data, sortDim=2, removeZero=True):
         """ Convert to DataFrame containing nodal displacements """
         def toDF(pos,disp,preffix=''):
             disp[np.isnan(disp)]=0
@@ -234,14 +235,15 @@ def readSubDynSum(self):
             disptot= np.moveaxis(disptot,2,1).reshape(disptot.shape[0],disptot.shape[1]*disptot.shape[2])
             disp   = np.moveaxis(disp,2,1).reshape(disp.shape[0],disp.shape[1]*disp.shape[2])
             df= pd.DataFrame(data = disptot ,columns = columns)
-            # remove zero 
             dfDisp= pd.DataFrame(data = disp ,columns = columns)
-            df     = df.loc[:,     (dfDisp != 0).any(axis=0)]
-            dfDisp = dfDisp.loc[:, (dfDisp != 0).any(axis=0)]
+            # remove mode components that are fully zero 
+            if removeZero:
+                df     = df.loc[:,     (dfDisp != 0).any(axis=0)]
+                dfDisp = dfDisp.loc[:, (dfDisp != 0).any(axis=0)]
             dfDisp.columns = [c.replace('Mode','Disp') for c in dfDisp.columns.values]
             return df, dfDisp
 
-        dispGy, posGy, _, dispCB, posCB, _ = data.getModes()
+        dispGy, posGy, _, dispCB, posCB, _ = data.getModes(sortDim=sortDim)
 
         columns = ['z_[m]','x_[m]','y_[m]']
         dataZXY = np.column_stack((posGy[:,2],posGy[:,0],posGy[:,1]))

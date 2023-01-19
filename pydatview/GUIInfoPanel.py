@@ -490,7 +490,7 @@ class InfoPanel(wx.Panel):
 
     def clearMeasurements(self):
         # Clear 
-        for col in ['yeas 1', 'yMeas 2', 'Mean (Meas)', 'Min (Meas)', 'Max (Meas)']:
+        for col in ['yMeas 1', 'yMeas 2', 'Mean (Meas)', 'Min (Meas)', 'Max (Meas)']:
             self.menu.setItem(col, False)
             self.setCol(col, False)
         self._showStats()

@@ -189,17 +189,18 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False):
         Graph.addMiscPropertySet('MemberCoefs')
         for ip,P in enumerate(hd['MemberProp']):
             # MemberID    MemberCd1     MemberCd2    MemberCdMG1   MemberCdMG2    MemberCa1     MemberCa2    MemberCaMG1   MemberCaMG2    MemberCp1     MemberCp2    MemberCpMG1   MemberCpMG2   MemberAxCd1   MemberAxCd2  MemberAxCdMG1 MemberAxCdMG2  MemberAxCa1   MemberAxCa2  MemberAxCaMG1 MemberAxCaMG2  MemberAxCp1  MemberAxCp2   MemberAxCpMG1   MemberAxCpMG2
-            prop = Property(ID=ip+1, MemberID=P[0], Cd1=P[1], Cd2=P[2], CdMG1=P[3], CdMG2=P[4], Ca1=P[5], Ca2=P[6], CaMG1=P[7], CaMG2=P[8], Cp1=P[9], Cp2=P[10], CpMG1=P[11], CpMG2=P[12], AxCd1=P[14], AxCd2=P[15], axCdMG1=P[16], axCdMG2=P[17], AxCa1=P[18], AxCa2=P[19], AxCaMG1=P[20], AxCaMG2=P[21], AxCp1=P[22], AxCp2=P[23])
+            prop = ElemProperty(ID=ip+1, MemberID=P[0], Cd1=P[1], Cd2=P[2], CdMG1=P[3], CdMG2=P[4], Ca1=P[5], Ca2=P[6], CaMG1=P[7], CaMG2=P[8], Cp1=P[9], Cp2=P[10], CpMG1=P[11], CpMG2=P[12], AxCd1=P[14], AxCd2=P[15], axCdMG1=P[16], axCdMG2=P[17], AxCa1=P[18], AxCa2=P[19], AxCaMG1=P[20], AxCaMG2=P[21], AxCp1=P[22], AxCp2=P[23])
             Graph.addMiscProperty('MemberCoefs',prop)
     # ---
     if 'FillGroups' in hd.keys():
         # Filled members
         Graph.addMiscPropertySet('FillGroups')
-        for ip,P in enumerate(hd['FillGroups']):
-            #                       FillNumM FillMList             FillFSLoc     FillDens
-            raise NotImplementedError('hydroDynToGraph, Fill List might not be properly set, verify below')
-            prop = MiscProperty(ID=ip+1, FillNumM=P[0], FillMList=P[1],  FillFSLoc=P[2], FillDens=P[3])
-            Graph.addMiscProperty('FillGroups',prop)
+        print('>>> TODO Filled Groups')
+        #for ip,P in enumerate(hd['FillGroups']):
+        #    #                       FillNumM FillMList             FillFSLoc     FillDens
+        #    raise NotImplementedError('hydroDynToGraph, Fill List might not be properly set, verify below')
+        #    prop = MiscProperty(ID=ip+1, FillNumM=P[0], FillMList=P[1],  FillFSLoc=P[2], FillDens=P[3])
+        #    Graph.addMiscProperty('FillGroups',prop)
 
     if 'MGProp' in hd.keys():
         # Marine Growth
@@ -242,7 +243,7 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False):
         else:
             print('>>> TODO type DepthCoefs and MemberCoefs')
             # NOTE: this is disallowed by default because a same node can have two different diameters in SubDyn (it's by element)
-            Graph.setElementNodalProp(elem, propset=PropSets[Type-1], propIDs=E[3:5])
+            #Graph.setElementNodalProp(elem, propset=PropSets[Type-1], propIDs=E[3:5])
 
     return Graph
 
@@ -250,7 +251,7 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False):
 # --------------------------------------------------------------------------------}
 # --- SubDyn Summary file 
 # --------------------------------------------------------------------------------{
-def subdynSumToGraph(data):
+def subdynSumToGraph(data, Graph=None):
     """ 
      data: dict-like object as returned by weio
     """
@@ -266,7 +267,8 @@ def subdynSumToGraph(data):
     DOF2Nodes = data['DOF2Nodes']
     nDOF      = data['nDOF_red']
 
-    Graph = GraphModel()
+    if Graph is None:
+        Graph = GraphModel()
 
     # --- Nodes and DOFs
     Nodes = data['Nodes']
