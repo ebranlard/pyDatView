@@ -624,8 +624,13 @@ class PlotData():
             return 'NA','NA'
         else:
             T,_=PD.xRange()
-            v=equivalent_load(PD.y, m=m, Teq=T, nBins=46, method='rainflow_windap')
-            #v=equivalent_load(PD.y, m=m, Teq=T, nBins=46, method='fatpack')
+            try:
+                import fatpack
+                method='fatpack'
+            except ModuleNotFoundError:
+                print('[INFO] module fatpack not installed, default to windap method for equivalent load')
+                method='rainflow_windap'
+            v=equivalent_load(PD.y, m=m, Teq=T, nBins=100, method=method)
             return v,pretty_num(v)
 
     def Info(PD,var):

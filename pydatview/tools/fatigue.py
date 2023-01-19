@@ -31,7 +31,7 @@ import numpy as np
 __all__  = ['rainflow_astm', 'rainflow_windap','eq_load','eq_load_and_cycles','cycle_matrix','cycle_matrix2']
 
 
-def equivalent_load(signal, m=3, Teq=1, nBins=46, method='rainflow_windap'):
+def equivalent_load(signal, m=3, Teq=1, nBins=100, method='rainflow_windap'):
     """Equivalent load calculation
 
     Calculate the equivalent loads for a list of Wohler exponent
