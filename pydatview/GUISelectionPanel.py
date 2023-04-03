@@ -41,9 +41,10 @@ class FormulaDialog(wx.Dialog):
             name=self.getDefaultName()
         self.formula_in=formula
 
+        colPreDef=['None','x 1000','/ 1000','deg2rad','rad2deg','rpm2radps','rpm2Hz','radps2rpm','radps2Hz','norm','squared','d/dx','diff']
 
         quick_lbl = wx.StaticText(self, label="Predefined: " )
-        self.cbQuick = wx.ComboBox(self, choices=['None','x 1000','/ 1000','deg2rad','rad2deg','rpm2radps','radps2rpm','norm','squared','d/dx'], style=wx.CB_READONLY)
+        self.cbQuick = wx.ComboBox(self, choices=colPreDef, style=wx.CB_READONLY)
         self.cbQuick.SetSelection(0)
         self.cbQuick.Bind(wx.EVT_COMBOBOX  ,self.onQuickFormula)
  
@@ -76,6 +77,8 @@ class FormulaDialog(wx.Dialog):
         info+='  - ` {ColA} + {ColB} `\n'
         info+='  - ` np.sqrt( {ColA}**2/1000 + 1/{ColB}**2 ) `\n'
         info+='  - ` np.sin ( {ColA}*2*np.pi + {ColB} ) `\n'
+        info+='  - etc.\n\n'
+        info+=' You can also use the `Predefined` menu on the right to select a common operation.\n'
         help_lbl = wx.StaticText(self, label='Help: ')
         info_lbl = wx.StaticText(self, label=info)
         help_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -212,9 +215,15 @@ class FormulaDialog(wx.Dialog):
         elif s=='rpm2radps':
             self.formula.SetValue(c1+' *2*np.pi/60')
             self.name.SetValue(n1+'_radps [rad/s]')
+        elif s=='rpm2Hz':
+            self.formula.SetValue(c1+'/60')
+            self.name.SetValue(n1+'_Freq_[Hz]')
         elif s=='radps2rpm':
             self.formula.SetValue(c1+' *60/(2*np.pi)')
             self.name.SetValue(n1+'_rpm [rpm]')
+        elif s=='radps2Hz':
+            self.formula.SetValue(c1+' /(2*np.pi)')
+            self.name.SetValue(n1+'_Freq_[Hz]')
         elif s=='norm':
             self.formula.SetValue('np.sqrt( '+'**2 + '.join(self.columns)+'**2 )')
             self.name.SetValue(n1+'_norm'+self.get_unit())
@@ -246,6 +255,9 @@ class FormulaDialog(wx.Dialog):
             else:
                 n1='d('+n1+')/d('+nx+')'
             self.name.SetValue(n1+self.get_deriv_unit())
+        elif s=='diff':
+            self.formula.SetValue('np.concatenate( [ [np.nan], np.diff(  '+c1+' ) ] )' )
+            self.name.SetValue(n1+'_diff'+ self.get_unit())
         else:
             raise Exception('Unknown quick formula {}'.s)
 
