@@ -80,7 +80,7 @@ class MaskToolPanel(ActionEditor):
         self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
         self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
 
-        self.lb         = wx.StaticText( self, -1, """(Example of mask: "({Time}>100) && ({Time}<50) && ({WS}==5)"    or    "{Date} > '2018-10-01'")""")
+        self.lb         = wx.StaticText( self, -1, """(Example of mask: "({Time}>100) && ({Time}<50) && ({WS}==5)" or "{Date} > '2018-10-01'" or "['substring' in str(x) for x in {string_variable}]")""")
         self.textMask = wx.TextCtrl(self, wx.ID_ANY, 'Dummy', style = wx.TE_PROCESS_ENTER)
         #self.textMask.SetValue('({Time}>100) & ({Time}<400)')
         #self.textMask.SetValue("{Date} > '2018-10-01'")
