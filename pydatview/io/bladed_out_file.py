@@ -70,13 +70,18 @@ def read_bladed_sensor_file(sensorfile):
             # sometimes, the info is written on "AXIVAL"
             # Check next line, we concatenate if doesnt start with AXISLAB (Might need more cases)
             try:
-                nextLine=sensorLines[i+1].strip()
-                if not nextLine.startswith('AXISLAB'):
-                    t_line = t_line.strip()+' '+nextLine
+                # Combine the strings into one string
+                combined_string = ''.join(sensorLines)
+                
+                # Search everything betwee AXITICK and AXISLAB with a regex pattern
+                t_line = re.search(r'(?<=AXITICK).+?(?=AXISLAB)', combined_string, flags=re.DOTALL)
+                t_line=t_line.group(0)
+                # Replace consecutive whitespace characters with a single space
+                t_line = re.sub('\s+', ' ', t_line)
             except:
                 pass
 
-            temp = t_line[7:].strip()
+            temp = t_line.strip()
             temp = temp.strip('\'').split('\' \'')
             dat['SectionList'] = np.array(temp, dtype=str)
             dat['nSections'] = len(dat['SectionList'])

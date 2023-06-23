@@ -220,28 +220,33 @@ class TableList(object): # todo inherit list
             # Remove duplicated columns
             #df = df.loc[:,~df.columns.duplicated()].copy()
         else:
-            # --- Option 1 - We combine all the x from the common column together 
-            # NOTE: We use unique and sort, which will distrupt the user data (e.g. Airfoil Coords)
-            #       The user should then use other methods (when implemented)
-            x_new=[]
-            cols = []
-            for it, icol in  zip(I, ICommonColPerTab):
-                xtab = self._tabs[it].data.iloc[:, icol].values
-                cols.append(self._tabs[it].data.columns[icol])
-                x_new = np.concatenate( (x_new, xtab) ) 
-            x_new = np.unique(np.sort(x_new)) 
-            # Create interpolated dataframes based on x_new
-            dfs_new = []
-            for i, (col, df_old) in enumerate(zip(cols, dfs)):
-                df = interpDF(x_new, col, df_old, extrap=extrap)
-                if 'Index' in df.columns:
-                    df = df.drop(['Index'], axis=1)
-                if i>0:
-                    df = df.drop([col], axis=1)
-                dfs_new.append(df)
-            df = pd.concat(dfs_new, axis=1)
-            # Reindex at the end
-            df.insert(0, 'Index', np.arange(df.shape[0]))
+            try:
+                # --- Option 1 - We combine all the x from the common column together 
+                # NOTE: We use unique and sort, which will distrupt the user data (e.g. Airfoil Coords)
+                #       The user should then use other methods (when implemented)
+                x_new=[]
+                cols = []
+                for it, icol in  zip(I, ICommonColPerTab):
+                    xtab = self._tabs[it].data.iloc[:, icol].values
+                    cols.append(self._tabs[it].data.columns[icol])
+                    x_new = np.concatenate( (x_new, xtab) ) 
+                x_new = np.unique(np.sort(x_new)) 
+                # Create interpolated dataframes based on x_new
+                dfs_new = []
+                for i, (col, df_old) in enumerate(zip(cols, dfs)):
+                    df = interpDF(x_new, col, df_old, extrap=extrap)
+                    if 'Index' in df.columns:
+                        df = df.drop(['Index'], axis=1)
+                    if i>0:
+                        df = df.drop([col], axis=1)
+                    dfs_new.append(df)
+                df = pd.concat(dfs_new, axis=1)
+                # Reindex at the end
+                df.insert(0, 'Index', np.arange(df.shape[0]))
+            except:
+                # --- Option 0 - Index concatenation 
+                print('Using dataframe index concatenation...')
+                df = pd.concat(dfs, axis=1)                 
         newName = self._tabs[I[0]].name+'_merged'
         self.append(Table(data=df, name=newName))
         return newName, df
