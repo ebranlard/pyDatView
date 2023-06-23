@@ -90,10 +90,7 @@ class FASTLinearizationFile(File):
 
         def readMat(fid, n, m):
             vals=[f.readline().strip().split() for i in np.arange(n)]
-#             try:
             return np.array(vals).astype(float)
-#             except ValueError:
-#                 import pdb; pdb.set_trace()
 
         # Reading 
         with open(self.filename, 'r', errors="surrogateescape") as f:

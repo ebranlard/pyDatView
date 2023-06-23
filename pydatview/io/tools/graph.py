@@ -127,6 +127,13 @@ class Element(dict):
         n2=self.nodes[1]
         return np.sqrt((n1.x-n2.x)**2+(n1.y-n2.y)**2+(n1.z-n2.z)**2)
 
+    def setData(self, data_dict):
+        """ set or add data"""
+        for k,v in data_dict.items():
+            #if k in self.data.keys():
+            #    print('Warning overriding key {} for node {}'.format(k,self.ID))
+            self.data[k]=v
+
     def __repr__(self):
         s='<Elem{:4d}> NodeIDs: {} {}'.format(self.ID, self.nodeIDs, self.data)
         if self.propIDs is not None:
@@ -298,6 +305,17 @@ class GraphModel(object):
         """
         for node, pID in zip(elem.nodes, propIDs):
             node.setData(self.getNodeProperty(propset, pID).data)
+
+    def setElementNodalPropToElem(self, elem):
+        """ 
+        Set Element Properties to an element
+        TODO: this seems to be a hack. It should be automatic I think...
+        """
+        propset=elem.propset
+        propIDs=elem.propIDs
+        # USING PROPID 0!!!
+        elem.setData(self.getNodeProperty(propset, propIDs[0]).data)
+        # TODO average the two maybe..
 
     def setNodeNodalProp(self, node, propset, propID):
         """ 

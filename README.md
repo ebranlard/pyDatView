@@ -23,19 +23,18 @@ make                                            # will run python pyDatView.py
 echo "alias pydat='make -C `pwd`'" >> ~/.bashrc
 ```
 
-**MacOS** users can use a `brew`, `anaconda` or `virtualenv` version of python and pip, but the final version of python that calls the script needs to have access to the screen (for instance using `pythonw`) (see [details for MacOS](#macos-installation)).  We recommend using conda, for which the following commands should work:
+**MacOS** users can use a `brew`, `anaconda` or `virtualenv` version of python and pip, but the final version of python that calls the script needs to have access to the screen (for instance using `pythonw`) (see [details for MacOS](#macos-installation)).  We recommend using conda, in the base environment, for which the following commands should work:
 ```bash
 conda install -c conda-forge wxpython            # install wxpython
-git clone https://github.com/ebranlard/pyDatView
+git clone https://github.com/ebranlard/pyDatView -b dev
 cd pyDatView
 python -m pip install --user -r requirements.txt
 make                         # will run ./pythonmac pyDatView.py 
 # OR try
 #pythonw pyDatView.py        # NOTE: using pythonw not python
-echo "alias pydat='make -C `pwd`'" >> ~/.bashrc
+echo "alias pydat='make -C `pwd`'" >> ~/.bashrc   # add an alias for quicklaunch
 ```
-
-More information about the download, requirements and installation is provided [further down this page](#installation)
+If this fails using the Mac terminal, try the zsh terminal from [VSCode](https://code.visualstudio.com) or [iterm2](https://iterm2.com/downloads.html). More information about the download, requirements and installation is provided [further down this page](#installation)
 
 
 ## Usage
@@ -222,6 +221,12 @@ If that still doesn't work, you can try using the `python.app` from anaconda:
 /anaconda3/bin/python.app
 ```
 where `/anaconda3/bin/` is the path that would be returned by the command `which conda`. Note the `.app` at the end. If you don't have `python.app`, try installing it with `conda install -c anaconda python.app`
+
+
+Note also that several users have been struggling to run pyDatView on the mac Terminal in new macOS systems. If you encounter the same issues, we recommend using the integrated zsh terminal from [VSCode](https://code.visualstudio.com) or using a more advanced terminal like [iterm2](https://iterm2.com/downloads.html) and perform the installation steps there. Also, make sure to stick to the base anaconda environment.
+
+
+
 
 
 ### Brew-python version (outside of a virtualenv)

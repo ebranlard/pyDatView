@@ -31,16 +31,17 @@ import numpy as np
 __all__  = ['rainflow_astm', 'rainflow_windap','eq_load','eq_load_and_cycles','cycle_matrix','cycle_matrix2']
 
 
-def equivalent_load(signal, m=3, Teq=1, nBins=100, method='rainflow_windap'):
+def equivalent_load(time, signal, m=3, Teq=1, nBins=100, method='rainflow_windap'):
     """Equivalent load calculation
 
     Calculate the equivalent loads for a list of Wohler exponent
 
     Parameters
     ----------
-    signals : array-like, the signal
+    time : array-like, the time values corresponding to the signal (s)
+    signals : array-like, the load signal
     m :    Wohler exponent (default is 3)
-    Teq : The equivalent number of load cycles (default is 1, but normally the time duration in seconds is used)
+    Teq : The equivalent period (Default 1Hz)
     nBins : Number of bins in rainflow count histogram
     method: 'rainflow_windap, rainflow_astm, fatpack
 
@@ -48,12 +49,22 @@ def equivalent_load(signal, m=3, Teq=1, nBins=100, method='rainflow_windap'):
     -------
     Leq : the equivalent load for given m and Tea
     """
+    time   = np.asarray(time)
     signal = np.asarray(signal)
+
+    # Remove nan, might not be the cleanest
+    b = ~np.isnan(signal)
+    signal = signal[b]
+    time   = time[b]
+
+    T = time[-1]-time[0] # time length of signal (s)
+
+    neq = T/Teq # number of equivalent periods
 
     rainflow_func_dict = {'rainflow_windap':rainflow_windap, 'rainflow_astm':rainflow_astm}
     if method in rainflow_func_dict.keys():
         # Call wetb function for one m
-        Leq = eq_load(signal, m=[m], neq=Teq, no_bins=nBins, rainflow_func=rainflow_func_dict[method])[0][0]
+        Leq = eq_load(signal, m=[m], neq=neq, no_bins=nBins, rainflow_func=rainflow_func_dict[method])[0][0]
 
     elif method=='fatpack':
         import fatpack
@@ -61,12 +72,12 @@ def equivalent_load(signal, m=3, Teq=1, nBins=100, method='rainflow_windap'):
         try:
             ranges = fatpack.find_rainflow_ranges(signal)
         except IndexError:
-            # Typically fails for constant signal
+            # Currently fails for constant signal
             return np.nan
         # find range count and bin
         Nrf, Srf = fatpack.find_range_count(ranges, nBins)
-        # get DEL
-        DELs = Srf**m * Nrf / Teq
+        # get DEL 
+        DELs = Srf**m * Nrf / neq
         Leq = DELs.sum() ** (1/m)
 
     else:

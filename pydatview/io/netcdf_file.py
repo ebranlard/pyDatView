@@ -36,7 +36,5 @@ class NetCDFFile(File):
                 dfs[k]=pd.DataFrame(data=self.data[k].values)
             elif len(self.data[k].shape)==1:
                 dfs[k]=pd.DataFrame(data=self.data[k].values)
-            #import pdb
-            #pdb.set_trace()
         return dfs
 

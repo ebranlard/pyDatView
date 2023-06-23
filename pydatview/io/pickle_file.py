@@ -60,7 +60,10 @@ class PickleFile(File):
             for k,v in data.items():
                 self[k] = v
         else:
-            self['data'] = data
+            if hasattr(data, '__dict__'):
+                self.update(data.__dict__)
+            else:
+                self['data'] = data
 
     def read(self, filename=None, **kwargs):
         """ Reads the file self.filename, or `filename` if provided """

@@ -49,15 +49,21 @@ def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_win
     averaging        = averaging.lower()
     averaging_window = averaging_window.lower()
     y = np.asarray(y)
+    n0 = len(y) 
+    nt = len(t) 
+    if len(t)!=len(y):
+        raise Exception('t and y should have the same length')
     y = y[~np.isnan(y)]
     n = len(y) 
 
     if dt is None:
         dtDelta0 = t[1]-t[0]
         # Hack to use a constant dt
-        dt = (np.max(t)-np.min(t))/(n-1)
-        if dtDelta0 !=dt:
-            print('[WARN] dt from tmax-tmin different from dt from t2-t1' )
+        dt = (np.max(t)-np.min(t))/(n0-1)
+        relDiff = abs(dtDelta0-dt)/dt*100
+        #if dtDelta0 !=dt:
+        if relDiff>0.01:
+            print('[WARN] dt from tmax-tmin different from dt from t2-t1 {} {}'.format(dt, dtDelta0) )
     Fs = 1/dt
     if averaging =='none':
         frq, PSD, Info = psd(y, fs=Fs, detrend=detrend, return_onesided=True)

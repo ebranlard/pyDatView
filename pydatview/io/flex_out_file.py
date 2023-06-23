@@ -33,14 +33,30 @@ class FLEXOutFile(File):
         self.time = np.arange(self.tmin, self.tmin +  self.nt * self.dt, self.dt).reshape(self.nt,1).astype(dtype)
 
         # --- Then the sensor file
-        sensor_filename = os.path.join(os.path.dirname(self.filename), "sensor")
-        if not os.path.isfile(sensor_filename):
+        parentdir = os.path.dirname(self.filename)
+        basename = os.path.splitext(os.path.basename(self.filename))[0]
+        #print(parentdir)
+        #print(basename)
+        PossibleFiles=[]
+        PossibleFiles+=[os.path.join(parentdir, basename+'.Sensor')]
+        PossibleFiles+=[os.path.join(parentdir, 'Sensor_'+basename)]
+        PossibleFiles+=[os.path.join(parentdir, 'sensor')]
+        # We try allow for other files
+        Found =False
+        for sf in PossibleFiles:
+            if os.path.isfile(sf):
+                self.sensors=read_flex_sensor(sf)
+                if len(self.sensors['ID'])!=self.nSensors:
+                    Found = False
+                else:
+                    Found = True
+                    break
+        if not Found:
             # we are being nice and create some fake sensors info
             self.sensors=read_flex_sensor_fake(self.nSensors)
-        else:
-            self.sensors=read_flex_sensor(sensor_filename)
-            if len(self.sensors['ID'])!=self.nSensors:
-                raise BrokenFormatError('Inconsistent number of sensors: {} (sensor file) {} (out file), for file: {}'.format(len(self.sensors['ID']),self.nSensors,self.filename))
+
+        if len(self.sensors['ID'])!=self.nSensors:
+            raise BrokenFormatError('Inconsistent number of sensors: {} (sensor file) {} (out file), for file: {}'.format(len(self.sensors['ID']),self.nSensors,self.filename))
 
     #def _write(self): # TODO
     #    pass

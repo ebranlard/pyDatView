@@ -591,7 +591,6 @@ class SSH_HTCFile(HTCFile):
 if "__main__" == __name__:
     f = HTCFile(r"C:/Work/BAR-Local/Hawc2ToBeamDyn/sim.htc", ".")
     print(f.input_files())
-    import pdb; pdb.set_trace()
 #     f.save(r"C:\mmpe\HAWC2\models\DTU10MWRef6.0\htc\DTU_10MW_RWT_power_curve.htc")
 #
 #     f = HTCFile(r"C:\mmpe\HAWC2\models\DTU10MWRef6.0\htc\DTU_10MW_RWT.htc", "../")

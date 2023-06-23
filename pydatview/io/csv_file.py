@@ -244,8 +244,6 @@ class CSVFile(File):
             self.colNames=['C{}'.format(i) for i in range(len(self.data.columns))]
         self.data.columns = self.colNames;
         self.data.rename(columns=lambda x: x.strip(),inplace=True)
-        #import pdb
-        #pdb.set_trace()
 
     def _write(self):
         # --- Safety

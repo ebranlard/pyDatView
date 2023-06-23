@@ -620,7 +620,9 @@ class Table(object):
                 fst_in=Files[0]
 
 
-            dfRadED, dfRadAD, dfRadBD= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = self.data)
+            out= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = self.data)
+            dfRadED=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']
+
             dfs_new  = [dfRadAD, dfRadED, dfRadBD]
             names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
         return dfs_new, names_new

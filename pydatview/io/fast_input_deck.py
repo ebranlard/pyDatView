@@ -24,10 +24,13 @@ class FASTInputDeck(dict):
                  AC: airfoil coordinates (if present)
 
         """
+
         # Sanity
         if type(verbose) is not bool: 
             raise Exception('`verbose` arguments needs to be a boolean')
 
+        # Main Data
+        self.inputFilesRead = {}
         self.filename = fullFstPath
         self.verbose  = verbose
         self.readlist = readlist
@@ -38,7 +41,6 @@ class FASTInputDeck(dict):
         else:
             self.readlist = ['Fst']+self.readlist
 
-        self.inputfiles = {}
 
         # --- Harmonization with AeroElasticSE
         self.FAST_ver       = 'OPENFAST'
@@ -73,6 +75,19 @@ class FASTInputDeck(dict):
         # Read all inputs files
         if len(fullFstPath)>0:
             self.read()
+
+    @property
+    def ED(self):
+        ED = self.fst_vt['ElastoDyn']
+        if ED is None:
+            if 'ED' not in self.readlist:
+                self.readlist.append('ED')
+            if self.verbose:
+                print('>>> Reading ED', self.ED_path)
+            self.fst_vt['ElastoDyn'] = self._read(self.fst_vt['Fst']['EDFile'],'ED')
+            return self.fst_vt['ElastoDyn']
+        else:
+            return ED
 
 
     def readAD(self, filename=None, readlist=None, verbose=False, key='AeroDyn15'):
@@ -145,57 +160,37 @@ class FASTInputDeck(dict):
         files=[]
         files+=[self.ED_path, self.ED_twr_path, self.ED_bld_path]
         files+=[self.BD_path, self.BD_bld_path]
+        files+=[self.SD_path]
         return [f for f in files if f not in self.unusedNames]
 
-
-    @property
-    def ED_relpath(self):
+    def _relpath(self, k1, k2=None, k3=None):
         try:
-            return self.fst_vt['Fst']['EDFile'].replace('"','')
-        except:
-            return 'none'
-
-    @property
-    def ED_twr_relpath(self):
-        try:
-            return os.path.join(os.path.dirname(self.fst_vt['Fst']['EDFile']).replace('"',''), self.fst_vt['ElastoDyn']['TwrFile'].replace('"',''))
-        except:
-            return 'none'
-
-    @property
-    def ED_bld_relpath(self):
-        try:
-            if 'BldFile(1)' in self.fst_vt['ElastoDyn'].keys():
-                return os.path.join(os.path.dirname(self.fst_vt['Fst']['EDFile'].replace('"','')), self.fst_vt['ElastoDyn']['BldFile(1)'].replace('"',''))
+            if k2 is None:
+                return self.fst_vt['Fst'][k1].replace('"','')
             else:
-                return os.path.join(os.path.dirname(self.fst_vt['Fst']['EDFile'].replace('"','')), self.fst_vt['ElastoDyn']['BldFile1'].replace('"',''))
+                parent = os.path.dirname(self.fst_vt['Fst'][k1]).replace('"','')
+                if type(k3)==list:
+                    for k in k3:
+                        if k in self.fst_vt[k2].keys():
+                            child =  self.fst_vt[k2][k].replace('"','')
+                else:
+                    child =  self.fst_vt[k2][k3].replace('"','')
+                return os.path.join(parent, child)
         except:
             return 'none'
 
     @property
-    def BD_relpath(self):
-        try:
-            return self.fst_vt['Fst']['BDBldFile(1)'].replace('"','')
-        except:
-            return 'none'
-
+    def ED_path(self): return self._fullpath(self._relpath('EDFile'))
     @property
-    def BD_bld_relpath(self):
-        try:
-            return os.path.join(os.path.dirname(self.fst_vt['Fst']['BDBldFile(1)'].replace('"','')), self.fst_vt['BeamDyn']['BldFile'].replace('"',''))
-        except:
-            return 'none'
-
+    def SD_path(self): return self._fullpath(self._relpath('SubFile'))
     @property
-    def ED_path(self): return self._fullpath(self.ED_relpath)
+    def BD_path(self): return self._fullpath(self._relpath('BDBldFile(1)'))
     @property
-    def BD_path(self): return self._fullpath(self.BD_relpath)
+    def BD_bld_path(self): return self._fullpath(self._relpath('BDBldFile(1)','BeamDyn','BldFile'))
     @property
-    def BD_bld_path(self): return self._fullpath(self.BD_bld_relpath)
+    def ED_twr_path(self): return self._fullpath(self._relpath('EDFile','ElastoDyn','TwrFile'))
     @property
-    def ED_twr_path(self): return self._fullpath(self.ED_twr_relpath)
-    @property
-    def ED_bld_path(self): return self._fullpath(self.ED_bld_relpath)
+    def ED_bld_path(self): return self._fullpath(self._relpath('EDFile','ElastoDyn',['BldFile(1)','BldFile1']))
 
 
 
@@ -209,10 +204,15 @@ class FASTInputDeck(dict):
 
 
     def read(self, filename=None):
+        """ 
+        Read all OpenFAST inputs files, based on the requested list of modules `readlist`
+        """
         if filename is not None:
             self.filename = filename
 
         # Read main file (.fst, or .drv) and store into key "Fst"
+        if self.verbose:
+            print('Reading:', self.FAST_InputFile)
         self.fst_vt['Fst'] = self._read(self.FAST_InputFile, 'Fst')
         if self.fst_vt['Fst'] is None:
             raise Exception('Error reading main file {}'.format(self.filename))
@@ -255,8 +255,8 @@ class FASTInputDeck(dict):
             if 'EDFile' in self.fst_vt['Fst'].keys():
                 self.fst_vt['ElastoDyn'] = self._read(self.fst_vt['Fst']['EDFile'],'ED')
                 if self.fst_vt['ElastoDyn'] is not None:
-                    twr_file = self.ED_twr_relpath
-                    bld_file = self.ED_bld_relpath
+                    twr_file = self.ED_twr_path
+                    bld_file = self.ED_bld_path
                     self.fst_vt['ElastoDynTower'] = self._read(twr_file,'EDtwr')
                     self.fst_vt['ElastoDynBlade'] = self._read(bld_file,'EDbld')
 
@@ -280,7 +280,7 @@ class FASTInputDeck(dict):
 
             # SubDyn
             if self.fst_vt['Fst']['CompSub'] == 1:
-                self.fst_vt['SubDyn'] = self._read(self.fst_vt['Fst']['SubFile'],'HD')
+                self.fst_vt['SubDyn'] = self._read(self.fst_vt['Fst']['SubFile'], 'SD')
 
             # Mooring
             if self.fst_vt['Fst']['CompMooring']==1:
@@ -298,7 +298,7 @@ class FASTInputDeck(dict):
 
         # --- Backward compatibility
         self.fst = self.fst_vt['Fst']
-        self.ED  = self.fst_vt['ElastoDyn']
+        self._ED  = self.fst_vt['ElastoDyn']
         if not hasattr(self,'AD'):
             self.AD = None
         if self.AD is not None:
@@ -307,6 +307,7 @@ class FASTInputDeck(dict):
         self.IW  = self.fst_vt['InflowWind']
         self.BD  = self.fst_vt['BeamDyn']
         self.BDbld  = self.fst_vt['BeamDynBlade']
+        self.SD  = self.fst_vt['SubDyn']
 
     @ property
     def unusedNames(self):
@@ -330,12 +331,15 @@ class FASTInputDeck(dict):
             return None
 
         # Attempt reading
-        fullpath =os.path.join(self.FAST_directory, relfilepath)
+        if relfilepath.startswith(self.FAST_directory):
+            fullpath = relfilepath
+        else:
+            fullpath = os.path.join(self.FAST_directory, relfilepath)
         try:
             data = FASTInputFile(fullpath)
             if self.verbose:
                 print('>>> Read: ',fullpath)
-            self.inputfiles[shortkey] = fullpath
+            self.inputFilesRead[shortkey] = fullpath
             return data
         except FileNotFoundError:
             print('[WARN] File not found '+fullpath)
@@ -460,10 +464,12 @@ class FASTInputDeck(dict):
     def __repr__(self):
         s='<weio.FastInputDeck object>'+'\n'
         s+='filename   : '+self.filename+'\n'
+        s+='readlist   : {}'.format(self.readlist)+'\n'
         s+='version    : '+self.version+'\n'
         s+='AD version : '+self.ADversion+'\n'
         s+='fst_vt     : dict{'+','.join([k for k,v in self.fst_vt.items() if v is not None])+'}\n'
         s+='inputFiles : {}\n'.format(self.inputFiles)
+        s+='inputFilesRead : {}\n'.format(self.inputFilesRead)
         s+='\n'
         return s
 

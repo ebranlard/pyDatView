@@ -14,6 +14,24 @@ from pydatview.io.fast_input_deck import FASTInputDeck
 # --------------------------------------------------------------------------------}
 # --- Tools for IO 
 # --------------------------------------------------------------------------------{
+def getEDClass(class_or_filename):
+    """
+    Return ElastoDyn instance of FileCl
+    INPUT: either
+       - an instance of FileCl, as returned by reading the file, ED = weio.read(ED_filename)
+       - a filepath to a ElastoDyn input file
+       - a filepath to a main OpenFAST input file
+    """
+    if hasattr(class_or_filename,'startswith'): # if string
+        ED = FASTInputFile(class_or_filename)
+        if 'EDFile' in ED.keys(): # User provided a .fst file...
+            parentDir=os.path.dirname(class_or_filename)
+            EDfilename = os.path.join(parentDir, ED['EDFile'].replace('"',''))
+            ED = FASTInputFile(EDfilename)
+    else:
+        ED = class_or_filename
+    return ED
+
 def ED_BldStations(ED):
     """ Returns ElastoDyn Blade Station positions, useful to know where the outputs are.
     INPUTS:
@@ -25,15 +43,14 @@ def ED_BldStations(ED):
         - bld_fract: fraction of the blade length were stations are defined
         - r_nodes: spanwise position from the rotor apex of the Blade stations
     """
-    if hasattr(ED,'startswith'): # if string
-        ED = FASTInputFile(ED)
+    ED = getEDClass(ED)
 
     nBldNodes    = ED['BldNodes']
     bld_fract    = np.arange(1./nBldNodes/2., 1, 1./nBldNodes)
     r_nodes      = bld_fract*(ED['TipRad']-ED['HubRad']) + ED['HubRad']
     return bld_fract, r_nodes
 
-def ED_TwrStations(ED):
+def ED_TwrStations(ED, addBase=True):
     """ Returns ElastoDyn Tower Station positions, useful to know where the outputs are.
     INPUTS:
        - ED: either:
@@ -44,12 +61,13 @@ def ED_TwrStations(ED):
         - r_fract: fraction of the towet length were stations are defined
         - h_nodes: height from the *ground* of the stations  (not from the Tower base)
     """
-    if hasattr(ED,'startswith'): # if string
-        ED = FASTInputFile(ED)
+    ED = getEDClass(ED)
 
     nTwrNodes = ED['TwrNodes']
     twr_fract    = np.arange(1./nTwrNodes/2., 1, 1./nTwrNodes)
-    h_nodes      = twr_fract*(ED['TowerHt']-ED['TowerBsHt']) + ED['TowerBsHt']
+    h_nodes      = twr_fract*(ED['TowerHt']-ED['TowerBsHt'])
+    if addBase:
+        h_nodes      += ED['TowerBsHt']
     return twr_fract, h_nodes
 
 def ED_BldGag(ED):
@@ -61,8 +79,7 @@ def ED_BldGag(ED):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the rotor apex
     """
-    if hasattr(ED,'startswith'): # if string
-        ED = FASTInputFile(ED)
+    ED = getEDClass(ED)
     _,r_nodes= ED_BldStations(ED)
     
     #     if ED.hasNodal:
@@ -77,27 +94,28 @@ def ED_BldGag(ED):
     r_gag = r_nodes[ Inodes[:nOuts] -1]
     return r_gag, Inodes
 
-def ED_TwrGag(ED):
+def ED_TwrGag(ED, addBase=True):
     """ Returns the heights of ElastoDyn blade gages 
     INPUTS:
        - ED: either:
            - a filename of a ElastoDyn input file
            - an instance of FileCl, as returned by reading the file, ED = weio.read(ED_filename)
+       - addBase: if True, TowerBsHt is added to h_gag
     OUTPUTS:
        - h_gag: The heights of the gages, given from the ground height (tower base + TowerBsHt)
     """
-    if hasattr(ED,'startswith'): # if string
-        ED = FASTInputFile(ED)
-    _,h_nodes= ED_TwrStations(ED)
+    ED = getEDClass(ED)
+
+    _,h_nodes= ED_TwrStations(ED, addBase=addBase)
     nOuts = ED['NTwGages']
     if nOuts<=0:
-        return np.array([])
+        return np.array([]), None
     if type(ED['TwrGagNd']) is list:
         Inodes = np.asarray(ED['TwrGagNd'])
     else:
         Inodes = np.array([ED['TwrGagNd']])
     h_gag = h_nodes[ Inodes[:nOuts] -1]
-    return h_gag
+    return h_gag, Inodes
 
 
 def AD14_BldGag(AD):
@@ -109,7 +127,7 @@ def AD14_BldGag(AD):
     OUTPUTS:
        - r_gag: The radial positions of the gages, given from the blade root
     """
-    if hasattr(ED,'startswith'): # if string
+    if hasattr(AD,'startswith'): # if string
         AD = FASTInputFile(AD)
 
     Nodes=AD['BldAeroNodes']  
@@ -238,6 +256,18 @@ def BD_BldGag(BD):
     return r_gag, Inodes, r_nodes
 
 # 
+def SD_MembersNodes(SD):
+    sd = SubDyn(SD)
+    return sd.pointsMN
+
+def SD_MembersJoints(SD):
+    sd = SubDyn(SD)
+    return sd.pointsMJ
+
+def SD_MembersGages(SD):
+    sd = SubDyn(SD)
+    return sd.pointsMNout
+
 # 
 # 1, 7, 14, 21, 30, 36, 43, 52, 58 BldGagNd List of blade nodes that have strain gages [1 to BldNodes] (-) [unused if NBlGages=0]
 
@@ -300,7 +330,7 @@ def _HarmonizeSpanwiseData(Name, Columns, vr, R, IR=None) :
 
     return dfRad,  nrMax, ValidRow
 
-def insert_radial_columns(df, vr=None, R=None, IR=None):
+def insert_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar='r/R'):
     """
     Add some columns to the radial data
     df: dataframe
@@ -321,13 +351,13 @@ def insert_radial_columns(df, vr=None, R=None, IR=None):
             vr_bar=vr_bar[:nrMax]
         elif (nrMax)>len(vr_bar):
             raise Exception('Inconsitent length between radial stations ({:d}) and max index present in output chanels ({:d})'.format(len(vr_bar),nrMax))
-        df.insert(0, 'r/R_[-]', vr_bar)
+        df.insert(0, sspan_bar+'_[-]', vr_bar)
 
     if IR is not None:
         df['Node_[#]']=IR[:nrMax]
     df['i_[#]']=ids+1
     if vr is not None:
-        df['r_[m]'] = vr[:nrMax]
+        df[sspan+'_[m]'] = vr[:nrMax]
     return df
 
 def find_matching_columns(Cols, PatternMap):
@@ -572,6 +602,35 @@ def spanwiseColED(Cols):
         EDSpanMap[r'^Spn(\d)MLz'+sB+r'_\[kN-m\]' ]=SB+'MLz_[kN-m]'
     return find_matching_columns(Cols, EDSpanMap)
 
+def spanwiseColEDTwr(Cols):
+    """ Return column info, available columns and indices that contain ED spanwise data"""
+    EDSpanMap=dict()
+    # All Outs
+    EDSpanMap[r'^TwHt(\d*)ALxt_\[m/s^2\]'] = 'ALxt_[m/s^2]'
+    EDSpanMap[r'^TwHt(\d*)ALyt_\[m/s^2\]'] = 'ALyt_[m/s^2]'
+    EDSpanMap[r'^TwHt(\d*)ALzt_\[m/s^2\]'] = 'ALzt_[m/s^2]' 
+    EDSpanMap[r'^TwHt(\d*)TDxt_\[m\]'    ] = 'TDxt_[m]'
+    EDSpanMap[r'^TwHt(\d*)TDyt_\[m\]'    ] = 'TDyt_[m]'
+    EDSpanMap[r'^TwHt(\d*)TDzt_\[m\]'    ] = 'TDzt_[m]' 
+    EDSpanMap[r'^TwHt(\d*)RDxt_\[deg\]'  ] = 'RDxt_[deg]'
+    EDSpanMap[r'^TwHt(\d*)RDyt_\[deg\]'  ] = 'RDyt_[deg]'
+    EDSpanMap[r'^TwHt(\d*)RDzt_\[deg\]'  ] = 'RDzt_[deg]' 
+    EDSpanMap[r'^TwHt(\d*)TPxi_\[m\]'    ] = 'TPxi_[m]'
+    EDSpanMap[r'^TwHt(\d*)TPyi_\[m\]'    ] = 'TPyi_[m]'
+    EDSpanMap[r'^TwHt(\d*)TPzi_\[m\]'    ] = 'TPzi_[m]' 
+    EDSpanMap[r'^TwHt(\d*)RPxi_\[deg\]'  ] = 'RPxi_[deg]'
+    EDSpanMap[r'^TwHt(\d*)RPyi_\[deg\]'  ] = 'RPyi_[deg]'
+    EDSpanMap[r'^TwHt(\d*)RPzi_\[deg\]'  ] = 'RPzi_[deg]' 
+    EDSpanMap[r'^TwHt(\d*)FLxt_\[kN\]'   ] = 'FLxt_[kN]'
+    EDSpanMap[r'^TwHt(\d*)FLyt_\[kN\]'   ] = 'FLyt_[kN]'
+    EDSpanMap[r'^TwHt(\d*)FLzt_\[kN\]'   ] = 'FLzt_[kN]' 
+    EDSpanMap[r'^TwHt(\d*)MLxt_\[kN-m\]' ] = 'MLxt_[kN-m]'
+    EDSpanMap[r'^TwHt(\d*)MLyt_\[kN-m\]' ] = 'MLyt_[kN-m]'
+    EDSpanMap[r'^TwHt(\d*)MLzt_\[kN-m\]' ] = 'MLzt_[kN-m]'
+    return find_matching_columns(Cols, EDSpanMap)
+
+
+
 def spanwiseColAD(Cols):
     """ Return column info, available columns and indices that contain AD spanwise data"""
     ADSpanMap=dict()
@@ -680,7 +739,8 @@ def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, ch
 
 def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.outb',df=None):
     """
-    Postprocess FAST radial data. Average the time series, return a dataframe nr x nColumns
+    Postprocess FAST radial data. 
+    if avgMethod is not None: Average the time series, return a dataframe nr x nColumns
 
     INPUTS:
         - FST_IN: Fast .fst input file
@@ -690,20 +750,38 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     """
     # --- Opens Fast output  and performs averaging
     if df is None:
-        df = FASTOutputFile(FST_In.replace('.fst',out_ext).replace('.dvr',out_ext)).toDataFrame()
+        filename =FST_In.replace('.fst',out_ext).replace('.dvr',out_ext)
+        df = FASTOutputFile(filename).toDataFrame()
         returnDF=True
     else:
+        filename=''
         returnDF=False
     # NOTE: spanwise script doest not support duplicate columns
     df = df.loc[:,~df.columns.duplicated()]
-    dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam) # NOTE: average 5 last seconds
+    if avgMethod is not None:
+        dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam, filename=filename) # NOTE: average 5 last seconds
+    else:
+        dfAvg=df
 
     # --- Extract info (e.g. radial positions) from Fast input file
     # We don't have a .fst input file, so we'll rely on some default values for "r"
     rho         = 1.225
     chord       = None
     # --- Extract radial positions of output channels
-    r_AD, r_ED, r_BD, IR_AD, IR_ED, IR_BD, R, r_hub, fst = FASTRadialOutputs(FST_In, OutputCols=df.columns.values)
+    d = FASTSpanwiseOutputs(FST_In, OutputCols=df.columns.values)
+    r_AD      = d['r_AD']
+    r_ED_bld  = d['r_ED_bld']
+    r_ED_twr  = d['r_ED_twr']
+    r_BD      = d['r_BD']
+    IR_AD     = d['IR_AD']
+    IR_ED_bld = d['IR_ED_bld']
+    IR_ED_twr = d['IR_ED_twr']
+    IR_BD     = d['IR_BD']
+    TwrLen    = d['TwrLen']
+    R         = d['R']
+    r_hub     = d['r_hub']
+    fst       = d['fst']
+
     if R is None: 
         R=1
     try:
@@ -723,29 +801,47 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     #print('I_AD:', IR_AD)
     #print('I_ED:', IR_ED)
     #print('I_BD:', IR_BD)
+    out = {}
+    if returnDF:
+        out['df']    = df
+        out['dfAvg'] = dfAvg
     # --- Extract radial data and export to csv if needed
-    dfRad_AD    = None
-    dfRad_ED    = None
-    dfRad_BD    = None
     Cols=dfAvg.columns.values
     # --- AD
     ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
     dfRad_AD            = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=dfAvg.iloc[0])
     dfRad_AD            = insert_extra_columns_AD(dfRad_AD, dfAvg.iloc[0], vr=r_AD, rho=rho, R=R, nB=3, chord=chord)
-    dfRad_AD            = insert_radial_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
-    # --- ED
+    dfRad_AD            = insert_spanwise_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
+    out['AD'] = dfRad_AD
+    # --- ED Bld
     ColsInfoED, nrMaxED = spanwiseColED(Cols)
     dfRad_ED            = extract_spanwise_data(ColsInfoED, nrMaxED, df=None, ts=dfAvg.iloc[0])
-    dfRad_ED            = insert_radial_columns(dfRad_ED, r_ED, R=R, IR=IR_ED)
+    dfRad_ED            = insert_spanwise_columns(dfRad_ED, r_ED_bld, R=R, IR=IR_ED_bld)
+    out['ED_bld'] = dfRad_ED
+    # --- ED Twr
+    ColsInfoED, nrMaxEDt = spanwiseColEDTwr(Cols)
+    dfRad_EDt           = extract_spanwise_data(ColsInfoED, nrMaxEDt, df=None, ts=dfAvg.iloc[0])
+    dfRad_EDt2          = insert_spanwise_columns(dfRad_EDt, r_ED_twr, R=TwrLen, IR=IR_ED_twr, sspan='H',sspan_bar='H/L')
+    # TODO we could insert TwrBs and TwrTp quantities here...
+    out['ED_twr'] = dfRad_EDt
     # --- BD
     ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
     dfRad_BD            = extract_spanwise_data(ColsInfoBD, nrMaxBD, df=None, ts=dfAvg.iloc[0])
-    dfRad_BD            = insert_radial_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
-    if returnDF:
-        return dfRad_ED , dfRad_AD, dfRad_BD, df
+    dfRad_BD            = insert_spanwise_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
+    out['BD'] = dfRad_BD
+    # --- SubDyn
+    if fst.SD is not None:
+        sd = SubDyn(fst.SD)
+        MN = sd.pointsMN
+        MNout, MJout = sd.memberPostPro(dfAvg)
+        out['SD_MembersOut'] = MNout
+        out['SD_JointsOut'] = MJout
     else:
-        return dfRad_ED , dfRad_AD, dfRad_BD
+        out['SD_MembersOut'] = None
+        out['SD_JointsOut'] = None
 
+    # Combine all into a dictionary
+    return out
 
 
 def spanwisePostProRows(df, FST_In=None):
@@ -759,7 +855,19 @@ def spanwisePostProRows(df, FST_In=None):
     rho         = 1.225
     chord       = None
     # --- Extract radial positions of output channels
-    r_AD, r_ED, r_BD, IR_AD, IR_ED, IR_BD, R, r_hub, fst = FASTRadialOutputs(FST_In, OutputCols=df.columns.values)
+    d = FASTSpanwiseOutputs(FST_In, OutputCols=df.columns.values)
+    r_AD      = d['r_AD']
+    r_ED_bld  = d['r_ED_bld']
+    r_ED_twr  = d['r_ED_twr']
+    r_BD      = d['r_BD']
+    IR_AD     = d['IR_AD']
+    IR_ED_bld = d['IR_ED_bld']
+    IR_ED_twr = d['IR_ED_twr']
+    IR_BD     = d['IR_BD']
+    TwrLen    = d['TwrLen']
+    R         = d['R']
+    r_hub     = d['r_hub']
+    fst       = d['fst']
     #print('r_AD:', r_AD)
     #print('r_ED:', r_ED)
     #print('r_BD:', r_BD)
@@ -798,21 +906,21 @@ def spanwisePostProRows(df, FST_In=None):
         if r_AD is not None:
             dfRad_AD = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=df.iloc[i])
             dfRad_AD = insert_extra_columns_AD(dfRad_AD, df.iloc[i], vr=r_AD, rho=rho, R=R, nB=3, chord=chord)
-            dfRad_AD = insert_radial_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
+            dfRad_AD = insert_spanwise_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
             if i==0:
                 M_AD = np.zeros((len(v), len(dfRad_AD), len(dfRad_AD.columns)))
                 Col_AD=dfRad_AD.columns.values
             M_AD[i, :, : ] = dfRad_AD.values
         if r_ED is not None and len(r_ED)>0:
             dfRad_ED = extract_spanwise_data(ColsInfoED, nrMaxED, df=None, ts=df.iloc[i])
-            dfRad_ED = insert_radial_columns(dfRad_ED, r_ED, R=R, IR=IR_ED)
+            dfRad_ED = insert_spanwise_columns(dfRad_ED, r_ED, R=R, IR=IR_ED)
             if i==0:
                 M_ED = np.zeros((len(v), len(dfRad_ED), len(dfRad_ED.columns)))
                 Col_ED=dfRad_ED.columns.values
             M_ED[i, :, : ] = dfRad_ED.values
         if r_BD is not None and len(r_BD)>0:
             dfRad_BD = extract_spanwise_data(ColsInfoBD, nrMaxBD, df=None, ts=df.iloc[i])
-            dfRad_BD = insert_radial_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
+            dfRad_BD = insert_spanwise_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
             if i==0:
                 M_BD = np.zeros((len(v), len(dfRad_BD), len(dfRad_BD.columns)))
                 Col_BD=dfRad_BD.columns.values
@@ -820,24 +928,28 @@ def spanwisePostProRows(df, FST_In=None):
     return M_AD, Col_AD, M_ED, Col_ED, M_BD, Col_BD
 
 
-def FASTRadialOutputs(FST_In, OutputCols=None):
-    """ Returns radial positions where FAST has outputs
+def FASTSpanwiseOutputs(FST_In, OutputCols=None, verbose=False):
+    """ Returns spanwise positions where OpenFAST has outputs
     INPUTS:
-       FST_In: fast input file (.fst)
+      - FST_In: fast input file (.fst)
     OUTPUTS:
-       r_AD: radial positions of FAST Outputs from the rotor center
+       dictionary with fields:
+         - r_AD: radial positions of FAST Outputs from the rotor center
     """
     R           = None
+    TwrLen      = None
     r_hub =0
     r_AD        = None 
-    r_ED        = None
+    r_ED_bld    = None
+    r_ED_twr    = None
     r_BD        = None
-    IR_ED       = None
+    IR_ED_bld   = None
+    IR_ED_twr   = None
     IR_AD       = None
     IR_BD       = None
     fst=None
     if FST_In is not None:
-        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD','BDbld'])
+        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD','BDbld','SD'])
         # NOTE: all this below should be in FASTInputDeck
         if fst.version == 'F7':
             # --- FAST7
@@ -862,16 +974,21 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
                     r_hub       = fst.fst['BldHubRad_bl(1_1)']
 
             elif  not hasattr(fst,'ED'):
-                print('[WARN] The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
+                if verbose:
+                    print('[WARN] The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
                 #raise Exception('The Elastodyn file couldn''t be found or read, from main file: '+FST_In)
             else:
                 R           = fst.ED['TipRad']
                 r_hub       = fst.ED['HubRad']
                 if fst.ED.hasNodal:
-                    _, r_ED = ED_BldStations(fst.ED)
-                    IR_ED =None
+                    _, r_ED_bld = ED_BldStations(fst.ED)
+                    IR_ED_bld =None
                 else:
-                    r_ED, IR_ED = ED_BldGag(fst.ED)
+                    r_ED_bld, IR_ED_bld = ED_BldGag(fst.ED)
+
+                # No nodal output for elastodyn tower yet
+                TwrLen = fst.ED['TowerHt'] -fst.ED['TowerBsHt']
+                r_ED_twr, IR_ED_twr = ED_TwrGag(fst.ED)
 
             # --- BeamDyn
             if  fst.BD is not None:
@@ -885,7 +1002,8 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
 
             # --- AeroDyn
             if  fst.AD is None:
-                print('[WARN] The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
+                if verbose:
+                    print('[WARN] The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
                 #raise Exception('The AeroDyn file couldn''t be found or read, from main file: '+FST_In)
             else:
                 if fst.ADversion == 'AD15':
@@ -910,7 +1028,13 @@ def FASTRadialOutputs(FST_In, OutputCols=None):
 
                 else:
                     raise Exception('AeroDyn version unknown')
-    return r_AD, r_ED, r_BD, IR_AD, IR_ED, IR_BD, R, r_hub, fst
+    # Put everything into a dictionary for convenience
+    outs = {'r_AD':r_AD, 'IR_AD':IR_AD, 'r_ED_bld':r_ED_bld, 'IR_ED_bld':IR_ED_bld, 'r_ED_twr':r_ED_twr, 'IR_ED_twr':IR_ED_twr, 'r_BD':r_BD, 'IR_BD':IR_BD}
+    outs['R']     = R
+    outs['TwrLen']= TwrLen
+    outs['r_hub'] = r_hub
+    outs['fst']   = fst
+    return outs # r_AD, r_ED, r_BD, IR_AD, IR_ED, IR_BD, R, r_hub, fst
 
 
 
@@ -930,9 +1054,13 @@ def addToOutlist(OutList, Signals):
 # --- Generic df 
 # --------------------------------------------------------------------------------{
 def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, verbose=False):
-    """ Add/rename columns of a dataframe, potentially perform operations between columns
+    """ 
+    NOTE: see welib.tools.pandalib
 
-    dataDict: dicitonary of data to be made available as "variable" in the column mapping
+    Add/rename columns of a dataframe, potentially perform operations between columns
+
+    dataDict: dictionary of data to be made available as "variable" in the column mapping
+         'key' (new) : value (old)
 
     Example:
 
@@ -940,6 +1068,7 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, ve
           'WS_[m/s]'         : '{Wind1VelX_[m/s]}'             , # create a new column from existing one
           'RtTSR_[-]'        : '{RtTSR_[-]} * 2  +  {RtAeroCt_[-]}'    , # change value of column
           'RotSpeed_[rad/s]' : '{RotSpeed_[rpm]} * 2*np.pi/60 ', # new column [rpm] -> [rad/s]
+          'q_p' :  ['Q_P_[rad]', '{PtfmSurge_[deg]}*np.pi/180']  # List of possible matches
         }
         # Read
         df = weio.read('FASTOutBin.outb').toDataFrame()
@@ -961,33 +1090,47 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, ve
     # Loop for expressions
     for k0,v in ColMap.items():
         k=k0.strip()
-        v=v.strip()
-        if v.find('{')>=0:
-            search_results = re.finditer(r'\{.*?\}', v)
-            expr=v
-            if verbose:
-                print('Attempt to insert column {:15s} with expr {}'.format(k,v))
-            # For more advanced operations, we use an eval
-            bFail=False
-            for item in search_results:
-                col=item.group(0)[1:-1]
-                if col not in df.columns:
-                    ColMapMiss.append(col)
-                    bFail=True
-                expr=expr.replace(item.group(0),'df[\''+col+'\']')
-            #print(k0, '=', expr)
-            if not bFail:
-                df[k]=eval(expr)
-                ColNew.append(k)
-            else:
-                print('[WARN] Column not present in dataframe, cannot evaluate: ',expr)
+        if type(v) is not list:
+            values = [v]
         else:
-            #print(k0,'=',v)
-            if v not in df.columns:
-                ColMapMiss.append(v)
-                print('[WARN] Column not present in dataframe: ',v)
+            values = v
+        Found = False
+        for v in values:
+            v=v.strip()
+            if Found:
+                break # We avoid replacing twice
+            if v.find('{')>=0:
+                # --- This is an advanced substitution using formulae
+                search_results = re.finditer(r'\{.*?\}', v)
+                expr=v
+                if verbose:
+                    print('Attempt to insert column {:15s} with expr {}'.format(k,v))
+                # For more advanced operations, we use an eval
+                bFail=False
+                for item in search_results:
+                    col=item.group(0)[1:-1]
+                    if col not in df.columns:
+                        ColMapMiss.append(col)
+                        bFail=True
+                    expr=expr.replace(item.group(0),'df[\''+col+'\']')
+                #print(k0, '=', expr)
+                if not bFail:
+                    df[k]=eval(expr)
+                    ColNew.append(k)
+                else:
+                    print('[WARN] Column not present in dataframe, cannot evaluate: ',expr)
             else:
-                RenameMap[k]=v
+                #print(k0,'=',v)
+                if v not in df.columns:
+                    ColMapMiss.append(v)
+                    if verbose:
+                        print('[WARN] Column not present in dataframe: ',v)
+                else:
+                    if k in RenameMap.keys():
+                        print('[WARN] Not renaming {} with {} as the key is already present'.format(k,v))
+                    else:
+                        RenameMap[k]=v
+                        Found=True
 
     # Applying renaming only now so that expressions may be applied in any order
     for k,v in RenameMap.items():
@@ -1064,9 +1207,9 @@ def _zero_crossings(y,x=None,direction=None):
         raise Exception('Direction should be either `up` or `down`')
     return xzc, iBef, sign
 
-def find_matching_pattern(List, pattern, sort=False, integers=True):
+def find_matching_pattern(List, pattern, sort=False, integers=True, n=1):
     r""" Return elements of a list of strings that match a pattern
-        and return the first matching group
+        and return the n first matching group
 
     Example:
 
@@ -1109,7 +1252,7 @@ def extractSpanTS(df, pattern):
 
     NOTE: time is not inserted in the output dataframe 
 
-    To find "r" use FASTRadialOutputs, it is different for AeroDyn/ElastoDyn/BeamDyn/
+    To find "r" use FASTSpanwiseOutputs, it is different for AeroDyn/ElastoDyn/BeamDyn/
     There is no guarantee that the number of columns matching pattern will exactly
     corresponds to the number of radial stations. That's the responsability of the 
     OpenFAST user.
@@ -1278,7 +1421,7 @@ def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, c
     return dfPsi
 
 
-def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColSort=None,stats=['mean']):
+def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColSort=None,stats=['mean'], filename=''):
     """
     See average PostPro for documentation, same interface, just does it for one dataframe
     """
@@ -1287,6 +1430,9 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
             if x==v:
                 return k
         return x
+    # Sanity 
+    if len(filename)>0:
+        filename=' (File: {})'.format(filename)
     # Before doing the colomn map we store the time
     time = df['Time_[s]'].values
     timenoNA = time[~np.isnan(time)]
@@ -1306,14 +1452,14 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
     elif avgMethod.lower()=='periods':
         # --- Using azimuth to find periods
         if 'Azimuth_[deg]' not in df.columns:
-            raise Exception('The sensor `Azimuth_[deg]` does not appear to be in the output file. You cannot use the averaging method by `periods`, use `constantwindow` instead.')
+            raise Exception('The sensor `Azimuth_[deg]` does not appear to be in the dataframe{}. You cannot use the averaging method by `periods`, use `constantwindow` instead.'.format(filename))
         # NOTE: potentially we could average over each period and then average
         psi=df['Azimuth_[deg]'].values
         _,iBef = _zero_crossings(psi-psi[-2],direction='up')
         if len(iBef)==0:
             _,iBef = _zero_crossings(psi-180,direction='up')
         if len(iBef)==0:
-            print('[WARN] Not able to find a zero crossing!')
+            print('[WARN] Not able to find a zero crossing!{}'.format(filename))
             tEnd = time[-1]
             iBef=[0]
         else:
@@ -1324,7 +1470,7 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
         else:
             avgParam=int(avgParam) 
             if len(iBef)-1<avgParam:
-                print('[WARN] Not enough periods found ({}) compared to number requested to average ({})!'.format(len(iBef)-1,avgParam))
+                print('[WARN] Not enough periods found ({}) compared to number requested to average ({})!{}'.format(len(iBef)-1,avgParam, filename))
                 avgParam=len(iBef)-1
             if avgParam==0:
                 tStart = time[0]
@@ -1334,7 +1480,7 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
     elif avgMethod.lower()=='periods_omega':
         # --- Using average omega to find periods
         if 'RotSpeed_[rpm]' not in df.columns:
-            raise Exception('The sensor `RotSpeed_[rpm]` does not appear to be in the output file. You cannot use the averaging method by `periods_omega`, use `periods` or `constantwindow` instead.')
+            raise Exception('The sensor `RotSpeed_[rpm]` does not appear to be in the dataframe{}. You cannot use the averaging method by `periods_omega`, use `periods` or `constantwindow` instead.'.format(filename))
         Omega=df['RotSpeed_[rpm]'].mean()/60*2*np.pi
         Period = 2*np.pi/Omega 
         if avgParam is None:
@@ -1352,7 +1498,7 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
             print('[WARN] Signals missing and omitted for ColKeep:\n       '+'\n       '.join(ColKeepMiss))
         df=df[ColKeepSafe]
     if tStart<time[0]:
-        print('[WARN] Simulation time ({}) too short compared to required averaging window ({})!'.format(tEnd-time[0],tStart-tEnd))
+        print('[WARN] Simulation time ({}) too short compared to required averaging window ({})!{}'.format(tEnd-time[0],tStart-tEnd,filename))
     IWindow    = np.where((time>=tStart) & (time<=tEnd) & (~np.isnan(time)))[0]
     iEnd   = IWindow[-1]
     iStart = IWindow[0]
@@ -1375,10 +1521,15 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
 
 
 
-def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColSort=None,stats=['mean']):
+def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
+        ColMap=None,ColKeep=None,ColSort=None,stats=['mean'],
+        skipIfWrongCol=False):
     """ Opens a list of FAST output files, perform average of its signals and return a panda dataframe
     For now, the scripts only computes the mean within a time window which may be a constant or a time that is a function of the rotational speed (see `avgMethod`).
     The script only computes the mean for now. Other stats will be added
+    INPUTS:
+
+     outFiles_or_DFs: list of fst filenames or dataframes
 
     `ColMap` :  dictionary where the key is the new column name, and v the old column name.
                 Default: None, output is not sorted
@@ -1399,33 +1550,52 @@ def averagePostPro(outFiles,avgMethod='periods',avgParam=None,ColMap=None,ColKee
                    Default: None, full simulation length is used
     """
     result=None
-    if len(outFiles)==0:
-        raise Exception('No outFiles provided')
+    if len(outFiles_or_DFs)==0:
+        raise Exception('No outFiles or DFs provided')
 
     invalidFiles =[]
     # Loop trough files and populate result
-    for i,f in enumerate(outFiles):
-        try:
-            df=weio.read(f).toDataFrame()
-            #df=FASTOutputFile(f).toDataFrame()A # For pyFAST
-        except:
-            invalidFiles.append(f)
-            continue
-        postpro=averageDF(df, avgMethod=avgMethod, avgParam=avgParam, ColMap=ColMap, ColKeep=ColKeep,ColSort=ColSort,stats=stats)
+    for i,f in enumerate(outFiles_or_DFs):
+        if isinstance(f, pd.DataFrame):
+            df = f
+        else:
+            try:
+                df=weio.read(f).toDataFrame()
+                #df=FASTOutputFile(f).toDataFrame()A # For pyFAST
+            except:
+                invalidFiles.append(f)
+                continue
+        postpro=averageDF(df, avgMethod=avgMethod, avgParam=avgParam, ColMap=ColMap, ColKeep=ColKeep,ColSort=ColSort,stats=stats, filename=f)
         MeanValues=postpro # todo
         if result is None:
             # We create a dataframe here, now that we know the colums
             columns = MeanValues.columns
-            result = pd.DataFrame(np.nan, index=np.arange(len(outFiles)), columns=columns)
-        result.iloc[i,:] = MeanValues.copy().values
+            result = pd.DataFrame(np.nan, index=np.arange(len(outFiles_or_DFs)), columns=columns)
+        if MeanValues.shape[1]!=result.shape[1]:
+            columns_ref = result.columns
+            columns_loc = MeanValues.columns
+            if skipIfWrongCol:
+                print('[WARN] File {} has {} columns and not {}. Skipping.'.format(f, MeanValues.shape[1], result.shape[1]))
+            else:
+                try:
+                    MeanValues=MeanValues[columns_ref]
+                    result.iloc[i,:] = MeanValues.copy().values
+                    print('[WARN] File {} has more columns than other files. Truncating.'.format(f, MeanValues.shape[1], result.shape[1]))
+                except:
+                    print('[WARN] File {} is missing some columns compared to other files. Skipping.'.format(f))
+        else:
+            result.iloc[i,:] = MeanValues.copy().values
 
 
-    if len(invalidFiles)==len(outFiles):
+    if len(invalidFiles)==len(outFiles_or_DFs):
         raise Exception('None of the files can be read (or exist)!. For instance, cannot find: {}'.format(invalidFiles[0]))
     elif len(invalidFiles)>0:
         print('[WARN] There were {} missing/invalid files: \n {}'.format(len(invalidFiles),'\n'.join(invalidFiles)))
 
     if ColSort is not None:
+        if not ColSort in result.keys():
+            print('[INFO] Columns present: ', result.keys())
+            raise Exception('[FAIL] Cannot sort results with column `{}`, column not present in dataframe (see above)'.format(ColSort)) 
         # Sorting 
         result.sort_values([ColSort],inplace=True,ascending=True)
         result.reset_index(drop=True,inplace=True) 

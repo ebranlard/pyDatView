@@ -30,6 +30,13 @@ except:
     print('CSVFile not available')
 
 
+
+FileFmtID_WithTime              = 1 # File identifiers used in FAST
+FileFmtID_WithoutTime           = 2
+FileFmtID_NoCompressWithoutTime = 3
+FileFmtID_ChanLen_In            = 4 # Channel length included in file
+
+
 # --------------------------------------------------------------------------------}
 # --- OUT FILE 
 # --------------------------------------------------------------------------------{
@@ -279,12 +286,6 @@ def load_binary_output(filename, use_buffer=True):
             raise Exception('Read only %d of %d values in file:' % (nIntRead, n, filename))
         return data
 
-
-    FileFmtID_WithTime              = 1 # File identifiers used in FAST
-    FileFmtID_WithoutTime           = 2
-    FileFmtID_NoCompressWithoutTime = 3
-    FileFmtID_ChanLen_In            = 4
-
     with open(filename, 'rb') as fid:
         #----------------------------        
         # get the header information
@@ -392,40 +393,7 @@ def load_binary_output(filename, use_buffer=True):
     return data, info
 
 
-def writeDataFrame(df, filename, binary=True):
-    channels  = df.values
-    # attempt to extract units from channel names
-    chanNames=[]
-    chanUnits=[]
-    for c in df.columns:
-        c     = c.strip()
-        name  = c
-        units = ''
-        if c[-1]==']':
-            chars=['[',']']
-        elif c[-1]==')':
-            chars=['(',')']
-        else:
-            chars=[]
-        if len(chars)>0:
-            op,cl = chars
-            iu=c.rfind(op)
-            if iu>1:
-                name = c[:iu]
-                unit = c[iu+1:].replace(cl,'')
-                if name[-1]=='_':
-                    name=name[:-1]
-                
-        chanNames.append(name)
-        chanUnits.append(unit)
-
-    if binary:
-        writeBinary(filename, channels, chanNames, chanUnits)
-    else:
-        NotImplementedError()
-
-
-def writeBinary(fileName, channels, chanNames, chanUnits, fileID=2, descStr=''):
+def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
     """
     Write an OpenFAST binary file.
 
@@ -479,8 +447,8 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=2, descStr=''):
     ColOff  = np.single(int16Min - np.single(mins)*ColScl)
     
     #Just available for fileID 
-    if fileID != 2:
-        print("current version just works with FileID = 2")
+    if fileID not in [2,4]:
+        print("current version just works with fileID = 2 or 4")
 
     else:
         with open(fileName,'wb') as fid:
@@ -494,6 +462,14 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=2, descStr=''):
 
             # Write header informations
             fid.write(struct.pack('@h',fileID))
+            if fileID == FileFmtID_ChanLen_In: 
+                maxChanLen = np.max([len(s) for s in chanNames])
+                maxUnitLen = np.max([len(s) for s in chanUnits])
+                nChar = max(maxChanLen, maxUnitLen)
+                fid.write(struct.pack('@h',nChar))
+            else:
+                nChar = 10
+
             fid.write(struct.pack('@i',nChannels))
             fid.write(struct.pack('@i',nT))
             fid.write(struct.pack('@d',timeStart))
@@ -506,13 +482,15 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=2, descStr=''):
 
             # Write channel names
             for chan in chanNames:
-                ordchan = [ord(char) for char in chan]+ [32]*(10-len(chan))
-                fid.write(struct.pack('@10B', *ordchan))
+                chan = chan[:nChar]
+                ordchan = [ord(char) for char in chan] + [32]*(nChar-len(chan))
+                fid.write(struct.pack('@'+str(nChar)+'B', *ordchan))
 
             # Write channel units
             for unit in chanUnits:
-                ordunit = [ord(char) for char in unit]+ [32]*(10-len(unit))
-                fid.write(struct.pack('@10B', *ordunit))
+                unit = unit[:nChar]
+                ordunit = [ord(char) for char in unit] + [32]*(nChar-len(unit))
+                fid.write(struct.pack('@'+str(nChar)+'B', *ordunit))
 
             # Pack data
             packedData=np.zeros((nT, nChannels), dtype=np.int16)
@@ -522,6 +500,40 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=2, descStr=''):
             # Write data
             fid.write(struct.pack('@{}h'.format(packedData.size), *packedData.flatten()))
             fid.close()
+
+def writeDataFrame(df, filename, binary=True):
+    """ write a DataFrame to OpenFAST output format"""
+    channels  = df.values
+    # attempt to extract units from channel names
+    chanNames=[]
+    chanUnits=[]
+    for c in df.columns:
+        c     = c.strip()
+        name  = c
+        unit = ''
+        if c[-1]==']':
+            chars=['[',']']
+        elif c[-1]==')':
+            chars=['(',')']
+        else:
+            chars=[]
+        if len(chars)>0:
+            op,cl = chars
+            iu=c.rfind(op)
+            if iu>1:
+                name = c[:iu]
+                unit = c[iu+1:].replace(cl,'')
+                if name[-1]=='_':
+                    name=name[:-1]
+                
+        chanNames.append(name)
+        chanUnits.append(unit)
+
+    if binary:
+        writeBinary(filename, channels, chanNames, chanUnits, fileID=FileFmtID_ChanLen_In)
+    else:
+        NotImplementedError()
+
 
 
 if __name__ == "__main__":

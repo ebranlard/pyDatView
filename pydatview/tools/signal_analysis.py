@@ -355,11 +355,12 @@ def applyFilterDF(df_old, x_col, options):
 # --------------------------------------------------------------------------------}
 # ---  
 # --------------------------------------------------------------------------------{
-def zero_crossings(y,x=None,direction=None):
+def zero_crossings(y, x=None, direction=None, bouncingZero=False):
     """
       Find zero-crossing points in a discrete vector, using linear interpolation.
 
       direction: 'up' or 'down', to select only up-crossings or down-crossings
+      bouncingZero: also returns zeros that are exactly zero and do not change sign
 
       returns: 
           x values xzc such that y(yzc)==0
@@ -386,7 +387,8 @@ def zero_crossings(y,x=None,direction=None):
     # Selecting points that are exactly 0 and where neighbor change sign
     iZero = np.where(y == 0.0)[0]
     iZero = iZero[np.where((iZero > 0) & (iZero < x.size-1))]
-    iZero = iZero[np.where(y[iZero-1]*y[iZero+1] < 0.0)]
+    if not bouncingZero:
+        iZero = iZero[np.where(y[iZero-1]*y[iZero+1] < 0.0)] # we only accept zeros that change signs
 
     # Concatenate 
     xzc  = np.concatenate((xzc, x[iZero]))
@@ -405,7 +407,7 @@ def zero_crossings(y,x=None,direction=None):
         I= np.where(sign==-1)[0]
         return xzc[I],iBef[I]
     elif direction is not None:
-        raise Exception('Direction should be either `up` or `down`')
+        raise Exception('Direction should be either `up` or `down` or `None`')
     return xzc, iBef, sign
 
 
@@ -416,15 +418,32 @@ def correlation(x, nMax=80, dt=1, method='manual'):
     """ 
     Compute auto correlation of a signal
     """
+
+    def acf(x, nMax=20):
+        return np.array([1]+[np.corrcoef(x[:-i], x[i:])[0,1]  for i in range(1, nMax)])
+
+
     nvec   = np.arange(0,nMax)
     sigma2 = np.var(x)
     R    = np.zeros(nMax)
-    R[0] =1
-    for i,nDelay in enumerate(nvec[1:]):
-        R[i+1] = np.mean(  x[0:-nDelay] * x[nDelay:]  ) / sigma2
+    #R[0] =1
+    #for i,nDelay in enumerate(nvec[1:]):
+    #    R[i+1] = np.mean(  x[0:-nDelay] * x[nDelay:]  ) / sigma2
+    #    R[i+1] = np.corrcoef(x[:-nDelay], x[nDelay:])[0,1] 
+
+    R= acf(x, nMax=nMax)
 
     tau = nvec*dt
     return R, tau
+# Auto-correlation comes in two versions: statistical and convolution. They both do the same, except for a little detail: The statistical version is normalized to be on the interval [-1,1]. Here is an example of how you do the statistical one:
+# 
+# 
+# def autocorr(x):
+#     result = numpy.correlate(x, x, mode='full')
+#     return result[result.size/2:]
+
+
+
 
 
 def correlated_signal(coeff, n=1000, seed=None):
@@ -521,7 +540,6 @@ def amplitude(x, t=None, T = None, mask=None, debug=False):
         return A
 
         # split signals into  subsets
-        import pdb; pdb.set_trace()
     else:
         return (np.max(x)-np.min(x))/2
 

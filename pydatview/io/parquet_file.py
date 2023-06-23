@@ -32,6 +32,9 @@ class ParquetFile(File):
         #just return self.data
         return self.data
 
+    def fromDataFrame(self, df):
+        #data already in dataframe
+        self.data = df
 
     def toString(self):
         """ use pandas DataFrame.to_string method to convert to a string """

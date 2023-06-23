@@ -170,11 +170,13 @@ class MannBoxFile(File):
         s+='|   min: {}, max: {}, mean: {} \n'.format(np.min(self['field']), np.max(self['field']), np.mean(self['field']))
         s+='| - dy, dz:  {}, {}\n'.format(self['dy'], self['dz'])
         s+='| - y0, z0 zMid:  {}, {}, {}\n'.format(self['y0'], self['z0'], self['zMid'])
-        s+='|useful getters: y, z, _iMid, fromTurbSim\n'
         z=self.z
         y=self.y
-        s+='|   y: [{} ... {}],  dy: {}, n: {} \n'.format(y[0],y[-1],self['dy'],len(y))
-        s+='|   z: [{} ... {}],  dz: {}, n: {} \n'.format(z[0],z[-1],self['dz'],len(z))
+        s+='| * y: [{} ... {}],  dy: {}, n: {} \n'.format(y[0],y[-1],self['dy'],len(y))
+        s+='| * z: [{} ... {}],  dz: {}, n: {} \n'.format(z[0],z[-1],self['dz'],len(z))
+        s+='|useful functions:\n'
+        s+='| - t(dx, U)\n'
+        s+='| - valuesAt(y,z), vertProfile(), fromTurbSim(*), _iMid()\n'
         return s
 
 
