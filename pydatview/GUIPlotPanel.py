@@ -975,13 +975,14 @@ class PlotPanel(wx.Panel):
             try:
                 xMin=np.min([PDs[i]._xMin[0] for i in axis.iPD])
                 xMax=np.max([PDs[i]._xMax[0] for i in axis.iPD])
-                if np.isclose(xMin,xMax): 
-                    delta=1 if np.isclose(xMax,0) else 0.1*xMax
+                delta = xMax-xMin
+                if delta==0:
+                    delta=1
                 else:
-                    if tight:
-                        delta=0
-                    else:
-                        delta = (xMax-xMin)*pyplot_rc['axes.xmargin']
+                #    if tight:
+                #        delta=0
+                #    else:
+                    delta = delta*pyplot_rc['axes.xmargin']
                 axis.set_xlim(xMin-delta,xMax+delta)
                 axis.autoscale(False, axis='x', tight=False)
             except:
@@ -990,14 +991,18 @@ class PlotPanel(wx.Panel):
             try:
                 yMin=np.min([PDs[i]._yMin[0] for i in axis.iPD])
                 yMax=np.max([PDs[i]._yMax[0] for i in axis.iPD])
-                delta = (yMax-yMin)*pyplot_rc['axes.ymargin'] 
-                if np.isclose(yMin,yMax): 
-                    delta=1 if np.isclose(yMax,0) else 0.1*yMax
+                delta = (yMax-yMin)
+                # Note: uncomment and figure something out for small fluctuations
+                if delta==0:
+                    delta=1
                 else:
-                    if tight:
-                        delta=0
-                    else:
-                        delta = (yMax-yMin)*pyplot_rc['axes.xmargin']
+                #if np.isclose(yMin,yMax): 
+                #    delta=1 if np.isclose(yMax,0) else 0.1*delta
+                #else:
+                #    if tight:
+                #        delta=0
+                #    else:
+                    delta = delta*pyplot_rc['axes.xmargin']
                 axis.set_ylim(yMin-delta,yMax+delta)
                 axis.autoscale(False, axis='y', tight=False)
             except:
@@ -1063,112 +1068,112 @@ class PlotPanel(wx.Panel):
             __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bStep, plot_options)
             ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bStep, plot_options)
 
-            # Log Axes
-            if self.cbLogX.IsChecked():
-                try:
-                    ax_left.set_xscale("log", nonpositive='clip') # latest
-                except:
-                    ax_left.set_xscale("log", nonposx='clip') # legacy
-
-            if self.cbLogY.IsChecked():
-                if bAllNegLeft is False:
-                    try:
-                        ax_left.set_yscale("log", nonpositive='clip') # latest
-                    except:
-                        ax_left.set_yscale("log", nonposy='clip')
-                if bAllNegRight is False and ax_right is not None:
-                    try:
-                        ax_right.set_yscale("log", nonpositive='clip') # latest
-                    except:
-                        ax_left.set_yscale("log", nonposy='clip') # legacy
-
-            # XLIM - TODO FFT ONLY NASTY
-            if self.pltTypePanel.cbFFT.GetValue():
-                try:
-                    if self.cbAutoScale.IsChecked():
-                        xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
-                        if xlim>0:
-                                ax_left.set_xlim([0,xlim])
-                                pd=PD[ax_left.iPD[0]]
-                                I=pd.x<xlim
-                                ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
-                                ax_left.set_ylim(bottom=ymin/2)
-                        if self.spcPanel.cbTypeX.GetStringSelection()=='x':
-                            ax_left.invert_xaxis()
-                    else:
-                        self._restore_limits()
-                except:
-                    pass
-            elif not self.cbAutoScale.IsChecked() and keep_limits:
-                self._restore_limits()
-
-            ax_left.grid(self.cbGrid.IsChecked())
-            if ax_right is not None:
-                l = ax_left.get_ylim()
-                l2 = ax_right.get_ylim()
-                f = lambda x : l2[0]+(x-l[0])/(l[1]-l[0])*(l2[1]-l2[0])
-                ticks = f(ax_left.get_yticks())
-                ax_right.yaxis.set_major_locator(matplotlib.ticker.FixedLocator(ticks))
-                if len(ax_left.lines) == 0:
-                    ax_left.set_yticks(ax_right.get_yticks())
-                    ax_left.yaxis.set_visible(False)
-                    ax_right.grid(self.cbGrid.IsChecked())
-
-            # Special Grids
-            if self.pltTypePanel.cbCompare.GetValue():
-                if self.cmpPanel.rbType.GetStringSelection()=='Y-Y':
-                    xmin,xmax=ax_left.get_xlim()
-                    ax_left.plot([xmin,xmax],[xmin,xmax],'k--',linewidth=0.5)
-
-            # Labels
-            yleft_labels = []
-            yright_labels = []
-            yleft_legends = []
-            yright_legends = []
-            if pm is None:
-                yleft_labels = unique([PD[i].sy for i in ax_left.iPD])
-                if axis_idx == 0:
-                    yleft_legends = unique([PD[i].syl for i in ax_left.iPD])
-            else:
-                for signal_idx in range(len(PD)):
-                    if pm[signal_idx][axis_idx] == 1:
-                        yleft_labels.append(PD[signal_idx].sy)
-                        yleft_legends.append(PD[signal_idx].syl)
-                    elif pm[signal_idx][axis_idx] == 2:
-                        yright_labels.append(PD[signal_idx].sy)
-                        yright_legends.append(PD[signal_idx].syl)
-                yleft_labels = unique(yleft_labels)
-                yright_labels = unique(yright_labels)
-                yleft_legends = unique(yleft_legends)
-                yright_legends = unique(yright_legends)
-
-            if len(yleft_labels) > 0 and len(yleft_labels) <= 3:
-                ax_left.set_ylabel(' and '.join(yleft_labels), **font_options)
-            elif ax_left is not None:
-                ax_left.set_ylabel('')
-            if len(yright_labels) > 0 and len(yright_labels) <= 3:
-                ax_right.set_ylabel(' and '.join(yright_labels), **font_options)
-            elif ax_right is not None:
-                ax_right.set_ylabel('')
-
-            # Legends
-            lgdLoc = self.esthPanel.cbLegend.Value.lower()
-            if (self.pltTypePanel.cbCompare.GetValue() or 
-                ((len(yleft_legends) + len(yright_legends)) > 1)):
-                if lgdLoc !='none':
-                    if len(yleft_legends) > 0:
-                        ax_left.legend(fancybox=False, loc=lgdLoc, **font_options_legd)
-                if ax_right is not None and len(yright_legends) > 0:
-                    ax_right.legend(fancybox=False, loc=4, **font_options_legd)
-            elif len(axes)>1 and len(axes)==len(PD):
-                # TODO: can this be removed? If there is only one unique signal
-                # per subplot, normally only ylabel is displayed and no legend.
-                # Special case when we have subplots and all plots have the same label
-                if lgdLoc !='none':
-                    usy = unique([pd.sy for pd in PD])
-                    if len(usy)==1:
-                        for ax in axes:
-                            ax.legend(fancybox=False, loc=lgdLoc, **font_options_legd)
+#             # Log Axes
+#             if self.cbLogX.IsChecked():
+#                 try:
+#                     ax_left.set_xscale("log", nonpositive='clip') # latest
+#                 except:
+#                     ax_left.set_xscale("log", nonposx='clip') # legacy
+# 
+#             if self.cbLogY.IsChecked():
+#                 if bAllNegLeft is False:
+#                     try:
+#                         ax_left.set_yscale("log", nonpositive='clip') # latest
+#                     except:
+#                         ax_left.set_yscale("log", nonposy='clip')
+#                 if bAllNegRight is False and ax_right is not None:
+#                     try:
+#                         ax_right.set_yscale("log", nonpositive='clip') # latest
+#                     except:
+#                         ax_left.set_yscale("log", nonposy='clip') # legacy
+# 
+#             # XLIM - TODO FFT ONLY NASTY
+#             if self.pltTypePanel.cbFFT.GetValue():
+#                 try:
+#                     if self.cbAutoScale.IsChecked():
+#                         xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
+#                         if xlim>0:
+#                                 ax_left.set_xlim([0,xlim])
+#                                 pd=PD[ax_left.iPD[0]]
+#                                 I=pd.x<xlim
+#                                 ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
+#                                 ax_left.set_ylim(bottom=ymin/2)
+#                         if self.spcPanel.cbTypeX.GetStringSelection()=='x':
+#                             ax_left.invert_xaxis()
+#                     else:
+#                         self._restore_limits()
+#                 except:
+#                     pass
+#             elif not self.cbAutoScale.IsChecked() and keep_limits:
+#                 self._restore_limits()
+# 
+#             ax_left.grid(self.cbGrid.IsChecked())
+#             if ax_right is not None:
+#                 l = ax_left.get_ylim()
+#                 l2 = ax_right.get_ylim()
+#                 f = lambda x : l2[0]+(x-l[0])/(l[1]-l[0])*(l2[1]-l2[0])
+#                 ticks = f(ax_left.get_yticks())
+#                 ax_right.yaxis.set_major_locator(matplotlib.ticker.FixedLocator(ticks))
+#                 if len(ax_left.lines) == 0:
+#                     ax_left.set_yticks(ax_right.get_yticks())
+#                     ax_left.yaxis.set_visible(False)
+#                     ax_right.grid(self.cbGrid.IsChecked())
+# 
+#             # Special Grids
+#             if self.pltTypePanel.cbCompare.GetValue():
+#                 if self.cmpPanel.rbType.GetStringSelection()=='Y-Y':
+#                     xmin,xmax=ax_left.get_xlim()
+#                     ax_left.plot([xmin,xmax],[xmin,xmax],'k--',linewidth=0.5)
+# 
+#             # Labels
+#             yleft_labels = []
+#             yright_labels = []
+#             yleft_legends = []
+#             yright_legends = []
+#             if pm is None:
+#                 yleft_labels = unique([PD[i].sy for i in ax_left.iPD])
+#                 if axis_idx == 0:
+#                     yleft_legends = unique([PD[i].syl for i in ax_left.iPD])
+#             else:
+#                 for signal_idx in range(len(PD)):
+#                     if pm[signal_idx][axis_idx] == 1:
+#                         yleft_labels.append(PD[signal_idx].sy)
+#                         yleft_legends.append(PD[signal_idx].syl)
+#                     elif pm[signal_idx][axis_idx] == 2:
+#                         yright_labels.append(PD[signal_idx].sy)
+#                         yright_legends.append(PD[signal_idx].syl)
+#                 yleft_labels = unique(yleft_labels)
+#                 yright_labels = unique(yright_labels)
+#                 yleft_legends = unique(yleft_legends)
+#                 yright_legends = unique(yright_legends)
+# 
+#             if len(yleft_labels) > 0 and len(yleft_labels) <= 3:
+#                 ax_left.set_ylabel(' and '.join(yleft_labels), **font_options)
+#             elif ax_left is not None:
+#                 ax_left.set_ylabel('')
+#             if len(yright_labels) > 0 and len(yright_labels) <= 3:
+#                 ax_right.set_ylabel(' and '.join(yright_labels), **font_options)
+#             elif ax_right is not None:
+#                 ax_right.set_ylabel('')
+# 
+#             # Legends
+#             lgdLoc = self.esthPanel.cbLegend.Value.lower()
+#             if (self.pltTypePanel.cbCompare.GetValue() or 
+#                 ((len(yleft_legends) + len(yright_legends)) > 1)):
+#                 if lgdLoc !='none':
+#                     if len(yleft_legends) > 0:
+#                         ax_left.legend(fancybox=False, loc=lgdLoc, **font_options_legd)
+#                 if ax_right is not None and len(yright_legends) > 0:
+#                     ax_right.legend(fancybox=False, loc=4, **font_options_legd)
+#             elif len(axes)>1 and len(axes)==len(PD):
+#                 # TODO: can this be removed? If there is only one unique signal
+#                 # per subplot, normally only ylabel is displayed and no legend.
+#                 # Special case when we have subplots and all plots have the same label
+#                 if lgdLoc !='none':
+#                     usy = unique([pd.sy for pd in PD])
+#                     if len(usy)==1:
+#                         for ax in axes:
+#                             ax.legend(fancybox=False, loc=lgdLoc, **font_options_legd)
 
         # --- End loop on axes
         # --- Measure
