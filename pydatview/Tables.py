@@ -251,6 +251,35 @@ class TableList(object): # todo inherit list
         self.append(Table(data=df, name=newName))
         return newName, df
 
+    def vstack(self, I=None, commonOnly=False):
+        """ 
+        Vertical stacking of tables
+
+        I: index of tables to stack, if None: all tables are stacked
+        commonOnly: if True, keep only the common columns. 
+                    Otherwise, NaN will be introduced for missing columns
+        """
+        if I is None:
+            I = range(len(self._tabs))
+        dfs = [self._tabs[i].data for i in I]
+
+        if commonOnly:
+            # --- Concatenate all but keep only common columns
+            df = pd.concat(dfs, join='inner', ignore_index=True)
+        else:
+            # --- Concatenate all, not worrying about common columns
+            df = pd.concat(dfs, ignore_index=True)
+        # Set unique index
+        if 'Index' in df.columns:
+            df = df.drop(['Index'], axis=1)
+        df.insert(0, 'Index', np.arange(df.shape[0]))
+        # Add to table list 
+        newName = self._tabs[I[0]].name+'_concat'
+        self.append(Table(data=df, name=newName))
+        return newName, df
+
+
+
     def deleteTabs(self, I):
         self._tabs = [t for i,t in enumerate(self._tabs) if i not in I]
 

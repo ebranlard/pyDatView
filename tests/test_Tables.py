@@ -52,6 +52,18 @@ class TestTable(unittest.TestCase):
         np.testing.assert_almost_equal(df['ColB'] , [np.nan , np.nan , 11  , 11.5 , 12  , 12.5 , 13.0] )
         np.testing.assert_almost_equal(df['Index'], [0,1,2,3,4,5,6])
 
+    def test_vstack(self):
+        # Vertical stack
+        tab1=Table(data=pd.DataFrame(data={'ID0': np.arange(0,3,0.5),'ColA': [10,10.5,11,11.5,12,12.5]}))
+        tab2=Table(data=pd.DataFrame(data={'ID': np.arange(1,4),'ColA': [11,12,13]}))
+        tablist = TableList([tab1,tab2])
+
+        # Concatenate keep only the common columns
+        name, df = tablist.vstack(commonOnly=True)
+        np.testing.assert_almost_equal(df['Index'], [0,1,2,3,4,5,6,7,8])
+        np.testing.assert_almost_equal(df['ColA'], np.concatenate((tab1.data['ColA'], tab2.data['ColA'], )))
+        np.testing.assert_equal(df.columns.values, ['Index','ColA'])
+
 
     def test_resample(self):
         tab1=Table(data=pd.DataFrame(data={'BlSpn': [0,1,2],'Chord': [1,2,1]}))

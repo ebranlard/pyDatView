@@ -294,9 +294,14 @@ class TablePopup(wx.Menu):
                 self.Bind(wx.EVT_MENU, self.mainframe.onAdd, item)
 
         if len(self.ISel)>1:
-            item = wx.MenuItem(self, -1, "Merge")
+            item = wx.MenuItem(self, -1, "Merge (horizontally)")
             self.Append(item)
             self.Bind(wx.EVT_MENU, self.OnMergeTabs, item)
+
+        if len(self.ISel)>1:
+            item = wx.MenuItem(self, -1, "Concatenate (vertically)")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnVStackTabs, item)
 
         if len(self.ISel)>0:
             item = wx.MenuItem(self, -1, "Delete")
@@ -344,7 +349,18 @@ class TablePopup(wx.Menu):
         self.tabList.mergeTabs(self.ISel, ICommonColPerTab)
         # Updating tables
         self.selPanel.update_tabs(self.tabList)
-        # TODO select latest
+        # Select the newly created table
+        self.selPanel.tabPanel.lbTab.SetSelection(-1) # Empty selection
+        self.selPanel.tabPanel.lbTab.SetSelection(len(self.tabList)-1) # Select new/last table
+        # Trigger a replot
+        self.selPanel.onTabSelectionChange()
+
+    def OnVStackTabs(self, event):
+        # --- Figure out the common columns
+        # Merge tables and add it to the list
+        self.tabList.vstack(self.ISel, commonOnly=True)
+        # Updating tables
+        self.selPanel.update_tabs(self.tabList)
         # Select the newly created table
         self.selPanel.tabPanel.lbTab.SetSelection(-1) # Empty selection
         self.selPanel.tabPanel.lbTab.SetSelection(len(self.tabList)-1) # Select new/last table
