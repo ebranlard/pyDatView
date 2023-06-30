@@ -830,13 +830,14 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     dfRad_BD            = insert_spanwise_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
     out['BD'] = dfRad_BD
     # --- SubDyn
-    if fst.SD is not None:
+    try:
+        # NOTE: fst might be None
         sd = SubDyn(fst.SD)
-        MN = sd.pointsMN
+        #MN = sd.pointsMN
         MNout, MJout = sd.memberPostPro(dfAvg)
         out['SD_MembersOut'] = MNout
         out['SD_JointsOut'] = MJout
-    else:
+    except:
         out['SD_MembersOut'] = None
         out['SD_JointsOut'] = None
 
