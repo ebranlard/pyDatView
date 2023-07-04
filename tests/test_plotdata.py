@@ -60,5 +60,19 @@ class TestPlotData(unittest.TestCase):
         #plt.plot(PD.x,fitter.model['fitted_function'](PD.x),'k--')
         #plt.show()
 
+    def test_fatigue(self):
+        dt = 0.1
+        f0 = 1  ; 
+        A  = 5  ; 
+        t=np.arange(0,10,dt);
+        y=A*np.sin(2*np.pi*f0*t)
+
+        PD = PlotData(t,y)
+        v, s = PD.leq(m=10, method='rainflow_windap')
+        np.testing.assert_almost_equal(v, 11.91189, 3)
+
+
+
+
 if __name__ == '__main__':
     unittest.main()

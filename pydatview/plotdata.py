@@ -618,18 +618,19 @@ class PlotData():
             s=pretty_num(v)
             return v,s
 
-    def leq(PD,m):
+    def leq(PD, m, method=None):
         from pydatview.tools.fatigue import equivalent_load
         if PD.yIsString or  PD.yIsDate:
             return 'NA','NA'
         else:
             T,_=PD.xRange()
-            try:
-                import fatpack
-                method='fatpack'
-            except ModuleNotFoundError:
-                print('[INFO] module fatpack not installed, default to windap method for equivalent load')
-                method='rainflow_windap'
+            if method is None:
+                try:
+                    import fatpack
+                    method='fatpack'
+                except ModuleNotFoundError:
+                    print('[INFO] module fatpack not installed, default to windap method for equivalent load')
+                    method='rainflow_windap'
             v=equivalent_load(PD.x, PD.y, m=m, Teq=T, nBins=100, method=method)
             return v,pretty_num(v)
 
