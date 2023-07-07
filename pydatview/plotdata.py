@@ -623,7 +623,6 @@ class PlotData():
         if PD.yIsString or  PD.yIsDate:
             return 'NA','NA'
         else:
-            T,_=PD.xRange()
             if method is None:
                 try:
                     import fatpack
@@ -631,7 +630,7 @@ class PlotData():
                 except ModuleNotFoundError:
                     print('[INFO] module fatpack not installed, default to windap method for equivalent load')
                     method='rainflow_windap'
-            v=equivalent_load(PD.x, PD.y, m=m, Teq=T, nBins=100, method=method)
+            v=equivalent_load(PD.x, PD.y, m=m, Teq=1, nBins=100, method=method)
             return v,pretty_num(v)
 
     def Info(PD,var):

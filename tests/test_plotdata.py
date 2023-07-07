@@ -69,7 +69,7 @@ class TestPlotData(unittest.TestCase):
 
         PD = PlotData(t,y)
         v, s = PD.leq(m=10, method='rainflow_windap')
-        np.testing.assert_almost_equal(v, 11.91189, 3)
+        np.testing.assert_almost_equal(v, 9.4714702, 3)
 
 
 
