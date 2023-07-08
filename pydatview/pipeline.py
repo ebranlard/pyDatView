@@ -1,5 +1,22 @@
 """
 pipelines and actions
+
+
+An action has:
+  - data: some data (dict)
+
+  - A set of callbacks that manipulates tables:
+
+    - tableFunctionAdd   (Table, data=dict())   # applies to a full table, return a new table
+    - tableFunctionApply (Table, data=dict())   # applies to a full table (inplace)
+    - tableFunctionCancel(Table, data=dict())   # cancel action on a full table (inplace)
+ 
+  - A set of callbacks that plot additional data:
+
+    - plotDataFunction   (x, y , data=dict()) # applies to x,y arrays only
+
+  - guiEditorClass: to Edit the data of the action
+
 """
 import numpy as np
 

@@ -17,6 +17,12 @@ def fileFormats(userpath=None, ignoreErrors=False, verbose=False):
     """ return list of fileformats supported by the library
     If userpath is provided, 
 
+    OUTPUTS:
+      if ignoreErrors is True:
+          formats,  errors
+      else:
+          formats
+
     """
     global _FORMATS
     errors=[]

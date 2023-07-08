@@ -55,6 +55,11 @@ def _data_standardizeUnitsWE(label, mainframe=None):
     from .data_standardizeUnits import standardizeUnitsAction
     return standardizeUnitsAction(label, mainframe, flavor='WE')
 
+# --- Reversible actions
+def _data_renameFldAero(label, mainframe=None):
+    from .data_renameFldAero import renameFldAeroAction
+    return renameFldAeroAction(label, mainframe)
+
 
 # --- Tools
 def _tool_logdec(*args, **kwargs):
@@ -83,6 +88,7 @@ DATA_PLUGINS_WITH_EDITOR=OrderedDict([
 DATA_PLUGINS_SIMPLE=OrderedDict([
     ('Standardize Units (SI)', _data_standardizeUnitsSI),
     ('Standardize Units (WE)', _data_standardizeUnitsWE),
+    ('Rename "Fld" > "Aero'  , _data_renameFldAero),
     ])
 
 

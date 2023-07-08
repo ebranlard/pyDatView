@@ -456,7 +456,7 @@ class Table(object):
     """ 
     Main attributes:
       - data
-      - columns
+      - columns       # TODO get rid of me
       - name
       - raw_name      # Should be unique and can be used for identification
       - ID            # Should be unique and can be used for identification
@@ -710,6 +710,20 @@ class Table(object):
         self.columns[iCol]=newName
         self.data.columns.values[iCol]=newName
 
+    def renameColumns(self, strReplDict=None):
+        """ Rename all the columns  of given table
+        - strReplDict: a string replacement dictionary of the form: {'new':'old'}
+        """
+        if strReplDict is not None:
+            cols = self.data.columns
+            newcols = []
+            for c in cols:
+                for new,old in strReplDict.items():
+                    c = c.replace(old,new)
+                newcols.append(c)
+            self.data.columns = newcols
+            self.columns = newcols
+
     def deleteColumns(self, ICol):
         """ Delete columns by index, not column names which can have duplicates"""
         IKeep =[i for i in np.arange(self.data.shape[1]) if i not in ICol]
@@ -860,20 +874,33 @@ class Table(object):
         return len(self.data.iloc[:,0]) # TODO if not panda
     
     @staticmethod
-    def createDummy(n, label=''):
-        """ create a dummy table of length n"""
-        t = np.linspace(0, 4*np.pi, n)
-        x = np.sin(t)+10
-        alpha_d = np.linspace(0, 360, n)
-        P = np.random.normal(0,100,n)+5000
-        RPM = np.random.normal(-0.2,0.2,n) + 12.
+    def createDummy(n, label='', columns=None, nCols=None):
+        """ create a dummy table of length n
+        If columns or nCols are provided, they are used for the 
+        """
+        # 
+        if nCols is None and columns is None:
+            t       = np.linspace(0, 4*np.pi, n)
+            x       = np.sin(t)+10
+            alpha_d = np.linspace(0, 360, n)
+            P       = np.random.normal(0,100,n)+5000
+            RPM     = np.random.normal(-0.2,0.2,n) + 12.
+            d={'Time_[s]':t,  
+                    'x{}_[m]'.format(label): x, 
+                    'alpha{}_[deg]'.format(label):alpha_d,
+                    'P{}_[W]'.format(label):P, 
+                    'RotSpeed{}_[rpm]'.format(label):RPM}
+        else:
+            units=['m','m/s','kn','rad','w','deg']
+            if columns is None:
+                columns = ['C{}{}_[{}]'.format(i,label, units[np.mod(i, len(units))] ) for i in range(nCols)]
+            else:
+                nCols=len(columns)
 
-        d={'Time_[s]':t,  
-                'x{}_[m]'.format(label): x, 
-                'alpha{}_[deg]'.format(label):alpha_d,
-                'P{}_[W]'.format(label):P, 
-                'RotSpeed{}_[rpm]'.format(label):RPM}
-        df = pd.DataFrame(data=d)
+        d = np.zeros((n, nCols))
+        for i in range(nCols):
+            d[:,i] = np.random.normal(0, 1, n) + i
+        df = pd.DataFrame(data=d, columns= columns)
         return Table(data=df, name='Dummy '+label)
 
 
