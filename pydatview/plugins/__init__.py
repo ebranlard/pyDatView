@@ -14,11 +14,11 @@ Register your plugins in this file:
 See working examples in this file and this directory.
 
 NOTE:
- - data plugins constructors should return an Action with a GUI Editor class
+ - DATA_PLUGINS_WITH_EDITOR: plugins constructors should return an Action with a GUI Editor class
 
- - simple data plugins constructors should return an Action
+ - DATA_PLUGINS_SIMPLE: simple data plugins constructors should return an Action
 
- - tool plugins constructor should return a Panel class
+ - TOOLS: tool plugins constructor should return a Panel class
 
 
 """
@@ -60,6 +60,11 @@ def _data_renameFldAero(label, mainframe=None):
     from .data_renameFldAero import renameFldAeroAction
     return renameFldAeroAction(label, mainframe)
 
+# --- Adding actions
+def _data_radialConcat(label, mainframe=None):
+    from .data_radialConcat import radialConcatAction
+    return radialConcatAction(label, mainframe)
+
 
 # --- Tools
 def _tool_logdec(*args, **kwargs):
@@ -77,6 +82,7 @@ def _tool_radialavg(*args, **kwargs):
 
 # --- Ordered dictionaries with key="Tool Name", value="Constructor"
 
+# DATA_PLUGINS constructors should return an Action with a GUI Editor class
 DATA_PLUGINS_WITH_EDITOR=OrderedDict([
     ('Mask'                  , _data_mask              ),
     ('Remove Outliers'       , _data_removeOutliers    ),
@@ -85,18 +91,26 @@ DATA_PLUGINS_WITH_EDITOR=OrderedDict([
     ('Bin data'              , _data_binning           ),
     ])
 
+# DATA_PLUGINS_SIMPLE: simple data plugins constructors should return an Action
 DATA_PLUGINS_SIMPLE=OrderedDict([
     ('Standardize Units (SI)', _data_standardizeUnitsSI),
     ('Standardize Units (WE)', _data_standardizeUnitsWE),
-    ('Rename "Fld" > "Aero'  , _data_renameFldAero),
     ])
 
-
-DATA_TOOLS=OrderedDict([ # TODO
-    ('FAST - Radial Average', _tool_radialavg),
-    ])
-
+# TOOLS: tool plugins constructor should return a Panel class
 TOOLS=OrderedDict([
     ('Damping from decay',_tool_logdec),
     ('Curve fitting',     _tool_curvefitting),
+    ])
+
+
+# --- OpenFAST
+# TOOLS: tool plugins constructor should return a Panel class
+OF_DATA_TOOLS=OrderedDict([ # TODO
+    ('Radial Average', _tool_radialavg),
+    ])
+# DATA_PLUGINS_SIMPLE: simple data plugins constructors should return an Action
+OF_DATA_PLUGINS_SIMPLE=OrderedDict([
+    ('Radial Time Concatenation'  , _data_radialConcat),
+    ('Rename "Fld" > "Aero'  , _data_renameFldAero),
     ])

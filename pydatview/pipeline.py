@@ -201,6 +201,33 @@ class ReversibleTableAction(Action):
         s='<ReversibleTableAction {} (applied:{})>'.format(self.name, self.applied)
         return s
 
+class AdderAction(Action): 
+
+    def __init__(self, name, tableFunctionAdd, **kwargs):
+        Action.__init__(self, name, tableFunctionAdd=tableFunctionAdd, **kwargs)
+
+    def apply(self, tabList, force=False, applyToAll=False):
+        """ The apply of an Adder Action is to Add a Panel """
+        if force:
+            self.applied = False
+        if self.applied:
+            print('>>> Action: Skipping Adder action', self.name)
+            return
+        # Call parent function applyAndAdd
+        dfs_new, names_new, errors =  Action.applyAndAdd(self, tabList)
+        # Update GUI
+        if self.mainframe is not None:
+            addTablesHandle = self.mainframe.load_dfs
+            addTablesHandle(dfs_new, names_new, bAdd=True, bPlot=False) 
+
+    def cancel(self, *args, **kwargs):
+        pass
+    #    print('>>> Action: Cancel: skipping irreversible action', self.name)
+    #    pass
+    
+    def __repr__(self):
+        s='<AddedAction {} (applied:{})>'.format(self.name, self.applied)
+        return s
 
 # --------------------------------------------------------------------------------}
 # --- Pipeline 

@@ -790,11 +790,11 @@ class PlotPanel(wx.Panel):
 
     def showTool(self, toolName=''):
         from pydatview.plugins import TOOLS
-        from pydatview.plugins import DATA_TOOLS # TODO remove me
+        from pydatview.plugins import OF_DATA_TOOLS # TODO remove me
         if toolName in TOOLS.keys():
             self.showToolPanel(panelClass=TOOLS[toolName])
-        elif toolName in DATA_TOOLS.keys():
-            self.showToolPanel(panelClass=DATA_TOOLS[toolName])
+        elif toolName in OF_DATA_TOOLS.keys():
+            self.showToolPanel(panelClass=OF_DATA_TOOLS[toolName])
         else:
             raise Exception('Unknown tool {}'.format(toolName))
 

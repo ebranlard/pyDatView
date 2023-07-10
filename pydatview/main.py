@@ -32,7 +32,8 @@ from .common import *
 from .GUICommon import *
 import pydatview.io as weio # File Formats and File Readers
 # Pluggins
-from .plugins import DATA_PLUGINS_WITH_EDITOR, DATA_PLUGINS_SIMPLE, DATA_TOOLS, TOOLS
+from .plugins import DATA_PLUGINS_WITH_EDITOR, DATA_PLUGINS_SIMPLE, TOOLS
+from .plugins import OF_DATA_TOOLS, OF_DATA_PLUGINS_SIMPLE
 from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
 # --------------------------------------------------------------------------------}
@@ -144,9 +145,6 @@ class MainFrame(wx.Frame):
         # NOTE: very important, need "s_loc" otherwise the lambda function take the last toolName
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
-        for toolName in DATA_TOOLS.keys(): # TODO remove me, should be an action
-            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
-
         for toolName in DATA_PLUGINS_WITH_EDITOR.keys():
             self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
 
@@ -159,6 +157,17 @@ class MainFrame(wx.Frame):
         for toolName in TOOLS.keys():
             self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), toolMenu.Append(wx.ID_ANY, toolName))
 
+        # --- OpenFAST Plugins
+        ofMenu = wx.Menu()
+        menuBar.Append(ofMenu, "&OpenFAST")
+        for toolName in OF_DATA_TOOLS.keys(): # TODO remove me, should be an action
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), ofMenu.Append(wx.ID_ANY, toolName))
+
+        for toolName in OF_DATA_PLUGINS_SIMPLE.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), ofMenu.Append(wx.ID_ANY, toolName))
+
+
+        # --- Help Menu
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
         resetMenuItem = helpMenu.Append(wx.NewId(), 'Reset options', 'Rest options')
@@ -490,8 +499,14 @@ class MainFrame(wx.Frame):
             self.plotPanel.showToolAction(action)
             # The panel will have the responsibility to apply/delete the action, updateGUI, etc
         elif toolName in DATA_PLUGINS_SIMPLE.keys():
-            print('>>> toolName')
             function = DATA_PLUGINS_SIMPLE[toolName]
+            action = function(label=toolName, mainframe=self) # calling the data function
+            # Here we apply the action directly
+            # We can't overwrite, so we'll delete by name..
+            self.addAction(action, overwrite=False, apply=True, tabList=self.tabList, updateGUI=True)
+
+        elif toolName in OF_DATA_PLUGINS_SIMPLE.keys(): # TODO merge with DATA_PLUGINS_SIMPLE
+            function = OF_DATA_PLUGINS_SIMPLE[toolName]
             action = function(label=toolName, mainframe=self) # calling the data function
             # Here we apply the action directly
             # We can't overwrite, so we'll delete by name..

@@ -639,6 +639,12 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)AOA_\[deg\]'  ]=sB+'Alpha_[deg]' # DBGOuts
         ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_\[-\]'  ]=sB+'AxInd_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_\[-\]'  ]=sB+'TnInd_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_qs_\[-\]'  ]=sB+'AxInd_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_qs_\[-\]'  ]=sB+'TnInd_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_k_\[-\]'     ]=sB+'BEM_k_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_\[-\]'    ]=sB+'BEM_kp_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_\[-\]'     ]=sB+'BEM_F_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_CT_qs_\[-\]' ]=sB+'BEM_CT_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)AIn_\[deg\]'  ]=sB+'AxInd_[-]'   # DBGOuts NOTE BUG Unit
         ADSpanMap['^[A]*'+sB+r'N(\d*)ApI_\[deg\]'  ]=sB+'TnInd_[-]'   # DBGOuts NOTE BUG Unit
         ADSpanMap['^[A]*'+sB+r'N(\d*)AIn_\[-\]'    ]=sB+'AxInd_[-]'   # DBGOuts
@@ -1037,6 +1043,58 @@ def FASTSpanwiseOutputs(FST_In, OutputCols=None, verbose=False):
     outs['fst']   = fst
     return outs # r_AD, r_ED, r_BD, IR_AD, IR_ED, IR_BD, R, r_hub, fst
 
+
+
+def spanwiseConcat(df):
+    """ 
+    Perform time-concatenation of all the spanwise data (AeroDyn only for now)
+
+    For instance if df is:
+
+        Time  B1N001Alpha   B1N002Alpha   B1N003Alpha
+          t        a1             a2          a3
+
+    with t, a1, a2, a3, arrays or length nt
+
+    The concatenated dataframe will be: 
+        Time   i   Alpha
+          t    1    a1  
+          t    2    a2
+          t    3    a3
+
+    INPUTS:
+     - df: a dataframe, typically returned by FASTOutputFile (nt x (nc*nr + nother) )
+
+    OUTPUTS:
+     - dfCat: the time-concatenated dataframe   (nt*nr x (2 + nc) )
+       
+    """
+    Cols = df.columns
+    ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
+    nChan = len(ColsInfoAD)
+    imin = np.min( [np.min(ColsInfoAD[i]['Idx']) for i in range(nChan)] )
+    imax = np.max( [np.max(ColsInfoAD[i]['Idx']) for i in range(nChan)] )
+    time = df['Time_[s]']
+    nt = len(time)
+    # We add two channels one for time, one for ispan
+    data = np.zeros((nt*nrMaxAD, nChan+2))*np.nan 
+    # Loop on Channels and radial positions..
+    for ic in range(nChan):
+        for ir in range(nrMaxAD):
+            data[ir*nt:(ir+1)*nt, 0] = time
+            data[ir*nt:(ir+1)*nt, 1] = ir+1
+            IdxAvailableForThisChannel = ColsInfoAD[ic]['Idx']
+            chanName                   = ColsInfoAD[ic]['name']
+            colName                    = ColsInfoAD[ic]['cols'][ir]
+            #print('Channel {}: colName {}'.format(chanName, colName))
+            if ir+1 in IdxAvailableForThisChannel:
+                data[ir*nt:(ir+1)*nt, ic+2] = df[colName].values
+            #else:
+            #    raise Exception('Channel {}: Index missing {}'.format(chanName, ic+1))
+    columns = ['Time_[s]'] + ['i_[-]'] + [ColsInfoAD[i]['name'] for i in range(nChan)]
+    dfCat = pd.DataFrame(data=data, columns=columns)
+
+    return dfCat
 
 
 def addToOutlist(OutList, Signals):
@@ -1657,4 +1715,8 @@ def integrateMomentTS(r, F):
     return M
 
 if __name__ == '__main__':
-    main()
+
+    import welib.weio as weio
+    df = weio.read('ad_driver_yaw.6.outb').toDataFrame()
+    dfCat = spanwiseConcat(df)
+    print(dfCat)

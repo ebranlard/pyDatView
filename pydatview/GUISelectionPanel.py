@@ -1258,11 +1258,9 @@ class SelectionPanel(wx.Panel):
                 ColInfo.append('----------------------------------')
                 bFirst=True
                 for it,t in enumerate(tabs):
-                    print('IKeep',IKeepPerTab[it])
                     if it==0:
                         continue
                     INotOrdered=[ii for i,ii in enumerate(IKeepPerTab[it]) if ii!=IKeepPerTab[0][i]]
-                    print('INot',INotOrdered)
                     if len(INotOrdered)>0:
                         im=INotOrdered[0]
                         if bFirst:
