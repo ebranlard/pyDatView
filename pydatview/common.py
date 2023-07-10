@@ -237,21 +237,21 @@ def cleanCol(s):
 def no_unit(s):
     s=s.replace('_[',' [')
     iu=s.rfind(' [')
-    if iu>1:
+    if iu>0:
         return s[:iu]
     else:
         return s
 
 def unit(s):
     iu=s.rfind('[')
-    if iu>1:
+    if iu>0:
         return s[iu+1:].replace(']','')
     else:
         return ''
 
 def splitunit(s):
     iu=s.rfind('[')
-    if iu>1:
+    if iu>0:
         return s[:iu], s[iu+1:].replace(']','')
     else:
         return s, ''
