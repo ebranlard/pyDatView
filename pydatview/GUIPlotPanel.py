@@ -992,16 +992,21 @@ class PlotPanel(wx.Panel):
                 yMin=np.min([PDs[i]._yMin[0] for i in axis.iPD])
                 yMax=np.max([PDs[i]._yMax[0] for i in axis.iPD])
                 delta = (yMax-yMin)
-                # Note: uncomment and figure something out for small fluctuations
                 if delta==0:
-                    delta=1
+                    # If delta is zero, we extend the bounds to "readable" values
+                    yMean = (yMax+yMin)/2
+                    if abs(yMean)>1e-6:
+                        delta = 0.05*yMean
+                    else:
+                        delta = 1
+                elif abs(yMin)>1e-6:
+                    delta_rel = delta/abs(yMin)
+                    if delta_rel<1e-5:
+                        # we set a delta such that the numerical fluctuations are visible but
+                        # it's obvious that it's still a "constant" signal
+                        delta = 100*delta 
                 else:
-                #if np.isclose(yMin,yMax): 
-                #    delta=1 if np.isclose(yMax,0) else 0.1*delta
-                #else:
-                #    if tight:
-                #        delta=0
-                #    else:
+                    # Note: uncomment and figure something out for small fluctuations
                     delta = delta*pyplot_rc['axes.xmargin']
                 axis.set_ylim(yMin-delta,yMax+delta)
                 axis.autoscale(False, axis='y', tight=False)
