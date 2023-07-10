@@ -383,50 +383,59 @@ class TableList(object): # todo inherit list
 
     # --- Resampling TODO MOVE THIS OUT OF HERE OR UNIFY
     def applyResampling(self,iCol,sampDict,bAdd=True):
+        """ Apply resampling on table list 
+        TODO Make this part of the action
+        """
         dfs_new   = []
         names_new = []
         errors=[]
         for i,t in enumerate(self._tabs):
-#             try:
-            df_new, name_new = t.applyResampling(iCol, sampDict, bAdd=bAdd)
-            if df_new is not None: 
-                # we don't append when string is empty
-                dfs_new.append(df_new)
-                names_new.append(name_new)
-#             except:
-#                 errors.append('Resampling failed for table: '+t.active_name) # TODO
+            try:
+                df_new, name_new = t.applyResampling(iCol, sampDict, bAdd=bAdd)
+                if df_new is not None: 
+                    # we don't append when string is empty
+                    dfs_new.append(df_new)
+                    names_new.append(name_new)
+            except:
+                errors.append('Resampling failed for table: '+t.active_name) # TODO
         return dfs_new, names_new, errors
 
     # --- Filtering  TODO MOVE THIS OUT OF HERE OR UNIFY
     def applyFiltering(self,iCol,options,bAdd=True):
+        """ Apply filtering on table list 
+        TODO Make this part of the action
+        """
         dfs_new   = []
         names_new = []
         errors=[]
         for i,t in enumerate(self._tabs):
-#             try:
-            df_new, name_new = t.applyFiltering(iCol, options, bAdd=bAdd)
-            if df_new is not None: 
-                # we don't append when string is empty
-                dfs_new.append(df_new)
-                names_new.append(name_new)
-#             except:
-#                 errors.append('Resampling failed for table: '+t.active_name) # TODO
+            try:
+                df_new, name_new = t.applyFiltering(iCol, options, bAdd=bAdd)
+                if df_new is not None: 
+                    # we don't append when string is empty
+                    dfs_new.append(df_new)
+                    names_new.append(name_new)
+            except:
+                errors.append('Filtering failed for table: '+t.active_name) # TODO
         return dfs_new, names_new, errors
-
-
-
 
     # --- Radial average related
     def radialAvg(self,avgMethod,avgParam):
+        """ Apply radial average on table list 
+        TODO Make this part of the action
+        """
         dfs_new   = []
         names_new = []
         errors=[]
         for i,t in enumerate(self._tabs):
-            dfs, names = t.radialAvg(avgMethod,avgParam)
-            for df,n in zip(dfs,names):
-                if df is not None:
-                    dfs_new.append(df)
-                    names_new.append(n)
+            try:
+                dfs, names = t.radialAvg(avgMethod,avgParam)
+                for df,n in zip(dfs,names):
+                    if df is not None:
+                        dfs_new.append(df)
+                        names_new.append(n)
+            except:
+                errors.append('Radial averaging failed for table: '+t.active_name) # TODO
         return dfs_new, names_new, errors
 
     # --- Element--related functions
@@ -475,7 +484,7 @@ class Table(object):
     #    active_name : 
     #    raw_name    : 
     #    filename    : 
-    def __init__(self,data=None,name='',filename='',columns=[], fileformat=None, dayfirst=False):
+    def __init__(self,data=None, name='',filename='', fileformat=None, dayfirst=False):
         # Default init
         self.maskString=''
         self.mask=None
@@ -499,7 +508,6 @@ class Table(object):
                 pass
             else:
                 data.insert(0, 'Index', np.arange(self.data.shape[0]))
-            self.columns = self.columnsFromDF(data)
             # --- Trying to figure out how to name this table
             if name is None or len(str(name))==0:
                 if data.columns.name is not None:
@@ -534,7 +542,6 @@ class Table(object):
         self.name=name
         self.active_name=self.name
 
-
     def __repr__(self):
         s='Table object:\n'
         s+=' - name: {}\n'.format(self.name)
@@ -548,8 +555,6 @@ class Table(object):
         s+=' - maskString: {}\n'.format(self.maskString)
         return s
 
-    def columnsFromDF(self,df):
-        return [s.replace('_',' ') for s in df.columns.values.astype(str)]
 
     # --- Mask
     def clearMask(self):
@@ -619,6 +624,7 @@ class Table(object):
 
 
     def radialAvg(self,avgMethod, avgParam):
+        # TODO make this a pluggin
         import pydatview.fast.postpro as fastlib
         import pydatview.fast.fastfarm as fastfarm
         df = self.data
@@ -707,7 +713,6 @@ class Table(object):
 
     # --- Column manipulations
     def renameColumn(self,iCol,newName):
-        self.columns[iCol]=newName
         self.data.columns.values[iCol]=newName
 
     def renameColumns(self, strReplDict=None):
@@ -722,14 +727,12 @@ class Table(object):
                     c = c.replace(old,new)
                 newcols.append(c)
             self.data.columns = newcols
-            self.columns = newcols
 
     def deleteColumns(self, ICol):
         """ Delete columns by index, not column names which can have duplicates"""
         IKeep =[i for i in np.arange(self.data.shape[1]) if i not in ICol]
         self.data = self.data.iloc[:, IKeep] # Drop won't work for duplicates
         for i in sorted(ICol, reverse=True):
-            del(self.columns[i])
             for f in self.formulas:
                 if f['pos'] == (i + 1):
                     self.formulas.remove(f)
@@ -748,7 +751,6 @@ class Table(object):
         elif i>self.data.shape[1]+1:
             i=self.data.shape[1]
         self.data.insert(int(i+1),sNewName,NewCol)
-        self.columns=self.columnsFromDF(self.data)
         for f in self.formulas:
             if f['pos'] > i:
                 f['pos'] = f['pos'] + 1
@@ -759,7 +761,6 @@ class Table(object):
             raise ValueError('Cannot set column at position ' + str(i))
         self.data = self.data.drop(columns=self.data.columns[i])
         self.data.insert(int(i),sNewName,NewCol)
-        self.columns=self.columnsFromDF(self.data)
         for f in self.formulas:
             if f['pos'] == i:
                 f['name'] = sNewName
@@ -845,6 +846,14 @@ class Table(object):
         return (self.nRows, self.nCols)
 
     @property
+    def columns(self):
+        return [s.replace('_',' ') for s in self.data.columns.values.astype(str)]
+
+    @columns.setter
+    def columns(self, cols):
+        raise Exception('Columns is read only')
+
+    @property
     def columns_clean(self):
         return [no_unit(s) for s in self.columns]
 
@@ -894,12 +903,11 @@ class Table(object):
             units=['m','m/s','kn','rad','w','deg']
             if columns is None:
                 columns = ['C{}{}_[{}]'.format(i,label, units[np.mod(i, len(units))] ) for i in range(nCols)]
-            else:
-                nCols=len(columns)
-
-        d = np.zeros((n, nCols))
-        for i in range(nCols):
-            d[:,i] = np.random.normal(0, 1, n) + i
+            nCols=len(columns)
+        
+            d = np.zeros((n, nCols))
+            for i in range(nCols):
+                d[:,i] = np.random.normal(0, 1, n) + i
         df = pd.DataFrame(data=d, columns= columns)
         return Table(data=df, name='Dummy '+label)
 

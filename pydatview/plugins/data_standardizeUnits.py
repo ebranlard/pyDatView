@@ -45,16 +45,13 @@ def changeUnits(tab, data):
     if data['flavor']=='WE':
         for i, colname in enumerate(tab.columns):
             colname, tab.data.iloc[:,i] = change_units_to_WE(colname, tab.data.iloc[:,i])
-            tab.columns[i]      = colname # TODO, use a dataframe everywhere..
-        tab.data.columns = tab.columns
+            tab.data.columns.values[i] = colname 
     elif data['flavor']=='SI':
         for i, colname in enumerate(tab.columns):
             colname, tab.data.iloc[:,i] = change_units_to_SI(colname, tab.data.iloc[:,i])
-            tab.columns[i]      = colname # TODO, use a dataframe everywhere..
-        tab.data.columns = tab.columns
+            tab.data.columns.values[i] = colname
     else:
         raise NotImplementedError(data['flavor'])
-
 
 def change_units_to_WE(s, c):
     """ 
