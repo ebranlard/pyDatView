@@ -521,6 +521,17 @@ class MainFrame(wx.Frame):
         self.pipePanel.remove(action, **kwargs)
     def applyPipeline(self, *args, **kwargs):
         self.pipePanel.apply(*args, **kwargs)
+    def checkErrors(self):
+        # TODO this should be done at a given point in the GUI
+        nErr = len(self.pipePanel.errorList)
+        if nErr>0:
+            if not self.pipePanel.user_warned:
+                sErr = '\n\nCheck `Errors` in the bottom right side of the window.'
+                if nErr>=len(self.tabList):
+                    Warn(self, 'Errors occured on all tables.'+sErr)
+                #elif nErr<len(self.tabList):
+                #    Warn(self, 'Errors occured on some tables.'+sErr)
+                self.pipePanel.user_warned = True
 
     def onSashChangeMain(self, event=None):
         pass
@@ -531,6 +542,7 @@ class MainFrame(wx.Frame):
 
 
     def onTabSelectionChange(self, event=None):
+        self.checkErrors()
         # TODO get rid of me
         self.selPanel.onTabSelectionChange()
 
@@ -539,6 +551,7 @@ class MainFrame(wx.Frame):
         self.selPanel.onColSelectionChange()
 
     def redraw(self):
+        self.checkErrors()
         # TODO get rid of me
         self.redrawCallback()
 

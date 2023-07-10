@@ -8,7 +8,7 @@ except:
     wx=type('wx', (object,), {'Panel':object})
     HAS_WX=False
 import numpy as np
-from pydatview.common import CHAR, Error, Info
+from pydatview.common import CHAR, Error, Info, Warn
 from pydatview.plotdata import PlotData
 
 TOOL_BORDER=15
@@ -138,8 +138,6 @@ class ActionEditor(GUIToolPanel):
         self._GUI2Data()
 
         dfs, names, errors = self.action.applyAndAdd(self.tabList)
-        if len(errors)>0:
-            raise Exception('Error: The action {} failed on some tables:\n\n'.format(action.name)+'\n'.join(errors))
 
         # We stop applying if we were applying it (NOTE: doing this before adding table due to redraw trigger of the whole panel)
         if self.data['active']:
@@ -149,6 +147,12 @@ class ActionEditor(GUIToolPanel):
         #    df, name = self.tabList[iSel-1].applyFiltering(icol, self.data, bAdd=True)
         #    self.parent.addTables([df], [name], bAdd=True)
         #self.updateTabList()
+
+        if len(errors)>0:
+            if len(errors)>=len(self.tabList):
+                Error(self, 'Error: The action {} failed on all tables:\n\n'.format(self.action.name)+'\n'.join(errors))
+            #elif len(errors)<len(self.tabList):
+            #    Warn('Warning: The action {} failed on some tables:\n\n'.format(self.action.name)+'\n'.join(errors))
 
     def onClear(self, event=None):
         self.redrawHandle()

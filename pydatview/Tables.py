@@ -377,7 +377,7 @@ class TableList(object): # todo inherit list
                     dfs_new.append(df_new)
                     names_new.append(name_new)
             except:
-                errors.append('Mask failed for table: '+t.active_name) # TODO
+                errors.append('Mask failed for table: '+t.nickname) # TODO
 
         return dfs_new, names_new, errors
 
@@ -397,7 +397,7 @@ class TableList(object): # todo inherit list
                     dfs_new.append(df_new)
                     names_new.append(name_new)
             except:
-                errors.append('Resampling failed for table: '+t.active_name) # TODO
+                errors.append('Resampling failed for table: '+t.nickname) # TODO
         return dfs_new, names_new, errors
 
     # --- Filtering  TODO MOVE THIS OUT OF HERE OR UNIFY
@@ -416,7 +416,7 @@ class TableList(object): # todo inherit list
                     dfs_new.append(df_new)
                     names_new.append(name_new)
             except:
-                errors.append('Filtering failed for table: '+t.active_name) # TODO
+                errors.append('Filtering failed for table: '+t.nickname) # TODO
         return dfs_new, names_new, errors
 
     # --- Radial average related
@@ -435,7 +435,7 @@ class TableList(object): # todo inherit list
                         dfs_new.append(df)
                         names_new.append(n)
             except:
-                errors.append('Radial averaging failed for table: '+t.active_name) # TODO
+                errors.append('Radial averaging failed for table: '+t.nickname) # TODO
         return dfs_new, names_new, errors
 
     # --- Element--related functions
@@ -564,9 +564,9 @@ class Table(object):
     def applyMaskString(self, sMask, bAdd=True):
         # Apply mask on Table
         df = self.data
-        for i,c in enumerate(self.columns):
-            c_no_unit = no_unit(c).strip()
-            c_in_df   = df.columns[i]
+        # TODO Loop on {VAR} instead..
+        for i,(c_in_df,c_user) in enumerate(zip(self.data.columns, self.columns)):
+            c_no_unit = no_unit(c_user).strip()
             # TODO sort out the mess with asarray (introduced to have and/or
             # as array won't work with date comparison
             # NOTE: using iloc to avoid duplicates column issue
@@ -586,10 +586,11 @@ class Table(object):
                     self.mask=mask
                     self.maskString=sMask
             except:
-                raise Exception('Error: The mask failed for table: '+self.name)
+                # TODO come up with better error messages
+                raise Exception('Error: The mask failed to evaluate for table: '+self.nickname)
             if sum(mask)==0:
                 self.clearMask()
-                raise Exception('Error: The mask returned no value for table: '+self.name)
+                raise Exception('Error: The mask returned no value for table: '+self.nickname)
         return df_new, name_new
 
     # --- Important manipulation TODO MOVE THIS OUT OF HERE OR UNIFY
@@ -873,6 +874,11 @@ class Table(object):
     @name.setter
     def name(self,new_name):
         self.__name=new_name
+
+    @property
+    def nickname(self):
+        sp = self.name.split('|')
+        return sp[-1]
 
     @property
     def nCols(self):

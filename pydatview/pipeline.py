@@ -74,11 +74,12 @@ class Action():
             raise Exception('{}: cannot apply on None tabList'.format(self))
 
         for t in tabList:
-            print('>>> Applying action', self.name, 'to', t.name)
+            print('>>> Applying action', self.name, 'to', t.nickname)
             try:
+                # TODO TODO TODO Collect errors here
                 self.tableFunctionApply(t, data=self.data)
-            except:
-                err = 'Failed to apply action {} to table {}.'.format(self.name, t.name)
+            except Exception as e:
+                err = 'Failed to apply action {} to table {}.\nException: {}\n\n'.format(self.name, t.nickname, e.args[0])
                 self.errorList.append(err)
 
         self.applied = True
@@ -94,16 +95,20 @@ class Action():
 
         dfs_new   = []
         names_new = []
+        self.errorList=[]
         errors=[]
         for i,t in enumerate(tabList):
-#             try:
-            df_new, name_new = self.tableFunctionAdd(t, self.data)
-            if df_new is not None: 
-                # we don't append when string is empty
-                dfs_new.append(df_new)
-                names_new.append(name_new)
-#             except:
-#                 errors.append('Resampling failed for table: '+t.active_name) # TODO
+            try:
+                df_new, name_new = self.tableFunctionAdd(t, self.data)
+                if df_new is not None: 
+                    # we don't append when string is empty
+                    dfs_new.append(df_new)
+                    names_new.append(name_new)
+            except:
+                err = 'Failed to apply action and add for table: '+t.nickname
+                self.errorList.append(err)
+                errors.append(err)
+
         return dfs_new, names_new, errors
 
 
@@ -112,10 +117,10 @@ class Action():
     def updateGUI(self):
         """ Typically called by a callee after append"""
         if self.guiCallback is not None:
-            try:
-                self.guiCallback()
-            except:
-                print('[FAIL] Action: failed to call GUI callback, action', self.name)
+#             try:
+            self.guiCallback()
+#             except:
+#                 print('[FAIL] Action: failed to call GUI callback, action', self.name)
 
     def __repr__(self):
         s='<Action {}>'.format(self.name)
@@ -191,11 +196,11 @@ class ReversibleTableAction(Action):
             print('[WARN] Cannot cancel action {} on None tablist'.format(self))
             return
         for t in tabList:
-            print('>>> Action: Cancel: ', self, 'to', t.name)
+            print('>>> Action: Cancel: ', self, 'to', t.nickname)
             try:
                 self.tableFunctionCancel(t, data=self.data)
-            except:
-                self.errorList.append('Failed to apply action {} to table {}.'.format(self.name, t.name))
+            except Exception as e:
+                self.errorList.append('Failed to cancel action {} to table {}.\nException: {}\n\n'.format(self.name, t.nickname, e.args[0]))
     
     def __repr__(self):
         s='<ReversibleTableAction {} (applied:{})>'.format(self.name, self.applied)
@@ -238,6 +243,7 @@ class Pipeline(object):
         self.actionsData = []
         self.actionsPlotFilters = []
         self.errorList   = []
+        self.user_warned   = False # Has the user been warn that errors are present
         self.plotFiltersData=[] # list of data for plot data filters, that plotData.py will use
 
     @property
@@ -258,7 +264,6 @@ class Pipeline(object):
         # 
         self.collectErrors()
 
-
     def applyOnPlotData(self, x, y, tabID):
         x = np.copy(x)
         y = np.copy(y)
@@ -270,6 +275,7 @@ class Pipeline(object):
         self.errorList=[]
         for action in self.actions:
             self.errorList+= action.errorList
+        self.user_warned = False
 
     # --- Behave like a list..
     def append(self, action, overwrite=False, apply=True, updateGUI=True, tabList=None):
