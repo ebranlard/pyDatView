@@ -1,4 +1,3 @@
-import unittest
 import numpy as np
 from pydatview.common import splitunit
 from pydatview.pipeline import IrreversibleTableAction
@@ -99,27 +98,6 @@ def change_units_to_SI(s, c):
     return s, c
 
 
-
-
-
-class TestChangeUnits(unittest.TestCase):
-
-    def test_change_units(self):
-        import pandas as pd
-        from pydatview.Tables import Table
-        data = np.ones((1,3)) 
-        data[:,0] *= 2*np.pi/60    # rad/s
-        data[:,1] *= 2000          # N
-        data[:,2] *= 10*np.pi/180  # rad
-        df = pd.DataFrame(data=data, columns=['om [rad/s]','F [N]', 'angle_[rad]'])
-        tab=Table(data=df)
-        changeUnits(tab, {'flavor':'WE'})
-        np.testing.assert_almost_equal(tab.data.values[:,0],[1])
-        np.testing.assert_almost_equal(tab.data.values[:,1],[2])
-        np.testing.assert_almost_equal(tab.data.values[:,2],[10])
-        self.assertEqual(tab.columns, ['om [rpm]', 'F [kN]', 'angle [deg]'])
-        raise Exception('>>>>>>>>>>>>')
-
-
 if __name__ == '__main__':
-    unittest.main()
+    pass
+    #unittest.main()

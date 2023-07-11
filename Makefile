@@ -54,6 +54,8 @@ prof:
 	python -m cProfile -o tests/prof_all.prof  tests/prof_all.py
 	python -m pyprof2calltree -i tests/prof_all.prof -o tests/callgrind.prof_all.prof
 	snakeviz tests/prof_all.prof
+	#viztracer  .\tests\prof_all.py
+	#vizviewer.exe .\result.json
 
 
 exe:

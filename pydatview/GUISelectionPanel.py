@@ -1244,6 +1244,10 @@ class SelectionPanel(wx.Panel):
         LenKeep = np.array([len(I) for I in IKeepPerTab])
         LenDupl = np.array([len(I) for I in IDuplPerTab])
 
+
+        # Store columns
+        columnsPerTab = [ t.columns for t in tabs]
+
         ColInfo  = ['Sim. table mode ']
         ColInfo += ['']
         if self.tabList.haveSameColumns(ISel):
@@ -1265,10 +1269,10 @@ class SelectionPanel(wx.Panel):
                         im=INotOrdered[0]
                         if bFirst:
                             ColInfo.append('{}:'.format(tabs[0].active_name))
-                            ColInfo.append('{:03d} {:s}'.format(im, tabs[0].columns[im]))
+                            ColInfo.append('{:03d} {:s}'.format(im, columnsPerTab[0][im]))
                             bFirst=False
                         ColInfo.append('{}:'.format(t.active_name))
-                        ColInfo.append('{:03d} {:s}'.format(im, t.columns[im]))
+                        ColInfo.append('{:03d} {:s}'.format(im, columnsPerTab[it][im]))
                         ColInfo.append('----------------------------------')
 
             else:
@@ -1281,7 +1285,7 @@ class SelectionPanel(wx.Panel):
                     if len(IMissPerTab[it])==0:
                         ColInfo.append('    (None) ')
                     for im in IMissPerTab[it]:
-                        ColInfo.append('{:03d} {:s}'.format(im, t.columns[im]))
+                        ColInfo.append('{:03d} {:s}'.format(im, columnsPerTab[it][im]))
                     ColInfo.append('----------------------------------')
 
         if (np.any(np.array(LenDupl)>0)):
@@ -1295,12 +1299,12 @@ class SelectionPanel(wx.Panel):
                 if len(IDuplPerTab[it])==0:
                     ColInfo.append('    (None) ')
                 for im in IDuplPerTab[it]:
-                    ColInfo.append('{:03d} {:s}'.format(im, t.columns[im]))
+                    ColInfo.append('{:03d} {:s}'.format(im, columnsPerTab[it][im]))
                 ColInfo.append('----------------------------------')
 
 
 
-        colNames = [tabs[0].columns[i] for i in IKeepPerTab[0]]
+        colNames = [columnsPerTab[0][i] for i in IKeepPerTab[0]]
 
         # restore selection 
         xSel = -1

@@ -70,6 +70,7 @@ class TableList(object): # todo inherit list
 
     # --- Main high level methods
     def from_dataframes(self, dataframes=[], names=[], bAdd=False):
+        assert(len(dataframes)==len(names))
         if not bAdd:
             self.clean() # TODO figure it out
         # Returning a list of tables 
@@ -161,6 +162,7 @@ class TableList(object): # todo inherit list
         if len(warn)>0:
             return tabs, warn
 
+        # --- Creating list of tables here
         if dfs is None:
             pass
         elif not isinstance(dfs,dict):
@@ -177,7 +179,7 @@ class TableList(object): # todo inherit list
     def haveSameColumns(self,I=None):
         if I is None:
             I=list(range(len(self._tabs)))
-        A=[len(self._tabs[i].columns)==len(self._tabs[I[0]].columns) for i in I ]
+        A=[len(self._tabs[i].data.columns)==len(self._tabs[I[0]].data.columns) for i in I ]
         if all(A):
             B=[self._tabs[i].columns_clean==self._tabs[I[0]].columns_clean for i in I] #list comparison
             return all(B)
@@ -498,23 +500,24 @@ class Table(object):
         self.formulas = []
 
         if not isinstance(data,pd.DataFrame):
-            # ndarray??
             raise NotImplementedError('Tables that are not dataframe not implemented.')
+        # --- Pandas DataFrame 
+        self.data    = data 
+        # Adding index
+        if data.columns[0].lower().find('index')>=0:
+            pass
         else:
-            # --- Pandas DataFrame 
-            self.data    = data 
-            # Adding index
-            if data.columns[0].lower().find('index')>=0:
-                pass
-            else:
-                data.insert(0, 'Index', np.arange(self.data.shape[0]))
-            # --- Trying to figure out how to name this table
-            if name is None or len(str(name))==0:
-                if data.columns.name is not None:
-                    name=data.columns.name
+            data.insert(0, 'Index', np.arange(self.data.shape[0]))
+
+        # Clean columns only once
+        data.columns = [s.replace('_',' ') for s in self.data.columns.values.astype(str)]
+
+        # --- Trying to figure out how to name this table
+        if name is None or len(str(name))==0:
+            if data.columns.name is not None:
+                name=data.columns.name
 
         self.setupName(name=str(name))
-        
         self.convertTimeColumns(dayfirst=dayfirst)
 
 
@@ -565,8 +568,8 @@ class Table(object):
         # Apply mask on Table
         df = self.data
         # TODO Loop on {VAR} instead..
-        for i,(c_in_df,c_user) in enumerate(zip(self.data.columns, self.columns)):
-            c_no_unit = no_unit(c_user).strip()
+        for i, c_in_df in enumerate(self.data.columns):
+            c_no_unit = no_unit(c_in_df).strip()
             # TODO sort out the mess with asarray (introduced to have and/or
             # as array won't work with date comparison
             # NOTE: using iloc to avoid duplicates column issue
@@ -848,7 +851,7 @@ class Table(object):
 
     @property
     def columns(self):
-        return [s.replace('_',' ') for s in self.data.columns.values.astype(str)]
+        return self.data.columns.values #.astype(str)
 
     @columns.setter
     def columns(self, cols):
@@ -856,7 +859,7 @@ class Table(object):
 
     @property
     def columns_clean(self):
-        return [no_unit(s) for s in self.columns]
+        return [no_unit(s) for s in self.data.columns.values.astype(str)]
 
     @property
     def name(self):

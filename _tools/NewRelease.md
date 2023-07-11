@@ -41,3 +41,25 @@ git tag new old
 git tag -d old
 git push origin new :old
 
+
+
+
+# Profiling
+Dependencies:
+```
+pip install snakeviz pyprof2calltree
+#or
+pip install viztracer
+```
+
+Profile:
+```
+make prof
+```
+
+Runs the following:
+```
+viztracer  .\tests\prof_all.py
+vizviewer.exe .\result.json
+```
+

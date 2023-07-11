@@ -336,6 +336,8 @@ class MainFrame(wx.Frame):
         # 
         if not isinstance(dfs,list):
             dfs=[dfs]
+        if names is None:
+            names = ['tab{}'.format(i) for i in range(len(dfs))]
         if not isinstance(names,list):
             names=[names]
         self.tabList.from_dataframes(dataframes=dfs, names=names, bAdd=bAdd)

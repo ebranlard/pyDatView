@@ -112,12 +112,13 @@ class TestTable(unittest.TestCase):
         np.testing.assert_almost_equal(tab.data.values[:,1],[1])
         np.testing.assert_almost_equal(tab.data.values[:,2],[2])
         np.testing.assert_almost_equal(tab.data.values[:,3],[10])
-        self.assertEqual(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle [deg]'])
+        print('>>>> tab.columns', tab.columns)
+        np.testing.assert_equal(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle [deg]'])
 
     def test_renameColumns(self):
         tab = Table.createDummy(n=3, columns=['RtFldCp [-]','B1FldFx [N]', 'angle [rad]'])
         tab.renameColumns(strReplDict={'Aero':'Fld'})
-        self.assertEqual(tab.columns, ['Index','RtAeroCp [-]', 'B1AeroFx [N]', 'angle [rad]'])
+        np.testing.assert_equal(tab.columns, ['Index','RtAeroCp [-]', 'B1AeroFx [N]', 'angle [rad]'])
 
 if __name__ == '__main__':
 #     TestTable.setUpClass()
