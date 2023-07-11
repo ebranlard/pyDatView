@@ -1005,8 +1005,9 @@ class PlotPanel(wx.Panel):
                         # we set a delta such that the numerical fluctuations are visible but
                         # it's obvious that it's still a "constant" signal
                         delta = 100*delta 
+                    else:
+                        delta = delta*pyplot_rc['axes.xmargin']
                 else:
-                    # Note: uncomment and figure something out for small fluctuations
                     delta = delta*pyplot_rc['axes.xmargin']
                 axis.set_ylim(yMin-delta,yMax+delta)
                 axis.autoscale(False, axis='y', tight=False)
