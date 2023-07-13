@@ -8,8 +8,6 @@ except:
     from common import no_unit, ellude_common, getDt
 import pydatview.io as weio # File Formats and File Readers
 
-
-
 # --------------------------------------------------------------------------------}
 # --- TabList 
 # --------------------------------------------------------------------------------{
@@ -510,7 +508,7 @@ class Table(object):
             data.insert(0, 'Index', np.arange(self.data.shape[0]))
 
         # Clean columns only once
-        data.columns = [s.replace('_',' ') for s in self.data.columns.values.astype(str)]
+        #data.columns = [s.replace('_',' ') for s in self.data.columns.values.astype(str)]
 
         # --- Trying to figure out how to name this table
         if name is None or len(str(name))==0:
@@ -662,7 +660,6 @@ class Table(object):
                 #raise Exception('Error: No .fst file found with name: '+base+'.fst')
             else:
                 fst_in=Files[0]
-
 
             out= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = self.data)
             dfRadED=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']

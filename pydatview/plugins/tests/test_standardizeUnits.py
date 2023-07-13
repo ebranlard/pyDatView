@@ -17,7 +17,7 @@ class TestChangeUnits(unittest.TestCase):
         np.testing.assert_almost_equal(tab.data.values[:,1],[1])
         np.testing.assert_almost_equal(tab.data.values[:,2],[2])
         np.testing.assert_almost_equal(tab.data.values[:,3],[10])
-        np.testing.assert_equal(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle [deg]'])
+        np.testing.assert_equal(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle_[deg]'])
 
 
 if __name__ == '__main__':

@@ -63,8 +63,8 @@ class PlotData():
         PD.it = idx[0] # table index
         PD.ix = idx[1] # x index
         PD.iy = idx[2] # y index
-        PD.sx = idx[3] # x label
-        PD.sy = idx[4] # y label
+        PD.sx = idx[3].replace('_',' ') # x label
+        PD.sy = idx[4].replace('_',' ') # y label
         PD.syl = ''    # y label for legend
         PD.st = idx[5] # table label
         PD.filename = tabs[PD.it].filename
@@ -81,8 +81,8 @@ class PlotData():
         PD.x  = x
         PD.y  = y
         PD.c  = y
-        PD.sx = sx
-        PD.sy = sy
+        PD.sx = sx.replace('_',' ')
+        PD.sy = sy.replace('_',' ')
         PD.xIsString = isString(x)
         PD.yIsString = isString(y)
         PD.xIsDate   = isDate  (x)

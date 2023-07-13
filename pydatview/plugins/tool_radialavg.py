@@ -64,7 +64,7 @@ class RadialToolPanel(GUIToolPanel):
             dfs, names, errors = tabList.radialAvg(avgMethod,avgParam)
             self.parent.addTables(dfs,names,bAdd=True)
             if len(errors)>0:
-                raise Exception('Error: The filtering failed on some tables:\n\n'+'\n'.join(errors))
+                raise Exception('Error: The radial averaging failed on some tables:\n\n'+'\n'.join(errors))
         else:
             dfs, names = tabList[iSel-1].radialAvg(avgMethod,avgParam)
             self.parent.addTables([dfs],[names], bAdd=True)
