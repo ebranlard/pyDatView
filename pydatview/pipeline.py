@@ -19,6 +19,7 @@ An action has:
 
 """
 import numpy as np
+from pydatview.common import exception2string, PyDatViewException
 
 class Action(): 
     # TODO: store data per table and for all
@@ -68,7 +69,7 @@ class Action():
         self.errorList=[]
         if self.tableFunctionApply is None:
             # NOTE: this does not applyt to plotdataActions..
-            raise Exception('tableFunction was not specified for action: {}'.format(self.name))
+            raise Exception('tableFunction was not specified for action "{}"'.format(self.name))
 
         if tabList is None:
             raise Exception('{}: cannot apply on None tabList'.format(self))
@@ -79,7 +80,7 @@ class Action():
                 # TODO TODO TODO Collect errors here
                 self.tableFunctionApply(t, data=self.data)
             except Exception as e:
-                err = 'Failed to apply action {} to table {}.\nException: {}\n\n'.format(self.name, t.nickname, e.args[0])
+                err = 'Failed to apply action "{}" to table "{}".\n{}\n\n'.format(self.name, t.nickname, exception2string(e))
                 self.errorList.append(err)
 
         self.applied = True
@@ -104,8 +105,8 @@ class Action():
                     # we don't append when string is empty
                     dfs_new.append(df_new)
                     names_new.append(name_new)
-            except:
-                err = 'Failed to apply action and add for table: '+t.nickname
+            except Exception as e:
+                err = 'Failed to apply action "{}" to table "{}" and creating a new table.\n{}\n\n'.format(self.name, t.nickname, exception2string(e))
                 self.errorList.append(err)
                 errors.append(err)
 

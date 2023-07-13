@@ -5,6 +5,12 @@ import platform
 import datetime
 import re
 import inspect
+import traceback
+
+
+class PyDatViewException(Exception):
+    pass
+
 
 CHAR={
 'menu'     : u'\u2630',
@@ -428,12 +434,53 @@ def Error(parent, message, caption = 'Error!'):
     dlg.ShowModal()
     dlg.Destroy()
 
+def exception2string(excp, iMax=40, prefix='    | '):
+    if isinstance(excp, PyDatViewException):
+        return prefix + excp.args[0]
+    else:
+        stack = traceback.extract_stack()[:-3] + traceback.extract_tb(excp.__traceback__)
+        stacklist = traceback.format_list(stack)
+        # --- Parse stacktrace for file/ line / content
+        traceback_dicts=[]
+        for i, line in enumerate(stacklist):
+            element = line.split(',')
+            d = {}
+            filename = element[0].strip().lstrip('File').strip(' "')
+            # We identify "local content" and strip the path
+            if i==0:
+                basePath = os.path.dirname(filename)
+            isLoc = filename.find(basePath)==0
+            filename = filename.replace(basePath,'')
+            if filename[0] == '\\':
+                filename=filename[1:]
+            filename = filename[:iMax] + (filename[iMax:] and '..')
+            d['File'] = filename
+            d['isLocal'] = isLoc
+            d['line'] = int(element[1].strip().lstrip('line').strip())
+            content=element[2].strip().lstrip('in').strip().split('\n')
+            d['mod']  = content[0]
+            if len(content)>1:
+                d['content']  = content[1].strip()
+            else:
+                d['content']  = ''
+            traceback_dicts.append(d)
+        # ---
+        string=''
+        for d in traceback_dicts:
+            if d['content'].find('MainLoop')>0:
+                continue
+            if d['isLocal']:
+                string+=prefix+'{:40s}|{:<6d}| {:s}\n'.format(d['File'],d['line'],d['content'])
+            else:
+                #string+='|(backtrace continues)'
+                break
+        string += prefix+'{} {}'.format(excp.__class__,excp)
+    return string
 
 
 # --------------------------------------------------------------------------------}
 # ---  
 # --------------------------------------------------------------------------------{
-
 def isString(x):
     b = x.dtype == object and isinstance(x.values[0], str)
     return b 
@@ -452,3 +499,12 @@ class DummyMainFrame():
     def load_dfs             (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
     def mainFrameUpdateLayout(self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
     def redraw               (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+
+
+if __name__ == '__main__':
+#     from welib.tools.clean_exceptions import *
+
+    try:
+        raise Exception('Hello')
+    except Exception as excp:
+        s= exception2string(excp)

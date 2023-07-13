@@ -3,9 +3,9 @@ import os.path
 from dateutil import parser
 import pandas as pd
 try:
-    from .common import no_unit, ellude_common, getDt
+    from .common import no_unit, ellude_common, getDt, exception2string, PyDatViewException
 except:
-    from common import no_unit, ellude_common, getDt
+    from common import no_unit, ellude_common, getDt, exception2string, PyDatViewException
 import pydatview.io as weio # File Formats and File Readers
 
 # --------------------------------------------------------------------------------}
@@ -187,7 +187,7 @@ class TableList(object): # todo inherit list
     def renameTable(self, iTab, newName):
         oldName = self._tabs[iTab].name
         if newName in [t.name for t in self._tabs]:
-            raise Exception('Error: This table already exist, choose a different name.')
+            raise PyDatViewException('Error: This table already exist, choose a different name.')
         # Renaming table
         self._tabs[iTab].rename(newName)
         return oldName
@@ -197,7 +197,7 @@ class TableList(object): # todo inherit list
             tabnames_display=self.getDisplayTabNames()
             self._tabs = [t for _,t in sorted(zip(tabnames_display,self._tabs))]
         else:
-            raise Exception('Sorting method unknown: `{}`'.format(method))
+            raise PyDatViewException('Sorting method unknown: `{}`'.format(method))
 
     def mergeTabs(self, I=None, ICommonColPerTab=None, extrap='nan'):
         """ 
@@ -299,7 +299,7 @@ class TableList(object): # todo inherit list
         elif self.options['naming']=='FileNames':
             return [os.path.splitext(os.path.basename(t.filename))[0] for t in self._tabs]
         else:
-            raise Exception('Table naming unknown: {}'.format(self.options['naming']))
+            raise PyDatViewException('Table naming unknown: {}'.format(self.options['naming']))
 
     # --- Properties
     @property
@@ -376,8 +376,8 @@ class TableList(object): # todo inherit list
                     # we don't append when string is empty
                     dfs_new.append(df_new)
                     names_new.append(name_new)
-            except:
-                errors.append('Mask failed for table: '+t.nickname) # TODO
+            except Exception as e:
+                errors.append('Mask failed for table: '+t.nickname+'\n'+exception2string(e))
 
         return dfs_new, names_new, errors
 
@@ -396,8 +396,8 @@ class TableList(object): # todo inherit list
                     # we don't append when string is empty
                     dfs_new.append(df_new)
                     names_new.append(name_new)
-            except:
-                errors.append('Resampling failed for table: '+t.nickname) # TODO
+            except Exception as e:
+                errors.append('Resampling failed for table: '+t.nickname+'\n'+exception2string(e))
         return dfs_new, names_new, errors
 
     # --- Filtering  TODO MOVE THIS OUT OF HERE OR UNIFY
@@ -415,8 +415,8 @@ class TableList(object): # todo inherit list
                     # we don't append when string is empty
                     dfs_new.append(df_new)
                     names_new.append(name_new)
-            except:
-                errors.append('Filtering failed for table: '+t.nickname) # TODO
+            except Exception as e:
+                errors.append('Filtering failed for table: '+t.nickname+'\n'+exception2string(e))
         return dfs_new, names_new, errors
 
     # --- Radial average related
@@ -434,15 +434,9 @@ class TableList(object): # todo inherit list
                     if df is not None:
                         dfs_new.append(df)
                         names_new.append(n)
-            except:
-                errors.append('Radial averaging failed for table: '+t.nickname) # TODO
+            except Exception as e:
+                errors.append('Radial averaging failed for table: '+t.nickname+'\n'+exception2string(e))
         return dfs_new, names_new, errors
-
-    # --- Element--related functions
-    def get(self,i):
-        print('.>> GET')
-        return self._tabs[i]
-
 
 
     @staticmethod
@@ -591,7 +585,7 @@ class Table(object):
                 raise Exception('Error: The mask failed to evaluate for table: '+self.nickname)
             if sum(mask)==0:
                 self.clearMask()
-                raise Exception('Error: The mask returned no value for table: '+self.nickname)
+                raise PyDatViewException('Error: The mask returned no value for table: '+self.nickname)
         return df_new, name_new
 
     # --- Important manipulation TODO MOVE THIS OUT OF HERE OR UNIFY

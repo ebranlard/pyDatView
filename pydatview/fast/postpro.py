@@ -6,9 +6,10 @@ import re
 
 # --- fast libraries
 import pydatview.io as weio
-from pydatview.io.fast_input_file import FASTInputFile
-from pydatview.io.fast_output_file import FASTOutputFile
-from pydatview.io.fast_input_deck import FASTInputDeck
+from pydatview.common import PyDatViewException as WELIBException
+from  pydatview.io.fast_input_file import FASTInputFile
+from  pydatview.io.fast_output_file import FASTOutputFile
+from  pydatview.io.fast_input_deck import FASTInputDeck
 
 
 # --------------------------------------------------------------------------------}
@@ -350,7 +351,7 @@ def insert_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar='
         if (nrMax)<=len(vr_bar):
             vr_bar=vr_bar[:nrMax]
         elif (nrMax)>len(vr_bar):
-            raise Exception('Inconsitent length between radial stations ({:d}) and max index present in output chanels ({:d})'.format(len(vr_bar),nrMax))
+            raise Exception('Inconsistent length between radial stations ({:d}) and max index present in output chanels ({:d})'.format(len(vr_bar),nrMax))
         df.insert(0, sspan_bar+'_[-]', vr_bar)
 
     if IR is not None:
@@ -635,60 +636,91 @@ def spanwiseColAD(Cols):
     """ Return column info, available columns and indices that contain AD spanwise data"""
     ADSpanMap=dict()
     for sB in ['B1','B2','B3']:
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Alpha_\[deg\]']=sB+'Alpha_[deg]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)AOA_\[deg\]'  ]=sB+'Alpha_[deg]' # DBGOuts
-        ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_\[-\]'  ]=sB+'AxInd_[-]'  
-        ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_\[-\]'  ]=sB+'TnInd_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Alpha_\[deg\]']   =sB+'Alpha_[deg]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_\[-\]'  ]   =sB+'AxInd_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_\[-\]'  ]   =sB+'TnInd_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_qs_\[-\]'  ]=sB+'AxInd_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_qs_\[-\]'  ]=sB+'TnInd_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_k_\[-\]'     ]=sB+'BEM_k_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_\[-\]'    ]=sB+'BEM_kp_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_\[-\]'     ]=sB+'BEM_F_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_CT_qs_\[-\]' ]=sB+'BEM_CT_qs_[-]'  
-        ADSpanMap['^[A]*'+sB+r'N(\d*)AIn_\[deg\]'  ]=sB+'AxInd_[-]'   # DBGOuts NOTE BUG Unit
-        ADSpanMap['^[A]*'+sB+r'N(\d*)ApI_\[deg\]'  ]=sB+'TnInd_[-]'   # DBGOuts NOTE BUG Unit
-        ADSpanMap['^[A]*'+sB+r'N(\d*)AIn_\[-\]'    ]=sB+'AxInd_[-]'   # DBGOuts
-        ADSpanMap['^[A]*'+sB+r'N(\d*)ApI_\[-\]'    ]=sB+'TnInd_[-]'   # DBGOuts
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Uin_\[m/s\]'  ]=sB+'Uin_[m/s]'     # DBGOuts
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Uit_\[m/s\]'  ]=sB+'Uit_[m/s]'     # DBGOuts
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Uir_\[m/s\]'  ]=sB+'Uir_[m/s]'     # DBGOuts
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Cl_\[-\]'     ]=sB+'Cl_[-]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Cd_\[-\]'     ]=sB+'Cd_[-]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Cm_\[-\]'     ]=sB+'Cm_[-]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Cx_\[-\]'     ]=sB+'Cx_[-]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Cy_\[-\]'     ]=sB+'Cy_[-]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Cn_\[-\]'     ]=sB+'Cn_[-]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Ct_\[-\]'     ]=sB+'Ct_[-]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Re_\[-\]'     ]=sB+'Re_[-]' 
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vrel_\[m/s\]' ]=sB+'Vrel_[m/s]' 
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Theta_\[deg\]']=sB+'Theta_[deg]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Phi_\[deg\]'  ]=sB+'Phi_[deg]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Twst_\[deg\]' ]=sB+'Twst_[deg]' #DBGOuts
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Curve_\[deg\]']=sB+'Curve_[deg]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindx_\[m/s\]']=sB+'Vindx_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindy_\[m/s\]']=sB+'Vindy_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Fx_\[N/m\]'   ]=sB+'Fx_[N/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Fy_\[N/m\]'   ]=sB+'Fy_[N/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Fl_\[N/m\]'   ]=sB+'Fl_[N/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Fd_\[N/m\]'   ]=sB+'Fd_[N/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Fn_\[N/m\]'   ]=sB+'Fn_[N/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Ft_\[N/m\]'   ]=sB+'Ft_[N/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndx_\[m/s\]']=sB+'VUndx_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndy_\[m/s\]']=sB+'VUndy_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndz_\[m/s\]']=sB+'VUndz_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisx_\[m/s\]']=sB+'VDisx_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisy_\[m/s\]']=sB+'VDisy_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisz_\[m/s\]']=sB+'VDisz_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)STVx_\[m/s\]' ]=sB+'STVx_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)STVy_\[m/s\]' ]=sB+'STVy_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)STVz_\[m/s\]' ]=sB+'STVz_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vx_\[m/s\]'   ]=sB+'Vx_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vy_\[m/s\]'   ]=sB+'Vy_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vz_\[m/s\]'   ]=sB+'Vz_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)DynP_\[Pa\]'  ]=sB+'DynP_[Pa]' 
-        ADSpanMap['^[A]*'+sB+r'N(\d*)M_\[-\]'      ]=sB+'M_[-]' 
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Mm_\[N-m/m\]' ]=sB+'Mm_[N-m/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Gam_\['       ]=sB+'Gam_[m^2/s]' #DBGOuts
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Cl_\[-\]'     ]   =sB+'Cl_[-]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Cd_\[-\]'     ]   =sB+'Cd_[-]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Cm_\[-\]'     ]   =sB+'Cm_[-]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Cx_\[-\]'     ]   =sB+'Cx_[-]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Cy_\[-\]'     ]   =sB+'Cy_[-]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Cn_\[-\]'     ]   =sB+'Cn_[-]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Ct_\[-\]'     ]   =sB+'Ct_[-]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Re_\[-\]'     ]   =sB+'Re_[-]' 
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vrel_\[m/s\]' ]   =sB+'Vrel_[m/s]' 
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Theta_\[deg\]']   =sB+'Theta_[deg]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Phi_\[deg\]'  ]   =sB+'Phi_[deg]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Curve_\[deg\]']   =sB+'Curve_[deg]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindx_\[m/s\]']   =sB+'Vindx_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindy_\[m/s\]']   =sB+'Vindy_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxi_\[m/s\]']  =sB+'Vindxi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyi_\[m/s\]']  =sB+'Vindyi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzi_\[m/s\]']  =sB+'Vindzi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxh_\[m/s\]']  =sB+'Vindxh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyh_\[m/s\]']  =sB+'Vindyh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzh_\[m/s\]']  =sB+'Vindzh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxp_\[m/s\]']  =sB+'Vindxp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyp_\[m/s\]']  =sB+'Vindyp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzp_\[m/s\]']  =sB+'Vindzp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fx_\[N/m\]'   ]   =sB+'Fx_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fy_\[N/m\]'   ]   =sB+'Fy_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fl_\[N/m\]'   ]   =sB+'Fl_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fd_\[N/m\]'   ]   =sB+'Fd_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fn_\[N/m\]'   ]   =sB+'Fn_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Ft_\[N/m\]'   ]   =sB+'Ft_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndx_\[m/s\]']   =sB+'VUndx_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndy_\[m/s\]']   =sB+'VUndy_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndz_\[m/s\]']   =sB+'VUndz_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndxi_\[m/s\]']  =sB+'VUndxi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndyi_\[m/s\]']  =sB+'VUndyi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndzi_\[m/s\]']  =sB+'VUndzi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisx_\[m/s\]']   =sB+'VDisx_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisy_\[m/s\]']   =sB+'VDisy_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisz_\[m/s\]']   =sB+'VDisz_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxi_\[m/s\]']  =sB+'VDisxi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisyi_\[m/s\]']  =sB+'VDisyi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDiszi_\[m/s\]']  =sB+'VDiszi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxh_\[m/s\]']  =sB+'VDisxh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisyh_\[m/s\]']  =sB+'VDisyh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDiszh_\[m/s\]']  =sB+'VDiszh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxp_\[m/s\]']  =sB+'VDisxp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisyp_\[m/s\]']  =sB+'VDisyp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDiszp_\[m/s\]']  =sB+'VDiszp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVx_\[m/s\]'  ]  =sB+'STVx_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVy_\[m/s\]'  ]  =sB+'STVy_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVz_\[m/s\]'  ]  =sB+'STVz_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVxi_\[m/s\]' ]  =sB+'STVxi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVyi_\[m/s\]' ]  =sB+'STVyi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVzi_\[m/s\]' ]  =sB+'STVzi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVxh_\[m/s\]' ]  =sB+'STVxh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVyh_\[m/s\]' ]  =sB+'STVyh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVzh_\[m/s\]' ]  =sB+'STVzh_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVxp_\[m/s\]' ]  =sB+'STVxp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVyp_\[m/s\]' ]  =sB+'STVyp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVzp_\[m/s\]' ]  =sB+'STVzp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vx_\[m/s\]'   ]   =sB+'Vx_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vy_\[m/s\]'   ]   =sB+'Vy_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vz_\[m/s\]'   ]   =sB+'Vz_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)DynP_\[Pa\]'  ]   =sB+'DynP_[Pa]' 
+        ADSpanMap['^[A]*'+sB+r'N(\d*)M_\[-\]'      ]   =sB+'M_[-]' 
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mm_\[N-m/m\]' ]   =sB+'Mm_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Gam_\['       ]   =sB+'Gam_[m^2/s]' #DBGOuts
+        # DEPRECIATED
+        ADSpanMap['^[A]*'+sB+r'N(\d*)AOA_\[deg\]'  ]   =sB+'Alpha_[deg]' # DBGOuts
+        ADSpanMap['^[A]*'+sB+r'N(\d*)AIn_\[deg\]'  ]   =sB+'AxInd_[-]'   # DBGOuts NOTE BUG Unit
+        ADSpanMap['^[A]*'+sB+r'N(\d*)ApI_\[deg\]'  ]   =sB+'TnInd_[-]'   # DBGOuts NOTE BUG Unit
+        ADSpanMap['^[A]*'+sB+r'N(\d*)AIn_\[-\]'    ]   =sB+'AxInd_[-]'   # DBGOuts
+        ADSpanMap['^[A]*'+sB+r'N(\d*)ApI_\[-\]'    ]   =sB+'TnInd_[-]'   # DBGOuts
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Uin_\[m/s\]'  ]   =sB+'Uin_[m/s]'   # DBGOuts
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Uit_\[m/s\]'  ]   =sB+'Uit_[m/s]'   # DBGOuts
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Uir_\[m/s\]'  ]   =sB+'Uir_[m/s]'   # DBGOuts
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Twst_\[deg\]' ]   =sB+'Twst_[deg]' #DBGOuts
     # --- AD 14
     ADSpanMap[r'^Alpha(\d*)_\[deg\]'  ]='Alpha_[deg]'  
     ADSpanMap[r'^DynPres(\d*)_\[Pa\]' ]='DynPres_[Pa]' 
@@ -718,6 +750,25 @@ def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, ch
         if vr is not None:
             chord =chord[0:len(dfRad)]
     for sB in ['B1','B2','B3']:
+        for coord in ['i','p','h']:
+            for comp in ['x','y','z']:
+                s=comp+coord
+                try:
+                    dfRad[sB+'Vflw{}_[m/s]'.format(s)] = dfRad[sB+'VDis{}_[m/s]'.format(s)] - dfRad[sB+'STV{}_[m/s]'.format(s)]
+                except:
+                    pass
+        for coord in ['i','p','h']:
+            for comp in ['x','y','z']:
+                s=comp+coord
+                try:
+                    dfRad[sB+'Vrel{}_[m/s]'.format(s)] = dfRad[sB+'VDis{}_[m/s]'.format(s)] - dfRad[sB+'STV{}_[m/s]'.format(s)] + dfRad[sB+'Vind{}_[m/s]'.format(s)]
+                except:
+                    pass
+        try:
+            s='p'
+            dfRad[sB+'phi_{}_[def]'.format(s)] = np.arctan2(dfRad[sB+'Vrelx{}_[m/s]'.format(s)], dfRad[sB+'Vrely{}_[m/s]'.format(s)])*180/np.pi
+        except:
+            pass
         try:
             vr_bar=vr/R
             Fx = dfRad[sB+'Fx_[N/m]']
@@ -768,13 +819,14 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
         dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam, filename=filename) # NOTE: average 5 last seconds
     else:
         dfAvg=df
-
+    # --- The script assume '_' between units and colnames
+    Cols= dfAvg.columns 
     # --- Extract info (e.g. radial positions) from Fast input file
     # We don't have a .fst input file, so we'll rely on some default values for "r"
     rho         = 1.225
     chord       = None
     # --- Extract radial positions of output channels
-    d = FASTSpanwiseOutputs(FST_In, OutputCols=df.columns.values)
+    d = FASTSpanwiseOutputs(FST_In, OutputCols=Cols)
     r_AD      = d['r_AD']
     r_ED_bld  = d['r_ED_bld']
     r_ED_twr  = d['r_ED_twr']
@@ -812,7 +864,6 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
         out['df']    = df
         out['dfAvg'] = dfAvg
     # --- Extract radial data and export to csv if needed
-    Cols=dfAvg.columns.values
     # --- AD
     ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
     dfRad_AD            = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=dfAvg.iloc[0])
@@ -1072,8 +1123,12 @@ def spanwiseConcat(df):
     Cols = df.columns
     ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
     nChan = len(ColsInfoAD)
+    if nChan==0:
+        raise WELIBException('Cannot perform spanwise concatenation, no AeroDyn spanwise data was detected in the dataframe (e.g. columns of the form "AB1N001Cl_[-]"). ')
     imin = np.min( [np.min(ColsInfoAD[i]['Idx']) for i in range(nChan)] )
     imax = np.max( [np.max(ColsInfoAD[i]['Idx']) for i in range(nChan)] )
+    if 'Time_[s]' not in df.columns:
+        raise WELIBException('Cannot perform spanwise concatenation, the column `Time_[s]` is not present in the dataframe.')
     time = df['Time_[s]']
     nt = len(time)
     # We add two channels one for time, one for ispan
@@ -1492,8 +1547,14 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
     # Sanity 
     if len(filename)>0:
         filename=' (File: {})'.format(filename)
+
+    sTAllowed = ['Time_[s]','Time [s]']
+    sT = [s for s in sTAllowed if s in df.columns]
+    if len(sT)==0:
+        raise WELIBException('The dataframe must contain one of the following column: {}'.format(','.join(sTAllowed)))
+
     # Before doing the colomn map we store the time
-    time = df['Time_[s]'].values
+    time = df[sT[0]].values
     timenoNA = time[~np.isnan(time)]
     # Column mapping
     if ColMap is not None:
@@ -1510,10 +1571,12 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
             tStart =tEnd-avgParam
     elif avgMethod.lower()=='periods':
         # --- Using azimuth to find periods
-        if 'Azimuth_[deg]' not in df.columns:
-            raise Exception('The sensor `Azimuth_[deg]` does not appear to be in the dataframe{}. You cannot use the averaging method by `periods`, use `constantwindow` instead.'.format(filename))
+        sAAllowed = ['Azimuth_[deg]','Azimuth [deg]']
+        sA = [s for s in sAAllowed if s in df.columns]
+        if len(sA)==0:
+            raise WELIBException('The dataframe must contain one of the following columns: {}.\nYou cannot use the averaging method by `periods`, use `constantwindow` instead.\n{}'.format(','.join(sAAllowed),filename))
         # NOTE: potentially we could average over each period and then average
-        psi=df['Azimuth_[deg]'].values
+        psi=df[sA[0]].values
         _,iBef = _zero_crossings(psi-psi[-2],direction='up')
         if len(iBef)==0:
             _,iBef = _zero_crossings(psi-180,direction='up')
@@ -1539,7 +1602,7 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
     elif avgMethod.lower()=='periods_omega':
         # --- Using average omega to find periods
         if 'RotSpeed_[rpm]' not in df.columns:
-            raise Exception('The sensor `RotSpeed_[rpm]` does not appear to be in the dataframe{}. You cannot use the averaging method by `periods_omega`, use `periods` or `constantwindow` instead.'.format(filename))
+            raise WELIBException('The sensor `RotSpeed_[rpm]` does not appear to be in the dataframe{}. You cannot use the averaging method by `periods_omega`, use `periods` or `constantwindow` instead.'.format(filename))
         Omega=df['RotSpeed_[rpm]'].mean()/60*2*np.pi
         Period = 2*np.pi/Omega 
         if avgParam is None:

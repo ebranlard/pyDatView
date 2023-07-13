@@ -528,9 +528,13 @@ class MainFrame(wx.Frame):
         nErr = len(self.pipePanel.errorList)
         if nErr>0:
             if not self.pipePanel.user_warned:
-                sErr = '\n\nCheck `Errors` in the bottom right side of the window.'
                 if nErr>=len(self.tabList):
-                    Warn(self, 'Errors occured on all tables.'+sErr)
+                    if nErr==1:
+                        sErr='\n'+'\n'.join(self.pipePanel.errorList)
+                        Warn(self, message=sErr, caption = 'The following error occured when applying the pipeline actions:')
+                    else:
+                        sErr = '\n\nCheck `Errors` in the bottom right side of the window.'
+                        Warn(self, 'Errors occured on all tables.'+sErr)
                 #elif nErr<len(self.tabList):
                 #    Warn(self, 'Errors occured on some tables.'+sErr)
                 self.pipePanel.user_warned = True
