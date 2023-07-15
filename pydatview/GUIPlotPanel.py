@@ -992,29 +992,46 @@ class PlotPanel(wx.Panel):
                 yMin=np.min([PDs[i]._yMin[0] for i in axis.iPD])
                 yMax=np.max([PDs[i]._yMax[0] for i in axis.iPD])
                 delta = (yMax-yMin)
-                if delta==0:
-                    # If delta is zero, we extend the bounds to "readable" values
-                    yMean = (yMax+yMin)/2
-                    if abs(yMean)>1e-6:
-                        delta = 0.05*yMean
-                    else:
-                        delta = 1
-                elif abs(yMin)>1e-6:
-                    delta_rel = delta/abs(yMin)
-                    if delta_rel<1e-5:
-                        # we set a delta such that the numerical fluctuations are visible but
-                        # it's obvious that it's still a "constant" signal
-                        delta = 100*delta 
-                    else:
-                        delta = delta*pyplot_rc['axes.xmargin']
+                # Old behavior
+                if np.isclose(yMin,yMax): 
+                    # NOTE: by using 10% of yMax we usually avoid having the "mean" written at
+                    #   the top of the script
+                    delta=1 if np.isclose(yMax,0) else 0.1*yMax
                 else:
                     delta = delta*pyplot_rc['axes.xmargin']
+#                 if delta==0:
+#                     # If delta is zero, we extend the bounds to "readable" values
+#                     yMean = (yMax+yMin)/2
+#                     if abs(yMean)>1e-6:
+#                         delta = 0.05*yMean
+#                     else:
+#                         delta = 1
+#                 elif abs(yMin)>1e-6:
+#                     delta_rel = delta/abs(yMin)
+#                     if delta<1e-5:
+#                         delta = 0.1
+#                     elif delta_rel<1e-5:
+#                         # we set a delta such that the numerical fluctuations are visible but
+#                         # it's obvious that it's still a "constant" signal
+#                         delta = 100*delta 
+#                     else:
+#                         delta = delta*pyplot_rc['axes.xmargin']
+#                 else:
+#                     if delta<1e-5:
+#                         delta = 1
+#                     else:
+#                         delta = delta*pyplot_rc['axes.xmargin']
                 axis.set_ylim(yMin-delta,yMax+delta)
                 axis.autoscale(False, axis='y', tight=False)
             except:
                 pass
 
-    def plot_all(self, keep_limits=True):
+    def plot_all(self, autoscale=True):
+        """ 
+        autoscale: if True, find the limits based on the data.
+                  Otherwise, the limits are restored using:
+                     self._restore_limits and the variables: self.xlim_prev, self.ylim_prev
+        """
         self.multiCursors=[]
 
         axes=self.fig.axes
@@ -1093,25 +1110,23 @@ class PlotPanel(wx.Panel):
                     except:
                         ax_left.set_yscale("log", nonposy='clip') # legacy
 
-            # XLIM - TODO FFT ONLY NASTY
-            if self.pltTypePanel.cbFFT.GetValue():
+            if not autoscale:
+                # We force the limits to be the same as before
+                self._restore_limits()
+            elif self.pltTypePanel.cbFFT.GetValue():
+                # XLIM - TODO FFT ONLY NASTY
                 try:
-                    if self.cbAutoScale.IsChecked():
-                        xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
-                        if xlim>0:
-                                ax_left.set_xlim([0,xlim])
-                                pd=PD[ax_left.iPD[0]]
-                                I=pd.x<xlim
-                                ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
-                                ax_left.set_ylim(bottom=ymin/2)
-                        if self.spcPanel.cbTypeX.GetStringSelection()=='x':
-                            ax_left.invert_xaxis()
-                    else:
-                        self._restore_limits()
+                    xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
+                    if xlim>0:
+                            ax_left.set_xlim([0,xlim])
+                            pd=PD[ax_left.iPD[0]]
+                            I=pd.x<xlim
+                            ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
+                            ax_left.set_ylim(bottom=ymin/2)
+                    if self.spcPanel.cbTypeX.GetStringSelection()=='x':
+                        ax_left.invert_xaxis()
                 except:
                     pass
-            elif not self.cbAutoScale.IsChecked() and keep_limits:
-                self._restore_limits()
 
             ax_left.grid(self.cbGrid.IsChecked())
             if ax_right is not None:
@@ -1461,7 +1476,12 @@ class PlotPanel(wx.Panel):
         if self.infoPanel is not None:
             self.infoPanel.showStats(self.plotData,self.pltTypePanel.plotType())
 
-    def redraw_same_data(self, keep_limits=True):
+    def redraw_same_data(self, force_autoscale=False):
+        """ 
+         - force_autoscale: if True, for the plot area to autoscale
+                This is used when the user click on "Home"
+
+        """
         if len(self.plotData)==0: 
             self.cleanPlot();
             return
@@ -1471,13 +1491,13 @@ class PlotPanel(wx.Panel):
             else:
                 if len(self.xlim_prev)==0: # Might occur if some date didn't plot before (e.g. strings)
                     self.cbAutoScale.SetValue(True)
-                elif rectangleOverlap(self.plotData[0]._xMin[0], self.plotData[0]._yMin[0], 
-                            self.plotData[0]._xMax[0], self.plotData[0]._yMax[0],
-                            self.xlim_prev[0][0], self.ylim_prev[0][0], 
-                            self.xlim_prev[0][1], self.ylim_prev[0][1]):
-                        pass
-                else:
-                    self.cbAutoScale.SetValue(True)
+                # KEEP ME below, check if plot data is within a given rectangle
+                # If no plot data is present in the window 
+                #elif not rectangleOverlap(self.plotData[0]._xMin[0], self.plotData[0]._yMin[0], 
+                #            self.plotData[0]._xMax[0], self.plotData[0]._yMax[0],
+                #            self.xlim_prev[0][0], self.ylim_prev[0][0], 
+                #            self.xlim_prev[0][1], self.ylim_prev[0][1]):
+                #    self.cbAutoScale.SetValue(True)
 
         mode=self.findPlotMode(self.plotData)
         nPlots,spreadBy=self.findSubPlots(self.plotData,mode)
@@ -1489,7 +1509,10 @@ class PlotPanel(wx.Panel):
         if not self.pltTypePanel.cbCompare.GetValue():
             self.setLegendLabels(mode)
 
-        self.plot_all(keep_limits)
+
+        autoscale = (self.cbAutoScale.IsChecked()) or (force_autoscale)
+
+        self.plot_all(autoscale=autoscale)
         self.canvas.draw()
 
 

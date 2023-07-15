@@ -305,7 +305,7 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
 
     def home(self, *args):
         """Restore the original view."""
-        self.canvas.GetParent().redraw_same_data(False)
+        self.canvas.GetParent().redraw_same_data(force_autoscale=True)
 
     def set_message(self, s):
         pass
