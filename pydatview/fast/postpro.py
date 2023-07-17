@@ -10,7 +10,7 @@ from pydatview.common import PyDatViewException as WELIBException
 from  pydatview.io.fast_input_file import FASTInputFile
 from  pydatview.io.fast_output_file import FASTOutputFile
 from  pydatview.io.fast_input_deck import FASTInputDeck
-
+from pydatview.fast.subdyn import SubDyn
 
 # --------------------------------------------------------------------------------}
 # --- Tools for IO 

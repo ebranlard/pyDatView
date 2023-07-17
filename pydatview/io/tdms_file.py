@@ -3,11 +3,12 @@ import pandas as pd
 import os
 
 try:
-    from .file import File, WrongFormatError, BrokenFormatError
+    from .file import File, WrongFormatError, BrokenFormatError, OptionalImportError
 except:
     File = dict
     class WrongFormatError(Exception): pass
     class BrokenFormatError(Exception): pass
+    class OptionalImportError(Exception): pass
 
 class TDMSFile(File):
 
@@ -40,7 +41,7 @@ class TDMSFile(File):
         try:
             from nptdms import TdmsFile
         except:
-            raise Exception('Install the library nptdms to read this file')
+            raise OptionalImportError('Install the library nptdms to read this file')
 
         fh = TdmsFile(self.filename, read_metadata_only=False)
         # --- OLD, using some kind of old version of tdms and probably specific to one file

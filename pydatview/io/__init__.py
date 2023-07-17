@@ -1,4 +1,4 @@
-from .file  import File, WrongFormatError, BrokenFormatError, FileNotFoundError, EmptyFileError
+from .file  import File, WrongFormatError, BrokenFormatError, FileNotFoundError, EmptyFileError, OptionalImportError
 from .file_formats  import FileFormat, isRightFormat
 import sys
 import os

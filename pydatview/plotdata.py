@@ -630,7 +630,7 @@ class PlotData():
                 except ModuleNotFoundError:
                     print('[INFO] module fatpack not installed, default to windap method for equivalent load')
                     method='rainflow_windap'
-            v=equivalent_load(PD.x, PD.y, m=m, Teq=1, nBins=100, method=method)
+            v=equivalent_load(PD.x, PD.y, m=m, Teq=1, bins=100, method=method)
             return v,pretty_num(v)
 
     def Info(PD,var):

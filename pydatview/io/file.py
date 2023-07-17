@@ -13,6 +13,9 @@ class BrokenFormatError(Exception):
 class BrokenReaderError(Exception):
     pass
 
+class OptionalImportError(Exception):
+    pass
+
 try: #Python3
     FileNotFoundError=FileNotFoundError
 except NameError: # Python2
@@ -37,13 +40,13 @@ class File(OrderedDict):
         # Calling children function
         self._read(**kwargs)
 
-    def write(self, filename=None):
+    def write(self, filename=None, **kwargs):
         if filename:
             self.filename = filename
         if not self.filename:
             raise Exception('No filename provided')
         # Calling children function
-        self._write()
+        self._write(**kwargs)
 
     def toDataFrame(self):
         return self._toDataFrame()
@@ -74,8 +77,32 @@ class File(OrderedDict):
 
 
     # --------------------------------------------------------------------------------}
-    # --- Helper methods
+    # --- Conversions
     # --------------------------------------------------------------------------------{
+    def toCSV(self, filename=None, extension='.csv', **kwargs):
+        """ By default, writes dataframes to CSV
+        Keywords arguments are the same as pandas DataFrame to_csv:
+          - sep: separator
+          - index: write index or not
+          - etc.
+        """
+        from .converters import writeFileDataFrames 
+        from .converters import dataFrameToCSV
+        writeFileDataFrames(self, dataFrameToCSV, filename=filename, extension=extension, **kwargs)
+
+    def toOUTB(self, filename=None, extension='.outb', **kwargs):
+        """ write to OUTB"""
+        from .converters import writeFileDataFrames 
+        from .converters import dataFrameToOUTB
+        writeFileDataFrames(self, dataFrameToOUTB, filename=filename, extension=extension, **kwargs)
+
+
+    def toParquet(self, filename=None, extension='.parquet', **kwargs):
+        """ write to OUTB"""
+        from .converters import writeFileDataFrames 
+        from .converters import dataFrameToParquet
+        writeFileDataFrames(self, dataFrameToParquet, filename=filename, extension=extension, **kwargs)
+
     
     # --------------------------------------------------------------------------------
     # --- Sub class methods 
@@ -168,6 +195,23 @@ def isBinary(filename):
             return False
         except UnicodeDecodeError:
             return True
+
+
+def numberOfLines(filename, method=1):
+
+    if method==1:
+        return sum(1 for i in open(filename, 'rb'))
+
+    elif method==2:
+        def blocks(files, size=65536):
+            while True:
+                b = files.read(size)
+                if not b: break
+                yield b
+        with open(filename, "r",encoding="utf-8",errors='ignore') as f:
+            return sum(bl.count("\n") for bl in blocks(f))
+    else:
+        raise NotImplementedError()
 
 def ascii_comp(file1,file2,bDelete=False):
     """ Compares two ascii files line by line.

@@ -59,7 +59,8 @@ def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_win
     if dt is None:
         dtDelta0 = t[1]-t[0]
         # Hack to use a constant dt
-        dt = (np.max(t)-np.min(t))/(n0-1)
+        #dt = (np.max(t)-np.min(t))/(n0-1)
+        dt = (t[-1]-t[0])/(n0-1)
         relDiff = abs(dtDelta0-dt)/dt*100
         #if dtDelta0 !=dt:
         if relDiff>0.01:

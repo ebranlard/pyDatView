@@ -55,8 +55,8 @@ def comparison_stats(t1, y1, t2, y2, stats='sigRatio,eps,R2', method='mean', abs
             sStats+=[r'$R^2=$'+r'{:.3f}'.format(R2)]
 
         elif s=='epsleq':
-            Leq1 = equivalent_load(t1, y1, m=5, nBins=100, method='fatpack')
-            Leq2 = equivalent_load(t2, y2, m=5, nBins=100, method='fatpack')
+            Leq1 = equivalent_load(t1, y1, m=5, bins=100, method='fatpack')
+            Leq2 = equivalent_load(t2, y2, m=5, bins=100, method='fatpack')
             epsLeq = (Leq2-Leq1)/Leq1*100
             stats['epsLeq'] = epsLeq
             sStats+=[r'$\epsilon L_{eq}=$'+r'{:.1f}%'.format(epsLeq)]
