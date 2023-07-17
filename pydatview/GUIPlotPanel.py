@@ -581,7 +581,7 @@ class PlotPanel(wx.Panel):
         if self.addTablesCallback is not None:
             self.addTablesCallback(*args, **kwargs)
         else:
-            print('[WARN] callback to add tables to parent was not set.')
+            print('[WARN] callback to add tables to parent was not set. (call setAddTablesCallback)')
 
 
     # --- GUI DATA
@@ -790,11 +790,8 @@ class PlotPanel(wx.Panel):
 
     def showTool(self, toolName=''):
         from pydatview.plugins import TOOLS
-        from pydatview.plugins import OF_DATA_TOOLS # TODO remove me
         if toolName in TOOLS.keys():
             self.showToolPanel(panelClass=TOOLS[toolName])
-        elif toolName in OF_DATA_TOOLS.keys():
-            self.showToolPanel(panelClass=OF_DATA_TOOLS[toolName])
         else:
             raise Exception('Unknown tool {}'.format(toolName))
 

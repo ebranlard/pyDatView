@@ -64,7 +64,7 @@ def filterTabAdd(tab, opts):
 class FilterToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
-        import wx
+        import wx # avoided at module level for unittests
         PlotDataActionEditor.__init__(self, parent, action, tables=True, **kwargs)
 
         # --- Data

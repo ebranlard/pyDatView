@@ -619,7 +619,7 @@ class Table(object):
         return df_new, name_new
 
 
-    def radialAvg(self,avgMethod, avgParam):
+    def radialAvg(self, avgMethod, avgParam):
         # TODO make this a pluggin
         import pydatview.fast.postpro as fastlib
         import pydatview.fast.fastfarm as fastfarm
@@ -660,6 +660,8 @@ class Table(object):
 
             dfs_new  = [dfRadAD, dfRadED, dfRadBD]
             names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
+        if all(df is None for df in dfs_new):
+            raise PyDatViewException('No OpenFAST radial data found for table: '+self.nickname)
         return dfs_new, names_new
 
     def changeUnits(self, data=None):

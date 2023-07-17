@@ -7,7 +7,7 @@ An action has:
 
   - A set of callbacks that manipulates tables:
 
-    - tableFunctionAdd   (Table, data=dict())   # applies to a full table, return a new table
+    - df(s)_new, name(s)_new = tableFunctionAdd   (Table, data=dict())   # applies to a full table
     - tableFunctionApply (Table, data=dict())   # applies to a full table (inplace)
     - tableFunctionCancel(Table, data=dict())   # cancel action on a full table (inplace)
  
@@ -100,19 +100,18 @@ class Action():
         errors=[]
         for i,t in enumerate(tabList):
             try:
-                df_new, name_new = self.tableFunctionAdd(t, self.data)
-                if df_new is not None: 
-                    # we don't append when string is empty
-                    dfs_new.append(df_new)
-                    names_new.append(name_new)
+                dfs_new_, names_new_ = self.tableFunctionAdd(t, self.data)
+                if not isinstance(dfs_new_, list):
+                    dfs_new_   = [dfs_new_]
+                    names_new_ = [names_new_]
+                dfs_new   += dfs_new_
+                names_new += names_new_
             except Exception as e:
                 err = 'Failed to apply action "{}" to table "{}" and creating a new table.\n{}\n\n'.format(self.name, t.nickname, exception2string(e))
                 self.errorList.append(err)
                 errors.append(err)
 
         return dfs_new, names_new, errors
-
-
 
 
     def updateGUI(self):
@@ -246,6 +245,7 @@ class Pipeline(object):
         self.errorList   = []
         self.user_warned   = False # Has the user been warn that errors are present
         self.plotFiltersData=[] # list of data for plot data filters, that plotData.py will use
+        self.verbose=False
 
     @property
     def actions(self):
@@ -280,6 +280,8 @@ class Pipeline(object):
 
     # --- Behave like a list..
     def append(self, action, overwrite=False, apply=True, updateGUI=True, tabList=None):
+        if self.verbose:
+            print('[Pipe] calling `append` for action `{}`. apply: {}, updateGUI: {}'.format(action.name, apply, updateGUI))
         i = self.index(action)
         if i>=0 and overwrite:
             print('[Pipe] Not adding action, its already present')

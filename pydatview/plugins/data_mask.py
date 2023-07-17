@@ -1,4 +1,3 @@
-import wx
 import numpy as np
 from pydatview.plugins.base_plugin import ActionEditor, TOOL_BORDER
 from pydatview.common import CHAR, Error, Info, pretty_num_short
@@ -10,7 +9,6 @@ from pydatview.pipeline import ReversibleTableAction
 _DEFAULT_DICT={
     'active':False, 
     'maskString': ''
-    # 'nBins':50
 }
 
 # --------------------------------------------------------------------------------}
@@ -49,7 +47,6 @@ def applyMask(tab, data):
     dfs, name = tab.applyMaskString(data['maskString'], bAdd=False)
 
 def removeMask(tab, data):
-    print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> CLEAR MASK')
     tab.clearMask()
     #    tabList.clearCommonMask()
 
@@ -64,7 +61,8 @@ def addTabMask(tab, opts):
 # --- GUI to edit plugin and control the mask action
 # --------------------------------------------------------------------------------{
 class MaskToolPanel(ActionEditor):
-    def __init__(self, parent, action):
+    def __init__(self, parent, action=None):
+        import wx # avoided at module level for unittests
         ActionEditor.__init__(self, parent, action=action)
 
         # --- Creating "Fake data" for testing only!

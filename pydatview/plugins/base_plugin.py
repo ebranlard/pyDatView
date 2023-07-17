@@ -10,6 +10,7 @@ except:
 import numpy as np
 from pydatview.common import CHAR, Error, Info, Warn
 from pydatview.plotdata import PlotData
+from pydatview.pipeline import AdderAction
 
 TOOL_BORDER=15
 
@@ -137,22 +138,27 @@ class ActionEditor(GUIToolPanel):
         #icol, colname = self.plotPanel.selPanel.xCol
         self._GUI2Data()
 
-        dfs, names, errors = self.action.applyAndAdd(self.tabList)
+        if issubclass(AdderAction, type(self.action)):
+            self.addActionHandle(self.action, overwrite=True, apply=True, tabList=self.tabList, updateGUI=True)
+            #self.addActionHandle(self.action, overwrite=True, apply=self.applyRightAway, tabList=self.tabList, updateGUI=True)
+        else:
+            dfs, names, errors = self.action.applyAndAdd(self.tabList)
 
-        # We stop applying if we were applying it (NOTE: doing this before adding table due to redraw trigger of the whole panel)
-        if self.data['active']:
-            self.onToggleApply()
+            # We stop applying if we were applying it (NOTE: doing this before adding table due to redraw trigger of the whole panel)
+            if self.data['active']:
+                self.onToggleApply()
 
-        self.addTablesHandle(dfs, names, bAdd=True, bPlot=False) # Triggers a redraw of the whole panel...
-        #    df, name = self.tabList[iSel-1].applyFiltering(icol, self.data, bAdd=True)
-        #    self.parent.addTables([df], [name], bAdd=True)
-        #self.updateTabList()
+            self.addTablesHandle(dfs, names, bAdd=True, bPlot=False) # Triggers a redraw of the whole panel...
+            #    df, name = self.tabList[iSel-1].applyFiltering(icol, self.data, bAdd=True)
+            #    self.parent.addTables([df], [name], bAdd=True)
+            #self.updateTabList()
 
-        if len(errors)>0:
-            if len(errors)>=len(self.tabList):
-                Error(self, 'Error: The action {} failed on all tables:\n\n'.format(self.action.name)+'\n'.join(errors))
-            #elif len(errors)<len(self.tabList):
-            #    Warn('Warning: The action {} failed on some tables:\n\n'.format(self.action.name)+'\n'.join(errors))
+            if len(errors)>0:
+                if len(errors)>=len(self.tabList):
+                    Error(self, 'Error: The action {} failed on all tables:\n\n'.format(self.action.name)+'\n'.join(errors))
+                #elif len(errors)<len(self.tabList):
+                #    Warn('Warning: The action {} failed on some tables:\n\n'.format(self.action.name)+'\n'.join(errors))
+
 
     def onClear(self, event=None):
         self.redrawHandle()
@@ -162,7 +168,7 @@ class ActionEditor(GUIToolPanel):
 
 
 # --------------------------------------------------------------------------------}
-# --- Default calss for GUI to edit plugin and control a plot data action
+# --- Default class for GUI to edit plugin and control a plot data action
 # --------------------------------------------------------------------------------{
 class PlotDataActionEditor(ActionEditor):
 
@@ -339,6 +345,57 @@ class PlotDataActionEditor(ActionEditor):
         self.plotPanel.canvas.draw()
 
 
+def demoGUIPlugin(panelClass, actionCreator, data=None, mainLoop=True, title='Demo'):
+    """ Function to demonstrate behavior of a plugin
+    - actionCreator: interface(label, mainframe, data)
+
+    """
+    from pydatview.pipeline import PlotDataAction
+    from pydatview.common import DummyMainFrame
+    from pydatview.Tables import TableList
+    from pydatview.pipeline import Pipeline
+    from pydatview.GUIPlotPanel import PlotPanel
+    from pydatview.GUISelectionPanel import SelectionPanel
+
+#     if data is None:
+#         data={'active':False}
+
+    # --- Data
+    tabList   = TableList.createDummy(nTabs=2, n=100, addLabel=False)
+    app = wx.App(False)
+    self = wx.Frame(None,-1, title)
+    pipeline = Pipeline()
+
+    # --- Panels
+    self.selPanel = SelectionPanel(self, tabList, mode='auto')
+    self.plotPanel = PlotPanel(self, self.selPanel, pipeLike=pipeline)
+    self.plotPanel.load_and_draw() # <<< Important
+    self.selPanel.setRedrawCallback(self.plotPanel.load_and_draw) #  Binding the two
+
+    # --- Dummy mainframe and action..
+    mainframe = DummyMainFrame(self)
+    mainframe.plotPanel = self.plotPanel
+    guiCallback = self.plotPanel.load_and_draw
+    action = actionCreator(title, mainframe, data)
+
+    # --- Create main object to be tested
+    p = panelClass(self.plotPanel, action=action)
+
+    # --- Finalize GUI
+    sizer = wx.BoxSizer(wx.HORIZONTAL)
+    sizer.Add(self.selPanel ,0, wx.EXPAND|wx.ALL, border=5)
+    sizer.Add(self.plotPanel,1, wx.EXPAND|wx.ALL, border=5)
+    self.SetSizer(sizer)
+    self.SetSize((900, 600))
+    self.Center()
+    self.plotPanel.showToolPanel(panel=p) # <<< Show
+
+    if mainLoop:
+        self.Show()
+        app.MainLoop()
+
+
+
 def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableFunctionAdd=None, mainLoop=True, title='Demo'):
     """ Function to demonstrate behavior of a plotdata plugin"""
     from pydatview.pipeline import PlotDataAction
@@ -394,6 +451,8 @@ def demoPlotDataActionPanel(panelClass, data=None, plotDataFunction=None, tableF
     if mainLoop:
         self.Show()
         app.MainLoop()
+
+
 
 if __name__ == '__main__':
 

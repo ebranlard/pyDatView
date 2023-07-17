@@ -65,6 +65,10 @@ def _data_radialConcat(label, mainframe=None):
     from .data_radialConcat import radialConcatAction
     return radialConcatAction(label, mainframe)
 
+def _data_radialavg(label, mainframe=None):
+    from .data_radialavg import radialAvgAction
+    return radialAvgAction(label, mainframe)
+
 
 # --- Tools
 def _tool_logdec(*args, **kwargs):
@@ -75,10 +79,6 @@ def _tool_curvefitting(*args, **kwargs):
     from .tool_curvefitting import CurveFitToolPanel
     return CurveFitToolPanel(*args, **kwargs)
 
-# --- TODO Action
-def _tool_radialavg(*args, **kwargs):
-    from .tool_radialavg import RadialToolPanel
-    return RadialToolPanel(*args, **kwargs)
 
 # --- Ordered dictionaries with key="Tool Name", value="Constructor"
 
@@ -106,8 +106,9 @@ TOOLS=OrderedDict([
 
 # --- OpenFAST
 # TOOLS: tool plugins constructor should return a Panel class
-OF_DATA_TOOLS=OrderedDict([ # TODO
-    ('Radial Average', _tool_radialavg),
+# OF_DATA_TOOLS={}
+OF_DATA_PLUGINS_WITH_EDITOR=OrderedDict([ # TODO
+    ('Radial Average', _data_radialavg),
     ])
 # DATA_PLUGINS_SIMPLE: simple data plugins constructors should return an Action
 OF_DATA_PLUGINS_SIMPLE=OrderedDict([
