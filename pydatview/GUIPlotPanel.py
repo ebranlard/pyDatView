@@ -630,7 +630,14 @@ class PlotPanel(wx.Panel):
            - this will override the user settings
         """
         #self.fig.set_tight_layout(True)  # NOTE: works almost fine, but problem with FFT multiple
-        # TODO this is definitely not generic, but tight fails..
+        ## TODO this is definitely not generic, but tight fails..
+        #return
+        #if hasattr(self.fig, '_subplotsPar'):
+        #    # See GUIToolBox.py configure_toolbar
+        #    self.fig.subplots_adjust(**self.fig._subplotsPar)
+        #    return
+
+
         if init: 
             # NOTE: at init size is (20,20) because sizer is not initialized yet
             bottom = 0.12
@@ -661,6 +668,10 @@ class PlotPanel(wx.Panel):
             self.fig.subplots_adjust(top=0.97,bottom=bottom,left=left,right=0.98-left)
         else:
             self.fig.subplots_adjust(top=0.97,bottom=bottom,left=left,right=0.98)
+
+    def get_subplot_spacing(self, init=False):
+        pass
+
 
     def plot_matrix_select(self, event):
         if self.infoPanel is not None:

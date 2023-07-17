@@ -309,3 +309,27 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
 
     def set_message(self, s):
         pass
+
+#     def configure_subplots(self, *args):
+#         NavigationToolbar2Wx.configure_subplots(self, *args)
+# 
+#         def close_event(e):
+#             # We delete the suplot_tool (default behavior)
+#             try:
+#                 delattr(self, 'subplot_tool')
+#             except:
+#                 pass
+#             # Then we introduce a hook to store the new subplot
+#             params = self.canvas.figure.subplotpars
+#             paramsD= {}
+#             for key in ["left", "bottom", "right", "top", "wspace", "hspace"]:
+#                 paramsD[key]=getattr(params, key)
+#             self.canvas.figure._subplotsPar = paramsD
+# 
+#         # We change the default hook for the close event
+#         tool_fig = self.subplot_tool.figure
+#         tool_fig.canvas.mpl_connect("close_event", close_event)
+# 
+#         return self.subplot_tool
+
+
