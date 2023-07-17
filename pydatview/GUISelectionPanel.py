@@ -293,6 +293,16 @@ class TablePopup(wx.Menu):
                 self.Append(item)
                 self.Bind(wx.EVT_MENU, self.mainframe.onAdd, item)
 
+        if len(self.ISel)==1 and self.ISel[0]!=0:
+            item = wx.MenuItem(self, -1, "Move Up")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnMoveTabUp, item)
+
+        if len(self.ISel)==1 and self.ISel[0]<len(self.tabList)-1:
+            item = wx.MenuItem(self, -1, "Move Down")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnMoveTabDown, item)
+
         if len(self.ISel)>1:
             item = wx.MenuItem(self, -1, "Merge (horizontally)")
             self.Append(item)
@@ -326,6 +336,25 @@ class TablePopup(wx.Menu):
             self.tabPanel.tabList.naming='Ellude'
 
         self.tabPanel.updateTabNames()
+
+    def OnMoveTabUp(self, event=None):
+        iOld = self.ISel[0]
+        iNew = self.ISel[0]-1
+        self.tabList.swap(iOld, iNew) 
+        # Updating tables
+        self.selPanel.update_tabs(self.tabList)
+        # Trigger a replot
+        self.mainframe.onTabSelectionChange()
+
+
+    def OnMoveTabDown(self, event=None):
+        iOld = self.ISel[0]
+        iNew = self.ISel[0]+1
+        self.tabList.swap(iOld, iNew) 
+        # Updating tables
+        self.selPanel.update_tabs(self.tabList)
+        # Trigger a replot
+        self.mainframe.onTabSelectionChange()
 
     def OnMergeTabs(self, event):
         # --- Figure out the common columns

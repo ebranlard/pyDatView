@@ -192,6 +192,10 @@ class TableList(object): # todo inherit list
         self._tabs[iTab].rename(newName)
         return oldName
 
+    def swap(self, i1, i2):
+        """ Swap two elements of the list"""
+        self._tabs[i1], self._tabs[i2] = self._tabs[i2], self._tabs[i1]
+
     def sort(self, method='byName'):
         if method=='byName':
             tabnames_display=self.getDisplayTabNames()
