@@ -321,11 +321,8 @@ class MainFrame(wx.Frame):
 
         if bReload:
             # Restore formulas that were previously added
-            for tab in self.tabList:
-                if tab.raw_name in self.restore_formulas.keys():
-                    for f in self.restore_formulas[tab.raw_name]:
-                        tab.addColumnByFormula(f['name'], f['formula'], f['pos']-1)
-            self.restore_formulas = {}
+            self.tabList.applyFormulas(self.formulas_backup)
+            self.formulas_backup = {}
         # Display warnings
         for warn in warnList: 
             Warn(self,warn)
@@ -666,11 +663,7 @@ class MainFrame(wx.Frame):
                     fileformats = [self.FILE_FORMATS[iFormat-1]]
 
             # Save formulas to restore them after reload with sorted tabs
-            self.restore_formulas = {}
-            for tab in self.tabList._tabs:
-                f = tab.formulas # list of dict('pos','formula','name')
-                f = sorted(f, key=lambda k: k['pos']) # Sort formulae by position in list of formua
-                self.restore_formulas[tab.raw_name]=f # we use raw_name as key
+            self.formulas_backup = self.tabList.storeFormulas()
             # Actually load files (read and add in GUI)
             self.load_files(filenames, fileformats=fileformats, bReload=True, bAdd=False, bPlot=True)
         else:

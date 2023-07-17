@@ -385,6 +385,25 @@ class TableList(object): # todo inherit list
 
         return dfs_new, names_new, errors
 
+
+    # --- Formulas
+    def storeFormulas(self):
+        formulas = {}
+        for tab in self._tabs:
+            f = tab.formulas # list of dict('pos','formula','name')
+            f = sorted(f, key=lambda k: k['pos']) # Sort formulae by position in list of formua
+            formulas[tab.raw_name]=f # we use raw_name as key
+        return formulas
+
+    # --- Formulas
+    def applyFormulas(self, formulas):
+        """ formuals: dict as returned by storeFormulas"""
+        for tab in self._tabs:
+            if tab.raw_name in formulas.keys():
+                for f in formulas[tab.raw_name]:
+                    tab.addColumnByFormula(f['name'], f['formula'], f['pos']-1)
+
+
     # --- Resampling TODO MOVE THIS OUT OF HERE OR UNIFY
     def applyResampling(self,iCol,sampDict,bAdd=True):
         """ Apply resampling on table list 
@@ -733,25 +752,28 @@ class Table(object):
         """ Delete columns by index, not column names which can have duplicates"""
         IKeep =[i for i in np.arange(self.data.shape[1]) if i not in ICol]
         self.data = self.data.iloc[:, IKeep] # Drop won't work for duplicates
+        # TODO find a way to add a "formula" attribute to a column of a dataframe to avoid dealing with "pos".
         for i in sorted(ICol, reverse=True):
+            # Remove formulae if these are part of the columns deleted
             for f in self.formulas:
-                if f['pos'] == (i + 1):
+                if f['pos'] == i:
                     self.formulas.remove(f)
                     break
+            # Shift formulae locations due to column being removed
             for f in self.formulas:
-                if f['pos'] > (i + 1):
+                if f['pos'] > i:
                     f['pos'] = f['pos'] - 1
 
     def rename(self,new_name):
         self.name='>'+new_name
 
     def addColumn(self, sNewName, NewCol, i=-1, sFormula=''):
-        print('>>> adding Column')
         if i<0:
             i=self.data.shape[1]
         elif i>self.data.shape[1]+1:
             i=self.data.shape[1]
         self.data.insert(int(i+1),sNewName,NewCol)
+        # Due to new column, formulas position needs to be incremented.
         for f in self.formulas:
             if f['pos'] > i:
                 f['pos'] = f['pos'] + 1
