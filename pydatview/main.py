@@ -463,13 +463,25 @@ class MainFrame(wx.Frame):
     def exportTab(self, iTab):
         tab=self.tabList[iTab]
         default_filename=tab.basename +'.csv'
-        with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename,
-                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
-                #, wildcard="CSV files (*.csv)|*.csv",
+
+        # --- Set list of allowed formats
+        # NOTE: this needs to be in harmony with io.converters
+        fformat= ['auto'   ]; wildcard ='auto (based on extension, default to CSV) (.*)|*.*|'
+        fformat+=['csv'    ]; wildcard+='CSV file (.csv,.txt)|*.csv;*.txt|'
+        fformat+=['outb'   ]; wildcard+='FAST output file (.outb)|*.outb|'
+        fformat+=['parquet']; wildcard+='Parquet file (.parquet)|*.parquet'
+        #fformat= ['excel'  ];wildcard+='Excel file (.xls,.xlsx)|*.xls;*.xlsx|'
+        #fformat+=['pkl'    ];wildcard+='Pickle file (.pkl)|*.pkl|'
+        #fformat+=['tecplot'];wildcard+='Tecplot ASCII file (.dat)|*.dat|'
+
+        with wx.FileDialog(self, "Save to CSV file", defaultFile=default_filename,
+                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT, wildcard=wildcard) as dlg:
             dlg.CentreOnParent()
             if dlg.ShowModal() == wx.ID_CANCEL:
                 return     # the user changed their mind
-            tab.export(dlg.GetPath())
+            path = dlg.GetPath()
+            fformat = fformat[dlg.GetFilterIndex()]
+            tab.export(path=path, fformat=fformat)
 
     def onShowTool(self, event=None, toolName=''):
         """ 

@@ -818,14 +818,16 @@ class Table(object):
             return True
 
 
-    def export(self, path):
-        if isinstance(self.data, pd.DataFrame):
-            df = self.data
-            if 'Index' in df.columns.values:
-                df = df.drop(['Index'], axis=1)
-            df.to_csv(path, sep=',', index=False)
+    def export(self, path, fformat='auto'):
+        from pydatview.io.converters import writeDataFrameAutoFormat, writeDataFrameToFormat
+        df = self.data
+        base, ext = os.path.splitext(path)
+        if 'Index' in df.columns.values:
+            df = df.drop(['Index'], axis=1)
+        if fformat=='auto':
+            writeDataFrameAutoFormat(df, path)
         else:
-            raise NotImplementedError('Export of data that is not a dataframe')
+            writeDataFrameToFormat(df, path, fformat=fformat)
 
 
 
