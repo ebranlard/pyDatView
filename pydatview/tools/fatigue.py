@@ -1,58 +1,71 @@
-# --------------------------------------------------------------------------------}
-# --- Info 
-# --------------------------------------------------------------------------------{
-# Tools for fatigue analysis
-#
-# Taken from:
-#    repository:  wetb
-#    package:     wetb.fatigue_tools,
-#    institution: DTU wind energy, Denmark 
-#    main author: mmpe
-'''
-Created on 04/03/2013
-@author: mmpe
+"""
+Tools for fatigue analysis
 
 
-'eq_load' calculate equivalent loads using one of the two rain flow counting methods
-'cycle_matrix' calculates a matrix of cycles (binned on amplitude and mean value)
-'eq_load_and_cycles' is used to calculate eq_loads of multiple time series (e.g. life time equivalent load)
+Main functions:
+- equivalent_load: calculate damage equivalent load for a given signal
+- find_range_count: returns range and number of cycles for a given signal
 
-The methods uses the rainflow counting routines (See documentation in top of methods):
-- 'rainflow_windap': (Described in "Recommended Practices for Wind Turbine Testing - 3. Fatigue Loads",
-                      2. edition 1990, Appendix A)
-or
-- 'rainflow_astm' (based on the c-implementation by Adam Nieslony found at the MATLAB Central File Exchange
-                   http://www.mathworks.com/matlabcentral/fileexchange/3026)
-'''
+Subfunctions:
+- eq_load: calculate equivalent loads using one of the two rain flow counting methods
+- cycle_matrix: calculates a matrix of cycles (binned on amplitude and mean value)
+- eq_load_and_cycles: calculate eq_loads of multiple time series (e.g. life time equivalent load)
+
+
+Main aglorithms for rain flow counting:
+- rainflow_windap: taken from [2], based on [3]
+- rainflow_astm: taken from [2], based [4]
+- fatpack: using [5]
+
+
+References:
+  [1] Hayman (2012) MLife theory manual for Version 1.00
+  [2] Wind energy toolbox, wetb.fatigue_tools, DTU wind energy, Denmark
+  [3] "Recommended Practices for Wind Turbine Testing - 3. Fatigue Loads", 2. edition 1990, Appendix A
+  [4] Adam Nieslony - Rainflow Counting Algorithm, MATLAB Central File Exchange 
+      http://www.mathworks.com/matlabcentral/fileexchange/3026)
+  [5] Fatpack - Python package
+      https://github.com/Gunnstein/fatpack
+
+
+"""
 import warnings
 import numpy as np
 
 
-__all__  = ['rainflow_astm', 'rainflow_windap','eq_load','eq_load_and_cycles','cycle_matrix','cycle_matrix2']
+__all__  = ['equivalent_load', 'find_range_count']
+__all__  += ['rainflow_astm', 'rainflow_windap','eq_load','eq_load_and_cycles','cycle_matrix','cycle_matrix2']
 
 
-def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap', meanBin=True, binStartAt0=False):
+def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap',
+        meanBin=True, binStartAt0=False,
+        outputMore=False, debug=False):
     """Equivalent load calculation
 
-    Calculate the equivalent loads for a list of Wohler exponent
+    Calculate the damage equivalent load for a given signal and a given Wohler exponent
 
-    Parameters
-    ----------
-    time : array-like, the time values corresponding to the signal (s)
-    signals : array-like, the load signal
-    m :    Wohler exponent (default is 3)
-    Teq : The equivalent period (Default 1, for 1Hz)
-    bins : Number of bins in rainflow count histogram
-    method: 'rainflow_windap, rainflow_astm, fatpack
-    meanBin: if True, use the mean of the ranges within a bin (recommended)
-             otherwise use the middle of the bin (not recommended).
-    binStartAt0: if True bins start at zero. Otherwise, start a lowest range
+    INPUTS
+     - time : array-like, the time values corresponding to the signal (s)
+     - signals : array-like, the load signal
+     - m :    Wohler exponent (default is 3)
+     - Teq : The equivalent period (Default 1, for 1Hz)
+     - bins : Number of bins in rainflow count histogram
+     - method: rain flow counting algorithm: 'rainflow_windap', 'rainflow_astm' or 'fatpack'
+     - meanBin: if True, use the mean of the ranges within a bin (recommended)
+              otherwise use the middle of the bin (not recommended).
+     - binStartAt0: if True bins start at zero. Otherwise, start a lowest range
+     - outputMore: if True, returns range, cycles and bins as well
 
+    OUTPUTS
+     - Leq : the equivalent load for given m and Teq
 
+        or (if outputMore is True )
 
-    Returns
-    -------
-    Leq : the equivalent load for given m and Tea
+     - Leq, S, N, bins, DELi: 
+        - S: ranges
+        - N: cycles
+        - bins: bin edges
+        - DELi: component 'i' of the DEL (for cycle i)
     """
     time   = np.asarray(time)
     signal = np.asarray(signal)
@@ -64,37 +77,23 @@ def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap'
 
     T = time[-1]-time[0] # time length of signal (s)
 
-    neq = T/Teq # number of equivalent periods
+    neq = T/Teq # number of equivalent periods, see Eq. (26) of [1]
 
-    if method in rainflow_func_dict.keys():
-        # Call wetb function for one m
-        #Leq = eq_load(signal, m=[m], neq=neq, no_bins=bins, rainflow_func=rainflow_func_dict[method])[0][0]
-        N, S = find_range_count(signal, bins=bins, method=method, meanBin=meanBin)
-    elif method=='fatpack':
-        import fatpack
-        # find rainflow ranges
-        try:
-            ranges = fatpack.find_rainflow_ranges(signal)
-        except IndexError:
-            # Currently fails for constant signal
-            return np.nan
+    # --- Range (S) and counts (N)
+    N, S, bins = find_range_count(signal, bins=bins, method=method, meanBin=meanBin, binStartAt0=binStartAt0)
 
-        # --- Legacy fatpack
-        # if (not binStartAt0) and (not meanBin):
-        #    N, S = fatpack.find_range_count(ranges, bins)
-        # --- Setup bins
-        # If binStartAt0 is True, the same bins as WINDAP are used
-        bins = create_bins(ranges, bins, binStartAt0=binStartAt0)
-        # --- Using bin_count to get value at center of bins 
-        N, S = bin_count(ranges, bins, meanBin=meanBin)
+    # --- get DEL 
+    DELi = S**m * N / neq
+    Leq = DELi.sum() ** (1/m)     # See e.g. eq. (30) of [1]
 
+    if debug:
+        for i,(b,n,s,DEL) in enumerate(zip(bins, N, S, DELi)):
+            if n>0:
+                print('Bin {:3d}: [{:6.1f}-{:6.1f}] Mid:{:6.1f} - Mean:{:6.1f} Counts:{:4.1f} DEL:{:8.1f} Fraction:{:3.0f}%'.format(i,b,bins[i+1],(b+bins[i+1])/2,s,n,DEL,DEL/Leq**m*100))
+    if outputMore:
+        return Leq, S, N, bins, DELi
     else:
-        raise NotImplementedError(method)
-
-    # get DEL 
-    DELs = S**m * N / neq
-    Leq = DELs.sum() ** (1/m)
-    return Leq
+        return Leq
 
  
 def find_range_count(signal, bins, method='rainflow_windap', meanBin=True, binStartAt0=True):
@@ -112,21 +111,45 @@ def find_range_count(signal, bins, method='rainflow_windap', meanBin=True, binSt
            S is either the center of the bin (meanBin=False) 
                or 
            S is the mean of the ranges within this bin (meanBin=True)
+      - S_bin_edges: edges of the bins
     """
 
-    rainflow_func = rainflow_func_dict[method]
-    N, S, S_bin_edges, _, _ = cycle_matrix(signal, ampl_bins=bins, mean_bins=1, rainflow_func=rainflow_func, binStartAt0=binStartAt0)
-    S_bin_edges = S_bin_edges.flatten()
-    N           = N.flatten()
-    S           = S.flatten()
-    S_mid = (S_bin_edges[:-1] + S_bin_edges[1:]) / 2
-    if not meanBin:
-        S=S_mid
+    if method in rainflow_func_dict.keys():
+        rainflow_func = rainflow_func_dict[method]
+        N, S, S_bin_edges, _, _ = cycle_matrix(signal, ampl_bins=bins, mean_bins=1, rainflow_func=rainflow_func, binStartAt0=binStartAt0)
+        S_bin_edges = S_bin_edges.flatten()
+        N           = N.flatten()
+        S           = S.flatten()
+        S_mid = (S_bin_edges[:-1] + S_bin_edges[1:]) / 2
+        if not meanBin:
+            S=S_mid
+
+    elif method=='fatpack':
+        import fatpack
+        # find rainflow ranges
+        try:
+            ranges = fatpack.find_rainflow_ranges(signal)
+        except IndexError:
+            # Currently fails for constant signal
+            return np.nan, np.nan, np.nan
+        # --- Legacy fatpack
+        # if (not binStartAt0) and (not meanBin):
+        #    N, S = fatpack.find_range_count(ranges, bins)
+        # --- Setup bins
+        # If binStartAt0 is True, the same bins as WINDAP are used
+        S_bin_edges = create_bins(ranges, bins, binStartAt0=binStartAt0)
+        # --- Using bin_count to get value at center of bins 
+        N, S = bin_count(ranges, S_bin_edges, meanBin=meanBin)
+
+    else:
+        raise NotImplementedError('Rain flow algorithm {}'.format(method))
+
     # Remove NaN
     b = np.isnan(S)
     S[b] = 0
     N[b] = 0
-    return N, S
+
+    return N, S, S_bin_edges
 
 def create_bins(x, bins, binStartAt0=False):
     """ 

@@ -44,15 +44,17 @@ class Timer(object):
             cmd1
             cmd2
     """
-    def __init__(self, name=None, writeBefore=False, silent=False):
+    def __init__(self, name=None, writeBefore=False, silent=False, nChar=40):
         self.name        = name
         self.writeBefore = writeBefore
         self.silent=silent
+        self.nChar=nChar
+        self.sFmt='{:'+str(nChar+1)+'s}'
 
     def ref_str(self):
         s='[TIME] '
         if self.name:
-            s+='{:31s}'.format(self.name[:30])
+            s+=self.sFmt.format(self.name[:self.nChar])
         return s
 
     def __enter__(self):

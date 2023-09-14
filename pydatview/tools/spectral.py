@@ -1013,6 +1013,321 @@ def _triage_segments(window, nperseg,input_length):
 
 
 
+# --------------------------------------------------------------------------------
+# --- Simple implementations to figure out the math
+# --------------------------------------------------------------------------------
+def DFT(x, method='vectorized'):
+    """
+    Calculate the Discrete Fourier Transform  (DFT) of real signal x
+
+    Definition:
+      for k in 0..N-1 (but defined for k in ZZ, see below for index)
+
+          X_k = sum_n=0^{N-1} x_n  e^{-i 2 pi k n /N}
+
+              = sum_n=0^{N-1} x_n [ cos( 2 pi k n /N) - i sin( 2 pi k n /N)
+
+          Xk are complex numbers. The amplitude/phase are:
+              A = |X_k|/N 
+              phi = atan2(Im(Xk) / Re(Xk)
+    
+    Indices:
+        The DFT creates a periodic signal of period N
+            X[k]  = X[k+N]
+            X[-k] = X[N-k]
+
+        Therefore, any set of successive indices could be used.
+        For instance, with N=4: [0,1,2,3], [-1,0,1,2], [-2,-1,0,1] (canonical one)
+                              [0,..N/2-1],             [-N/2, ..N/2-1]
+
+        If N is even
+           0         is the 0th frequency (mean)
+           1.....N/2-1  terms corresponds to positive frequencies
+           N/2.....N-1  terms corresponds to negative frequencies
+        If N is odd
+           0         is the 0th frequency (mean)
+           1.....(N-1)/2 terms corresponds to positive frequencies
+           (N+1)/2..N-1  terms corresponds to negative frequencies
+
+    Frequencies convention: (see np.fft.fftfreq and DFT_freq)
+        f = [0, 1, ...,   n/2-1,     -n/2, ..., -1] / (dt*n)   if n is even
+        f = [0, 1, ..., (n-1)/2, -(n-1)/2, ..., -1] / (dt*n)   if n is odd
+
+    NOTE: when n is even you could chose to go to +n/2 and start at -n/2+1
+          The Python convention goes to n/2-1 and start at -n/2. 
+
+    Properties:
+      - if x is a real signal
+            X[-k] = X*[k]   (=X[N-k])
+      - Parseval's theorem: sum |x_n|^2 = sum |X_k|^2   (energy conservation)
+
+
+    """
+    N = len(x)
+
+    if method=='naive':
+        X = np.zeros_like(x, dtype=complex)
+        for k in np.arange(N):
+            for n in np.arange(N):
+                X[k] += x[n] * np.exp(-1j * 2*np.pi * k * n / N)
+
+    elif method=='vectorized':
+        n = np.arange(N)
+        k = n.reshape((N, 1)) # k*n will be of shape (N x N)
+        e = np.exp(-2j * np.pi * k * n / N)
+        X = np.dot(e, x)
+    elif method=='fft':
+        X = np.fft.fft(x)
+    elif method=='fft_py':
+        X = recursive_fft(x)
+    else:
+        raise NotImplementedError()
+    
+    return X
+
+def IDFT(X, method='vectorized'):
+    """
+    Calculate the Inverse Discrete Fourier Transform  (IDFT) of complex coefficients X
+
+    The transformation DFT->IDFT is fully reversible
+
+    Definition:
+       for n in 0..N-1:
+
+          x_n = 1/N  sum_k=0^{N-1} X_k  e^{i 2 pi k n/N}
+              = 1/N  sum_k=0^{N-1} X_k [ cos( 2 pi k n/N) + i sin( 2 pi k n/N)
+              = 1/N  sum_k=0^{N-1} A_k [ cos( 2 pi k n/N + phi_k) + i sin( 2 pi k n/N + phi_k)
+
+        Xk are complex numbers, that can be written X[k] = A[k] e^{j phi[k]} therefore.
+
+    Properties:
+      - if the "X" given as input come from a DFT, then the coefficients are periodic with period N
+        Therefore
+            X[-k] = X[N-k], 
+            X[k]  = X[N+k]
+        and therefore (see the discussion in the documentation of DFT), the summation from
+            k=0 to N-1 can be interpreted as a summation over any other indices set of length N. 
+      - if "X" comes for the DFT of x, where x is a real signal, then:
+            X[-k] = X*[k] (=X[N-k])
+
+      - a converse is that, if X has conjugate symmetry (X[k]=X*[N-k]), then the IDFT will be real:
+
+          x_n = 1/N  sum_k=0^{N-1}              A_k cos( 2 pi k n/N + phi_k)
+                1/N  sum_k={-(N-1)/2}^{(N-1)/2} A_k cos( 2 pi k n/N + phi_k)
+
+          But remember that the A_k and phi_k need to satisfy the conjugate symmetry, so they are not
+          fully independent.
+          If we want x to be the sum over "N0" independent components, then we need to do the IDFT 
+          of a spectrum "X" of length 2N0-1.
+
+    Indices and frequency (python convention):
+      (see np.fft.fftfreq and DFT_freq)
+            f = [0, 1, ...,   n/2-1,     -n/2, ..., -1] / (dt*n)   if n is even
+            f = [0, 1, ..., (n-1)/2, -(n-1)/2, ..., -1] / (dt*n)   if n is odd
+    
+          When n is even, we lack symmetry of frequency, so it can potentially
+          make sense to enforce that the X[-n/2] component is 0 when generating 
+          a signal with IDFT
+
+
+
+    """
+    N = len(X)
+
+    if method in ['naive', 'manual', 'sum']:
+        x = np.zeros_like(X, dtype=complex)
+        for k in np.arange(N):
+            for n in np.arange(N):
+                x[k] += X[n] * np.exp(1j * 2*np.pi * k * n / N)
+        x = x/N
+
+    elif method=='vectorized':
+        n = np.arange(N)
+        k = n.reshape((N, 1)) # k*n will be of shape (N x N)
+        e = np.exp(2j * np.pi * k * n / N)
+        x = np.dot(e, X) / N
+
+    elif method=='ifft':
+        x = np.fft.ifft(X)
+
+    #elif method=='ifft_py':
+    #    x = IFFT(X)
+    else:
+        raise NotImplementedError('IDFT: Method {}'.format(method))
+    
+    x = np.real_if_close(x)
+    
+    return x
+
+def DFT_freq(time=None, N=None, T=None, doublesided=True):
+    """ Returns the frequencies corresponding to a time vector `time`. 
+      The signal "x" and "time" are assumed to have the same length
+    INPUTS:
+      - time: 1d array of time
+      OR
+      - N: number of time values
+      - T: time length of signal
+    """
+    if time is not None:
+        N = len(time)
+        T = time[-1]-time[0]
+    dt = T/(N-1)
+    df = 1/(dt*N)
+    nhalf_pos, nhalf_neg = nhalf_fft(N)
+    if doublesided:
+        freq_pos = np.arange(nhalf_pos+1)*df
+        freq_neg = np.arange(nhalf_neg,0)*df
+        freq = np.concatenate((freq_pos, freq_neg))
+        assert(len(freq) == N)
+    else:
+        # single sided
+        fMax = nhalf_pos * df
+        #freq = np.arange(0, fMax+df/2, df)
+        freq = np.arange(nhalf_pos+1)*df
+    return freq
+
+def IDFT_time(freq=None, doublesided=True):
+    """ Returns the time vector corresponding to a frequency vector `freq`. 
+
+    If doublesided is True
+          The signal "x" , "time" and freq are assumed to have the same length
+    Note: might lead to some inaccuracies, just use for double checking!
+
+    INPUTS:
+      - freq: 1d array of time
+    """
+    if doublesided:
+        N = len(freq)
+        time = freq*0
+        if np.mod(N,2)==0:
+            nhalf=int(N/2)-1
+        else:
+            nhalf=int((N-1)/2)
+        fMax = freq[nhalf] 
+        df = (fMax-0)/(nhalf)
+        dt = 1/(df*N)
+        tMax= (N-1)*dt
+        #time = np.arange(0,(N-1)*dt+dt/2, dt)
+        time = np.linspace(0,tMax, N)
+    else:
+        raise NotImplementedError()
+    return time
+
+def recursive_fft(x):
+    """
+    A recursive implementation of the 1D Cooley-Tukey FFT
+
+    Returns the same as DFT (see documentation)
+
+    Input should have a length of power of 2. 
+    Reference: Kong, Siauw, Bayen - Python Numerical Methods
+    """
+    N = len(x)
+    if not is_power_of_two(N):
+        raise Exception('Recursive FFT requires a power of 2')
+
+    
+    if N == 1:
+        return x
+    else:
+        X_even = recursive_fft(x[::2])
+        X_odd  = recursive_fft(x[1::2])
+        factor = np.exp(-2j*np.pi*np.arange(N)/ N)
+        X = np.concatenate([X_even+factor[:int(N/2)]*X_odd, X_even+factor[int(N/2):]*X_odd])
+        return X
+
+def nhalf_fft(N):
+    """ 
+    Follows the convention of fftfreq
+      fmax = f[nhalf_pos] = nhalf_pos*df  (fftfreq convention)
+
+      fpos = f[:nhalf_pos+1]
+      fneg = f[nhalf_pos+1:]
+
+    """
+    if N%2 ==0:
+        nhalf_pos =   int(N/2)-1
+        nhalf_neg =  -int(N/2)
+    else:
+        nhalf_pos = int((N-1)/2)
+        nhalf_neg = -nhalf_pos
+    return nhalf_pos, nhalf_neg
+
+
+def check_DFT_real(X):
+    """ Check that signal X is the DFT of a real signal
+    and that therefore IDFT(X) will return a real signal.
+    For this to be the case, we need conjugate symmetry:
+       X[k] = X[N-k]* 
+    """
+    from welib.tools.spectral import nhalf_fft
+    N = len(X)
+    nh, _ = nhalf_fft(N)
+    Xpos = X[1:nh+1] # we dont take the DC component [0]
+    Xneg = np.flipud(X[nh+1:]) # might contain one more frequency than the pos part
+
+    if np.mod(N,2)==0:
+        # We have one extra negative frequency, we check that X is zero there and remove the value.
+        if Xneg[-1]!=0:
+            raise Exception('check_DFT_real: Component {} (first negative frequency) is {} instead of zero, but it should be zero if N is even.'.format(nh+1, X[nh+1]))
+        Xneg = Xneg[:-1]
+
+    notConjugate = Xpos-np.conjugate(Xneg)!=0
+    if np.any(notConjugate): 
+        nNotConjugate=sum(notConjugate)
+        I = np.where(notConjugate)[0][:3] + 1 # +1 for DC component that was removed
+        raise Exception('check_DFT_real: {}/{} values of the spectrum are not complex conjugate of there symmetric frequency counterpart. See for instance indices: {}'.format(nNotConjugate, nh, I))
+
+def double_sided_DFT_real(X1, N=None):
+    """ 
+    Take a single sided part of a DFT (X1) and make it double sided signal X, of length N, 
+    ensuring that the IDFT of X will be real.
+    This is done by ensuring conjugate symmetry:
+       X[k] = X[N-k]* 
+    For N even, the first negative frequency component is set to 0 because it has no positive counterpart.
+
+    Calling check_DFT_real(X) should return no Exception.
+
+    INPUTS:
+      - X1: array of complex values of length N1
+      - N: required length of the output array (2N1-1 or 2N1)
+    OUTPUTS:
+      - X: double sided spectrum:
+            [X1 flip(X1*[1:]) ]
+          or
+            [X1 [0] flip(X1*[1:]) ]
+    """
+    if N is None:
+        N=2*len(X1)-1  # we make it an odd number to ensure symmetry of frequency
+    else:
+        if N not in [2*len(X1)-1, 2*len(X1), 2*len(X1)-2]:
+            raise Exception('N should be twice the length of the single sided spectrum, or one less.')
+
+    if N % 2 ==0:
+        # Even number
+        if N == 2*len(X1)-2:
+            # rfftfreq
+            # TODO, there look into irfft to see the convention
+            X = np.concatenate((X1[:-1], [0], np.flipud(np.conjugate(X1[1:-1]))))
+        else:
+            X = np.concatenate((X1, [0], np.flipud(np.conjugate(X1[1:]))))
+    else:
+        X = np.concatenate((X1, np.flipud(np.conjugate(X1[1:]))))
+    return X
+
+
+# --------------------------------------------------------------------------------}
+# --- Helper functions
+# --------------------------------------------------------------------------------{
+def is_power_of_two(n):
+    """ Uses bit manipulation to figure out if an integer is a power of two"""
+    return (n != 0) and (n & (n-1) == 0)
+
+def sinesum(time, As, freqs):
+    x =np.zeros_like(time)
+    for ai,fi in zip(As, freqs):
+        x += ai*np.sin(2*np.pi*fi*time)
+    return x
 
 
 # --------------------------------------------------------------------------------}
@@ -1021,6 +1336,68 @@ def _triage_segments(window, nperseg,input_length):
 import unittest
 
 class TestSpectral(unittest.TestCase):
+
+    def default_signal(self, time, mean=0):
+        freqs=[1,4,7  ] # [Hz]
+        As   =[3,1,1/2] # [misc]
+        x = sinesum(time, As, freqs) + mean
+        return x
+
+    def compare_with_npfft(self, time, x):
+        # Compare lowlevels functions with npfft
+        # Useful to make sure the basic math is correct
+        N    = len(time)
+        dt   = (time[-1]-time[0])/(N-1)
+        tMax = time[-1]
+
+        # --- Test frequency, dt/df/N-relationships
+        f_ref                = np.fft.fftfreq(N, dt)
+        nhalf_pos, nhalf_neg = nhalf_fft(N)
+        fhalf                = DFT_freq(time, doublesided = False)
+        freq                 = DFT_freq(time, doublesided = True)
+        df                   = freq[1]-freq[0]
+        fmax                 = fhalf[-1]
+
+        np.testing.assert_almost_equal(fhalf      , f_ref[:nhalf_pos+1], 10)
+        np.testing.assert_almost_equal(fhalf[-1]  ,  np.max(f_ref), 10)
+        np.testing.assert_almost_equal( 1/(dt*df), N)
+        np.testing.assert_almost_equal(freq     , f_ref, 10)
+        if N%2 == 0:
+            np.testing.assert_almost_equal(2*fmax/df, N-2 , 10)
+        else:
+            np.testing.assert_almost_equal(2*fmax/df, N-1 , 10)
+
+        # --- Test DFT methods
+        X0 = DFT(x, method='fft')
+        X1 = DFT(x, method='naive')
+        X2 = DFT(x, method='vectorized')
+
+        np.testing.assert_almost_equal(X1, X0, 10)
+        np.testing.assert_almost_equal(X2, X0, 10)
+        if is_power_of_two(N):
+            X3 = DFT(x, method='fft_py')
+            np.testing.assert_almost_equal(X3, X0, 10)
+
+        # --- Test IDFT methods
+        x_back0 = IDFT(X0, method='ifft')
+        x_back1 = IDFT(X0, method='naive')
+        x_back2 = IDFT(X0, method='vectorized')
+        np.testing.assert_almost_equal(x_back1, x_back0, 10)
+        np.testing.assert_almost_equal(x_back2, x_back0, 10)
+
+        np.testing.assert_almost_equal(x_back0, x, 10)
+
+    def test_lowlevel_fft_even(self):
+        # Test lowlevel functions
+        time = np.linspace(0,10,16) # NOTE: need a power of two for fft_py
+        x = self.default_signal(time, mean=0)
+        self.compare_with_npfft(time, x)
+
+    def test_lowlevel_fft_odd(self):
+        # Test lowlevel functions
+        time = np.linspace(0,10,17) 
+        x = self.default_signal(time, mean=0)
+        self.compare_with_npfft(time, x)
 
     def test_fft_amplitude(self):
         dt=0.1
@@ -1057,5 +1434,8 @@ class TestSpectral(unittest.TestCase):
     
 if __name__ == '__main__':
     #TestSpectral().test_fft_binning()
+    #TestSpectral().test_ifft()
+    #TestSpectral().test_lowlevel_fft_even()
+    #TestSpectral().test_lowlevel_fft_odd()
     unittest.main()
 

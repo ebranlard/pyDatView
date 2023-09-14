@@ -414,7 +414,7 @@ def zero_crossings(y, x=None, direction=None, bouncingZero=False):
 # --------------------------------------------------------------------------------}
 # --- Correlation  
 # --------------------------------------------------------------------------------{
-def correlation(x, nMax=80, dt=1, method='manual'):
+def correlation(x, nMax=80, dt=1, method='numpy'):
     """ 
     Compute auto correlation of a signal
     """
@@ -424,14 +424,18 @@ def correlation(x, nMax=80, dt=1, method='manual'):
 
 
     nvec   = np.arange(0,nMax)
-    sigma2 = np.var(x)
-    R    = np.zeros(nMax)
-    #R[0] =1
-    #for i,nDelay in enumerate(nvec[1:]):
-    #    R[i+1] = np.mean(  x[0:-nDelay] * x[nDelay:]  ) / sigma2
-    #    R[i+1] = np.corrcoef(x[:-nDelay], x[nDelay:])[0,1] 
+    if method=='manual':
+        sigma2 = np.var(x)
+        R    = np.zeros(nMax)
+        R[0] =1
+        for i,nDelay in enumerate(nvec[1:]):
+            R[i+1] = np.mean(  x[0:-nDelay] * x[nDelay:]  ) / sigma2
+            #R[i+1] = np.corrcoef(x[:-nDelay], x[nDelay:])[0,1] 
 
-    R= acf(x, nMax=nMax)
+    elif method=='numpy':
+        R= acf(x, nMax=nMax)
+    else:
+        raise NotImplementedError()
 
     tau = nvec*dt
     return R, tau

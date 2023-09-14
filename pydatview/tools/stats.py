@@ -172,6 +172,22 @@ def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='meanabs', verbose=F
 # --------------------------------------------------------------------------------}
 # --- PDF 
 # --------------------------------------------------------------------------------{
+def pdf(y, method='histogram', n=50, **kwargs):
+    """ 
+    Compute the probability density function.
+    Wrapper over the different methods present in this package
+    """
+    if method =='sns':
+        xh, yh = pdf_sns(y, nBins=n, **kwargs)
+    elif method =='gaussian_kde':
+        xh, yh = pdf_gaussian_kde(y, nOut=n, **kwargs)
+    elif method =='histogram':
+        xh, yh = pdf_histogram(y, nBins=n, **kwargs)
+    else:
+        raise NotImplementedError(f'pdf method: {method}')
+    return xh, yh
+
+
 def pdf_histogram(y,nBins=50, norm=True, count=False):
     yh, xh = np.histogram(y[~np.isnan(y)], bins=nBins)
     dx   = xh[1] - xh[0]
