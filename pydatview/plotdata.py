@@ -452,8 +452,8 @@ class PlotData():
         if PD.yIsString:
             return 'NA','NA'
         elif PD.yIsDate:
-            dtAll=getDt([PD.x[-1]-PD.x[0]])
-            return '',pretty_time(dtAll)
+            dtAll=getDt([PD.x[0],PD.x[-1]])
+            return np.nan,pretty_time(dtAll)
         else:
             v=np.nanmax(PD.y)-np.nanmin(PD.y)
             s=pretty_num(v)
@@ -472,8 +472,8 @@ class PlotData():
         if PD.xIsString:
             return 'NA','NA'
         elif PD.xIsDate:
-            dtAll=getDt([PD.x[-1]-PD.x[0]])
-            return '',pretty_time(dtAll)
+            dtAll=getDt([PD.x[0],PD.x[-1]])
+            return np.nan,pretty_time(dtAll)
         else:
             v=np.nanmax(PD.x)-np.nanmin(PD.x)
             s=pretty_num(v)

@@ -516,22 +516,27 @@ class Table(object):
 
         if not isinstance(data,pd.DataFrame):
             raise NotImplementedError('Tables that are not dataframe not implemented.')
-        # --- Pandas DataFrame 
-        self.data    = data 
+        # --- Modify input DataFrame 
         # Adding index
         if data.columns[0].lower().find('index')>=0:
             pass
         else:
-            data.insert(0, 'Index', np.arange(self.data.shape[0]))
+            data.insert(0, 'Index', np.arange(data.shape[0]))
 
-        # Clean columns only once
-        #data.columns = [s.replace('_',' ') for s in self.data.columns.values.astype(str)]
-
+        # Delete empty columns at the end (e.g. csv files)
+        while True:
+            if data.columns[-1]=='' and data.iloc[:,-1].isnull().all():
+                print('[Info] Removing last column because all NaN')
+                data=data.iloc[:,:-1]
+            else:
+                break
         # --- Trying to figure out how to name this table
         if name is None or len(str(name))==0:
             if data.columns.name is not None:
                 name=data.columns.name
 
+        # --- Store in object
+        self.data    = data 
         self.setupName(name=str(name))
         self.convertTimeColumns(dayfirst=dayfirst)
 

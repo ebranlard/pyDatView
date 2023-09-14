@@ -37,6 +37,10 @@ __all__  = ['equivalent_load', 'find_range_count']
 __all__  += ['rainflow_astm', 'rainflow_windap','eq_load','eq_load_and_cycles','cycle_matrix','cycle_matrix2']
 
 
+class SignalConstantError(Exception):
+    pass
+
+
 def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap',
         meanBin=True, binStartAt0=False,
         outputMore=False, debug=False):
@@ -75,7 +79,15 @@ def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap'
     signal = signal[b]
     time   = time[b]
 
+    if len(time)<=1:
+        if outputMore:
+            return Leq, S, N, bins, DELi
+        else:
+            return np.nan
+
     T = time[-1]-time[0] # time length of signal (s)
+    if type(time[0]) is np.datetime64:
+        T= T.item().total_seconds()
 
     neq = T/Teq # number of equivalent periods, see Eq. (26) of [1]
 
@@ -116,7 +128,11 @@ def find_range_count(signal, bins, method='rainflow_windap', meanBin=True, binSt
 
     if method in rainflow_func_dict.keys():
         rainflow_func = rainflow_func_dict[method]
-        N, S, S_bin_edges, _, _ = cycle_matrix(signal, ampl_bins=bins, mean_bins=1, rainflow_func=rainflow_func, binStartAt0=binStartAt0)
+        try:
+            N, S, S_bin_edges, _, _ = cycle_matrix(signal, ampl_bins=bins, mean_bins=1, rainflow_func=rainflow_func, binStartAt0=binStartAt0)
+        except SignalConstantError:
+            return np.nan, np.nan, np.nan
+
         S_bin_edges = S_bin_edges.flatten()
         N           = N.flatten()
         S           = S.flatten()
@@ -217,7 +233,7 @@ def check_signal(signal):
         if signal.shape[1] > 1:
             raise TypeError('signal must have one column only, not: ' + str(signal.shape[1]))
     if np.min(signal) == np.max(signal):
-        raise TypeError("Signal contains no variation")
+        raise SignalConstantError("Signal is constant, cannot compute DLC and range")
 
 
 def rainflow_windap(signal, levels=255., thresshold=(255 / 50)):

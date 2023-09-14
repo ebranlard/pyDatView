@@ -156,10 +156,10 @@ class FilterToolPanel(PlotDataActionEditor):
         iFilt = self.cbFilters.GetSelection()
         opt = self._FILTERS_USER[iFilt]
         try:
-            opt['param']=np.float(self.spintxt.Value)
+            opt['param']=float(self.spintxt.Value)
         except:
             print('[WARN] pyDatView: Issue on Mac: plotdata_filter.py/_GUI2Data. Help needed.')
-            opt['param']=np.float(self.tParam.Value)
+            opt['param']=float(self.tParam.Value)
         if opt['param']<opt['paramRange'][0]:
             opt['param']=opt['paramRange'][0]
             self.tParam.SetValue(opt['paramRange'][0])

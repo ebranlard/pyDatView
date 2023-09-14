@@ -91,11 +91,11 @@ class CurveFitToolPanel(GUIToolPanel):
         outputSizer.Add(self.textCoeffs                          ,1 , flag=wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND,border = 1)
         outputSizer.Add(wx.StaticText(self, -1, 'Accuracy:')     ,0 , flag=wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM,border = 1)
         outputSizer.Add(self.textInfo                            ,1 , flag=wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND,border = 1)
-        outputSizer.AddGrowableCol(1,0.5)
+        outputSizer.AddGrowableCol(1,1)
 
         horzSizer = wx.BoxSizer(wx.HORIZONTAL)
-        horzSizer.Add(inputSizer    ,1.0, flag = wx.LEFT|wx.EXPAND,border = 2)
-        horzSizer.Add(outputSizer   ,1.0, flag = wx.LEFT|wx.EXPAND,border = 9)
+        horzSizer.Add(inputSizer    ,1, flag = wx.LEFT|wx.EXPAND,border = 2)
+        horzSizer.Add(outputSizer   ,1, flag = wx.LEFT|wx.EXPAND,border = 9)
 
         vertSizer = wx.BoxSizer(wx.VERTICAL)
 #         vertSizer.Add(self.lbHelp  ,0, flag = wx.LEFT          ,border = 1)

@@ -142,7 +142,7 @@ def extract_key_tuples(text):
     all=(0.1,-2),b=(inf,0), c=(-inf,0.3e+10)
     """
     regex = re.compile(r'(?P<key>[\w\-]+)=\((?P<value1>[0-9+epinf.-]*?),(?P<value2>[0-9+epinf.-]*?)\)($|,)')
-    return  {match.group("key"): (np.float(match.group("value1")),np.float(match.group("value2"))) for match in regex.finditer(text.replace(' ',''))}
+    return  {match.group("key"): (float(match.group("value1")),float(match.group("value2"))) for match in regex.finditer(text.replace(' ',''))}
 
 
 def extract_key_num(text):
@@ -150,7 +150,7 @@ def extract_key_num(text):
     all=0.1, b=inf, c=-0.3e+10
     """
     regex = re.compile(r'(?P<key>[\w\-]+)=(?P<value>[0-9+epinf.-]*?)($|,)')
-    return {match.group("key"): np.float(match.group("value")) for match in regex.finditer(text.replace(' ',''))}
+    return {match.group("key"): float(match.group("value")) for match in regex.finditer(text.replace(' ',''))}
 
 def getDt(x):
     """ returns dt in s """

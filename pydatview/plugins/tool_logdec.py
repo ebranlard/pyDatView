@@ -92,7 +92,7 @@ class LogDecToolPanel(GUIToolPanel):
         gridSizer.Add(sizerOpts,    1, flag=wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND,border = 1)
         gridSizer.Add(lbResults,    0, flag=wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM,border = 1)   
         gridSizer.Add(sizerRes    , 1, flag=wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND,border = 1)
-        gridSizer.AddGrowableCol(1,0.5)
+        gridSizer.AddGrowableCol(1,1)
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(btSizer   , 0, flag = wx.LEFT          ,border = 5)

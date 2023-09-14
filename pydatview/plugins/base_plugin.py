@@ -204,7 +204,7 @@ class PlotDataActionEditor(ActionEditor):
         if 'Clear' in buttons:
             self.btClear = self.getBtBitmap(self, 'Clear Plot','sun'   , self.onClear); nButtons+=1
         if 'Plot' in buttons:
-            self.btPlot  = self.getBtBitmap(self, 'Plot' ,'chart'  , self.onPlot); nButtons+=1
+            self.btPlot  = self.getBtBitmap(self, 'Plot ' ,'chart'  , self.onPlot); nButtons+=1
         self.btApply = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply); nButtons+=1
 
         

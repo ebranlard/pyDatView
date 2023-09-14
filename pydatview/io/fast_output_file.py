@@ -296,13 +296,13 @@ def load_ascii_output(filename, method='numpy', encoding='ascii'):
             data = np.zeros((nRows, nCols))
             for i in range(nRows):
                 l = f.readline().strip()
-                sp = np.array(l.split()).astype(np.float)
+                sp = np.array(l.split()).astype(float)
                 data[i,:] = sp[:nCols]
 
         elif method == 'listCompr':
             # --- Method 4 - List comprehension
             # Data, up to end of file or empty line (potential comment line at the end)
-            data = np.array([l.strip().split() for l in takewhile(lambda x: len(x.strip())>0, f.readlines())]).astype(np.float)
+            data = np.array([l.strip().split() for l in takewhile(lambda x: len(x.strip())>0, f.readlines())]).astype(float)
         else:
             raise NotImplementedError()
 

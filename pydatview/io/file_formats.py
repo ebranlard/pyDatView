@@ -11,6 +11,8 @@ def isRightFormat(fileformat, filename, **kwargs):
     except WrongFormatError:
         return False,None
     except:
+        # We Raise the Exception.  
+        # It's the responsability of all the file classes to Return a WrongFormatError
         raise
 
 class FileFormat():

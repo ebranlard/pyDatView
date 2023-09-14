@@ -157,8 +157,8 @@ class HTCFile(HTCContents, HTCDefaults, HTCExtensions):
             relpath = "../" * np.argmax(found)
             return abspath(pjoin(os.path.dirname(self.filename), relpath))
         else:
-            raise ValueError(
-                "Modelpath cannot be autodetected for '%s'.\nInput files not found near htc file" % self.filename)
+            print("Modelpath cannot be autodetected for '%s'.\nInput files not found near htc file" % self.filename)
+            return 'unknown'
 
     def load(self):
         self.contents = OrderedDict()
