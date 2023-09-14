@@ -47,8 +47,8 @@ class MannBoxFile(File):
         print(mb['field'].shape)  
 
         # Use methods to extract relevant values
-        u,v,w = my.valuesAt(y=10.5, z=90)
-        z, means, stds = mb.vertProfile()
+        u = mb.valuesAt(y=10.5, z=90)
+        z, means, stds = mb.vertProfile
 
         # Write to a new file
         mb.write('Output_1024x16x16.u')
@@ -144,10 +144,6 @@ class MannBoxFile(File):
         self['y0']=y0
         self['z0']=z0
         self['zMid']=zMid
-#         print('1',self['field'][:,-1,0])
-#         print('2',self['field'][0,-1::-1,0])
-#         print('3',self['field'][0,-1,:])
-
 
     def write(self, filename=None):
         """ Write mann box """
@@ -176,7 +172,7 @@ class MannBoxFile(File):
         s+='| * z: [{} ... {}],  dz: {}, n: {} \n'.format(z[0],z[-1],self['dz'],len(z))
         s+='|useful functions:\n'
         s+='| - t(dx, U)\n'
-        s+='| - valuesAt(y,z), vertProfile(), fromTurbSim(*), _iMid()\n'
+        s+='| - valuesAt(y,z), vertProfile, fromTurbSim(*), _iMid()\n'
         return s
 
 

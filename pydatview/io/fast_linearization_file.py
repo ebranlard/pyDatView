@@ -1,11 +1,10 @@
+import os
 import numpy as np
-import pandas as pd
 import re
 try:
     from .file import File, WrongFormatError, BrokenFormatError
 except:
     File = dict
-    class WrongFormatError(Exception): pass
     class BrokenFormatError(Exception): pass
 
 class FASTLinearizationFile(File):
@@ -42,6 +41,27 @@ class FASTLinearizationFile(File):
     def formatName():
         return 'FAST linearization output'
 
+    def __init__(self, filename=None, **kwargs):
+        """ Class constructor. If a `filename` is given, the file is read. """
+        self.filename = filename
+        if filename:
+            self.read(**kwargs)
+
+    def read(self, filename=None, **kwargs):
+        """ Reads the file self.filename, or `filename` if provided """
+        
+        # --- Standard tests and exceptions (generic code)
+        if filename:
+            self.filename = filename
+        if not self.filename:
+            raise Exception('No filename provided')
+        if not os.path.isfile(self.filename):
+            raise OSError(2,'File not found:',self.filename)
+        if os.stat(self.filename).st_size == 0:
+            raise EmptyFileError('File is empty:',self.filename)
+        # --- Calling (children) function to read
+        self._read(**kwargs)
+
     def _read(self, *args, **kwargs):
         self['header']=[]
 
@@ -61,7 +81,7 @@ class FASTLinearizationFile(File):
                 lines.append(line.strip())
             return lines, line
         
-        def readOP(fid, n):
+        def readOP(fid, n, name=''):
             OP=[]
             Var = {'RotatingFrame': [], 'DerivativeOrder': [], 'Description': []}
             colNames=fid.readline().strip()
@@ -86,11 +106,30 @@ class FASTLinearizationFile(File):
                     Var['Description'].append(' '.join(sp[iRot+1:]).strip())
                 if i>=n-1:
                     break
+            OP=np.asarray(OP)
             return OP, Var
 
-        def readMat(fid, n, m):
-            vals=[f.readline().strip().split() for i in np.arange(n)]
-            return np.array(vals).astype(float)
+        def readMat(fid, n, m, name=''):
+            pattern = re.compile(r"[\*]+")
+            vals=[pattern.sub(' inf ', fid.readline().strip() ).split() for i in np.arange(n)]
+            vals = np.array(vals)
+            try:
+                vals = np.array(vals).astype(float) # This could potentially fail
+            except:
+                raise Exception('Failed to convert into an array of float the matrix `{}`\n\tin linfile: {}'.format(name, self.filename))
+            if vals.shape[0]!=n or vals.shape[1]!=m:
+                shape1 = vals.shape
+                shape2 = (n,m)
+                raise Exception('Shape of matrix `{}` has wrong dimension ({} instead of {})\n\tin linfile: {}'.format(name, shape1, shape2, name, self.filename))
+
+            nNaN = sum(np.isnan(vals.ravel()))
+            nInf = sum(np.isinf(vals.ravel()))
+            if nInf>0:
+                raise Exception('Some ill-formated/infinite values (e.g. `*******`) were found in the matrix `{}`\n\tin linflile: {}'.format(name, self.filename))
+            if nNaN>0:
+                raise Exception('Some NaN values were found in the matrix `{}`\n\tin linfile: `{}`.'.format(name, self.filename))
+            return vals
+
 
         # Reading 
         with open(self.filename, 'r', errors="surrogateescape") as f:
@@ -116,35 +155,35 @@ class FASTLinearizationFile(File):
             except:
                 self['WindSpeed'] = None
 
-            KEYS=['Order of','A:','B:','C:','D:','ED M:', 'dUdu','dUdy']
-
             for i, line in enumerate(f):
                 line = line.strip()
-                KeyFound=any([line.find(k)>=0 for k in KEYS])
-                if KeyFound:
-                    if line.find('Order of continuous states:')>=0:
-                        self['x'], self['x_info'] = readOP(f, nx)
-                    elif line.find('Order of continuous state derivatives:')>=0:
-                        self['xdot'], self['xdot_info'] = readOP(f, nx)
-                    elif line.find('Order of inputs')>=0:
-                        self['u'], self['u_info'] = readOP(f, nu)
-                    elif line.find('Order of outputs')>=0:
-                        self['y'], self['y_info'] = readOP(f, ny)
-                    elif line.find('A:')>=0:
-                        self['A'] = readMat(f, nx, nx)
-                    elif line.find('B:')>=0:
-                        self['B'] = readMat(f, nx, nu)
-                    elif line.find('C:')>=0:
-                        self['C'] = readMat(f, ny, nx)
-                    elif line.find('D:')>=0:
-                        self['D'] = readMat(f, ny, nu)
-                    elif line.find('dUdu:')>=0:
-                        self['dUdu'] = readMat(f, nu, nu)
-                    elif line.find('dUdy:')>=0:
-                        self['dUdy'] = readMat(f, nu, ny)
-                    elif line.find('ED M:')>=0:
-                        self['EDDOF'] = line[5:].split()
-                        self['M']     = readMat(f, 24, 24)
+                if line.find('Order of continuous states:')>=0:
+                    self['x'], self['x_info'] = readOP(f, nx, 'x')
+                elif line.find('Order of continuous state derivatives:')>=0:
+                    self['xdot'], self['xdot_info'] = readOP(f, nx, 'xdot')
+                elif line.find('Order of inputs')>=0:
+                    self['u'], self['u_info'] = readOP(f, nu, 'u')
+                elif line.find('Order of outputs')>=0:
+                    self['y'], self['y_info'] = readOP(f, ny, 'y')
+                elif line.find('A:')>=0:
+                    self['A'] = readMat(f, nx, nx, 'A')
+                elif line.find('B:')>=0:
+                    self['B'] = readMat(f, nx, nu, 'B')
+                elif line.find('C:')>=0:
+                    self['C'] = readMat(f, ny, nx, 'C')
+                elif line.find('D:')>=0:
+                    self['D'] = readMat(f, ny, nu, 'D')
+                elif line.find('dUdu:')>=0:
+                    self['dUdu'] = readMat(f, nu, nu,'dUdu')
+                elif line.find('dUdy:')>=0:
+                    self['dUdy'] = readMat(f, nu, ny,'dUdy')
+                elif line.find('StateRotation:')>=0:
+                    pass
+                    # TODO
+                    #StateRotation:
+                elif line.find('ED M:')>=0:
+                    self['EDDOF'] = line[5:].split()
+                    self['M']     = readMat(f, 24, 24,'M')
 
     def toString(self):
         s=''
@@ -316,7 +355,8 @@ class FASTLinearizationFile(File):
         else:
             return []
 
-    def _toDataFrame(self):
+    def toDataFrame(self):
+        import pandas as pd
         dfs={}
 
         xdescr_short    = self.xdescr()
