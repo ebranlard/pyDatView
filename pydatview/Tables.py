@@ -716,12 +716,19 @@ class Table(object):
                             else:
                                 isDate=False
                         if isDate:
+                            print('[INFO] Converting column {} to datetime, dayfirst: {}. May take a while...'.format(c, dayfirst))
                             try:
-                                self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst).to_pydatetime()
-                                print('Column {} converted to datetime, dayfirst: {}'.format(c, dayfirst))
+                                # TODO THIS CAN BE VERY SLOW...
+                                self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=True).to_pydatetime()
+                                print('       Done.')
                             except:
-                                # Happens if values are e.g. "Monday, Tuesday"
-                                print('Conversion to datetime failed, column {} inferred as string'.format(c))
+                                try:
+                                    print('[FAIL] Attempting without infer datetime. May take a while...')
+                                    self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=False).to_pydatetime()
+                                    print('       Done.')
+                                except:
+                                    # Happens if values are e.g. "Monday, Tuesday"
+                                    print('[FAIL] Inferring column as string instead')
                         else:
                             print('Column {} inferred as string'.format(c))
                     elif isinstance(y.values[0], (float, int)):
