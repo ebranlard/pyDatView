@@ -752,9 +752,8 @@ class PlotPanel(wx.Panel):
             #self.fig.add_subplot(1,nPlots,i+1)
 
     def onMouseMove(self, event):
-        if event.inaxes:
+        if event.inaxes and len(self.plotData)>0:
             x, y = event.xdata, event.ydata
-            
             self.lbCrossHairX.SetLabel('x =' + self.formatLabelValue(x,self.plotData[0].xIsDate))
             self.lbCrossHairY.SetLabel('y =' + self.formatLabelValue(y,self.plotData[0].yIsDate))
 

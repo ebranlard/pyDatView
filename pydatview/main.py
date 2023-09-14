@@ -191,24 +191,24 @@ class MainFrame(wx.Frame):
 
         # --- ToolBar
         tb = self.CreateToolBar(wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT)
-        self.toolBar = tb 
-        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
-        self.comboFormats.SetSelection(0)
+        tb.AddSeparator()
         self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)  
         self.comboMode.SetSelection(0)
-        self.Bind(wx.EVT_COMBOBOX, self.onModeChange, self.comboMode )
-        self.Bind(wx.EVT_COMBOBOX, self.onFormatChange, self.comboFormats )
-        tb.AddSeparator()
+        #tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Mode: ' ) )
         tb.AddControl( self.comboMode ) 
+        self.cbLivePlot = wx.CheckBox(tb, -1, 'Live Plot') #,(10,10))
+        self.cbLivePlot.SetValue(True)
+        tb.AddControl( self.cbLivePlot ) 
         tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Format: ' ) )
+        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
+        self.comboFormats.SetSelection(0)
         tb.AddControl(self.comboFormats ) 
         # Menu for loader options
         self.btLoaderMenu = wx.Button(tb, wx.ID_ANY, CHAR['menu'], style=wx.BU_EXACTFIT)
         tb.AddControl(self.btLoaderMenu)
         self.loaderMenu = LoaderMenuPopup(tb, self.data['loaderOptions'])
-        tb.Bind(wx.EVT_BUTTON, self.onShowLoaderMenu, self.btLoaderMenu)
         tb.AddSeparator()
         TBAddTool(tb, "Open"  , 'ART_FILE_OPEN', self.onLoad)
         TBAddTool(tb, "Reload", 'ART_REDO'     , self.onReload)
@@ -217,6 +217,12 @@ class MainFrame(wx.Frame):
         #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onDEBUG)
         tb.AddStretchableSpace()
         tb.Realize() 
+        self.toolBar = tb 
+        # Bind Toolbox Events
+        self.Bind(wx.EVT_COMBOBOX, self.onModeChange, self.comboMode )
+        self.Bind(wx.EVT_COMBOBOX, self.onFormatChange, self.comboFormats )
+        tb.Bind(wx.EVT_BUTTON, self.onShowLoaderMenu, self.btLoaderMenu)
+        tb.Bind(wx.EVT_CHECKBOX, self.onLivePlotChange, self.cbLivePlot)
 
         # --- Status bar
         self.statusbar=self.CreateStatusBar(3, style=0)
@@ -369,6 +375,7 @@ class MainFrame(wx.Frame):
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
             self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeLike=self.pipePanel, data=self.data['plotPanel'])
+            self.livePlotFreezeUnfreeze() # Dont enable panels if livePlot is not allowed
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -594,9 +601,37 @@ class MainFrame(wx.Frame):
     def onColSelectionChangeTrigger(self, event=None):
         pass
 
+    def onLivePlotChange(self, event=None):
+        if self.cbLivePlot.IsChecked():
+            if hasattr(self,'plotPanel'):
+                print('[INFO] Reenabling live plot')
+                self.plotPanel.Enable(True)
+                self.infoPanel.Enable(True)
+                self.redrawCallback()
+        else:
+            if hasattr(self,'plotPanel'):
+                print('[INFO] Disabling live plot')
+                self.plotPanel.Enable(False)
+                self.infoPanel.Enable(False)
+
+    def livePlotFreezeUnfreeze(self):
+        if self.cbLivePlot.IsChecked():
+            if hasattr(self,'plotPanel'):
+                print('[INFO] Enabling live plot')
+                self.plotPanel.Enable(True)
+                self.infoPanel.Enable(True)
+        else:
+            if hasattr(self,'plotPanel'):
+                print('[INFO] Disabling live plot')
+                self.plotPanel.Enable(False)
+                self.infoPanel.Enable(False)
+
     def redrawCallback(self):
         if hasattr(self,'plotPanel'):
-            self.plotPanel.load_and_draw()
+            if self.cbLivePlot.IsChecked():
+                self.plotPanel.load_and_draw()
+            else:
+                print('[INFO] Drawing event skipped, live plot is not checked.')
 
 #     def showStats(self):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
@@ -727,6 +762,7 @@ class MainFrame(wx.Frame):
         #if hasattr(self,'selPanel'):
         #    ISel=self.selPanel.tabPanel.lbTab.GetSelections()
         pass
+
 
     def onShowLoaderMenu(self, event=None):
         #pos = (self.btLoaderMenu.GetPosition()[0], self.btLoaderMenu.GetPosition()[1] + self.btLoaderMenu.GetSize()[1])
