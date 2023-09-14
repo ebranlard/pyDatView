@@ -5,6 +5,7 @@ import wx.lib.buttons  as  buttons
 import dateutil # required by matplotlib
 #from matplotlib import pyplot as plt
 import matplotlib
+import matplotlib.dates as mdates
 # Backends:
 #  ['GTK3Agg', 'GTK3Cairo', 'GTK4Agg', 'GTK4Cairo', 'MacOSX', 'nbAgg', 'QtAgg', 'QtCairo', 'Qt5Agg', 'Qt5Cairo', 'TkAgg', 'TkCairo', 'WebAgg', 'WX', 'WXAgg', 'WXCairo', 'agg', 'cairo', 'pdf', 'pgf', 'ps', 'svg', 'template']
 matplotlib.use('WX') # Important for Windows version of installer. NOTE: changed from Agg to wxAgg, then to WX
@@ -38,7 +39,7 @@ from pandas.plotting import register_matplotlib_converters
 
 import gc
 
-from pydatview.common import * # unique, CHAR
+from pydatview.common import * # unique, CHAR, pretty_date
 from pydatview.plotdata import PlotData, compareMultiplePD
 from pydatview.GUICommon import * 
 from pydatview.GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx, TBAddTool, TBAddCheckTool
@@ -753,8 +754,9 @@ class PlotPanel(wx.Panel):
     def onMouseMove(self, event):
         if event.inaxes:
             x, y = event.xdata, event.ydata
-            self.lbCrossHairX.SetLabel('x =' + self.formatLabelValue(x))
-            self.lbCrossHairY.SetLabel('y =' + self.formatLabelValue(y))
+            
+            self.lbCrossHairX.SetLabel('x =' + self.formatLabelValue(x,self.plotData[0].xIsDate))
+            self.lbCrossHairY.SetLabel('y =' + self.formatLabelValue(y,self.plotData[0].yIsDate))
 
     def onMouseClick(self, event):
         self.clickLocation = (event.inaxes, event.xdata, event.ydata)
@@ -792,9 +794,11 @@ class PlotPanel(wx.Panel):
     def onDraw(self, event):
         self._store_limits()
 
-    def formatLabelValue(self, value):
+    def formatLabelValue(self, value, isdate):
         try:
-            if abs(value)<1000 and abs(value)>1e-4:
+            if isdate:
+                s = pretty_date(mdates.num2date(value))
+            elif abs(value)<1000 and abs(value)>1e-4:
                 s = '{:10.5f}'.format(value)
             else:
                 s = '{:10.3e}'.format(value)

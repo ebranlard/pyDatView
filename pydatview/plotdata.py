@@ -2,7 +2,8 @@ import os
 import numpy as np
 from pydatview.common import no_unit, unit, inverse_unit, has_chinese_char
 from pydatview.common import isString, isDate, getDt
-from pydatview.common import unique, pretty_num, pretty_time
+from pydatview.common import unique, pretty_num, pretty_time, pretty_date
+import matplotlib.dates as mdates
 
 class PlotData():
     """ 
@@ -128,6 +129,20 @@ class PlotData():
         s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}\n'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
         #s1='id:{}, it:{}, sx:"{}", xyMeas:{}\n'.format(s.id,s.it,s.sx,s.xyMeas)
         return s1
+
+
+    def toXY_date2num(self):
+        """ return a XY array, converting dates to num if necessary"""
+        if self.xIsDate :
+            X = mdates.date2num(self.x)
+        else:
+            X = self.x
+        if self.yIsDate :
+            Y = mdates.date2num(self.y)
+        else:
+            Y = self.y
+        XY = np.array([X, Y]).transpose()
+        return XY
 
     def toPDF(PD, nBins=30, smooth=False):
         """ Convert y-data to Probability density function (PDF) as function of x 
@@ -528,19 +543,27 @@ class PlotData():
         # NOTE: calculation happens in GUIMeasure..
         if PD.xyMeas[0][0] is not None:
             yv = PD.xyMeas[0][1]
-            s = pretty_num(yv)
+            if PD.yIsString:
+                return yv, yb
+            elif PD.yIsDate:
+                return yv, pretty_date(yv)
+            else:
+                return yv, pretty_num(yv)
         else:
             return np.nan, 'NA'
-        return yv, s
 
     def ymeas2(PD):
         # NOTE: calculation happens in GUIMeasure..
         if PD.xyMeas[1][0] is not None:
             yv = PD.xyMeas[1][1]
-            s = pretty_num(yv)
+            if PD.yIsString:
+                return yv, yb
+            elif PD.yIsDate:
+                return yv, pretty_date(yv)
+            else:
+                return yv, pretty_num(yv)
         else:
             return np.nan, 'NA'
-        return yv, s
 
     def yMeanMeas(PD):
         return PD._measCalc('mean')
@@ -558,10 +581,15 @@ class PlotData():
         return PD._measCalc('xmax')
 
     def _measCalc(PD, mode):
+        # TODO clean up
         if PD.xyMeas[0][0] is None or PD.xyMeas[1][0] is None:
             return np.nan, 'NA'
         if np.isnan(PD.xyMeas[0][0]) or np.isnan(PD.xyMeas[1][0]):
             return np.nan, 'NA'
+        # We only support the case where y values are numeric
+        if PD.yIsDate or PD.yIsString:
+            return np.nan, 'NA'
+
         try:
             v = np.nan
             left_index  = np.argmin(np.abs(PD.x - PD.xyMeas[0][0]))
@@ -570,22 +598,33 @@ class PlotData():
                 return np.nan, 'Empty'
             if left_index > right_index:
                 left_index, right_index = right_index, left_index
+        except (IndexError, TypeError):
+            return np.nan, 'NA'
+
+        try:
+            yValues = PD.y[left_index:right_index]
             if mode == 'mean':
-                v = np.nanmean(PD.y[left_index:right_index])
+                v = np.nanmean(yValues)
+                s = pretty_num(v)
             elif mode == 'min':
-                v = np.nanmin(PD.y[left_index:right_index])
+                v = np.nanmin(yValues)
+                s = pretty_num(v)
             elif mode == 'max':
-                v = np.nanmax(PD.y[left_index:right_index])
+                v = np.nanmax(yValues)
+                s = pretty_num(v)
             elif mode == 'xmin':
-                v = PD.x[left_index + np.where(PD.y[left_index:right_index] == np.nanmin(PD.y[left_index:right_index]))[0][0]]
+                v = PD.x[left_index + np.where(yValues == np.nanmin(yValues))[0][0]]
+                if PD.xIsDate:
+                    s = pretty_date(v)
             elif mode == 'xmax':
-                v = PD.x[left_index + np.where(PD.y[left_index:right_index] == np.nanmax(PD.y[left_index:right_index]))[0][0]]
+                v = PD.x[left_index + np.where(yValues == np.nanmax(yValues))[0][0]]
+                if PD.xIsDate:
+                    s = pretty_date(v)
             else:
                 raise NotImplementedError('Error: Mode ' + mode + ' not implemented')
-            s = pretty_num(v)
         except (IndexError, TypeError):
-            v = np.nan
-            s = 'NA'
+            return np.nan, 'NA'
+
         return v, s
 
     # --------------------------------------------------------------------------------}

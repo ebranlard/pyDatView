@@ -346,6 +346,14 @@ def pretty_time(t):
         s='{:.1f}y'.format(y)
     return s
 
+
+def pretty_date(d, timespan=None):
+    """
+    TODO, placeholder for pretty date based on a given timespan
+    """
+    s ='{}'.format(d)
+    return s
+
 def pretty_num(x):
     if np.isnan(x):
         return 'NA'
@@ -487,6 +495,9 @@ def isString(x):
 
 def isDate(x):
     return np.issubdtype(x.dtype, np.datetime64)
+
+def isDateScalar(x):
+    return np.issubdtype(x, np.datetime64)
 
 
 

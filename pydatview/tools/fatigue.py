@@ -79,24 +79,25 @@ def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap'
     signal = signal[b]
     time   = time[b]
 
-    if len(time)<=1:
+    try:
+        T = time[-1]-time[0] # time length of signal (s). Will fail for signal of length 1
+        if type(time[0]) is np.datetime64:
+            T = T/np.timedelta64(1,'s') # or T.item().total_seconds()
+
+        neq = T/Teq # number of equivalent periods, see Eq. (26) of [1]
+
+        # --- Range (S) and counts (N)
+        N, S, bins = find_range_count(signal, bins=bins, method=method, meanBin=meanBin, binStartAt0=binStartAt0)
+
+        # --- get DEL 
+        DELi = S**m * N / neq
+        Leq = DELi.sum() ** (1/m)     # See e.g. eq. (30) of [1]
+
+    except:
         if outputMore:
-            return Leq, S, N, bins, DELi
+            return np.nan, np.nan, np.nan, np.nan, np.nan
         else:
             return np.nan
-
-    T = time[-1]-time[0] # time length of signal (s)
-    if type(time[0]) is np.datetime64:
-        T= T.item().total_seconds()
-
-    neq = T/Teq # number of equivalent periods, see Eq. (26) of [1]
-
-    # --- Range (S) and counts (N)
-    N, S, bins = find_range_count(signal, bins=bins, method=method, meanBin=meanBin, binStartAt0=binStartAt0)
-
-    # --- get DEL 
-    DELi = S**m * N / neq
-    Leq = DELi.sum() ** (1/m)     # See e.g. eq. (30) of [1]
 
     if debug:
         for i,(b,n,s,DEL) in enumerate(zip(bins, N, S, DELi)):

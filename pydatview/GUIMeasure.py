@@ -1,4 +1,5 @@
 import numpy as np
+from pydatview.common import isString, isDate, getDt, pretty_time, pretty_num, pretty_date, isDateScalar
 
 
 class GUIMeasure:
@@ -6,16 +7,16 @@ class GUIMeasure:
         # Main data
         self.index = index
         self.color = color
-        self.x_target = None # x closest in data where click was done
-        self.y_target = None # y closest in data where click was done
+        self.P_target_raw = None # closest x-y point stored in "raw" form (including datetime)
+        self.P_target_num = None # closest x-y point stored in "num" form (internal matplotlib xy)
         # Plot data
         self.points = []    # Intersection points
         self.lines  = []    # vertical lines (per ax)
         self.annotations = []
 
     def clear(self):
-        self.x_target=None
-        self.y_target=None
+        self.P_target_raw = None
+        self.P_target_num = None
         self.clearPlot()
 
     def clearPlot(self):
@@ -43,21 +44,16 @@ class GUIMeasure:
         self.points= []
         self.lines= []
 
-    def get_xydata(self):
-        if self.x_target is None or self.y_target is None:
-            return None, None
-        else:
-            return (self.x_target, self.y_target)
-
     def set(self, axes, ax, x, y, PD):
         """ 
         - x,y : point where the user clicked (will likely be slightly off plotdata)
         """
         self.clearPlot()
         # Point closest to user click location
-        x_closest, y_closest, pd_closest = self.find_closest_point(x, y, ax)
-        self.x_target = x_closest
-        self.y_target = y_closest
+        #x_closest, y_closest, pd_closest = self.find_closest_point(x, y, ax)
+        P_raw, P_num, pd_closest = self.find_closest_point(x, y, ax)
+        self.P_target_raw = P_raw
+        self.P_target_num = P_num
         self.pd_closest = pd_closest
 
         # Plot measure where the user clicked (only for the axis that the user chose)
@@ -67,21 +63,23 @@ class GUIMeasure:
     def compute(self, PD):
         for ipd, pd in enumerate(PD):
             if pd !=self.pd_closest:
-                XY = np.array([pd.x, pd.y]).transpose()
+                # Get XY array
+                # convert dates to num to be consistent with (xt,yt) click event from matpotlib canvas
+                XY = pd.toXY_date2num() 
                 try:
-                    xc, yc = find_closestX(XY, self.x_target)
-                    pd.xyMeas[self.index-1] = (xc, yc)
+                    (xc, yc), i = find_closestX(XY, self.P_target_num[0])
+                    xc, yc = pd.x[i], pd.y[i]  # We store raw values
                 except:
                     print('[FAIL] GUIMeasure: failed to compute closest point')
                     xc, yc = np.nan, np.nan
             else:
                 # Already computed
-                xc, yc = self.x_target, self.y_target
-                pd.xyMeas[self.index-1] = (xc, yc)
+                xc, yc = self.P_target_raw 
+            pd.xyMeas[self.index-1] = (xc, yc)
 
     def plotAnnotation(self, ax, xc, yc):
         #self.clearAnnotation()
-        sAnnotation = '{0}: ({1}, {2})'.format(self.index, formatValue(xc), formatValue(yc))
+        sAnnotation = '{}: ({}, {})'.format(self.index, formatValue(xc), formatValue(yc))
         bbox_args = dict(boxstyle='round', fc='0.9', alpha=0.75)
         annotation = ax.annotate(sAnnotation, (xc, yc), xytext=(5, -2), textcoords='offset points', color=self.color, bbox=bbox_args)
         self.annotations.append(annotation)
@@ -96,7 +94,7 @@ class GUIMeasure:
 
     def plotLine(self, ax):
         """ plot vertical line across axis"""
-        line = ax.axvline(x=self.x_target, color=self.color, linewidth=0.5)
+        line = ax.axvline(x=self.P_target_raw[0], color=self.color, linewidth=0.5)
         self.lines.append(line)
 
     def plot(self, axes, PD):
@@ -107,7 +105,7 @@ class GUIMeasure:
               - or closest to "target" (x,y) point when matchY is True
          - plot intersection point, vertical line
         """
-        if self.x_target is None:
+        if self.P_target_raw is None:
             return
         if PD is not None:
             self.compute(PD)
@@ -124,7 +122,7 @@ class GUIMeasure:
                     self.plotAnnotation(ax, xc, yc) # NOTE Comment if unwanted
                 else:
                     #xc, yc = pd.xyMeas[self.index-1]
-                    xc, yc = self.x_target, self.y_target
+                    xc, yc = self.P_target_raw
                     self.plotPoint(ax, xc, yc, ms=6)
                     self.plotAnnotation(ax, xc, yc)
 
@@ -135,14 +133,13 @@ class GUIMeasure:
         # Store as target if there is only one plot and one ax (important for "dx dy")
         if PD is not None:
             if len(axes)==1 and len(PD)==1:
-                self.x_target = xc
-                self.y_target = yc
+                self.P_target_raw = (xc,yc)
                 # self.plotAnnotation(axes[0], xc, yc)
 
 
     def find_closest_point(self, xt, yt, ax):
         """ 
-        Find closest point to target across all plotdata in a given ax
+        Find closest point to target (xt, yt) across all plotdata in a given ax
         """
         # Compute axis diagonal
         try:
@@ -152,38 +149,45 @@ class GUIMeasure:
         except:
             print('[FAIL] GUIMeasure: Computing axis diagonal failed')
             rdist_min = 1e9
-
         # --- Find closest intersection point
-        x_closest = xt
-        y_closest = yt
+        P_closest_num = (xt,yt)
+        P_closest_raw = (None,None)
         pd_closest= None
         for pd in ax.PD:
-            XY = np.array([pd.x, pd.y]).transpose()
             try:
-                x, y = find_closest(XY, [xt, yt], xlim, ylim)
-                rdist = abs(x - xt) + abs(y - yt)
+                P_num, P_raw, ind = find_closest(pd, [xt, yt], xlim, ylim)
+                rdist = abs(P_num[0] - xt) + abs(P_num[1] - yt)
                 if rdist < rdist_min:
-                    rdist_min = rdist
-                    x_closest = x
-                    y_closest = y
-                    pd_closest = pd
+                    rdist_min     = rdist
+                    P_closest_num = P_num
+                    P_closest_raw = P_raw
+                    pd_closest    = pd
+                    #ind_closest   = ind
             except (TypeError,ValueError):
                 # Fails when x/y data are dates or strings 
                 print('[FAIL] GUIMeasure: find_closest failed on some data')
-        return x_closest, y_closest, pd_closest
+        return P_closest_raw, P_closest_num, pd_closest
 
 
     def sDeltaX(self, meas2):
         try:
-            dx = self.x_target - meas2.x_target
-            return 'dx = ' + formatValue(dx)
+            if isDateScalar(self.P_target_raw[0]):
+                dt = getDt([meas2.P_target_raw[0] , self.P_target_raw[0]])
+                return 'dx = ' + pretty_time(dt)
+            else:
+                dx = self.P_target_raw[0] - meas2.P_target_raw[0]
+                return 'dx = ' + formatValue(dx)
         except:
             return ''
 
     def sDeltaY(self, meas2):
         try:
-            dy = self.y_target - meas2.y_target
-            return 'dy = ' + formatValue(dy)
+            if isDateScalar(self.P_target_raw[1]):
+                dt = getDt([meas2.P_target_raw[1] , self.P_target_raw[1]])
+                return 'dx = ' + pretty_time(dt)
+            else:
+                dy = self.P_target_raw[1] - meas2.P_target_raw[1]
+                return 'dy = ' + formatValue(dy)
         except:
             return ''
 
@@ -192,21 +196,23 @@ class GUIMeasure:
 
 def formatValue(value):
     try:
-        if abs(value) < 1000 and abs(value) > 1e-4:
-            s = '{:.4f}'.format(value)
+        if isDateScalar(value):
+            # TODO could be improved
+            return pretty_date(value)
+        elif isString(value):
+            return value
         else:
-            s = '{:.3e}'.format(value)
+            return pretty_num(value)
     except TypeError:
-        s = ''
-    return s
+        return ''
 
 
 def find_closestX(XY, x_target):
     """ return x,y values closest to a given x value """
     i = np.argmin(np.abs(XY[:,0]-x_target))
-    return XY[i,:]
+    return XY[i,:], i
 
-def find_closest(XY, point, xlim=None, ylim=None):
+def find_closest_i(XY, point, xlim=None, ylim=None):
     """Return closest point(s), using norm2 distance 
     if xlim and ylim is provided, these are used to make the data non dimensional.
     """
@@ -220,7 +226,20 @@ def find_closest(XY, point, xlim=None, ylim=None):
 
     norm2 = ((XY[:,0]-point[0])**2)/x_scale + ((XY[:,1]-point[1])**2)/y_scale
     ind = np.argmin(norm2, axis=0)
-    return XY[ind,:]
+    return ind
+
+def find_closest(pd, point, xlim=None, ylim=None):
+    """Return closest point(s), using norm2 distance 
+    if xlim and ylim is provided, these are used to make the data non dimensional.
+    """
+    # Get XY array
+    # convert dates to num to be consistent with (xt,yt) click event from matpotlib canvas
+    XY = pd.toXY_date2num() 
+    ind = find_closest_i(XY, point, xlim=xlim, ylim=ylim)
+    x_num, y_num = XY[ind,:]
+    x_raw, y_raw = pd.x[ind], pd.y[ind]
+    return (x_num, y_num), (x_raw, y_raw), ind
+
 
     # --- Old method
     ## By default return closest single point.
