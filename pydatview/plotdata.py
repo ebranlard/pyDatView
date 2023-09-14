@@ -440,9 +440,12 @@ class PlotData():
     def y0TI(PD):
         if PD._y0Mean[0]==0:
             return np.nan,'NA'
-        v=PD._y0Std[0]/PD._y0Mean[0]
-        s=pretty_num(v)
-        return v,s
+        try:
+            v=PD._y0Std[0]/PD._y0Mean[0]
+            s=pretty_num(v)
+            return v,s
+        except:
+            return np.nan,'NA'
 
 
     def yRange(PD):

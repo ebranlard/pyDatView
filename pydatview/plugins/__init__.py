@@ -99,8 +99,8 @@ DATA_PLUGINS_SIMPLE=OrderedDict([
 
 # TOOLS: tool plugins constructor should return a Panel class
 TOOLS=OrderedDict([
-    ('Damping from decay',_tool_logdec),
-    ('Curve fitting',     _tool_curvefitting),
+    ('Estimate Freq. and Damping', _tool_logdec),
+    ('Curve fitting'             , _tool_curvefitting),
     ])
 
 

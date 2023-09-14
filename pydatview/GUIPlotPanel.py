@@ -368,12 +368,25 @@ class EstheticsPanel(wx.Panel):
         self.Bind(wx.EVT_COMBOBOX  ,self.onAnyEsthOptionChange)
         self.cbFont.Bind(wx.EVT_COMBOBOX  ,self.onFontOptionChange)
 
+        # Store data
+        self.data={}
+        self._GUI2Data()
+
     def onAnyEsthOptionChange(self,event=None):
         self.parent.redraw_same_data()
 
     def onFontOptionChange(self,event=None):
         matplotlib_rc('font', **{'size':int(self.cbFont.Value) }) # affect all (including ticks)
         self.onAnyEsthOptionChange()
+
+    def _GUI2Data(self):
+        """ data['plotStyle'] """
+        self.data['Font']           = int(self.cbFont.GetValue())
+        self.data['LegendFont']     = int(self.cbLgdFont.GetValue())
+        self.data['LegendPosition'] = self.cbLegend.GetValue()
+        self.data['LineWidth']      = float(self.cbLW.GetValue())
+        self.data['MarkerSize']     = float(self.cbMS.GetValue())
+        return self.data
 
 
 class PlotPanel(wx.Panel):
@@ -588,11 +601,8 @@ class PlotPanel(wx.Panel):
     def saveData(self, data):
         data['Grid']      = self.cbGrid.IsChecked()
         data['CrossHair'] = self.cbXHair.IsChecked()
-        data['plotStyle']['Font']           = self.esthPanel.cbFont.GetValue()
-        data['plotStyle']['LegendFont']     = self.esthPanel.cbLgdFont.GetValue()
-        data['plotStyle']['LegendPosition'] = self.esthPanel.cbLegend.GetValue()
-        data['plotStyle']['LineWidth']      = self.esthPanel.cbLW.GetValue()
-        data['plotStyle']['MarkerSize']     = self.esthPanel.cbMS.GetValue()
+        self.esthPanel._GUI2Data()
+        data['plotStyle']= self.esthPanel.data
         
     @staticmethod
     def defaultData():
@@ -1045,11 +1055,14 @@ class PlotPanel(wx.Panel):
         axes=self.fig.axes
         PD=self.plotData
 
+        # --- PlotStyles
+        plotStyle = self.esthPanel._GUI2Data()
+
         # --- Plot options
         bStep    = self.cbStepPlot.IsChecked()
         plot_options = dict()
-        plot_options['lw']=float(self.esthPanel.cbLW.Value)
-        plot_options['ms']=float(self.esthPanel.cbMS.Value)
+        plot_options['lw']=plotStyle['LineWidth']
+        plot_options['ms']=plotStyle['MarkerSize']
         if self.cbCurveType.Value=='Plain':
             plot_options['LineStyles'] = ['-']
             plot_options['Markers']    = ['']
@@ -1072,8 +1085,8 @@ class PlotPanel(wx.Panel):
         # --- Font options
         font_options      = dict()
         font_options_legd = dict()
-        font_options['size']          = int(self.esthPanel.cbFont.Value)  # affect labels
-        font_options_legd['fontsize'] = int(self.esthPanel.cbLgdFont.Value)
+        font_options['size']          = plotStyle['Font']
+        font_options_legd['fontsize'] = plotStyle['LegendFont']
         needChineseFont = any([pd.needChineseFont for pd in PD])
         if needChineseFont and self.specialFont is not None:
             font_options['fontproperties']=  self.specialFont
@@ -1186,7 +1199,7 @@ class PlotPanel(wx.Panel):
                 ax_right.set_ylabel('')
 
             # Legends
-            lgdLoc = self.esthPanel.cbLegend.Value.lower()
+            lgdLoc = plotStyle['LegendPosition'].lower()
             if (self.pltTypePanel.cbCompare.GetValue() or 
                 ((len(yleft_legends) + len(yright_legends)) > 1)):
                 if lgdLoc !='none':
