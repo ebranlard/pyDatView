@@ -80,9 +80,14 @@ def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap'
     time   = time[b]
 
     try:
-        T = time[-1]-time[0] # time length of signal (s). Will fail for signal of length 1
+        if len(time)<=1:
+            raise Exception()
         if type(time[0]) is np.datetime64:
             T = T/np.timedelta64(1,'s') # or T.item().total_seconds()
+        else:
+            T = time[-1]-time[0] # time length of signal (s). Will fail for signal of length 1
+        if T==0:
+            raise Exception()
 
         neq = T/Teq # number of equivalent periods, see Eq. (26) of [1]
 
@@ -1183,6 +1188,31 @@ class TestFatigue(unittest.TestCase):
 
 
 
+    def test_eqload_cornercases(self):
+        try:
+            import fatpack
+            hasFatpack=True
+        except:
+            hasFatpack=False
+        # Signal of length 1
+        time=[0]; signal=[0]
+        Leq= equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap')
+        np.testing.assert_equal(Leq, np.nan)
+            
+        # Datetime
+        time= [np.datetime64('2023-10-01'), np.datetime64('2023-10-02')]
+        signal= [0,1]
+        Leq= equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap')
+        np.testing.assert_equal(Leq, np.nan)
+
+        # Constant signal
+        time =[0,1]
+        signal =[1,1]
+        Leq= equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap')
+        np.testing.assert_equal(Leq, np.nan)
+        if hasFatpack:
+            Leq= equivalent_load(time, signal, m=3, Teq=1, bins=100, method='fatpack')
+            np.testing.assert_equal(Leq, np.nan)
 
 
 

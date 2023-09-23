@@ -67,17 +67,22 @@ def test_heavy():
 def test_debug(show=False):
     dt = 0
     with Timer('Test'):
-        with Timer('read'):
-            df1 =weio.read(os.path.join(scriptDir,'../ad_driver_m50.1.outb')).toDataFrame()
-            df2 =weio.read(os.path.join(scriptDir,'../ad_driver_p50.csv')).toDataFrame()
+        with PerfMon('read'):
+            df1 =weio.read(os.path.join(scriptDir,'../Processed.Data_bkp.csv')).toDataFrame()
+            #df2=None
+            #df1 =weio.read(os.path.join(scriptDir,'../ad_driver_m50.1.outb')).toDataFrame()
+            #df2 =weio.read(os.path.join(scriptDir,'../ad_driver_p50.csv')).toDataFrame()
 
         time.sleep(dt) 
-        with PerfMon('Plot 1'):
+        with PerfMon('AppStart 1'):
             app = wx.App(False)
             frame = MainFrame()
-            frame.load_dfs([df1,df2])
+        with PerfMon('Load dfs'):
+            #frame.load_dfs([df1])
+            #frame.load_dfs([df1, df2])
+        with PerfMon('Plot 1'):
             frame.selPanel.tabPanel.lbTab.SetSelection(0)
-            frame.selPanel.tabPanel.lbTab.SetSelection(1)
+            #frame.selPanel.tabPanel.lbTab.SetSelection(1)
             frame.onTabSelectionChange()
             #frame.redraw()
     if show:
@@ -91,4 +96,5 @@ if __name__ == '__main__':
 #     filenames =[os.path.join(script_dir,f) for f in filenames]
 
     test_heavy()
+    #test_debug(False)
     #test_debug(False)

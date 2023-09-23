@@ -606,7 +606,7 @@ def spanwisePostProFF(fastfarm_input,avgMethod='constantwindow',avgParam=30,D=1,
         vr=None
         vD=None
         D=0
-        main is None
+        main = None
     else:
         main=FASTInputFile(fastfarm_input)
         iOut    = main['OutRadii']
@@ -633,19 +633,17 @@ def spanwisePostProFF(fastfarm_input,avgMethod='constantwindow',avgParam=30,D=1,
     dfRad        = fastlib.extract_spanwise_data(ColsInfo, nrMax, df=None, ts=dfAvg.iloc[0])
     #dfRad       = fastlib.insert_radial_columns(dfRad, vr)
     if dfRad is not None:
-        if vr is None: 
-            dfRad.insert(0, 'i_[#]', np.arange(nrMax)+1)
-        else:
-            dfRad.insert(0, 'r_[m]', vr[:nrMax])
+        dfRad.insert(0, 'i_[#]', np.arange(nrMax)+1) # For all, to ease comparison
+        if vr is not None: 
+            dfRad.insert(0, 'r_[m]', vr[:nrMax]) # give priority to r_[m] when available
         dfRad['i/n_[-]']=np.arange(nrMax)/nrMax
 
     # --- Extract downstream data
     ColsInfo, nDMax = diameterwiseColFastFarm(df.columns.values, nWT=nWT)
     dfDiam       = fastlib.extract_spanwise_data(ColsInfo, nDMax, df=None, ts=dfAvg.iloc[0])
     if dfDiam is not None:
-        if vD is None:
-            dfDiam.insert(0, 'i_[#]', np.arange(nDMax)+1)
-        else:
+        dfDiam.insert(0, 'i_[#]', np.arange(nDMax)+1) # For all, to ease comparison
+        if vD is not None:
             dfDiam.insert(0, 'x_[m]', vD[:nDMax])
         dfDiam['i/n_[-]'] = np.arange(nDMax)/nDMax
     return dfRad, dfRadialTime, dfDiam

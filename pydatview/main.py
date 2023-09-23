@@ -604,25 +604,28 @@ class MainFrame(wx.Frame):
     def onLivePlotChange(self, event=None):
         if self.cbLivePlot.IsChecked():
             if hasattr(self,'plotPanel'):
-                print('[INFO] Reenabling live plot')
+                #print('[INFO] Reenabling live plot')
                 self.plotPanel.Enable(True)
                 self.infoPanel.Enable(True)
                 self.redrawCallback()
         else:
             if hasattr(self,'plotPanel'):
-                print('[INFO] Disabling live plot')
+                #print('[INFO] Disabling live plot')
+                for ax in self.plotPanel.fig.axes:
+                    ax.annotate('Live Plot Disabled', xy=(0.5, 0.5), size=20, xycoords='axes fraction', ha='center', va='center',)
+                    self.plotPanel.canvas.draw()
                 self.plotPanel.Enable(False)
                 self.infoPanel.Enable(False)
 
     def livePlotFreezeUnfreeze(self):
         if self.cbLivePlot.IsChecked():
             if hasattr(self,'plotPanel'):
-                print('[INFO] Enabling live plot')
+                #print('[INFO] Enabling live plot')
                 self.plotPanel.Enable(True)
                 self.infoPanel.Enable(True)
         else:
             if hasattr(self,'plotPanel'):
-                print('[INFO] Disabling live plot')
+                #print('[INFO] Disabling live plot')
                 self.plotPanel.Enable(False)
                 self.infoPanel.Enable(False)
 
@@ -631,7 +634,8 @@ class MainFrame(wx.Frame):
             if self.cbLivePlot.IsChecked():
                 self.plotPanel.load_and_draw()
             else:
-                print('[INFO] Drawing event skipped, live plot is not checked.')
+                pass
+                #print('[INFO] Drawing event skipped, live plot is not checked.')
 
 #     def showStats(self):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
