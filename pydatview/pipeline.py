@@ -265,6 +265,75 @@ class Pipeline(object):
         # 
         self.collectErrors()
 
+    def script(self, tabList, flavorDict, ID=None):
+        from pydatview.scripter import PythonScripter
+        print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> PIPELINE SCRIPT')
+#         print(type(tabList))
+#         print(tabList)
+        scripter = PythonScripter()
+        scripter.setFiles(tabList.filenames)
+        print('Flavor',flavorDict)
+        scripter.setFlavor(**flavorDict)
+
+        if ID is not None:
+            for i,idx in enumerate(ID):
+                print('>>>> PIPELINE ', idx)
+                it = idx[0]
+                it = idx[0] # table index
+                ix = idx[1] # x index
+                iy = idx[2] # y index
+                kx = tabList[it].columns[ix]
+                ky = tabList[it].columns[iy]
+                scripter.select_data(it, kx, ky)
+                # Initialize each plotdata based on selected table and selected id channels
+                #pd.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
+                #PD.id = i
+                #PD.it = idx[0] # table index
+                #PD.ix = idx[1] # x index
+                #PD.iy = idx[2] # y index
+                #PD.sx = idx[3].replace('_',' ') # x label
+                #PD.sy = idx[4].replace('_',' ') # y label
+                #PD.syl = ''    # y label for legend
+                #PD.st = idx[5] # table label
+                #PD.filename = tabs[PD.it].filename
+                #PD.tabname  = tabs[PD.it].active_name
+                #PD.tabID   = -1 # TODO
+                #PD.SameCol  = SameCol
+                #PD.x, PD.xIsString, PD.xIsDate,_ = tabs[PD.it].getColumn(PD.ix)  # actual x data, with info
+                #PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
+                #PD.c =c  # raw values, used by PDF
+
+
+
+
+
+#     import_statements = ["import numpy as np", "import scipy.stats as stats"]
+# #     action_code = """df = np.mean(x)
+# # p_value = stats.ttest_1samp(y, 0)[1]
+# #     """
+#     action_code = """df = df"""
+#     scripter.add_action('filter', action_code, import_statements)
+#     scripter.add_preplot_action("x = x * 2")
+#     scripter.add_preplot_action("y = y + 10")
+# 
+#     plot_params = {
+#         'figsize': (8, 6),
+#         'xlabel': 'X-Axis',
+#         'ylabel': 'Y-Axis',
+#         'title': 'Sample Plot',
+#         'label': 'Data Series',
+#     }
+# 
+#     scripter.set_plot_parameters(plot_params)
+# 
+
+
+        script = scripter.generate_script()
+        self.scripter = scripter
+        return script
+
+
+
     def applyOnPlotData(self, x, y, tabID):
         x = np.copy(x)
         y = np.copy(y)

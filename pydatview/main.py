@@ -132,12 +132,14 @@ class MainFrame(wx.Frame):
 
         fileMenu = wx.Menu()
         loadMenuItem  = fileMenu.Append(wx.ID_NEW,"Open file" ,"Open file"           )
+        scrpMenuItem  = fileMenu.Append(-1        ,"Export script" ,"Export script"           )
         exptMenuItem  = fileMenu.Append(-1        ,"Export table" ,"Export table"           )
         saveMenuItem  = fileMenu.Append(wx.ID_SAVE,"Save figure" ,"Save figure"           )
         exitMenuItem  = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
         menuBar.Append(fileMenu, "&File")
         self.Bind(wx.EVT_MENU,self.onExit  ,exitMenuItem)
         self.Bind(wx.EVT_MENU,self.onLoad  ,loadMenuItem)
+        self.Bind(wx.EVT_MENU,self.onScript,scrpMenuItem)
         self.Bind(wx.EVT_MENU,self.onExport,exptMenuItem)
         self.Bind(wx.EVT_MENU,self.onSave  ,saveMenuItem)
 
@@ -724,6 +726,26 @@ class MainFrame(wx.Frame):
         else:
            Error(self,'Open a file and select a table first.')
 
+    def onScript(self, event=None):
+        from pydatview.GUIScripter import GUIScripterFrame
+        GUIScripterFrame
+        pop = GUIScripterFrame(parent=None, mainframe=self, pipeLike=self.pipePanel, title="pyDatView - Script export")
+        pop.Show()
+#         if hasattr(self,'selPanel') and hasattr(self,'plotPanel'):
+#             script = pythonScript(self.tabList, self.selPanel, self.plotPanel)
+#         else:
+#             Error(self,'Open a file and generate a plot before exporting.')
+#         tab=self.tabList.get(iTab)
+#         default_filename=tab.basename +'.csv'
+#         with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename,
+#                 style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+#                 #, wildcard="CSV files (*.csv)|*.csv",
+#             dlg.CentreOnParent()
+#             if dlg.ShowModal() == wx.ID_CANCEL:
+#                 return     # the user changed their mind
+#             tab.export(dlg.GetPath())
+
+
     def onLoad(self, event=None):
         self.selectFile(bAdd=False)
 
@@ -948,7 +970,11 @@ def showApp(firstArg=None, dataframes=None, filenames=[], names=None):
         frame.load_dfs(dataframes, names)
     elif len(filenames)>0:
         frame.load_files(filenames, fileformats=None, bPlot=True)
+
+#     frame.onScript()
+
     app.MainLoop()
+
 
 def cmdline():
     if len(sys.argv)>1:
