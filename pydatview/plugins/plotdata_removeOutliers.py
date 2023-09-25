@@ -13,7 +13,7 @@ _DEFAULT_DICT={
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
-def removeOutliersAction(label, mainframe, data=None):
+def removeOutliersAction(label='removeOutlier', mainframe=None, data=None):
     """
     Return an "action" for the current plugin, to be used in the pipeline.
     The action is also edited and created by the GUI Editor
@@ -25,7 +25,7 @@ def removeOutliersAction(label, mainframe, data=None):
         data=_DEFAULT_DICT
         data['active'] = False #<<< Important
 
-    guiCallback = mainframe.redraw
+    guiCallback = mainframe.redraw if mainframe is not None else None
 
     action = PlotDataAction(
             name             = label,
@@ -33,12 +33,19 @@ def removeOutliersAction(label, mainframe, data=None):
             guiEditorClass   = RemoveOutliersToolPanel,
             guiCallback      = guiCallback,
             data             = data,
-            mainframe        = mainframe
+            mainframe        = mainframe,
+            imports          = _imports,
+            data_var         = _data_var,
+            code             = _code 
             )
     return action
 # --------------------------------------------------------------------------------}
 # --- Main method
 # --------------------------------------------------------------------------------{
+_imports=['from pydatview.tools.signal_analysis import reject_outliers']
+_data_var='outliersData'
+_code="""x, y = reject_outliers(x, y, m=outliersData['medianDeviation'])"""
+
 def removeOutliersXY(x, y, opts):
     from pydatview.tools.signal_analysis import reject_outliers
     try:

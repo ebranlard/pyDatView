@@ -17,6 +17,9 @@ An action has:
 
   - guiEditorClass: to Edit the data of the action
 
+  - code: a python script to manipulate a dataframe "df"
+  - imports: import statements needed for the script
+
 """
 import numpy as np
 from pydatview.common import exception2string, PyDatViewException
@@ -32,6 +35,9 @@ class Action():
             guiEditorClass=None,
             data=None,
             mainframe=None,
+            imports=None,
+            data_var=None,
+            code=None,
             onPlotData=False, unique=True, removeNeedReload=False):
         """ 
         tableFunction:    signature: f(tab)               # TODO that's inplace
@@ -51,6 +57,10 @@ class Action():
                                              # TODO remove me, replace with generic "redraw", "update tab list"
         self.guiEditorClass = guiEditorClass # Class that can be used to edit this action
         self.guiEditorObj   = None           # Instance of guiEditorClass that can be used to edit this action
+        # For source code generation
+        self.code=code
+        self.imports=imports
+        self.data_var=data_var
 
         self.mainframe=mainframe # If possible, dont use that...
 
@@ -121,6 +131,18 @@ class Action():
             self.guiCallback()
 #             except:
 #                 print('[FAIL] Action: failed to call GUI callback, action', self.name)
+
+    def getScript(self):
+        code_init = ''
+        if self.data is not None and len(self.data)>0 and self.data_var is not None:
+            code_init = self.data_var + " = {}\n"
+            for k,v, in self.data.items():
+                #print('>>> type ', type(v), k, v)
+                if type(v) is str:
+                    code_init += "{}['{}'] = '{}'\n".format(self.data_var,k,v)
+                else:
+                    code_init += "{}['{}'] = {}\n".format(self.data_var,k,v)
+        return self.code, self.imports, code_init
 
     def __repr__(self):
         s='<Action {}>'.format(self.name)
@@ -265,26 +287,41 @@ class Pipeline(object):
         # 
         self.collectErrors()
 
-    def script(self, tabList, flavorDict, ID=None):
+    def script(self, tabList, scripterOptions=None, ID=None):
         from pydatview.scripter import PythonScripter
-        print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> PIPELINE SCRIPT')
-#         print(type(tabList))
-#         print(tabList)
         scripter = PythonScripter()
-        scripter.setFiles(tabList.filenames)
-        print('Flavor',flavorDict)
-        scripter.setFlavor(**flavorDict)
+        scripter.setFiles([t for t in tabList.filenames if len(t)>0])
+        #print('Flavor',scripterOptions)
+        if scripterOptions is not None:
+            scripter.setOptions(**scripterOptions)
 
+        # --- Data and preplot actions 
+        for action in self.actionsData:
+            action_code, imports, code_init = action.getScript()
+            if action_code is None:
+                print('[WARN] No scripting routine for action {}'.format(action.name))
+            else:
+                #print('[INFO] Scripting routine for action {}'.format(action.name))
+                scripter.addAction(action.name, action_code, imports, code_init)
+
+        for action in self.actionsPlotFilters:
+            action_code, imports, code_init = action.getScript()
+            if action_code is None:
+                print('[WARN] No scripting routine for action {}'.format(action.name))
+            else:
+                #print('[INFO] Scripting routine for plot action {}'.format(action.name))
+                scripter.addPreplotAction(action.name, action_code, imports, code_init)
+
+        # --- Selecting data
         if ID is not None:
             for i,idx in enumerate(ID):
-                print('>>>> PIPELINE ', idx)
-                it = idx[0]
+                #print('>>>> PIPELINE ', idx)
                 it = idx[0] # table index
                 ix = idx[1] # x index
                 iy = idx[2] # y index
                 kx = tabList[it].columns[ix]
                 ky = tabList[it].columns[iy]
-                scripter.select_data(it, kx, ky)
+                scripter.selectData(it, kx, ky)
                 # Initialize each plotdata based on selected table and selected id channels
                 #pd.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
                 #PD.id = i
@@ -303,19 +340,6 @@ class Pipeline(object):
                 #PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
                 #PD.c =c  # raw values, used by PDF
 
-
-
-
-
-#     import_statements = ["import numpy as np", "import scipy.stats as stats"]
-# #     action_code = """df = np.mean(x)
-# # p_value = stats.ttest_1samp(y, 0)[1]
-# #     """
-#     action_code = """df = df"""
-#     scripter.add_action('filter', action_code, import_statements)
-#     scripter.add_preplot_action("x = x * 2")
-#     scripter.add_preplot_action("y = y + 10")
-# 
 #     plot_params = {
 #         'figsize': (8, 6),
 #         'xlabel': 'X-Axis',
@@ -323,12 +347,9 @@ class Pipeline(object):
 #         'title': 'Sample Plot',
 #         'label': 'Data Series',
 #     }
-# 
 #     scripter.set_plot_parameters(plot_params)
-# 
 
-
-        script = scripter.generate_script()
+        script = scripter.generate()
         self.scripter = scripter
         return script
 

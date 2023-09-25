@@ -14,7 +14,7 @@ _DEFAULT_DICT={
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
-def binningAction(label, mainframe=None, data=None):
+def binningAction(label='binning', mainframe=None, data=None):
     """
     Return an "action" for the current plugin, to be used in the pipeline.
     The action is also edited and created by the GUI Editor
@@ -26,7 +26,7 @@ def binningAction(label, mainframe=None, data=None):
         data=_DEFAULT_DICT
         data['active'] = False #<<< Important
 
-    guiCallback = mainframe.redraw
+    guiCallback = mainframe.redraw if mainframe is not None else None
 
     action = PlotDataAction(
             name=label,
@@ -35,12 +35,20 @@ def binningAction(label, mainframe=None, data=None):
             guiEditorClass = BinningToolPanel,
             guiCallback = guiCallback,
             data = data,
-            mainframe=mainframe
+            mainframe        = mainframe,
+            imports          = _imports,
+            data_var         = _data_var,
+            code             = _code 
             )
     return action
 # --------------------------------------------------------------------------------}
 # --- Main method
 # --------------------------------------------------------------------------------{
+_imports =['from pydatview.tools.stats import bin_signal']
+_imports+=['import numpy as np']
+_data_var='binData'
+_code="""x, y = bin_signal(x, y, xbins=np.linspace(binData['xMin'], binData['xMax'], binData['nBins']+1))"""
+
 def bin_plot(x, y, opts):
     from pydatview.tools.stats import bin_signal
     xBins = np.linspace(opts['xMin'], opts['xMax'], opts['nBins']+1)

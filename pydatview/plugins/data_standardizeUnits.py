@@ -1,3 +1,4 @@
+import pandas as pd
 import numpy as np
 from pydatview.common import splitunit
 from pydatview.pipeline import IrreversibleTableAction
@@ -5,7 +6,7 @@ from pydatview.pipeline import IrreversibleTableAction
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
-def standardizeUnitsAction(label, mainframe=None, flavor='SI'):
+def standardizeUnitsAction(label='stdUnits', mainframe=None, flavor='SI'):
     """ 
     Return an "action" for the current plugin, to be used in the pipeline.
     """
@@ -29,7 +30,10 @@ def standardizeUnitsAction(label, mainframe=None, flavor='SI'):
             tableFunctionApply=changeUnits, 
             guiCallback=guiCallback,
             mainframe=mainframe, # shouldnt be needed
-            data = data 
+            data = data ,
+            imports  = _imports,
+            data_var = _data_var,
+            code     = _code
             )
 
     return action
@@ -37,18 +41,32 @@ def standardizeUnitsAction(label, mainframe=None, flavor='SI'):
 # --------------------------------------------------------------------------------}
 # --- Main method
 # --------------------------------------------------------------------------------{
+_imports=['from pydatview.plugins.data_standardizeUnits import changeUnits']
+# _imports+=['from pydatview.Tables import Table']
+_data_var='changeUnitsData'
+_code="""changeUnits(df, changeUnitsData)"""
+
 def changeUnits(tab, data):
     """ Change units of a table
     NOTE: it relies on the Table class, which may change interface in the future..
     """
+    if not isinstance(tab, pd.DataFrame):
+        df = tab.data
+    else:
+        df = tab
+
     if data['flavor']=='WE':
-        for i, colname in enumerate(tab.columns):
-            colname, tab.data.iloc[:,i] = change_units_to_WE(colname, tab.data.iloc[:,i])
-            tab.data.columns.values[i] = colname 
+        cols = []
+        for i, colname in enumerate(df.columns):
+            colname_new, df.iloc[:,i] = change_units_to_WE(colname, df.iloc[:,i])
+            cols.append(colname_new)
+        df.columns = cols
     elif data['flavor']=='SI':
-        for i, colname in enumerate(tab.columns):
-            colname, tab.data.iloc[:,i] = change_units_to_SI(colname, tab.data.iloc[:,i])
-            tab.data.columns.values[i] = colname
+        cols = []
+        for i, colname in enumerate(df.columns):
+            colname_new, df.iloc[:,i] = change_units_to_SI(colname, df.iloc[:,i])
+            cols.append(colname_new)
+        df.columns = cols
     else:
         raise NotImplementedError(data['flavor'])
 

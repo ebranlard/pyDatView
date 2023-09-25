@@ -14,9 +14,11 @@ class GUIScripterFrame(wx.Frame):
         self.btGen = wx.Button(self.panel, label="Regenerate")
         self.btRun = wx.Button(self.panel, label="Run Script")
         self.btSave = wx.Button(self.panel, label="Save to File")
-        self.flavors = ["welib", "pydatview", "pyFAST"]
-        self.cbFlavors = wx.Choice(self.panel, choices=self.flavors)
+        libflavors = ["welib", "pydatview", "pyFAST"]
+        self.cbFlavors = wx.Choice(self.panel, choices=libflavors)
         self.cbFlavors.SetSelection(1)
+        mono_font = wx.Font(10, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        self.text_ctrl.SetFont(mono_font)
         
         # --- Layout
         vbox = wx.BoxSizer(wx.VERTICAL)
@@ -40,31 +42,30 @@ class GUIScripterFrame(wx.Frame):
 
         self.generateScript()
 
+    def _GUI2Data(self, *args, **kwargs):
+        # GUI2Data
+        data={}
+        data['libFlavor'] = self.cbFlavors.GetStringSelection()
+        return data
 
     def generateScript(self, *args, **kwargs):
-        # GUI2Data
-        flavorDict={}
-        flavorDict['libFlavor'] = self.cbFlavors.GetStringSelection()
-
+        data = self._GUI2Data()
         try:
             ID,SameCol,selMode=self.mainframe.selPanel.getPlotDataSelection()
         except:
             ID is None
-        s = self.pipeline.script(self.mainframe.tabList, flavorDict, ID)
+        s = self.pipeline.script(self.mainframe.tabList, data, ID)
         self.text_ctrl.SetValue(s)
 
     def onFlavorChange(self, event):
-        flavor = self.cbFlavors.GetStringSelection()
-        # You can add code here to handle the selected format change event
         self.generateScript()
 
-
     def onRun(self, event):
+        """ Run the script in user terminal """
         self.pipeline.scripter.run()
 
-
-
     def onSave(self, event):
+        """ Save script to file """
         file_extension = "py"
         
         dialog = wx.FileDialog(self, "Save Script to File", wildcard=f"(*.{file_extension})|*.{file_extension}", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)

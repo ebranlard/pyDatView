@@ -148,7 +148,7 @@ def psd_binned(y, fs=1.0, nPerDecade=10, detrend ='constant', return_onesided=Tr
     df = pd.DataFrame(data=np.column_stack((log_f,PSD)), columns=['x','y'])
     xmid  = (xbins[:-1]+xbins[1:])/2
     df['Bin'] = pd.cut(df['x'], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
-    df2  = df.groupby('Bin').mean()                     # Average by bin
+    df2  = df.groupby('Bin', observed=False).mean()                     # Average by bin
     df2  = df2.reindex(xmid)
     log_f_bin = df2['x'].values
     PSD_bin = df2['y'].values
