@@ -5,6 +5,16 @@ from pydatview.common import isString, isDate, getDt
 from pydatview.common import unique, pretty_num, pretty_time, pretty_date
 import matplotlib.dates as mdates
 
+# --------------------------------------------------------------------------------}
+# --- PlotDataList functions
+# --------------------------------------------------------------------------------{
+def PDL_xlabel(PDL):
+    #PD[axes[-1].iPD[0]].sx, **font_options)
+    return PDL[-1].sx
+
+# --------------------------------------------------------------------------------}
+# --- PlotData 
+# --------------------------------------------------------------------------------{
 class PlotData():
     """ 
     Class for plot data

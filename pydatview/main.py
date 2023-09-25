@@ -491,8 +491,8 @@ class MainFrame(wx.Frame):
 
     def onShowTool(self, event=None, toolName=''):
         """ 
-        Show tool
-        tool in 'Outlier', 'Filter', 'LogDec','FASTRadialAverage', 'Mask', 'CurveFitting'
+        Show tool See pydatview.plugins.__init__.py
+        tool in 'Outlier', 'Filter', 'LogDec','Radial Average', 'Mask', 'CurveFitting'
         """
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
@@ -505,6 +505,8 @@ class MainFrame(wx.Frame):
           - simple plugins are directly exectued
           - plugins that are panels are sent over to plotPanel to show them
         TODO merge with onShowTool
+
+        See pydatview.plugins.__init__.py for list of toolNames
         """
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
@@ -971,7 +973,10 @@ def showApp(firstArg=None, dataframes=None, filenames=[], names=None):
     elif len(filenames)>0:
         frame.load_files(filenames, fileformats=None, bPlot=True)
 
-#     frame.onScript()
+    #frame.onShowTool(toolName='Radial Average')
+    #frame.onDataPlugin(toolName='Radial Average')
+    #frame.onDataPlugin(toolName='Resample')
+    #frame.onScript()
 
     app.MainLoop()
 

@@ -301,19 +301,21 @@ class Pipeline(object):
         # 
         self.collectErrors()
 
-    def script(self, tabList, scripterOptions=None, ID=None):
+    def script(self, tabList, scripterOptions=None, ID=None, subPlots=None, plotStyle=None):
         from pydatview.scripter import PythonScripter
         if scripterOptions is None:
             scripterOptions={}
 
         # --- Files and number of tables
-        fileNames = tabList.filenames
-        fileNamesTrue = [t for t in tabList.filenames if len(t)>0]
+        fileNames = np.unique(tabList.filenames)
+        fileNamesTrue = [t for t in fileNames if len(t)>0]
         if len(fileNames)==len(fileNamesTrue):
             # No tables were added
             if len(fileNamesTrue) == len(tabList):
                 # Each file returned one table only
                 scripterOptions['oneTabPerFile'] = True
+            else:
+                scripterOptions['oneTabPerFile'] = False
 
         scripter = PythonScripter()
         scripter.setFiles(fileNamesTrue)
@@ -328,7 +330,6 @@ class Pipeline(object):
                     print('[WARN] No scripting routine for action {}'.format(action.name))
                 else:
                     scripter.addAdderAction(action.name, action_code, imports, code_init)
-
 
         # --- Data Actions
         for action in self.actionsData:
@@ -365,26 +366,14 @@ class Pipeline(object):
                 kx = tabList[it].columns[ix]
                 ky = tabList[it].columns[iy]
                 scripter.selectData(it, kx, ky)
-                # Initialize each plotdata based on selected table and selected id channels
-                #pd.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
-                #PD.id = i
-                #PD.sx = idx[3].replace('_',' ') # x label
-                #PD.sy = idx[4].replace('_',' ') # y label
-                #PD.syl = ''    # y label for legend
-                #PD.st = idx[5] # table label
-                #PD.x, PD.xIsString, PD.xIsDate,_ = tabs[PD.it].getColumn(PD.ix)  # actual x data, with info
-                #PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
-                #PD.c =c  # raw values, used by PDF
 
-#     plot_params = {
-#         'figsize': (8, 6),
-#         'xlabel': 'X-Axis',
-#         'ylabel': 'Y-Axis',
-#         'title': 'Sample Plot',
-#         'label': 'Data Series',
-#     }
-#     scripter.set_plot_parameters(plot_params)
+        if subPlots is not None:
+            scripter.setSubPlots(**subPlots)
 
+        if plotStyle is not None:
+            scripter.setPlotParameters(**plotStyle)
+
+        # --- Do generate the script and store instance
         script = scripter.generate()
         self.scripter = scripter
         return script

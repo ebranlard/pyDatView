@@ -40,7 +40,8 @@ from pandas.plotting import register_matplotlib_converters
 import gc
 
 from pydatview.common import * # unique, CHAR, pretty_date
-from pydatview.plotdata import PlotData, compareMultiplePD
+from pydatview.plotdata import PlotData, compareMultiplePD 
+from pydatview.plotdata import PDL_xlabel
 from pydatview.GUICommon import * 
 from pydatview.GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx, TBAddTool, TBAddCheckTool
 from pydatview.GUIMeasure import GUIMeasure
@@ -1047,23 +1048,17 @@ class PlotPanel(wx.Panel):
             except:
                 pass
 
-    def plot_all(self, autoscale=True):
-        """ 
-        autoscale: if True, find the limits based on the data.
-                  Otherwise, the limits are restored using:
-                     self._restore_limits and the variables: self.xlim_prev, self.ylim_prev
-        """
-        self.multiCursors=[]
-
-        axes=self.fig.axes
-        PD=self.plotData
-
+    def getPlotOptions(self, PD=None):
         # --- PlotStyles
         plotStyle = self.esthPanel._GUI2Data()
 
         # --- Plot options
-        bStep    = self.cbStepPlot.IsChecked()
         plot_options = dict()
+        plot_options['step'] = self.cbStepPlot.IsChecked()
+        plot_options['logX'] = self.cbLogX.IsChecked()
+        plot_options['logY'] = self.cbLogY.IsChecked()
+        plot_options['grid'] = self.cbGrid.IsChecked()
+
         plot_options['lw']=plotStyle['LineWidth']
         plot_options['ms']=plotStyle['MarkerSize']
         if self.cbCurveType.Value=='Plain':
@@ -1083,17 +1078,35 @@ class PlotPanel(wx.Panel):
             # But at that stage, if the user really want this, then we can implement an option to set styles per plot. Not high priority.
             raise Exception('Not implemented')
 
-
-
         # --- Font options
         font_options      = dict()
         font_options_legd = dict()
         font_options['size']          = plotStyle['Font']
         font_options_legd['fontsize'] = plotStyle['LegendFont']
-        needChineseFont = any([pd.needChineseFont for pd in PD])
-        if needChineseFont and self.specialFont is not None:
-            font_options['fontproperties']=  self.specialFont
-            font_options_legd['prop']     =  self.specialFont 
+        if PD is not None:
+            needChineseFont = any([pd.needChineseFont for pd in PD])
+            if needChineseFont and self.specialFont is not None:
+                font_options['fontproperties']=  self.specialFont
+                font_options_legd['prop']     =  self.specialFont 
+
+        return plotStyle, plot_options, font_options, font_options_legd
+
+
+
+    def plot_all(self, autoscale=True):
+        """ 
+        autoscale: if True, find the limits based on the data.
+                  Otherwise, the limits are restored using:
+                     self._restore_limits and the variables: self.xlim_prev, self.ylim_prev
+        """
+        self.multiCursors=[]
+
+        axes=self.fig.axes
+        PD=self.plotData
+
+        # --- PlotStyles
+        plotStyle, plot_options, font_options, font_options_legd = self.getPlotOptions()
+
 
         # --- Loop on axes. Either use ax.iPD to chose the plot data, or rely on plotmatrix
         for axis_idx, ax_left in enumerate(axes):
@@ -1112,17 +1125,17 @@ class PlotPanel(wx.Panel):
                 pm = self.infoPanel.getPlotMatrix(PD, self.cbSub.IsChecked())
             else:
                 pm = None
-            __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, bStep, plot_options)
-            ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, bStep, plot_options)
+            __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, plot_options)
+            ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, plot_options)
 
             # Log Axes
-            if self.cbLogX.IsChecked():
+            if plot_options['logX']:
                 try:
                     ax_left.set_xscale("log", nonpositive='clip') # latest
                 except:
                     ax_left.set_xscale("log", nonposx='clip') # legacy
 
-            if self.cbLogY.IsChecked():
+            if plot_options['logY']:
                 if bAllNegLeft is False:
                     try:
                         ax_left.set_yscale("log", nonpositive='clip') # latest
@@ -1152,7 +1165,7 @@ class PlotPanel(wx.Panel):
                 except:
                     pass
 
-            ax_left.grid(self.cbGrid.IsChecked())
+            ax_left.grid(plot_options['grid'])
             if ax_right is not None:
                 l = ax_left.get_ylim()
                 l2 = ax_right.get_ylim()
@@ -1162,7 +1175,7 @@ class PlotPanel(wx.Panel):
                 if len(ax_left.lines) == 0:
                     ax_left.set_yticks(ax_right.get_yticks())
                     ax_left.yaxis.set_visible(False)
-                    ax_right.grid(self.cbGrid.IsChecked())
+                    ax_right.grid(plot_options['grid'])
 
             # Special Grids
             if self.pltTypePanel.cbCompare.GetValue():
@@ -1238,7 +1251,8 @@ class PlotPanel(wx.Panel):
             self.lbDeltaY.SetLabel('')
 
         # --- xlabel
-        axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx, **font_options)
+        #axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx, **font_options)
+        axes[-1].set_xlabel(PDL_xlabel(PD), **font_options)
 
         #print('sy :',[pd.sy for pd in PD])
         #print('syl:',[pd.syl for pd in PD])
@@ -1251,7 +1265,7 @@ class PlotPanel(wx.Panel):
         bXHair = self.cbXHair.GetValue()
         self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn=bXHair, vertOn=bXHair, color='gray', linewidth=0.5, linestyle=':')
 
-    def plotSignals(self, ax, axis_idx, PD, pm, left_right, is_step, opts):
+    def plotSignals(self, ax, axis_idx, PD, pm, left_right, opts):
         axis = None
         bAllNeg = True
         if pm is None:
@@ -1282,7 +1296,7 @@ class PlotPanel(wx.Panel):
                     # TODO allow PlotData to override for "per plot" options in the future
                     marker = opts['Markers'][np.mod(iPlot,len(opts['Markers']))]
                     ls     = opts['LineStyles'][np.mod(iPlot,len(opts['LineStyles']))]
-                if is_step:
+                if opts['step']:
                     plot = axis.step
                 else:
                     plot = axis.plot
