@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from pydatview.plugins.base_plugin import ActionEditor, TOOL_BORDER
 from pydatview.common import CHAR, Error, Info, pretty_num_short
 from pydatview.common import DummyMainFrame
@@ -8,13 +9,14 @@ from pydatview.pipeline import ReversibleTableAction
 # --------------------------------------------------------------------------------{
 _DEFAULT_DICT={
     'active':False, 
-    'maskString': ''
+    'maskString': '',
+    'formattedMaskString': ''
 }
 
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
-def maskAction(label, mainframe, data=None):
+def maskAction(label='mask', mainframe=None, data=None):
     """
     Return an "action" for the current plugin, to be used in the pipeline.
     The action is also edited and created by the GUI Editor
@@ -26,7 +28,7 @@ def maskAction(label, mainframe, data=None):
         data=_DEFAULT_DICT
         data['active'] = False #<<< Important
 
-    guiCallback = mainframe.redraw
+    guiCallback = mainframe.redraw if mainframe is not None else None
 
     action = ReversibleTableAction(
             name=label,
@@ -36,15 +38,23 @@ def maskAction(label, mainframe, data=None):
             guiEditorClass = MaskToolPanel,
             guiCallback = guiCallback,
             data = data,
-            mainframe=mainframe
+            mainframe=mainframe,
+            imports  = _imports,
+            data_var = _data_var,
+            code     = _code
             )
     return action
 # --------------------------------------------------------------------------------}
 # --- Main methods
 # --------------------------------------------------------------------------------{
+_imports=[]
+_data_var='maskData'
+_code="""df = df[eval(maskData['formattedMaskString'])]"""
+
 def applyMask(tab, data):
     #    dfs, names, errors = tabList.applyCommonMaskString(maskString, bAdd=False)
-    dfs, name = tab.applyMaskString(data['maskString'], bAdd=False)
+    data['formattedMaskString'] = formatMaskString(tab.data, data['maskString'])
+    dfs, name = tab.applyMaskString(data['formattedMaskString'], bAdd=False)
 
 def removeMask(tab, data):
     tab.clearMask()
@@ -54,8 +64,26 @@ def addTabMask(tab, opts):
     """ Apply action on a a table and return a new one with a new name 
     df_new, name_new = f(t, opts)
     """
-    df_new, name_new = tab.applyMaskString(opts['maskString'], bAdd=True)
+    opts['formattedMaskString'] = formatMaskString(tab.data, opts['maskString'])
+    df_new, name_new = tab.applyMaskString(opts['formattedMaskString'], bAdd=True)
     return df_new, name_new 
+
+
+def formatMaskString(df, sMask):
+    """ """
+    from pydatview.common import no_unit
+    # TODO Loop on {VAR} instead..
+    for i, c_in_df in enumerate(df.columns):
+        c_no_unit = no_unit(c_in_df).strip()
+        # TODO sort out the mess with asarray (introduced to have and/or
+        # as array won't work with date comparison
+        # NOTE: using iloc to avoid duplicates column issue
+        if isinstance(df.iloc[0,i], pd._libs.tslibs.timestamps.Timestamp):
+            sMask=sMask.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
+        else:
+            sMask=sMask.replace('{'+c_no_unit+'}','np.asarray(df[\''+c_in_df+'\'])')
+    return sMask
+
 
 # --------------------------------------------------------------------------------}
 # --- GUI to edit plugin and control the mask action

@@ -135,13 +135,27 @@ class Action():
     def getScript(self):
         code_init = ''
         if self.data is not None and len(self.data)>0 and self.data_var is not None:
-            code_init = self.data_var + " = {}\n"
-            for k,v, in self.data.items():
-                #print('>>> type ', type(v), k, v)
-                if type(v) is str:
-                    code_init += "{}['{}'] = '{}'\n".format(self.data_var,k,v)
-                else:
-                    code_init += "{}['{}'] = {}\n".format(self.data_var,k,v)
+            if len(self.data)<5:
+                # One Liner
+                key_val=[]
+                for k,v, in self.data.items():
+                    if k=='active':
+                        continue
+                    if type(v) is str:
+                        key_val.append( "'{}':\"{}\"".format(k, v) )
+                    else:
+                        key_val.append( "'{}': {}".format(k, v) )
+                code_init = self.data_var + " = {"+', '.join(key_val) +  '}'
+            else:
+                code_init = self.data_var + " = {}\n"
+                for k,v, in self.data.items():
+                    if k=='active':
+                        continue
+                    #print('>>> type ', type(v), k, v)
+                    if type(v) is str:
+                        code_init += "{}['{}'] = \"{}\"\n".format(self.data_var,k,v)
+                    else:
+                        code_init += "{}['{}'] = {}\n".format(self.data_var,k,v)
         return self.code, self.imports, code_init
 
     def __repr__(self):
@@ -289,20 +303,42 @@ class Pipeline(object):
 
     def script(self, tabList, scripterOptions=None, ID=None):
         from pydatview.scripter import PythonScripter
-        scripter = PythonScripter()
-        scripter.setFiles([t for t in tabList.filenames if len(t)>0])
-        #print('Flavor',scripterOptions)
-        if scripterOptions is not None:
-            scripter.setOptions(**scripterOptions)
+        if scripterOptions is None:
+            scripterOptions={}
 
-        # --- Data and preplot actions 
+        # --- Files and number of tables
+        fileNames = tabList.filenames
+        fileNamesTrue = [t for t in tabList.filenames if len(t)>0]
+        if len(fileNames)==len(fileNamesTrue):
+            # No tables were added
+            if len(fileNamesTrue) == len(tabList):
+                # Each file returned one table only
+                scripterOptions['oneTabPerFile'] = True
+
+        scripter = PythonScripter()
+        scripter.setFiles(fileNamesTrue)
+        #print('Flavor',scripterOptions)
+        scripter.setOptions(**scripterOptions)
+
+        # --- Adder Actions
         for action in self.actionsData:
-            action_code, imports, code_init = action.getScript()
-            if action_code is None:
-                print('[WARN] No scripting routine for action {}'.format(action.name))
-            else:
-                #print('[INFO] Scripting routine for action {}'.format(action.name))
-                scripter.addAction(action.name, action_code, imports, code_init)
+            if isinstance(action, AdderAction):
+                action_code, imports, code_init = action.getScript()
+                if action_code is None:
+                    print('[WARN] No scripting routine for action {}'.format(action.name))
+                else:
+                    scripter.addAdderAction(action.name, action_code, imports, code_init)
+
+
+        # --- Data Actions
+        for action in self.actionsData:
+            if not isinstance(action, AdderAction):
+                action_code, imports, code_init = action.getScript()
+                if action_code is None:
+                    print('[WARN] No scripting routine for action {}'.format(action.name))
+                else:
+                    #print('[INFO] Scripting routine for action {}'.format(action.name))
+                    scripter.addAction(action.name, action_code, imports, code_init)
 
         for action in self.actionsPlotFilters:
             action_code, imports, code_init = action.getScript()
@@ -311,6 +347,13 @@ class Pipeline(object):
             else:
                 #print('[INFO] Scripting routine for plot action {}'.format(action.name))
                 scripter.addPreplotAction(action.name, action_code, imports, code_init)
+
+        # --- Formulae
+        from pydatview.formulae import formatFormula
+        for it, tab in enumerate(tabList):
+            for formulaDict in tab.formulas:
+                formula = formatFormula(tab.data, formulaDict['formula'])
+                scripter.addFormula(it, name=formulaDict['name'], formula=formula)
 
         # --- Selecting data
         if ID is not None:
@@ -325,17 +368,10 @@ class Pipeline(object):
                 # Initialize each plotdata based on selected table and selected id channels
                 #pd.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
                 #PD.id = i
-                #PD.it = idx[0] # table index
-                #PD.ix = idx[1] # x index
-                #PD.iy = idx[2] # y index
                 #PD.sx = idx[3].replace('_',' ') # x label
                 #PD.sy = idx[4].replace('_',' ') # y label
                 #PD.syl = ''    # y label for legend
                 #PD.st = idx[5] # table label
-                #PD.filename = tabs[PD.it].filename
-                #PD.tabname  = tabs[PD.it].active_name
-                #PD.tabID   = -1 # TODO
-                #PD.SameCol  = SameCol
                 #PD.x, PD.xIsString, PD.xIsDate,_ = tabs[PD.it].getColumn(PD.ix)  # actual x data, with info
                 #PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
                 #PD.c =c  # raw values, used by PDF

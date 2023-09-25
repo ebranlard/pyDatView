@@ -5,10 +5,12 @@ from collections import OrderedDict
 _WELIB={
     'pydatview.io':'welib.weio',
     'pydatview.tools':'welib.tools',
+    'pydatview.fast.postpro':'welib.fast.postpro',
         }
 _PYFAST={
     'pydatview.io':'pyFAST.input_output',
     'pydatview.tools.tictoc':'pyFAST.tools.tictoc',
+    'pydatview.fast.postpro':'pyFAST.postpro', # I think...
         }
 
 _flavorReplaceDict={
@@ -39,9 +41,11 @@ class PythonScripter:
         self.opts = _defaultOpts
         self.import_statements = set()
         self.actions = OrderedDict()
+        self.adder_actions = OrderedDict()
         self.preplot_actions = OrderedDict()
         self.filenames = []
         self.df_selections = []  # List of tuples (df_index, column_x, column_y)
+        self.df_formulae   = []  # List of tuples (df_index, name, formula)
         self.dfs = []
         self.plot_params = {}  # Dictionary for plotting parameters
 
@@ -58,29 +62,57 @@ class PythonScripter:
     def addImport(self, import_statement):
         self.import_statements.add(import_statement)
 
-    def addAction(self, action_name, code, imports=None, init_code=None):
+    def addAction(self, action_name, code, imports=None, code_init=None):
         for imp in imports:
             self.addImport(imp)
-        self.actions[action_name] = (init_code, code)
+        self.actions[action_name] = (code_init, code.strip())
 
-    def addPreplotAction(self, action_name, code, imports=None, init_code=None):
+    def addAdderAction(self, action_name, code, imports=None, code_init=None):
+        for imp in imports:
+            self.addImport(imp)
+        self.adder_actions[action_name] = (code_init, code.strip())
+
+    def addPreplotAction(self, action_name, code, imports=None, code_init=None):
         if imports is not None:
             for imp in imports:
                 self.addImport(imp)
-        self.preplot_actions[action_name] = (init_code, code)
+        self.preplot_actions[action_name] = (code_init, code.strip())
 
-    def setFiles(self, filenames):
-        self.filenames = [f.replace('\\','/') for f in filenames]
+    def addFormula(self, df_index, name, formula):
+        self.df_formulae.append((df_index, name, formula))
 
     def selectData(self, df_index, column_x, column_y):
         self.df_selections.append((df_index, column_x, column_y))
 
+    def setFiles(self, filenames):
+        self.filenames = [f.replace('\\','/') for f in filenames]
+
+
     def setPlotParameters(self, params):
         self.plot_params = params
 
+    @property
+    def needIndex(self):
+        for df_index, column_x, column_y in self.df_selections:
+            if column_x=='Index' or column_y=='Index':
+                return True
+
+    @property
+    def needFormulae(self):
+        return len(self.df_formulae)>0
+
     def generate(self, pltshow=True):
 
+        def forLoopOnDFs():
+            if self.opts['dfsFlavor'] == 'dict':
+                script.append("for k, df in dfs.items():")
+            elif self.opts['dfsFlavor'] == 'list':
+                script.append("for df in dfs:")
+
+
+
         script = []
+        indent0= ''
         indent1= self.opts['indent']
         indent2= indent1 + indent1
         indent3= indent2 + indent1
@@ -104,22 +136,27 @@ class PythonScripter:
         for filename in self.filenames:
             script.append(f"filenames += ['{filename}']")
 
-        # --- Init data actions
+        # --- Init data/preplot/adder actions
         if len(self.actions)>0:
             script.append("\n# --- Data for actions")
             for actionname, actioncode in self.actions.items():
-                if actioncode[0] is not None:
-                    if len(actioncode[0].strip())>0:
-                        script.append("# Data for action {}".format(actionname))
-                        script.append(actioncode[0].strip())
+                if actioncode[0] is not None and len(actioncode[0].strip())>0:
+                    script.append("# Data for action {}".format(actionname))
+                    script.append(actioncode[0].strip())
 
         if len(self.preplot_actions)>0:
             script.append("\n# --- Data for preplot actions")
             for actionname, actioncode in self.preplot_actions.items():
-                if actioncode[0] is not None:
-                    if len(actioncode[0].strip())>0:
-                        script.append("# Data for preplot action {}".format(actionname))
-                        script.append(actioncode[0].strip())
+                if actioncode[0] is not None and len(actioncode[0].strip())>0:
+                    script.append("# Data for preplot action {}".format(actionname))
+                    script.append(actioncode[0].strip())
+
+        if len(self.adder_actions)>0:
+            script.append("\n# --- Applying actions that add new dataframes")
+            for actionname, actioncode in self.adder_actions.items():
+                if actioncode[0] is not None and len(actioncode[0].strip())>0:
+                    script.append("# Data for preplot action {}".format(actionname))
+                    script.append(actioncode[0].strip())
 
 
         # --- List of Dataframes
@@ -164,19 +201,82 @@ class PythonScripter:
                     script.append("else:")
                     script.append(indent1 + f"df{iFile1} = dfs_or_df")
 
-        # --- Insert index for convenience
-        script.append("\n# --- Insert columns")
-        if self.opts['dfsFlavor'] == 'dict':
-            script.append("for k, df in dfs.items():")
-            script.append(indent1 + "df.insert(0, 'Index', np.arange(df.shape[0]))")
+        # --- Adder actions 
+        if len(self.adder_actions)>0:
+            def addActionCode(actioname, actioncode, ind):
+                script.append(ind+ "# Apply action {}".format(actioname))
+                lines = actioncode.split("\n")
+                indented_lines = [ind + line for line in lines]
+                script.append("\n".join(indented_lines))
 
-        elif self.opts['dfsFlavor'] == 'list':
-            script.append("for df in dfs):")
-            script.append(indent1 + "df.insert(0, 'Index', np.arange(df.shape[0]))")
+            script.append("\n# --- Apply adder actions to dataframes")
+            script.append("dfs_add = [] ; names_add =[]")
+            if self.opts['dfsFlavor'] == 'dict':
+                script.append("for k, df in dfs.items():")
+                script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
+                for actionname, actioncode in self.adder_actions.items():
+                    addActionCode(actionname, actioncode[1], indent1)
+                    script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
+                script.append("for name_new, df_new in zip(names_add, dfs_new):")
+                script.append(indent1+"if df_new is not None:")
+                script.append(indent2+"dfs[name_new] = df_new")
 
-        elif self.opts['dfsFlavor'] == 'enumeration':
-            for iTab in range(len(self.filenames)):
-                script.append("df{}.insert(0, 'Index', np.arange(df.shape[0]))".format(iTab+1))
+            elif self.opts['dfsFlavor'] == 'list':
+                script.append("for df in dfs):")
+                script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
+                for actionname, actioncode in self.adder_actions.items():
+                    addActionCode(actionname, actioncode[1], indent1)
+                    script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
+                script.append("for name_new, df_new in zip(names_add, dfs_new):")
+                script.append(indent1+"if df_new is not None:")
+                script.append(indent2+"dfs+ = [df_new]")
+
+            elif self.opts['dfsFlavor'] == 'enumeration':
+                nTabs = len(self.filenames) # Approximate
+                for iTab in range(nTabs):
+                    script.append("filename = filenames[{}] # NOTE: this is approximate..".format(iTab))
+                    script.append('df = df{}'.format(iTab+1))
+                    for actionname, actioncode in self.adder_actions.items():
+                        addActionCode(actionname, actioncode[1], '')
+                    script.append("df{} = dfs_new[0] # NOTE: we only keep the first table here..".format(nTabs+iTab+1))
+                nTabs += nTabs
+
+
+        # --- Insert index and formulae
+        if self.needIndex or self.needFormulae: 
+            script.append("\n# --- Insert columns")
+            if self.opts['dfsFlavor'] in ['dict' or 'list']:
+                forLoopOnDFs()
+                if self.needIndex:
+                    script.append(indent1 + "if not 'Index' in df.columns:")
+                    script.append(indent2 + "df.insert(0, 'Index', np.arange(df.shape[0]))")
+                if self.needFormulae:
+                    script.append(indent1 + "# Adding formulae: NOTE adjust to apply to a subset of dfs")
+                    # TODO potentially sort on df_index and use an if statement on k
+                    for df_index, name, formula in self.df_formulae:
+                        script.append(indent1 + "try:")
+                        script.append(indent2 + "df['{}'] = {}".format(name, formula))
+                        #df.insert(int(i+1), name, formula)
+                        script.append(indent1 + "except:")
+                        script.append(indent2 + "print('[WARN] Cannot add column {} to dataframe)".format(name))
+
+            elif self.opts['dfsFlavor'] == 'enumeration':
+                for iTab in range(nTabs):
+                    if self.needIndex:
+                        script.append("if not 'Index' in df.columns:")
+                        script.append(indent1+"df{}.insert(0, 'Index', np.arange(df.shape[0]))".format(iTab+1))
+                    dfName = 'df{}'.format(iTab+1)
+                    if self.needFormulae:
+                        script.append("# Adding formulae: NOTE adjust to apply to a subset of dfs")
+                        # TODO potentially sort on df_index and use an if statement on k
+                        for df_index, name, formula in self.df_formulae:
+                            formula = formula.replace('df', dfName)
+                            script.append(indent0 + "try:")
+                            script.append(indent1 + "{}['{}'] = {}".format(dfName, name, formula))
+                            #df.insert(int(i+1), name, formula)
+                            script.append(indent0 + "except:")
+                            script.append(indent1 + "print('[WARN] Cannot add column {} to dataframe')".format(name))
+
 
         # --- Data Actions
         if len(self.actions)>0:
@@ -204,15 +304,16 @@ class PythonScripter:
                 for iTab in range(len(self.filenames)):
                     script.append('df = df{}'.format(iTab+1))
                     for actionname, actioncode in self.actions.items():
-                        addActionCode(actionname, actioncode[1], indent2)
+                        addActionCode(actionname, actioncode[1], '')
                     script.append('df{} = df'.format(iTab+1))
 
         # --- Plot Styling
         script.append("\n# --- Generate the plot")
         #  Plot Styling
         script.append("# Plot styling")
-        script.append("stys=['-','-',':','.-'] * len(dfs)")
-        script.append("cols=['r', 'g', 'b'] * len(dfs)")
+        # NOTE: dfs not known for enumerate
+        #script.append("stys=['-','-',':','.-'] * len(dfs)") 
+        #script.append("cols=['r', 'g', 'b'] * len(dfs)")
         if self.opts['dfsFlavor'] == 'dict':
             script.append("tabNames = list(dfs.keys())")
         script.append("# Subplots")
@@ -230,7 +331,6 @@ class PythonScripter:
             elif self.opts['dfsFlavor'] == 'enumeration':
                 script.append("x = df{}['{}']".format(df_index+1, column_x))
                 script.append("y = df{}['{}']".format(df_index+1, column_y))
-                pass
             if len(self.preplot_actions)>0:
                 script.append("# Applying preplot action for df{}".format(df_index+1))
                 for actionname, actioncode in self.preplot_actions.items():
@@ -259,7 +359,7 @@ class PythonScripter:
         return "\n".join(script)
 
 
-    def run(self, method='subprocess', pltshow=True):
+    def run(self, method='subprocess', pltshow=True, scriptName='_pydatview_temp_script.py'):
         script = self.generate(pltshow=pltshow)
         import tempfile
         import subprocess
@@ -271,7 +371,7 @@ class PythonScripter:
                 # --- Create a temporary file
                 #temp_dir = tempfile.TemporaryDirectory()
                 #script_file_path = os.path.join(temp_dir.name, "temp_script.py")
-                script_file_path ='pydatview_temp_script.py'
+                script_file_path = scriptName
                 with open(script_file_path, "w") as script_file:
                     script_file.write(script)
 
@@ -288,9 +388,9 @@ class PythonScripter:
                 error.append("An error occurred: {e}")
             finally:
                 # Clean up by deleting the temporary directory and its contents
-                #temp_dir.cleanup()
-                pass
-#                 os.remove(script_file_path)
+                if len(errors)==0:
+                    #temp_dir.cleanup()
+                    os.remove(script_file_path)
         else:
             raise NotImplementedError()
         if len(errors)>0:
@@ -301,21 +401,42 @@ class PythonScripter:
 
 if __name__ == '__main__':
     # Example usage:
+    import os
+    scriptDir =os.path.dirname(__file__)
     scripter = PythonScripter()
-    scripter.setFiles(['../DampingExplodingExample.csv'])
+#     scripter.setFiles([os.path.join(scriptDir, '../DampingExplodingExample.csv')])
+    scripter.setFiles([os.path.join(scriptDir, '../_TestFiles/CT_1.10.outb')])
 
-    import_statements = ["import numpy as np", "import scipy.stats as stats"]
-#     action_code = """df = np.mean(x)
-# p_value = stats.ttest_1samp(y, 0)[1]
-#     """
-    action_code = """df = df"""
-    init_code="""data['Misc']=2 # That's a parameter
+    # --- Data Action
+    imports = ["import numpy as np", "import scipy.stats as stats"]
+    _code = """df = df"""
+    code_init="""data={}; data['Misc']=2 # That's a parameter
 data['Misc2']=3 # That's another parameter"""
-    scripter.addAction('filter', action_code, import_statements, init_code)
-    scripter.selectData(0, "Time", "TTDspFA")
+    scripter.addAction('filter', _code, imports, code_init)
 
-    action_code="""x = x * 1\ny = y * 1"""
-    scripter.addPreplotAction('Scaling', action_code)
+    # --- PrePlot Action
+    _code="""x = x * 1\ny = y * 1"""
+    scripter.addPreplotAction('Scaling', _code)
+
+    # --- Adder Action
+    imports = ["from pydatview.plugins.data_radialavg import radialAvg"]
+    imports += ["from pydatview.Tables import Table"]
+    _code = """
+tab=Table(data=df)
+dfs_new, names_new = radialAvg(tab, dataRadial)
+"""
+    code_init="""dataRadial={'avgMethod':'constantwindow', 'avgParam': 2}"""
+    scripter.addAdderAction('radialAvg', _code, imports, code_init)
+
+
+    # --- Formula
+    scripter.addFormula(0, name='Time2', formula="df['Time_[s]']*20")
+
+
+    #scripter.selectData(0, "Time", "TTDspFA")
+    #scripter.selectData(0, "Time2", "TTDspFA")
+#     scripter.selectData(0, "Time2", "Wind1VelX_[m/s]")
+    scripter.selectData(1, "i/n_[-]", "B1Cl_[-]")
 
     plot_params = {
         'figsize': (8, 6),
@@ -332,7 +453,7 @@ data['Misc2']=3 # That's another parameter"""
     scripter.setOptions(libFlavor='pydatview', dfsFlavor='dict', oneTabPerFile=False)
 #     scripter.setOptions(libFlavor='welib', dfsFlavor='list', oneTabPerFile=True)
 #     scripter.setOptions(libFlavor='welib', dfsFlavor='enumeration', oneTabPerFile=True)
-#     scripter.setOptions(libFlavor='welib', dfsFlavor='enumeration', oneTabPerFile=False)
+    scripter.setOptions(libFlavor='welib', dfsFlavor='enumeration', oneTabPerFile=False)
     script = scripter.generate()
     print(script)
     scripter.run()

@@ -67,17 +67,14 @@ class TestTable(unittest.TestCase):
 
     def test_resample(self):
         tab1=Table(data=pd.DataFrame(data={'BlSpn': [0,1,2],'Chord': [1,2,1]}))
-        tablist = TableList([tab1])
-        #print(tablist)
-        #print(tab1.data)
         
         # Test Insertion of new values into table
         icol=1
         opt = {'name': 'Insert', 'param': np.array([0.5, 1.5])}
-        dfs, names, errors = tablist.applyResampling(icol, opt, bAdd=True)
-        np.testing.assert_almost_equal(dfs[0]['Index'], [0,1,2,3,4])
-        np.testing.assert_almost_equal(dfs[0]['BlSpn'], [0,0.5,1.0,1.5,2.0])
-        np.testing.assert_almost_equal(dfs[0]['Chord'], [1,1.5,2.0,1.5,1.0])
+        df, name_new = tab1.applyResampling(icol, opt, bAdd=True)
+        np.testing.assert_almost_equal(df['Index'], [0,1,2,3,4])
+        np.testing.assert_almost_equal(df['BlSpn'], [0,0.5,1.0,1.5,2.0])
+        np.testing.assert_almost_equal(df['Chord'], [1,1.5,2.0,1.5,1.0])
 
 
     def test_load_files_misc_formats(self):

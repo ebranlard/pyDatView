@@ -19,7 +19,7 @@ AVG_METHODS  = ['constantwindow','periods']
 _DEFAULT_DICT={
     'active':False, 
     'avgMethod':'constantwindow', 
-    'avgParam': '2'
+    'avgParam': 2
 }
 
 # --------------------------------------------------------------------------------}
@@ -57,7 +57,10 @@ def radialAvgAction(label, mainframe, data=None):
             guiEditorClass = RadialToolPanel,
             guiCallback = guiCallback,
             data = data,
-            mainframe=mainframe
+            mainframe=mainframe,
+            imports  = _imports,
+            data_var = _data_var,
+            code     = _code
             )
     return action
 
@@ -65,6 +68,17 @@ def radialAvgAction(label, mainframe, data=None):
 # --------------------------------------------------------------------------------}
 # --- Main methods
 # --------------------------------------------------------------------------------{
+_imports = ["from pydatview.plugins.data_radialavg import radialAvg"]
+_imports += ["from pydatview.Tables import Table"]
+_data_var='dataRadialAvg'
+_code = """# NOTE: this code relies on pydatview for now. It will be adapted for welib/pyFAST later.
+#     For the most part, the underlying functions are:
+# dfRad,_,dfDiam =  fastfarm.spanwisePostProFF(filename, avgMethod=avgMethod,avgParam=avgParam, D=1, df=df)
+# out            = fastlib.spanwisePostPro(filename, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df=df)
+tab=Table(data=df, filename=filename)
+dfs_new, names_new = radialAvg(tab, dataRadialAvg)
+"""
+
 # add method  
 def radialAvg(tab, data=None):
     """ NOTE: radial average may return several dataframe"""

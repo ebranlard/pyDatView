@@ -2,11 +2,9 @@ import numpy as np
 import os.path
 from dateutil import parser
 import pandas as pd
-try:
-    from .common import no_unit, ellude_common, getDt, exception2string, PyDatViewException
-except:
-    from common import no_unit, ellude_common, getDt, exception2string, PyDatViewException
+from pydatview.common import no_unit, ellude_common, getDt, exception2string, PyDatViewException
 import pydatview.io as weio # File Formats and File Readers
+from pydatview.formulae import evalFormula
 
 # --------------------------------------------------------------------------------}
 # --- TabList 
@@ -352,38 +350,38 @@ class TableList(object): # todo inherit list
         return '\n'.join([t.__repr__() for t in self._tabs])
 
     # --- Mask related
-    @property
-    def maskStrings(self):
-        return [t.maskString for t in self._tabs]
-
-    @property
-    def commonMaskString(self):
-        maskStrings=set(self.maskStrings)
-        if len(maskStrings) == 1:
-            return next(iter(maskStrings))
-        else:
-            return ''
-
-    def clearCommonMask(self):
-        for t in self._tabs:
-            t.clearMask()
-
-    def applyCommonMaskString(self,maskString,bAdd=True):
-        # Apply mask on tablist
-        dfs_new   = []
-        names_new = []
-        errors=[]
-        for i,t in enumerate(self._tabs):
-            try:
-                df_new, name_new = t.applyMaskString(maskString, bAdd=bAdd)
-                if df_new is not None: 
-                    # we don't append when string is empty
-                    dfs_new.append(df_new)
-                    names_new.append(name_new)
-            except Exception as e:
-                errors.append('Mask failed for table: '+t.nickname+'\n'+exception2string(e))
-
-        return dfs_new, names_new, errors
+#     @property
+#     def maskStrings(self):
+#         return [t.maskString for t in self._tabs]
+# 
+#     @property
+#     def commonMaskString(self):
+#         maskStrings=set(self.maskStrings)
+#         if len(maskStrings) == 1:
+#             return next(iter(maskStrings))
+#         else:
+#             return ''
+# 
+#     def clearCommonMask(self):
+#         for t in self._tabs:
+#             t.clearMask()
+# 
+#     def applyCommonMaskString(self,maskString,bAdd=True):
+#         # Apply mask on tablist
+#         dfs_new   = []
+#         names_new = []
+#         errors=[]
+#         for i,t in enumerate(self._tabs):
+#             try:
+#                 df_new, name_new = t.applyMaskString(maskString, bAdd=bAdd)
+#                 if df_new is not None: 
+#                     # we don't append when string is empty
+#                     dfs_new.append(df_new)
+#                     names_new.append(name_new)
+#             except Exception as e:
+#                 errors.append('Mask failed for table: '+t.nickname+'\n'+exception2string(e))
+# 
+#         return dfs_new, names_new, errors
 
 
     # --- Formulas
@@ -404,62 +402,62 @@ class TableList(object): # todo inherit list
                     tab.addColumnByFormula(f['name'], f['formula'], f['pos']-1)
 
 
-    # --- Resampling TODO MOVE THIS OUT OF HERE OR UNIFY
-    def applyResampling(self,iCol,sampDict,bAdd=True):
-        """ Apply resampling on table list 
-        TODO Make this part of the action
-        """
-        dfs_new   = []
-        names_new = []
-        errors=[]
-        for i,t in enumerate(self._tabs):
-            try:
-                df_new, name_new = t.applyResampling(iCol, sampDict, bAdd=bAdd)
-                if df_new is not None: 
-                    # we don't append when string is empty
-                    dfs_new.append(df_new)
-                    names_new.append(name_new)
-            except Exception as e:
-                errors.append('Resampling failed for table: '+t.nickname+'\n'+exception2string(e))
-        return dfs_new, names_new, errors
-
-    # --- Filtering  TODO MOVE THIS OUT OF HERE OR UNIFY
-    def applyFiltering(self,iCol,options,bAdd=True):
-        """ Apply filtering on table list 
-        TODO Make this part of the action
-        """
-        dfs_new   = []
-        names_new = []
-        errors=[]
-        for i,t in enumerate(self._tabs):
-            try:
-                df_new, name_new = t.applyFiltering(iCol, options, bAdd=bAdd)
-                if df_new is not None: 
-                    # we don't append when string is empty
-                    dfs_new.append(df_new)
-                    names_new.append(name_new)
-            except Exception as e:
-                errors.append('Filtering failed for table: '+t.nickname+'\n'+exception2string(e))
-        return dfs_new, names_new, errors
-
-    # --- Radial average related
-    def radialAvg(self,avgMethod,avgParam):
-        """ Apply radial average on table list 
-        TODO Make this part of the action
-        """
-        dfs_new   = []
-        names_new = []
-        errors=[]
-        for i,t in enumerate(self._tabs):
-            try:
-                dfs, names = t.radialAvg(avgMethod,avgParam)
-                for df,n in zip(dfs,names):
-                    if df is not None:
-                        dfs_new.append(df)
-                        names_new.append(n)
-            except Exception as e:
-                errors.append('Radial averaging failed for table: '+t.nickname+'\n'+exception2string(e))
-        return dfs_new, names_new, errors
+#     # --- Resampling TODO MOVE THIS OUT OF HERE OR UNIFY
+#     def applyResampling(self,iCol,sampDict,bAdd=True):
+#         """ Apply resampling on table list 
+#         TODO Make this part of the action
+#         """
+#         dfs_new   = []
+#         names_new = []
+#         errors=[]
+#         for i,t in enumerate(self._tabs):
+#             try:
+#                 df_new, name_new = t.applyResampling(iCol, sampDict, bAdd=bAdd)
+#                 if df_new is not None: 
+#                     # we don't append when string is empty
+#                     dfs_new.append(df_new)
+#                     names_new.append(name_new)
+#             except Exception as e:
+#                 errors.append('Resampling failed for table: '+t.nickname+'\n'+exception2string(e))
+#         return dfs_new, names_new, errors
+# 
+#     # --- Filtering  TODO MOVE THIS OUT OF HERE OR UNIFY
+#     def applyFiltering(self,iCol,options,bAdd=True):
+#         """ Apply filtering on table list 
+#         TODO Make this part of the action
+#         """
+#         dfs_new   = []
+#         names_new = []
+#         errors=[]
+#         for i,t in enumerate(self._tabs):
+#             try:
+#                 df_new, name_new = t.applyFiltering(iCol, options, bAdd=bAdd)
+#                 if df_new is not None: 
+#                     # we don't append when string is empty
+#                     dfs_new.append(df_new)
+#                     names_new.append(name_new)
+#             except Exception as e:
+#                 errors.append('Filtering failed for table: '+t.nickname+'\n'+exception2string(e))
+#         return dfs_new, names_new, errors
+# 
+#     # --- Radial average related
+#     def radialAvg(self,avgMethod,avgParam):
+#         """ Apply radial average on table list 
+#         TODO Make this part of the action
+#         """
+#         dfs_new   = []
+#         names_new = []
+#         errors=[]
+#         for i,t in enumerate(self._tabs):
+#             try:
+#                 dfs, names = t.radialAvg(avgMethod,avgParam)
+#                 for df,n in zip(dfs,names):
+#                     if df is not None:
+#                         dfs_new.append(df)
+#                         names_new.append(n)
+#             except Exception as e:
+#                 errors.append('Radial averaging failed for table: '+t.nickname+'\n'+exception2string(e))
+#         return dfs_new, names_new, errors
 
 
     @staticmethod
@@ -587,16 +585,6 @@ class Table(object):
     def applyMaskString(self, sMask, bAdd=True):
         # Apply mask on Table
         df = self.data
-        # TODO Loop on {VAR} instead..
-        for i, c_in_df in enumerate(self.data.columns):
-            c_no_unit = no_unit(c_in_df).strip()
-            # TODO sort out the mess with asarray (introduced to have and/or
-            # as array won't work with date comparison
-            # NOTE: using iloc to avoid duplicates column issue
-            if isinstance(df.iloc[0,i], pd._libs.tslibs.timestamps.Timestamp):
-                sMask=sMask.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
-            else:
-                sMask=sMask.replace('{'+c_no_unit+'}','np.asarray(df[\''+c_in_df+'\'])')
         df_new   = None
         name_new = None
         if len(sMask.strip())>0 and sMask.strip().lower()!='no mask':
@@ -826,33 +814,20 @@ class Table(object):
                 x=x.astype('datetime64')
         return x,isString,isDate,c
 
-
-    def evalFormula(self,sFormula):
-        df = self.data
-        for i,c in enumerate(self.columns):
-            c_no_unit = no_unit(c).strip()
-            c_in_df   = df.columns[i]
-            sFormula=sFormula.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
-        try:
-            NewCol=eval(sFormula)
-            return NewCol
-        except:
-            return None
-
-    def addColumnByFormula(self,sNewName,sFormula,i=-1):
-        NewCol=self.evalFormula(sFormula)
+    def addColumnByFormula(self, sNewName, sFormulaRaw, i=-1):
+        NewCol=evalFormula(self.data, sFormulaRaw)
         if NewCol is None:
             return False
         else:
-            self.addColumn(sNewName,NewCol,i,sFormula)
+            self.addColumn(sNewName,NewCol,i,sFormulaRaw)
             return True
     
-    def setColumnByFormula(self,sNewName,sFormula,i=-1):
-        NewCol=self.evalFormula(sFormula)
+    def setColumnByFormula(self, sNewName, sFormulaRaw, i=-1):
+        NewCol=evalFormula(self.data, sFormulaRaw)
         if NewCol is None:
             return False
         else:
-            self.setColumn(sNewName,NewCol,i,sFormula)
+            self.setColumn(sNewName,NewCol,i,sFormulaRaw)
             return True
 
 
@@ -954,8 +929,14 @@ class Table(object):
         return Table(data=df, name='Dummy '+label)
 
 
+
+
 if __name__ == '__main__':
     import pandas as pd;
     from Tables import Table
     import numpy as np
+
+
+
+
 

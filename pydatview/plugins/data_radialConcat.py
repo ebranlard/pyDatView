@@ -31,10 +31,22 @@ def radialConcatAction(label, mainframe=None):
             #tableFunctionCancel= renameAeroFld,
             guiCallback=guiCallback,
             mainframe=mainframe, # shouldnt be needed
-            data = data 
+            data = data ,
+            imports  = _imports,
+            data_var = _data_var,
+            code     = _code
             )
 
     return action
+
+# --------------------------------------------------------------------------------}
+# --- Main methods
+# --------------------------------------------------------------------------------{
+_imports = ["from pydatview.fast.postpro import spanwiseConcat"]
+_data_var=None,
+_code = """dfs_new = [spanwiseConcat(df)]
+names_new = ['concat']
+"""
 
 def radialConcat(tab, data=None):
     from pydatview.fast.postpro import spanwiseConcat 

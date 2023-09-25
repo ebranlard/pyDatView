@@ -96,11 +96,13 @@ class TestPipeline(unittest.TestCase):
         # Add a Data action to the pipeline and verify that the script generation works
         # And that the script is actually runable! 
         from pydatview.plugins.data_standardizeUnits import standardizeUnitsAction 
+        from pydatview.plugins.data_mask import maskAction
         tablist = TableList()
         tablist.load_tables_from_files(filenames=[os.path.join(scriptDir,'../example_files/CSVComma.csv')])
 
         pipeline = Pipeline()
         pipeline.append(standardizeUnitsAction(), apply=False) 
+        pipeline.append(maskAction(data={'formattedMaskString':"df['ColA']>3"}), apply=False) 
         pipeline.apply(tablist) # Apply will change unit
         ID= [[0,1,2]]
         s = pipeline.script(tablist, ID=ID, scripterOptions=None)

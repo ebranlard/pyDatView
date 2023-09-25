@@ -1147,9 +1147,12 @@ def spanwiseConcat(df):
             IdxAvailableForThisChannel = ColsInfoAD[ic]['Idx']
             chanName                   = ColsInfoAD[ic]['name']
             colName                    = ColsInfoAD[ic]['cols'][ir]
-            #print('Channel {}: colName {}'.format(chanName, colName))
-            if ir+1 in IdxAvailableForThisChannel:
-                data[ir*nt:(ir+1)*nt, ic+2] = df[colName].values
+            print('Channel {}: colName {}'.format(chanName, colName))
+            try:
+                if ir+1 in IdxAvailableForThisChannel:
+                    data[ir*nt:(ir+1)*nt, ic+2] = df[colName].values
+            except:
+                pass
             #else:
             #    raise Exception('Channel {}: Index missing {}'.format(chanName, ic+1))
     columns = ['Time_[s]'] + ['i_[-]'] + [ColsInfoAD[i]['name'] for i in range(nChan)]
