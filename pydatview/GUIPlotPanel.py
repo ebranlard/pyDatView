@@ -44,7 +44,7 @@ from pydatview.plotdata import PlotData, compareMultiplePD
 from pydatview.plotdata import PDL_xlabel
 from pydatview.GUICommon import * 
 from pydatview.GUIToolBox import MyMultiCursor, MyNavigationToolbar2Wx, TBAddTool, TBAddCheckTool
-from pydatview.GUIMeasure import GUIMeasure
+from pydatview.GUIMeasure import GUIMeasure, find_closest_i
 import pydatview.icons as icons
 
 font = {'size'   : 8}
@@ -462,6 +462,7 @@ class PlotPanel(wx.Panel):
         #self.SetBackgroundColour('red')
         self.leftMeasure = GUIMeasure(1, 'firebrick')
         self.rightMeasure = GUIMeasure(2, 'darkgreen')
+        self.markers = [] # List of GUIMeasures
         self.xlim_prev = [[0, 1]]
         self.ylim_prev = [[0, 1]]
         self.addTablesCallback = None
@@ -523,6 +524,7 @@ class PlotPanel(wx.Panel):
         self.cbGrid       = wx.CheckBox(self.ctrlPanel, -1, 'Grid',(10,10))
         self.cbStepPlot   = wx.CheckBox(self.ctrlPanel, -1, 'StepPlot',(10,10))
         self.cbMeasure    = wx.CheckBox(self.ctrlPanel, -1, 'Measure',(10,10))
+        self.cbMarkPt     = wx.CheckBox(self.ctrlPanel, -1, 'Mark Points',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.cbXHair.SetValue(self.data['CrossHair']) # Have cross hair by default
@@ -535,11 +537,12 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.log_select       , self.cbLogY   )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbSync )
         self.Bind(wx.EVT_CHECKBOX, self.crosshair_event  , self.cbXHair )
-        self.Bind(wx.EVT_CHECKBOX, self.plot_matrix_select, self.cbPlotMatrix )
+        self.Bind(wx.EVT_CHECKBOX, self.plot_matrix_event, self.cbPlotMatrix )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbAutoScale )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbGrid )
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbStepPlot )
-        self.Bind(wx.EVT_CHECKBOX, self.measure_select   , self.cbMeasure )
+        self.Bind(wx.EVT_CHECKBOX, self.measure_event    , self.cbMeasure )
+        self.Bind(wx.EVT_CHECKBOX, self.markpt_event     , self.cbMarkPt )
         # LAYOUT
         cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=0, vgap=0)
         cb_sizer.Add(self.cbCurveType , 0, flag=wx.ALL, border=1)
@@ -553,6 +556,7 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbSync      , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbPlotMatrix, 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbMeasure   , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbMarkPt    , 0, flag=wx.ALL, border=1)
 
         self.ctrlPanel.SetSizer(cb_sizer)
 
@@ -718,12 +722,12 @@ class PlotPanel(wx.Panel):
             return None # At Init we don't have a figure
 
 
-    def plot_matrix_select(self, event):
+    def plot_matrix_event(self, event):
         if self.infoPanel is not None:
             self.infoPanel.togglePlotMatrix(self.cbPlotMatrix.GetValue())
         self.redraw_same_data()
 
-    def measure_select(self, event):
+    def measure_event(self, event):
         if self.cbMeasure.IsChecked():
             # We do nothing, onMouseRelease will trigger the plot and setting
             pass
@@ -753,12 +757,11 @@ class PlotPanel(wx.Panel):
     def plotMeasures(self, which=None):
         if which is None:
             which=[1,2]
-        axes=self.fig.axes
         ## plot them
         if 1 in which:
-            self.leftMeasure.plot (axes, self.plotData)
+            self.leftMeasure.plot (self.fig.axes, self.plotData)
         if 2 in which:
-            self.rightMeasure.plot(axes, self.plotData)
+            self.rightMeasure.plot(self.fig.axes, self.plotData)
         ## Update dx,dy label
         self.lbDeltaX.SetLabel(self.rightMeasure.sDeltaX(self.leftMeasure))
         self.lbDeltaY.SetLabel(self.rightMeasure.sDeltaY(self.leftMeasure))
@@ -780,6 +783,24 @@ class PlotPanel(wx.Panel):
         self.lbDeltaX.SetLabel('')
         self.lbDeltaY.SetLabel('')
 
+    def markpt_event(self, event):
+        if self.cbMarkPt.IsChecked():
+            self.markers = [] 
+            # We do nothing, onMouseRelease will trigger the plot and setting
+        else:
+            self.cleanMarkers()
+            # We redraw
+            self.redraw_same_data()
+
+    def plotMarkers(self):
+        for marker in self.markers:
+            marker.plot (self.fig.axes, self.plotData)
+
+    def cleanMarkers(self):
+        # We clear
+        for marker in self.markers:
+            marker.clear()
+        self.markers=[]
 
     def redraw_event(self, event):
         self.redraw_same_data()
@@ -839,6 +860,7 @@ class PlotPanel(wx.Panel):
 
     def onMouseRelease(self, event):
         if self.cbMeasure.GetValue():
+            # --- Measures
             # Loop on axes
             for iax, ax in enumerate(self.fig.axes):
                 if event.inaxes == ax:
@@ -856,7 +878,32 @@ class PlotPanel(wx.Panel):
                         return
                     self.setAndPlotMeasures(ax, x, y, which)
                     return # We return as soon as one ax match the click location
-
+        elif self.cbMarkPt.GetValue():
+            # --- Markers
+            for iax, ax in enumerate(self.fig.axes):
+                if event.inaxes == ax:
+                    x, y = event.xdata, event.ydata
+                    if self.clickLocation != (ax, x, y):
+                        return
+                    if event.button == 1:
+                        # We add a marker
+                        # from pydatview.tools.colors import fColrs, python_colors
+                        n = len(self.markers)
+                        #marker = GUIMeasure(1, python_colors(n+1))
+                        marker = GUIMeasure(1, 'firebrick')
+                        #GUIMeasure(2, 'darkgreen')
+                        self.markers.append(marker)
+                        marker.setAndPlot(self.fig.axes, ax, x, y, self.plotData)
+                    elif event.button == 3:
+                        # find the closest marker
+                        XY = np.array([m.P_target_raw for m in self.markers])
+                        i = find_closest_i(XY, (x,y))
+                        # We clear it fomr the plot
+                        self.markers[i].clear()
+                        # We delete it
+                        del self.markers[i]
+                    else:
+                        return
 
     def onDraw(self, event):
         self._store_limits()

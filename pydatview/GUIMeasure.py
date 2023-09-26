@@ -83,7 +83,8 @@ class GUIMeasure:
             else:
                 # Already computed
                 xc, yc = self.P_target_raw 
-            pd.xyMeas[self.index-1] = (xc, yc)
+            if self.index>0:
+                pd.xyMeas[self.index-1] = (xc, yc)
 
     def plotAnnotation(self, ax, xc, yc):
         #self.clearAnnotation()

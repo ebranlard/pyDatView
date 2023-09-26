@@ -282,6 +282,8 @@ class MainFrame(wx.Frame):
         #print('Clean memory')
         # force Memory cleanup
         self.tabList.clean()
+        if hasattr(self,'plotPanel'):
+            self.plotPanel.markers = []
         if not bReload:
             if hasattr(self,'selPanel'):
                 self.selPanel.clean_memory()
