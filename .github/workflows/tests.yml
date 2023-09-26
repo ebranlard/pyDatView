@@ -85,6 +85,7 @@ jobs:
           #pip install -U wxpython  || true
           #pip install -U -f https://extras.wxpython.org/wxPython4/extras/linux/gtk3/ubuntu-22.04 wxPython || true
           pip install -r _tools/travis_requirements.txt
+          pip install -e .
 
       - name: System info
         run: |
