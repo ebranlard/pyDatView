@@ -48,6 +48,7 @@ def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_win
     output_type      = output_type.lower()
     averaging        = averaging.lower()
     averaging_window = averaging_window.lower()
+    t = np.asarray(t)
     y = np.asarray(y)
     n0 = len(y) 
     nt = len(t) 

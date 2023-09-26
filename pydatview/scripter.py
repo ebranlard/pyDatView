@@ -88,6 +88,71 @@ class PythonScripter:
                 self.addImport(imp)
         self.preplot_actions[action_name] = (code_init, code.strip())
 
+    def setPlotType(self, plotType, plotTypeOptions=None):
+        """ Setup a prePlot action depending on plot Type"""
+        if len(self.preplot_actions)>0:
+            raise Exception('PlotType should be the first preplot_action!')
+        opts = plotTypeOptions
+        action_code = None
+        imports     = None
+        code_init   = ''
+        if plotType is not None and plotType!='Regular':
+            if plotType=='PDF':
+                imports=['from pydatview.tools.stats import pdf_gaussian_kde, pdf_histogram']
+                if opts is None:
+                    action_code="""x, y = pdf_gaussian_kde(y, nOut=30)"""
+                else:
+                    if opts['smooth']:
+                        action_code="x, y = pdf_gaussian_kde(y, nOut={})".format(opts['nBins'])
+                    else:
+                        action_code="x, y = pdf_histogram(y, nBins={}, norm=True, count=False)".format(opts['nBins'])
+
+            elif plotType=='FFT':
+                imports=['from pydatview.tools.spectral import fft_wrap']
+                if opts is None:
+                    opts={'yType':'PSD', 'avgMethod':'Welch', 'avgWindow':'Hamming', 'nExp':8, 'nPerDecade':8, 'bDetrend':False}
+                action_code = "x, y, Info = fft_wrap(x, y, output_type='{}', averaging='{}', averaging_window='{}', detrend={}, nExp={}, nPerDecade={})".format(
+                        opts['yType'], opts['avgMethod'], opts['avgWindow'], opts['bDetrend'], opts['nExp'], opts['nPerDecade'])
+
+                # TODO xType..
+                # if xType=='1/x':
+                #     if unit(PD.sx)=='s':
+                #         PD.sx= 'Frequency [Hz]'
+                #     else:
+                #         PD.sx= ''
+                # elif xType=='x':
+                #     PD.x=1/PD.x
+                #     if unit(PD.sx)=='s':
+                #         PD.sx= 'Period [s]'
+                #     else:
+                #         PD.sx= ''
+                # elif xType=='2pi/x':
+                #     PD.x=2*np.pi*PD.x
+                #     if unit(PD.sx)=='s':
+                #         PD.sx= 'Cyclic frequency [rad/s]'
+                #     else:
+                #         PD.sx= ''
+
+            elif plotType=='MinMax':
+                if opts is None:
+                    action_code ="x = (x-np.min(x))/(np.max(x)-np.min(x))\n"
+                    action_code+="y = (y-np.min(y))/(np.max(y)-np.min(y))"
+                else: 
+                    action_code = []
+                    if opts['xScale']:
+                        action_code+=["x = (x-np.min(x))/(np.max(x)-np.min(x))"]
+                    if opts['yScale']:
+                        action_code+=["y = (y-np.min(y))/(np.max(y)-np.min(y))"]
+                    action_code = '\n'.join(action_code)
+
+            elif plotType=='Compare':
+                print('[WARN] Scripter - compare not implemented')
+
+        if action_code is not None:
+            self.addPreplotAction('plotType:'+plotType, action_code, imports, code_init)
+
+
+
     def addFormula(self, df_index, name, formula):
         self.df_formulae.append((df_index, name, formula))
 
@@ -117,7 +182,7 @@ class PythonScripter:
 
         def forLoopOnDFs():
             if self.opts['dfsFlavor'] == 'dict':
-                script.append("for k, df in dfs.items():")
+                script.append("for key, df in dfs.items():")
             elif self.opts['dfsFlavor'] == 'list':
                 script.append("for df in dfs:")
 
@@ -149,9 +214,13 @@ class PythonScripter:
 
         # --- List of files
         script.append("\n# --- Script parameters")
-        script.append("filenames = []")
-        for filename in self.filenames:
-            script.append(f"filenames += ['{filename}']")
+        nFiles = len(self.filenames)
+        if nFiles==1 and  self.opts['oneTabPerFile']:
+            script.append("filename = '{}'".format(self.filenames[0]))
+        else:
+            script.append("filenames = []")
+            for filename in self.filenames:
+                script.append(f"filenames += ['{filename}']")
 
         # --- Init data/preplot/adder actions
         if len(self.actions)>0:
@@ -163,12 +232,15 @@ class PythonScripter:
                     script.append(actioncode[0].strip())
 
         if len(self.preplot_actions)>0:
-            script.append("\n# --- Data for preplot actions")
+            script_pre = []
             for actionname, actioncode in self.preplot_actions.items():
                 if actioncode[0] is not None and len(actioncode[0].strip())>0:
                     if verboseCommentLevel>=2:
-                        script.append("# Data for preplot action {}".format(actionname))
-                    script.append(actioncode[0].strip())
+                        script_pre.append("# Data for preplot action {}".format(actionname))
+                    script_pre.append(actioncode[0].strip())
+            if len(script_pre)>0:
+                script.append("\n# --- Data for preplot actions")
+                script+=script_pre
 
         if len(self.adder_actions)>0:
             script.append("\n# --- Data for actions that add new dataframes")
@@ -182,47 +254,58 @@ class PythonScripter:
         # --- List of Dataframes
         script.append("\n# --- Open and convert files to DataFrames")
         if self.opts['dfsFlavor'] == 'dict':
-            script.append("dfs = {}")
-            script.append("for iFile, filename in enumerate(filenames):")
-            if self.opts['oneTabPerFile']:
-                script.append(indent1 + "dfs[iFile] = weio.read(filename).toDataFrame()")
+            if nFiles==1 and  self.opts['oneTabPerFile']:
+                script.append("dfs = {}")
+                script.append("dfs[0] = weio.read(filename).toDataFrame()")
             else:
-                script.append(indent1 + "dfs_or_df = weio.read(filename).toDataFrame()")
-                script.append(indent1 + "# NOTE: we need a different action if the file contains multiple dataframes")
-                script.append(indent1 + "if isinstance(dfs_or_df, dict):")
-                script.append(indent2 + "for k,df in dfs_or_df.items():")
-                script.append(indent3 + "dfs[k+f'{iFile}'] = df")
-                script.append(indent1 + "else:")
-                script.append(indent2 + "dfs[f'tab{iFile}'] = dfs_or_df")
+                script.append("dfs = {}")
+                script.append("for iFile, filename in enumerate(filenames):")
+                if self.opts['oneTabPerFile']:
+                    script.append(indent1 + "dfs[iFile] = weio.read(filename).toDataFrame()")
+                else:
+                    script.append(indent1 + "dfs_or_df = weio.read(filename).toDataFrame()")
+                    script.append(indent1 + "# NOTE: we need a different action if the file contains multiple dataframes")
+                    script.append(indent1 + "if isinstance(dfs_or_df, dict):")
+                    script.append(indent2 + "for k,df in dfs_or_df.items():")
+                    script.append(indent3 + "dfs[k+f'{iFile}'] = df")
+                    script.append(indent1 + "else:")
+                    script.append(indent2 + "dfs[f'tab{iFile}'] = dfs_or_df")
         elif self.opts['dfsFlavor'] == 'list':
             script.append("dfs = []")
-            script.append("for iFile, filename in enumerate(filenames):")
-            if self.opts['oneTabPerFile']:
-                script.append(indent1 + "df = weio.read(filenames[iFile]).toDataFrame()")
-                script.append(indent1 + "dfs.append(df)")
+            if nFiles==1 and  self.opts['oneTabPerFile']:
+                script.append("dfs.append( weio.read(filename).toDataFrame() )")
             else:
-                script.append(indent1 + "# NOTE: we need a different action if the file contains multiple dataframes")
-                script.append(indent1 + "dfs = weio.read(filenames[iFile]).toDataFrame()")
-                script.append(indent1 + "if isinstance(dfs_or_df, dict):")
-                script.append(indent2 + "dfs+= list(dfs_or_df.values() # NOTE: user will need to adapt this.")
-                script.append(indent1 + "else:")
-                script.append(indent2 + "dfs.append(dfs_or_df)")
+                script.append("for iFile, filename in enumerate(filenames):")
+                if self.opts['oneTabPerFile']:
+                    script.append(indent1 + "df = weio.read(filenames[iFile]).toDataFrame()")
+                    script.append(indent1 + "dfs.append(df)")
+                else:
+                    script.append(indent1 + "# NOTE: we need a different action if the file contains multiple dataframes")
+                    script.append(indent1 + "dfs_or_df = weio.read(filenames[iFile]).toDataFrame()")
+                    script.append(indent1 + "if isinstance(dfs_or_df, dict):")
+                    script.append(indent2 + "dfs+= list(dfs_or_df.values()) # NOTE: user will need to adapt this.")
+                    script.append(indent1 + "else:")
+                    script.append(indent2 + "dfs.append(dfs_or_df)")
 
         elif self.opts['dfsFlavor'] == 'enumeration':
-            for iFile, filename in enumerate(self.filenames):
-                iFile1 = iFile+1
-                if self.opts['oneTabPerFile']:
-                    script.append(f"df{iFile1} = weio.read(filenames[{iFile}]).toDataFrame()")
-                else:
-                    if verboseCommentLevel>=1:
-                        script.append("# NOTE: we need a different action if the file contains multiple dataframes")
-                    script.append(f"dfs_or_df = weio.read('{filename}').toDataFrame()")
-                    script.append("if isinstance(dfs_or_df, dict):")
-                    script.append(indent1 + f"df{iFile1} = dfs_or_df.items()[0][1] # NOTE: user will need to adapt this.")
-                    script.append("else:")
-                    script.append(indent1 + f"df{iFile1} = dfs_or_df")
+            if nFiles==1 and  self.opts['oneTabPerFile']:
+                script.append(f"df1 = weio.read(filename).toDataFrame()")
+            else:
+                for iFile, filename in enumerate(self.filenames):
+                    iFile1 = iFile+1
+                    if self.opts['oneTabPerFile']:
+                        script.append(f"df{iFile1} = weio.read(filenames[{iFile}]).toDataFrame()")
+                    else:
+                        if verboseCommentLevel>=1:
+                            script.append("# NOTE: we need a different action if the file contains multiple dataframes")
+                        script.append(f"dfs_or_df = weio.read('{filename}').toDataFrame()")
+                        script.append("if isinstance(dfs_or_df, dict):")
+                        script.append(indent1 + f"df{iFile1} = dfs_or_df.items()[0][1] # NOTE: user will need to adapt this.")
+                        script.append("else:")
+                        script.append(indent1 + f"df{iFile1} = dfs_or_df")
 
         # --- Adder actions 
+        nTabs = len(self.filenames) # Approximate
         if len(self.adder_actions)>0:
             def addActionCode(actioname, actioncode, ind):
                 script.append(ind+ "# Apply action {}".format(actioname))
@@ -233,7 +316,7 @@ class PythonScripter:
             script.append("\n# --- Apply adder actions to dataframes")
             script.append("dfs_add = [] ; names_add =[]")
             if self.opts['dfsFlavor'] == 'dict':
-                script.append("for k, df in dfs.items():")
+                script.append("for k, (key, df) in enumerate(dfs.items()):")
                 script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
                 for actionname, actioncode in self.adder_actions.items():
                     addActionCode(actionname, actioncode[1], indent1)
@@ -243,17 +326,16 @@ class PythonScripter:
                 script.append(indent2+"dfs[name_new] = df_new")
 
             elif self.opts['dfsFlavor'] == 'list':
-                script.append("for df in dfs):")
+                script.append("for k, df in enumerate(dfs):")
                 script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
                 for actionname, actioncode in self.adder_actions.items():
                     addActionCode(actionname, actioncode[1], indent1)
                     script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
                 script.append("for name_new, df_new in zip(names_add, dfs_new):")
                 script.append(indent1+"if df_new is not None:")
-                script.append(indent2+"dfs+ = [df_new]")
+                script.append(indent2+"dfs += [df_new]")
 
             elif self.opts['dfsFlavor'] == 'enumeration':
-                nTabs = len(self.filenames) # Approximate
                 for iTab in range(nTabs):
                     script.append("filename = filenames[{}] # NOTE: this is approximate..".format(iTab))
                     script.append('df = df{}'.format(iTab+1))
@@ -279,7 +361,7 @@ class PythonScripter:
                         script.append(indent2 + "df['{}'] = {}".format(name, formula))
                         #df.insert(int(i+1), name, formula)
                         script.append(indent1 + "except:")
-                        script.append(indent2 + "print('[WARN] Cannot add column {} to dataframe)".format(name))
+                        script.append(indent2 + "print('[WARN] Cannot add column {} to dataframe')".format(name))
 
             elif self.opts['dfsFlavor'] == 'enumeration':
                 for iTab in range(nTabs):
@@ -303,7 +385,8 @@ class PythonScripter:
         if len(self.actions)>0:
 
             def addActionCode(actioname, actioncode, ind):
-                script.append(ind+ "# Apply action {}".format(actioname))
+                if verboseCommentLevel>2: 
+                    script.append(ind+ "# Apply action {}".format(actioname))
                 lines = actioncode.split("\n")
                 indented_lines = [ind + line for line in lines]
                 script.append("\n".join(indented_lines))
@@ -316,7 +399,7 @@ class PythonScripter:
                 script.append(indent1 + "dfs[k] = df")
 
             elif self.opts['dfsFlavor'] == 'list':
-                script.append("for df in dfs):")
+                script.append("for k, df in enumerate(dfs):")
                 for actionname, actioncode in self.actions.items():
                     addActionCode(actionname, actioncode[1], indent1)
                 script.append(indent1 + "dfs[k] = df")
@@ -396,14 +479,14 @@ class PythonScripter:
                     sDF = sDF_new
                     script.append("df = "+sDF)
                 if len(self.preplot_actions)>0:
-                    script.append("x = df['{}']".format(column_x))
-                    script.append("y = df['{}']".format(column_y))
+                    script.append("x = df['{}'].values".format(column_x))
+                    script.append("y = df['{}'].values".format(column_y))
                 else:
                     sPlotXY ="df['{}'], df['{}'], ".format(column_x, column_y)
             elif self.opts['dfsFlavor'] == 'enumeration':
                 if len(self.preplot_actions)>0:
-                    script.append("x = df{}['{}']".format(df_index+1, column_x))
-                    script.append("y = df{}['{}']".format(df_index+1, column_y))
+                    script.append("x = df{}['{}'].values".format(df_index+1, column_x))
+                    script.append("y = df{}['{}'].values".format(df_index+1, column_y))
                 else:
                     sPlotXY ="df{}['{}'], df{}['{}'], ".format(df_index+1, column_x, df_index+1, column_y)
 

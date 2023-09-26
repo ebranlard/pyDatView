@@ -73,6 +73,11 @@ class PDFCtrlPanel(wx.Panel):
     def onPDFOptionChange(self,event=None):
         self.parent.load_and_draw(); # DATA HAS CHANGED
 
+    def _GUI2Data(self):
+        data = {'nBins':  self.scBins.GetValue(),
+                'smooth': self.cbSmooth.GetValue()}
+        return data
+
 class MinMaxPanel(wx.Panel):
     def __init__(self, parent):
         super(MinMaxPanel,self).__init__(parent)
@@ -91,6 +96,11 @@ class MinMaxPanel(wx.Panel):
     def onMinMaxChange(self,event=None):
         self.parent.load_and_draw(); # DATA HAS CHANGED
 
+    def _GUI2Data(self):
+        data={'yScale':self.cbyMinMax.IsChecked(),
+              'xScale':self.cbxMinMax.IsChecked()}
+        return data
+
 class CompCtrlPanel(wx.Panel):
     def __init__(self, parent):
         super(CompCtrlPanel,self).__init__(parent)
@@ -107,6 +117,10 @@ class CompCtrlPanel(wx.Panel):
     def onTypeChange(self,e): 
         self.parent.load_and_draw(); # DATA HAS CHANGED
 
+    def _GUI2Data(self):
+        data = {'nBins':  self.scBins.GetValue(),
+                'bSmooth':self.cbSmooth.GetValue()}
+        return data
 
 class SpectralCtrlPanel(wx.Panel):
     def __init__(self, parent):
@@ -197,6 +211,17 @@ class SpectralCtrlPanel(wx.Panel):
     def updateP2(self,P2):
         self.lbWinLength.SetLabel("({})".format(2**P2))
 
+
+    def _GUI2Data(self):
+        data = {}
+        data['xType']      = self.cbTypeX.GetStringSelection()
+        data['yType']      = self.cbType.GetStringSelection()
+        data['avgMethod']  = self.cbAveraging.GetStringSelection()
+        data['avgWindow']  = self.cbAveragingMethod.GetStringSelection()
+        data['bDetrend']   = self.cbDetrend.IsChecked()
+        data['nExp']       = self.scP2.GetValue()
+        data['nPerDecade'] = self.scP2.GetValue()
+        return data
 
 
 
@@ -845,36 +870,28 @@ class PlotPanel(wx.Panel):
     def setPD_PDF(self,PD,c):
         """ Convert plot data to PDF data based on GUI options"""
         # ---PDF
-        nBins   = self.pdfPanel.scBins.GetValue()
-        bSmooth = self.pdfPanel.cbSmooth.GetValue()
-        nBins_out= PD.toPDF(nBins,bSmooth)
-        if nBins_out!=nBins:
-            self.pdfPanel.scBins.SetValue(nBins)
+        data = self.pdfPanel._GUI2Data()
+        nBins_out= PD.toPDF(**data)
+        if nBins_out != data['nBins']:
+            self.pdfPanel.scBins.SetValue(data['nBins'])
 
     def setPD_MinMax(self,PD):
         """ Convert plot data to MinMax data based on GUI options"""
-        yScale=self.mmxPanel.cbyMinMax.IsChecked()
-        xScale=self.mmxPanel.cbxMinMax.IsChecked()
+        data = self.mmxPanel._GUI2Data()
         try:
-            PD.toMinMax(xScale,yScale)
+            PD.toMinMax(**data)
         except Exception as e:
             self.mmxPanel.cbxMinMax.SetValue(False)
             raise e # Used to be Warn
 
     def setPD_FFT(self,pd):
         """ Convert plot data to FFT data based on GUI options"""
-        yType      = self.spcPanel.cbType.GetStringSelection()
-        xType      = self.spcPanel.cbTypeX.GetStringSelection()
-        avgMethod  = self.spcPanel.cbAveraging.GetStringSelection()
-        avgWindow  = self.spcPanel.cbAveragingMethod.GetStringSelection()
-        bDetrend   = self.spcPanel.cbDetrend.IsChecked()
-        nExp       = self.spcPanel.scP2.GetValue()
-        nPerDecade = self.spcPanel.scP2.GetValue()
+        data = self.spcPanel._GUI2Data()
         # Convert plotdata to FFT data
         try:
-            Info = pd.toFFT(yType=yType, xType=xType, avgMethod=avgMethod, avgWindow=avgWindow, bDetrend=bDetrend, nExp=nExp, nPerDecade=nPerDecade) 
+            Info = pd.toFFT(**data) 
             # Trigger
-            if hasattr(Info,'nExp') and Info.nExp!=nExp:
+            if hasattr(Info,'nExp') and Info.nExp!=data['nExp']:
                 self.spcPanel.scP2.SetValue(Info.nExp)
                 self.spcPanel.updateP2(Info.nExp)
         except Exception as e:

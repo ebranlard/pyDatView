@@ -96,17 +96,37 @@ class GUIScripterFrame(wx.Frame):
                 hasLegend.append(ax.get_legend() is not None)
             subPlots={'i':gs.nrows, 'j':gs.ncols, 'x_labels':x_labels, 'y_labels':y_labels, 'IPD':IPD, 'hasLegend':hasLegend}
         except:
-            print('[WARN] GUIScripter - No Subplot Data')
+            print('[WARN] GUIScripter - Failed to retrieve Subplot Data')
             subPlots = None
         try:
             plotStyle, plot_options, font_options, font_options_legd = self.mainframe.plotPanel.getPlotOptions()
             plotStyle.update(plot_options)
         except:
             plotStyle=None
-            print('[WARN] GUIScripter - No Plot Options')
+            print('[WARN] GUIScripter - Failed to retrieve Plot Options')
+        try:
+            plotPanel = self.mainframe.plotPanel
+            pltTypePanel = self.mainframe.plotPanel.pltTypePanel
+            plotType = pltTypePanel.plotType()
+            if plotType=='Regular':
+                plotTypeData=None
+            elif plotType=='PDF':
+                plotTypeData = plotPanel.pdfPanel._GUI2Data()
+            elif plotType=='FFT':
+                plotTypeData = plotPanel.spcPanel._GUI2Data()
+                pass
+            elif plotType=='MinMax':
+                plotTypeData = plotPanel.mmxPanel._GUI2Data()
+                pass
+            elif plotType=='Compare':
+                plotTypeData = plotPanel.cmpPanel._GUI2Data()
+        except:
+            plotType=None
+            plotTypeData=None
+            print('[WARN] GUIScripter - Failed to retrieve plotType and plotTypeData')
 
         # --- Use Pipeline on tablist to generate the script
-        s = self.pipeline.script(self.mainframe.tabList, scripterOptions, ID, subPlots, plotStyle)
+        s = self.pipeline.script(self.mainframe.tabList, scripterOptions, ID, subPlots, plotStyle, plotType=plotType, plotTypeData=plotTypeData)
         self.text_ctrl.SetValue(s)
 
     def onRun(self, event):

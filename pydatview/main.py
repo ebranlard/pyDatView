@@ -973,7 +973,7 @@ def showApp(firstArg=None, dataframes=None, filenames=[], names=None):
     elif len(filenames)>0:
         frame.load_files(filenames, fileformats=None, bPlot=True)
 
-    #frame.onShowTool(toolName='Radial Average')
+    #frame.onShowTool(toolName='')
     #frame.onDataPlugin(toolName='Radial Average')
     #frame.onDataPlugin(toolName='Resample')
     #frame.onScript()

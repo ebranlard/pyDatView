@@ -301,7 +301,7 @@ class Pipeline(object):
         # 
         self.collectErrors()
 
-    def script(self, tabList, scripterOptions=None, ID=None, subPlots=None, plotStyle=None):
+    def script(self, tabList, scripterOptions=None, ID=None, subPlots=None, plotStyle=None, plotType=None, plotTypeData=None):
         from pydatview.scripter import PythonScripter
         if scripterOptions is None:
             scripterOptions={}
@@ -341,6 +341,10 @@ class Pipeline(object):
                     #print('[INFO] Scripting routine for action {}'.format(action.name))
                     scripter.addAction(action.name, action_code, imports, code_init)
 
+        # --- Fake preplot actions that change the plot type
+        scripter.setPlotType(plotType, plotTypeData)
+
+        # --- Preplot actions
         for action in self.actionsPlotFilters:
             action_code, imports, code_init = action.getScript()
             if action_code is None:
