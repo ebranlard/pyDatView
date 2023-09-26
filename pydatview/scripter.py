@@ -43,6 +43,7 @@ class PythonScripter:
 
         # Imports that we know we'll need
         self.addImport('import numpy as np')
+        #self.addImport("import warnings; warnings.filterwarnings('ignore')")
         self.addImport('import pydatview.io as weio')
         self.addImport('import matplotlib.pyplot as plt')
 
@@ -56,7 +57,7 @@ class PythonScripter:
         self.df_selections = []  # List of tuples (df_index, column_x, column_y)
         self.df_formulae   = []  # List of tuples (df_index, name, formula)
         self.dfs = []
-        self.subPlots = {'i':1, 'j':1, 'x_labels':['x'], 'y_labels':['y'], 'IPD':None, 'hasLegend':[True]}  
+        self.subPlots = {'i':1, 'j':1, 'x_labels':['x'], 'y_labels':['y'], 'IPD':None, 'hasLegend':[False]}  
         self.plotStyle = _defaultPlotStyle
 
     def setOptions(self, **opts):

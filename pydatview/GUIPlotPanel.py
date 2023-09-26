@@ -725,18 +725,58 @@ class PlotPanel(wx.Panel):
 
     def measure_select(self, event):
         if self.cbMeasure.IsChecked():
+            # We do nothing, onMouseRelease will trigger the plot and setting
             pass
-            #self.cbAutoScale.SetValue(False)
         else:
-            # We clear
-            for measure in [self.leftMeasure, self.rightMeasure]:
-                measure.clear()
-            if self.infoPanel is not None:
-                self.infoPanel.clearMeasurements()
-            self.lbDeltaX.SetLabel('')
-            self.lbDeltaY.SetLabel('')
+            self.cleanMeasures()
+            # We redraw
+            self.redraw_same_data()
 
-        self.redraw_same_data()
+    def setAndPlotMeasures(self, ax, x, y, which=None):
+        if which is None:
+            which=[1,2]
+        if 1 in which:
+            # Left click, measure 1 - set values, compute all intersections and plot
+            self.leftMeasure.set(ax, x, y) 
+            if self.infoPanel is not None:
+                self.infoPanel.showMeasure1()
+        if 2 in which:
+            # Right click, measure 2 - set values, compute all intersections and plot
+            self.rightMeasure.set(ax, x, y)
+            if self.infoPanel is not None:
+                self.infoPanel.showMeasure2()
+        self.plotMeasures(which=which)
+
+    def plotMeasures(self, which=None):
+        if which is None:
+            which=[1,2]
+        axes=self.fig.axes
+        ## plot them
+        if 1 in which:
+            self.leftMeasure.plot (axes, self.plotData)
+        if 2 in which:
+            self.rightMeasure.plot(axes, self.plotData)
+        ## Update dx,dy label
+        self.lbDeltaX.SetLabel(self.rightMeasure.sDeltaX(self.leftMeasure))
+        self.lbDeltaY.SetLabel(self.rightMeasure.sDeltaY(self.leftMeasure))
+
+        #if not self.cbAutoScale.IsChecked():
+        #    print('>>> On Mouse Release Restore LIMITS')
+        #    self._restore_limits()
+        #else:
+        #    print('>>> On Mouse Release Not Restore LIMITS')
+        # Update label
+
+    def cleanMeasures(self):
+        # We clear
+        for measure in [self.leftMeasure, self.rightMeasure]:
+            measure.clear()
+        if self.infoPanel is not None:
+            self.infoPanel.clearMeasurements()
+        # Update dx,dy label
+        self.lbDeltaX.SetLabel('')
+        self.lbDeltaY.SetLabel('')
+
 
     def redraw_event(self, event):
         self.redraw_same_data()
@@ -806,23 +846,14 @@ class PlotPanel(wx.Panel):
                         #self.cbAutoScale.SetValue(False)
                         return
                     if event.button == 1:
-                        # Left click, measure 1 - set values, compute all intersections and plot
-                        self.leftMeasure.set(self.fig.axes, ax, x, y, self.plotData) # Set and plot
-                        if self.infoPanel is not None:
-                            self.infoPanel.showMeasure1()
+                        which =[1] # Left click, measure 1
                     elif event.button == 3:
-                        # Left click, measure 2 - set values, compute all intersections and plot
-                        self.rightMeasure.set(self.fig.axes, ax, x, y, self.plotData) # Set and plot
-                        if self.infoPanel is not None:
-                            self.infoPanel.showMeasure2()
+                        which =[2] # Right click, measure 2
                     else:
                         return
-                    if not self.cbAutoScale.IsChecked():
-                        self._restore_limits()
-                    # Update label
-                    self.lbDeltaX.SetLabel(self.rightMeasure.sDeltaX(self.leftMeasure))
-                    self.lbDeltaY.SetLabel(self.rightMeasure.sDeltaY(self.leftMeasure))
-                    return
+                    self.setAndPlotMeasures(ax, x, y, which)
+                    return # We return as soon as one ax match the click location
+
 
     def onDraw(self, event):
         self._store_limits()
@@ -1259,21 +1290,7 @@ class PlotPanel(wx.Panel):
                             ax.legend(fancybox=False, loc=lgdLoc, **font_options_legd)
 
         # --- End loop on axes
-        # --- Measure
-        if self.cbMeasure.IsChecked():
-            # Compute and plot them
-            self.leftMeasure.plot (axes, self.plotData)
-            self.rightMeasure.plot(axes, self.plotData)
-            # Update dx,dy label
-            self.lbDeltaX.SetLabel(self.rightMeasure.sDeltaX(self.leftMeasure))
-            self.lbDeltaY.SetLabel(self.rightMeasure.sDeltaY(self.leftMeasure))
-            ## Update info panel
-            #if self.infoPanel is not None:
-            #    self.infoPanel.setMeasurements(self.leftMeasure.get_xydata(), self.rightMeasure.get_xydata())
-        else:
-            # Update dx,dy label
-            self.lbDeltaX.SetLabel('')
-            self.lbDeltaY.SetLabel('')
+        # --- Measure: Done as an overlay in plotMeasures
 
         # --- xlabel
         #axes[-1].set_xlabel(PD[axes[-1].iPD[0]].sx, **font_options)

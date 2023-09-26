@@ -44,8 +44,20 @@ class GUIMeasure:
         self.points= []
         self.lines= []
 
-    def set(self, axes, ax, x, y, PD):
+    def setAndPlot(self, axes, ax, x, y, PD):
         """ 
+        Set a measure and plot it
+        - x,y : point where the user clicked (will likely be slightly off plotdata)
+        """
+        self.set(ax, x, y)
+
+        # Plot measure where the user clicked (only for the axis that the user chose)
+        # - plot intersection point, vertical line, and annotation
+        self.plot(axes, PD)
+
+    def set(self, ax, x, y):
+        """ 
+        Set a measure
         - x,y : point where the user clicked (will likely be slightly off plotdata)
         """
         self.clearPlot()
@@ -55,10 +67,6 @@ class GUIMeasure:
         self.P_target_raw = P_raw
         self.P_target_num = P_num
         self.pd_closest = pd_closest
-
-        # Plot measure where the user clicked (only for the axis that the user chose)
-        # - plot intersection point, vertical line, and annotation
-        self.plot(axes, PD)
 
     def compute(self, PD):
         for ipd, pd in enumerate(PD):
