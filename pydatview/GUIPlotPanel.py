@@ -611,7 +611,7 @@ class PlotPanel(wx.Panel):
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
-        self.set_subplot_spacing(init=True)
+        self.setSubplotSpacing(init=True)
 
     # --- Bindings/callback
     def setAddTablesCallback(self, callback):
@@ -656,7 +656,7 @@ class PlotPanel(wx.Panel):
         self.plotsizer.Layout()
         event.Skip()
 
-    def set_subplot_spacing(self, init=False):
+    def setSubplotSpacing(self, init=False):
         """ 
         Handle default subplot spacing
 
@@ -669,11 +669,12 @@ class PlotPanel(wx.Panel):
         #self.fig.set_tight_layout(True)  # NOTE: works almost fine, but problem with FFT multiple
         ## TODO this is definitely not generic, but tight fails..
         #return
-        #if hasattr(self.fig, '_subplotsPar'):
-        #    # See GUIToolBox.py configure_toolbar
-        #    self.fig.subplots_adjust(**self.fig._subplotsPar)
-        #    return
-
+        if hasattr(self, 'subplotsPar'):
+            if self.subplotsPar is not None:
+                # See GUIToolBox.py configure_toolbar
+                #print('>>> subplotPar', self.subplotsPar)
+                self.fig.subplots_adjust(**self.subplotsPar)
+                return
 
         if init: 
             # NOTE: at init size is (20,20) because sizer is not initialized yet
@@ -706,8 +707,15 @@ class PlotPanel(wx.Panel):
         else:
             self.fig.subplots_adjust(top=0.97,bottom=bottom,left=left,right=0.98)
 
-    def get_subplot_spacing(self, init=False):
-        pass
+    def getSubplotSpacing(self):
+        try:
+            params = self.fig.subplotpars
+            paramsD= {}
+            for key in ['left', 'bottom', 'right', 'top', 'wspace', 'hspace']:
+                paramsD[key]=getattr(params, key)
+            return paramsD
+        except:
+            return None # At Init we don't have a figure
 
 
     def plot_matrix_select(self, event):
@@ -761,7 +769,7 @@ class PlotPanel(wx.Panel):
         return self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.GetValue())
 
     def set_subplots(self,nPlots):
-        self.set_subplot_spacing()
+        self.setSubplotSpacing()
         # Creating subplots
         for ax in self.fig.axes:
             self.fig.delaxes(ax)
@@ -1516,6 +1524,7 @@ class PlotPanel(wx.Panel):
           - Trigger changes to infoPanel
             
         """
+        self.subplotsPar = self.getSubplotSpacing()
         self.clean_memory()
         self.getPlotData(self.pltTypePanel.plotType())
         if len(self.plotData)==0: 
