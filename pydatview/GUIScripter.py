@@ -17,7 +17,7 @@ class GUIScripterFrame(wx.Frame):
 
 
         self.btGen = wx.Button(self.panel, label="Update")
-        self.btRun = wx.Button(self.panel, label="Run Script")
+        self.btRun = wx.Button(self.panel, label="Run Script (beta)")
         self.btSave = wx.Button(self.panel, label="Save to File")
 
         txtLib = wx.StaticText(self.panel, -1, 'Library:')

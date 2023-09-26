@@ -544,7 +544,7 @@ class PythonScripter:
         return "\n".join(script)
 
 
-    def run(self, script=None, method='subprocess', pltshow=True, scriptName='_pydatview_temp_script.py'):
+    def run(self, script=None, method='subprocess', pltshow=True, scriptName='./_pydatview_temp_script.py', tempDir=True):
         if script is None:
             script = self.generate(pltshow=pltshow)
         import tempfile
@@ -555,15 +555,18 @@ class PythonScripter:
         if method=='subprocess':
             try:
                 # --- Create a temporary file
-                #temp_dir = tempfile.TemporaryDirectory()
-                #script_file_path = os.path.join(temp_dir.name, "temp_script.py")
-                script_file_path = scriptName
+                if tempDir:
+                    temp_dir = tempfile.TemporaryDirectory()
+                    script_file_path = os.path.join(temp_dir.name, scriptName)
+                else:
+                    script_file_path = scriptName
                 with open(script_file_path, "w") as script_file:
                     script_file.write(script)
 
 
                 # Run the script as a system call
                 result = subprocess.run(["python", script_file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                #result = subprocess.run(["python", '--version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
                 # Print the output and errors (if any)
                 #errors.append("Script Output:")
@@ -571,12 +574,16 @@ class PythonScripter:
                 if len(result.stderr)>0:
                     errors.append(result.stderr)
             except Exception as e:
-                error.append("An error occurred: {e}")
+                errors.append(f"An error occurred: {e}")
             finally:
                 # Clean up by deleting the temporary directory and its contents
                 if len(errors)==0:
-                    #temp_dir.cleanup()
-                    os.remove(script_file_path)
+                    try:
+                        os.remove(script_file_path)
+                        if tempDir:
+                            temp_dir.cleanup()
+                    except:
+                        print('[FAIL] Failed to remove {}'.format(script_file_path))
         else:
             raise NotImplementedError()
         if len(errors)>0:
