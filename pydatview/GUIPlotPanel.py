@@ -735,6 +735,9 @@ class PlotPanel(wx.Panel):
     def setAndPlotMeasures(self, ax, x, y, which=None):
         if which is None:
             which=[1,2]
+        if not hasattr(ax, 'PD'):
+            print('[WARN] Cannot measure on an empty plot')
+            return
         if 1 in which:
             # Left click, measure 1 - set values, compute all intersections and plot
             self.leftMeasure.set(ax, x, y) 

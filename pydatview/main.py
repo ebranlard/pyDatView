@@ -609,8 +609,8 @@ class MainFrame(wx.Frame):
         if self.cbLivePlot.IsChecked():
             if hasattr(self,'plotPanel'):
                 #print('[INFO] Reenabling live plot')
-                self.plotPanel.Enable(True)
-                self.infoPanel.Enable(True)
+                #self.plotPanel.Enable(True)
+                #self.infoPanel.Enable(True)
                 self.redrawCallback()
         else:
             if hasattr(self,'plotPanel'):
@@ -618,20 +618,21 @@ class MainFrame(wx.Frame):
                 for ax in self.plotPanel.fig.axes:
                     ax.annotate('Live Plot Disabled', xy=(0.5, 0.5), size=20, xycoords='axes fraction', ha='center', va='center',)
                     self.plotPanel.canvas.draw()
-                self.plotPanel.Enable(False)
-                self.infoPanel.Enable(False)
+                #self.plotPanel.Enable(False)
+                #self.infoPanel.Enable(False)
 
     def livePlotFreezeUnfreeze(self):
-        if self.cbLivePlot.IsChecked():
-            if hasattr(self,'plotPanel'):
-                #print('[INFO] Enabling live plot')
-                self.plotPanel.Enable(True)
-                self.infoPanel.Enable(True)
-        else:
-            if hasattr(self,'plotPanel'):
-                #print('[INFO] Disabling live plot')
-                self.plotPanel.Enable(False)
-                self.infoPanel.Enable(False)
+        pass
+        #if self.cbLivePlot.IsChecked():
+        #    if hasattr(self,'plotPanel'):
+        #        #print('[INFO] Enabling live plot')
+        #        #self.plotPanel.Enable(True)
+        #        self.infoPanel.Enable(True)
+        #else:
+        #    if hasattr(self,'plotPanel'):
+        #        #print('[INFO] Disabling live plot')
+        #        #self.plotPanel.Enable(False)
+        #        self.infoPanel.Enable(False)
 
     def redrawCallback(self):
         if hasattr(self,'plotPanel'):
