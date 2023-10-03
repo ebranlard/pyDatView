@@ -293,6 +293,11 @@ class TablePopup(wx.Menu):
                 self.Append(item)
                 self.Bind(wx.EVT_MENU, self.mainframe.onAdd, item)
 
+        if len(self.ISel)==1:
+            item = wx.MenuItem(self, -1, "Reload")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnReload, item)
+
         if len(self.ISel)==1 and self.ISel[0]!=0:
             item = wx.MenuItem(self, -1, "Move Up")
             self.Append(item)
@@ -346,6 +351,14 @@ class TablePopup(wx.Menu):
         # Trigger a replot
         self.mainframe.onTabSelectionChange()
 
+    def OnReload(self, event=None):
+        # Reload table
+        # NOTE: position is forgotten..
+        self.tabList.reloadOneTab(iTab=self.ISel[0])
+        # Updating tables
+        self.selPanel.update_tabs(self.tabList)
+        # Trigger a replot
+        self.mainframe.onTabSelectionChange()
 
     def OnMoveTabDown(self, event=None):
         iOld = self.ISel[0]

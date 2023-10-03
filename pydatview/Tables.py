@@ -15,6 +15,7 @@ class TableList(object): # todo inherit list
         if tabs is None:
             tabs =[]
         self._tabs  = tabs
+        self.hasswap=False
 
         self.options = self.defaultOptions() if options is None else options
 
@@ -78,6 +79,8 @@ class TableList(object): # todo inherit list
         """ load multiple files into table list"""
         if not bAdd:
             self.clean() # TODO figure it out
+        if bReload:
+            self.hasswap=False
 
         if fileformats is None:
             fileformats=[None]*len(filenames)
@@ -172,6 +175,37 @@ class TableList(object): # todo inherit list
             warn='Warn: No dataframe found in file: '+filename+'\n'
         return tabs, warn
 
+    def reloadOneTab(self, iTab, desired_fileformat=None):
+        filename = self._tabs[iTab].filename
+        if desired_fileformat is None:
+            fileformat = self._tabs[iTab].fileformat
+        else:
+            raise Exception('TODO figure how to prescirbe the file format on reload')
+        if filename is None or len(filename)==0:
+            raise Exception('Cannot reload Table as it was not set from a file')
+
+        # Find all the tables that have the same filename. NOTE: some may have been deleted..
+        ITab = [iTab for iTab, t in enumerate(self._tabs) if t.filename==filename]
+
+        # Store list of names
+        OldNames = [t.name for t in self._tabs if t.filename==filename]
+
+        # Load the file
+        tabs, warn = self._load_file_tabs(filename, fileformat=fileformat, bReload=False)
+        # Replace in tab list:
+        nTabs = len(tabs)
+        for i in range(nTabs): 
+            if i>=len(ITab):
+                # we append
+                self._tabs.append(tabs[i])
+            else:
+                # NOTE we assume that these tables are added succesively, 
+                iTab = ITab[i]
+                self._tabs[iTab] = tabs[i]
+                if not self.hasswap:
+                    # If swapped were used, we can't really reuse their old names
+                    self._tabs[iTab].name = OldNames[i]
+
     def haveSameColumns(self,I=None):
         if I is None:
             I=list(range(len(self._tabs)))
@@ -192,6 +226,7 @@ class TableList(object): # todo inherit list
 
     def swap(self, i1, i2):
         """ Swap two elements of the list"""
+        self.hasswap=True
         self._tabs[i1], self._tabs[i2] = self._tabs[i2], self._tabs[i1]
 
     def sort(self, method='byName'):
@@ -499,7 +534,7 @@ class Table(object):
     #    active_name : 
     #    raw_name    : 
     #    filename    : 
-    def __init__(self,data=None, name='',filename='', fileformat=None, dayfirst=False):
+    def __init__(self, data=None, name='', filename='', fileformat=None, dayfirst=False):
         # Default init
         self.maskString=''
         self.mask=None
@@ -512,9 +547,19 @@ class Table(object):
             self.fileformat_name = ''
         self.formulas = []
 
-        if not isinstance(data,pd.DataFrame):
+        if not isinstance(data, pd.DataFrame):
             raise NotImplementedError('Tables that are not dataframe not implemented.')
-        # --- Modify input DataFrame 
+        
+        # --- Modify and store input DataFrame 
+        self.setData(data, dayfirst=dayfirst)
+
+        # --- Trying to figure out how to name this table
+        if name is None or len(str(name))==0:
+            if data.columns.name is not None:
+                name=data.columns.name
+        self.setupName(name=str(name))
+
+    def setData(self, data, dayfirst=False):
         # Adding index
         if data.columns[0].lower().find('index')>=0:
             pass
@@ -528,16 +573,17 @@ class Table(object):
                 data=data.iloc[:,:-1]
             else:
                 break
-        # --- Trying to figure out how to name this table
-        if name is None or len(str(name))==0:
-            if data.columns.name is not None:
-                name=data.columns.name
+
 
         # --- Store in object
         self.data    = data 
-        self.setupName(name=str(name))
         self.convertTimeColumns(dayfirst=dayfirst)
 
+    #def reload(self):
+    #    Not Obvious how to do that for files thatreturn several tables
+    #    if self.filename is None or len(self.filename)==0:
+    #        raise Exception('Cannot reload Table, as it was not set from a file')
+    #    print('>>> Table reload')
 
     def setupName(self,name=''):
         # Creates a "codename": path | basename | name | ext
