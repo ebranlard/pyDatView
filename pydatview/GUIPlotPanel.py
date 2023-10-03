@@ -451,6 +451,8 @@ class PlotPanel(wx.Panel):
         self.parent   = parent
         self.plotData = []
         self.toolPanel=None
+        self.subplotsPar=None
+        self.plotDone=False
         if data is not None:
             self.data  = data
         else:
@@ -477,8 +479,8 @@ class PlotPanel(wx.Panel):
         self.canvas.mpl_connect('draw_event', self.onDraw)
         self.clickLocation = (None, 0, 0)
 
-        self.navTBTop    = MyNavigationToolbar2Wx(self.canvas, ['Home', 'Pan'])
-        self.navTBBottom = MyNavigationToolbar2Wx(self.canvas, ['Subplots', 'Save'])
+        self.navTBTop    = MyNavigationToolbar2Wx(self.canvas, ['Home', 'Pan'], plotPanel=self)
+        self.navTBBottom = MyNavigationToolbar2Wx(self.canvas, ['Subplots', 'Save'], plotPanel=self)
         TBAddCheckTool(self.navTBBottom,'', icons.chart.GetBitmap(), self.onEsthToggle)
         self.esthToggle=False
 
@@ -615,7 +617,7 @@ class PlotPanel(wx.Panel):
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
-        self.setSubplotSpacing(init=True)
+#         self.setSubplotSpacing(init=True)
 
     # --- Bindings/callback
     def setAddTablesCallback(self, callback):
@@ -660,7 +662,7 @@ class PlotPanel(wx.Panel):
         self.plotsizer.Layout()
         event.Skip()
 
-    def setSubplotSpacing(self, init=False):
+    def setSubplotSpacing(self, init=False, tight=False):
         """ 
         Handle default subplot spacing
 
@@ -670,46 +672,57 @@ class PlotPanel(wx.Panel):
            - need to change if right axis needed 
            - this will override the user settings
         """
-        #self.fig.set_tight_layout(True)  # NOTE: works almost fine, but problem with FFT multiple
-        ## TODO this is definitely not generic, but tight fails..
-        #return
-        if hasattr(self, 'subplotsPar'):
-            if self.subplotsPar is not None:
-                # See GUIToolBox.py configure_toolbar
-                #print('>>> subplotPar', self.subplotsPar)
-                self.fig.subplots_adjust(**self.subplotsPar)
-                return
+        if tight: 
+            self.setSubplotTight(draw=False)
+            return
 
         if init: 
-            # NOTE: at init size is (20,20) because sizer is not initialized yet
-            bottom = 0.12
-            left   = 0.12
+            subplotsParLoc={'bottom':0.12, 'top':0.97, 'left':0.12, 'right':0.98}
+            self.fig.subplots_adjust(**subplotsParLoc)
+            return
+
+        if self.subplotsPar is not None:
+            if self.cbPlotMatrix.GetValue(): # TODO detect it
+                self.subplotsPar['right'] = 0.98 - subplotsPar['left']
+            # See GUIToolBox.py configure_toolbar
+            self.fig.subplots_adjust(**self.subplotsPar)
+            return
         else:
-            if self.Size[1]<300:
-                bottom=0.20
-            elif self.Size[1]<350:
-                bottom=0.18
-            elif self.Size[1]<430:
-                bottom=0.16
-            elif self.Size[1]<600:
-                bottom=0.13
-            elif self.Size[1]<800:
-                bottom=0.09
-            else:
-                bottom=0.07
-            if self.Size[0]<300:
-                left=0.22
-            elif self.Size[0]<450:
-                left=0.20
-            elif self.Size[0]<950:
-                left=0.12
-            else:
-                left=0.06
-        #print(self.Size,'bottom', bottom, 'left',left)
-        if self.cbPlotMatrix.GetValue(): # TODO detect it
-            self.fig.subplots_adjust(top=0.97,bottom=bottom,left=left,right=0.98-left)
+            self.setSubplotTight(draw=False)
+
+    def setSubplotTight(self, draw=True):
+        self.fig.tight_layout()
+        self.subplotsPar = self.getSubplotSpacing()
+
+        # --- Ensure some minimum spacing based on panel size
+        if self.Size[1]<300:
+            bottom=0.20
+        elif self.Size[1]<350:
+            bottom=0.18
+        elif self.Size[1]<430:
+            bottom=0.16
+        elif self.Size[1]<600:
+            bottom=0.13
+        elif self.Size[1]<800:
+            bottom=0.09
         else:
-            self.fig.subplots_adjust(top=0.97,bottom=bottom,left=left,right=0.98)
+            bottom=0.07
+        if self.Size[0]<300:
+            left=0.22
+        elif self.Size[0]<450:
+            left=0.20
+        elif self.Size[0]<950:
+            left=0.12
+        else:
+            left=0.06
+
+        self.subplotsPar['left']   = max(self.subplotsPar['left']  , left)
+        self.subplotsPar['bottom'] = max(self.subplotsPar['bottom'], bottom)
+        self.subplotsPar['top']    = min(self.subplotsPar['top']   , 0.97)
+        self.subplotsPar['right']  = min(self.subplotsPar['right'] , 0.995)
+        self.fig.subplots_adjust(**self.subplotsPar)
+        if draw:
+            self.canvas.draw()
 
     def getSubplotSpacing(self):
         try:
@@ -720,7 +733,6 @@ class PlotPanel(wx.Panel):
             return paramsD
         except:
             return None # At Init we don't have a figure
-
 
     def plot_matrix_event(self, event):
         if self.infoPanel is not None:
@@ -833,7 +845,6 @@ class PlotPanel(wx.Panel):
         return self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.GetValue())
 
     def set_subplots(self,nPlots):
-        self.setSubplotSpacing()
         # Creating subplots
         for ax in self.fig.axes:
             self.fig.delaxes(ax)
@@ -1591,7 +1602,10 @@ class PlotPanel(wx.Panel):
           - Trigger changes to infoPanel
             
         """
-        self.subplotsPar = self.getSubplotSpacing()
+        if self.plotDone:
+            self.subplotsPar = self.getSubplotSpacing()
+        else:
+            self.subplotsPar = None
         self.clean_memory()
         self.getPlotData(self.pltTypePanel.plotType())
         if len(self.plotData)==0: 
@@ -1606,6 +1620,7 @@ class PlotPanel(wx.Panel):
         self.redraw_same_data()
         if self.infoPanel is not None:
             self.infoPanel.showStats(self.plotData,self.pltTypePanel.plotType())
+        self.plotDone=True
 
     def redraw_same_data(self, force_autoscale=False):
         """ 
@@ -1636,13 +1651,12 @@ class PlotPanel(wx.Panel):
         self.clean_memory_plot()
         self.set_subplots(nPlots)
         self.distributePlots(mode,nPlots,spreadBy)
+        self.setSubplotSpacing()
 
         if not self.pltTypePanel.cbCompare.GetValue():
             self.setLegendLabels(mode)
 
-
         autoscale = (self.cbAutoScale.IsChecked()) or (force_autoscale)
-
         self.plot_all(autoscale=autoscale)
         self.canvas.draw()
 
@@ -1658,7 +1672,6 @@ class PlotPanel(wx.Panel):
         for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
             ax.set_xlim(xlim)
             ax.set_ylim(ylim)
-
 
 if __name__ == '__main__':
     import pandas as pd;

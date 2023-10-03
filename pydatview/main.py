@@ -113,6 +113,7 @@ class MainFrame(wx.Frame):
         self.data = loadAppData(self)
         self.tabList=TableList(options=self.data['loaderOptions'])
         self.datareset = False
+        self.resized = False # used to trigger a tight layout after resize event
         # Global variables...
         setFontSize(self.data['fontSize'])
         setMonoFontSize(self.data['monoFontSize'])
@@ -262,6 +263,7 @@ class MainFrame(wx.Frame):
         self.Center()
         self.Show()
         self.Bind(wx.EVT_SIZE, self.OnResizeWindow)
+        self.Bind(wx.EVT_IDLE, self.OnIdle)
         self.Bind(wx.EVT_CLOSE, self.onClose)
 
         # Shortcuts
@@ -801,25 +803,29 @@ class MainFrame(wx.Frame):
 
 
     def mainFrameUpdateLayout(self, event=None):
-        if hasattr(self,'selPanel'):
-            nWind=self.selPanel.splitter.nWindows
-            if self.Size[0]<=800:
-                sash=SIDE_COL[nWind]
-            else:
-                sash=SIDE_COL_LARGE[nWind]
-            self.resizeSideColumn(sash)
+        try:
+            if hasattr(self,'selPanel'):
+                nWind=self.selPanel.splitter.nWindows
+                if self.Size[0]<=800:
+                    sash=SIDE_COL[nWind]
+                else:
+                    sash=SIDE_COL_LARGE[nWind]
+                self.resizeSideColumn(sash)
+        except:
+            print('[Fail] An error occured in mainFrameUpdateLayout')
+
+    def OnIdle(self, event):
+        if self.resized:
+            self.resized = False
+            self.mainFrameUpdateLayout()
+            if hasattr(self,'plotPanel'):
+                self.plotPanel.setSubplotTight()
+            self.Thaw()
 
     def OnResizeWindow(self, event):
-        try:
-            self.mainFrameUpdateLayout()
-            self.Layout()
-        except:
-            pass
-        # NOTE: doesn't work...
-        #if hasattr(self,'plotPanel'):
-            # Subplot spacing changes based on figure size
-            #print('>>> RESIZE WINDOW')
-            #self.redraw()  
+        self.resized = True
+        self.Freeze()
+        self.Layout()
 
     # --- Side column
     def resizeSideColumn(self,width):

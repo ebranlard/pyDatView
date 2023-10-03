@@ -243,9 +243,10 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
       - Tools can be removed, if not in `keep_tools`
       - Zoom is set by default, and the toggling between zoom and pan is handled internally
     """
-    def __init__(self, canvas, keep_tools):
+    def __init__(self, canvas, keep_tools, plotPanel):
         # Taken from matplotlib/backend_wx.py but added style:
         self.VERSION = matplotlib.__version__
+        self.plotPanel = plotPanel
         #print('MPL VERSION:',self.VERSION)
         if self.VERSION[0]=='2' or self.VERSION[0]=='1': 
             wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
@@ -305,6 +306,9 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
 
     def home(self, *args):
         """Restore the original view."""
+        # Feature: if user click on home, we trigger a tight layout
+        self.plotPanel.setSubplotTight(draw=False) 
+        # Feature: We force autoscale
         self.canvas.GetParent().redraw_same_data(force_autoscale=True)
 
     def set_message(self, s):
