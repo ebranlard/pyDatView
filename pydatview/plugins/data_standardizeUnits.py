@@ -79,6 +79,7 @@ def change_units_to_WE(s, c):
     svar, u = splitunit(s)
     u=u.lower()
     scalings = {}
+    #        OLD      =     NEW
     scalings['rad/s'] =  (30/np.pi,'rpm') # TODO decide
     scalings['rad' ]  =   (180/np.pi,'deg')
     scalings['n']     =   (1e-3, 'kN')
@@ -102,8 +103,10 @@ def change_units_to_SI(s, c):
     svar, u = splitunit(s)
     u=u.lower()
     scalings = {}
+    #        OLD      =     NEW
     scalings['rpm']   =  (np.pi/30,'rad/s') 
     scalings['rad' ]  =   (180/np.pi,'deg')
+    scalings['deg/s' ] =   (np.pi/180,'rad/s')
     scalings['kn']     =   (1e3, 'N')
     scalings['knm']    =   (1e3, 'Nm')
     scalings['kn-m']   =   (1e3, 'Nm')
