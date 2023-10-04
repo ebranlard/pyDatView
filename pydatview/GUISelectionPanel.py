@@ -308,6 +308,11 @@ class TablePopup(wx.Menu):
             self.Append(item)
             self.Bind(wx.EVT_MENU, self.OnMoveTabDown, item)
 
+        if len(self.ISel)>=1:
+            item = wx.MenuItem(self, -1, "Transpose")
+            self.Append(item)
+            self.Bind(wx.EVT_MENU, self.OnTransposeTabs, item)
+
         if len(self.ISel)>1:
             item = wx.MenuItem(self, -1, "Merge (horizontally)")
             self.Append(item)
@@ -368,6 +373,16 @@ class TablePopup(wx.Menu):
         self.selPanel.update_tabs(self.tabList)
         # Trigger a replot
         self.mainframe.onTabSelectionChange()
+
+    def OnTransposeTabs(self, event):
+        tabs = [self.tabList[i] for i in self.ISel]
+        for t in tabs:
+            t.transpose()
+        # Updating tables
+        self.selPanel.update_tabs(self.tabList)
+        # Trigger a replot
+        self.mainframe.onTabSelectionChange()
+
 
     def OnMergeTabs(self, event):
         # --- Figure out the common columns

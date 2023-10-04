@@ -579,6 +579,17 @@ class Table(object):
         self.data    = data 
         self.convertTimeColumns(dayfirst=dayfirst)
 
+    def transpose(self):
+        # Not done smartly..
+        try:
+            df = self.data.drop(['Index'], axis=1)
+        except:
+            df = self.data
+        M = df.values.T
+        cols = ['C{}'.format(i) for i in range(M.shape[1])]
+        df = pd.DataFrame(data=M, columns=cols)
+        self.setData(df)
+
     #def reload(self):
     #    Not Obvious how to do that for files thatreturn several tables
     #    if self.filename is None or len(self.filename)==0:
