@@ -1,4 +1,9 @@
 from pydatview.common import no_unit
+
+# --- Give access to numpy and other useful functions for "eval"
+import numpy as np
+from numpy import cos, sin, exp, log, pi
+
 # --------------------------------------------------------------------------------}
 # --- Formula 
 # --------------------------------------------------------------------------------{
