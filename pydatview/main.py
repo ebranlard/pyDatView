@@ -820,11 +820,11 @@ class MainFrame(wx.Frame):
             self.mainFrameUpdateLayout()
             if hasattr(self,'plotPanel'):
                 self.plotPanel.setSubplotTight()
-            self.Thaw()
+            #self.Thaw() # Commented see #166
 
     def OnResizeWindow(self, event):
         self.resized = True
-        self.Freeze()
+        #self.Freeze() # Commented see #166
         self.Layout()
 
     # --- Side column
