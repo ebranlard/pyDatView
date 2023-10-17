@@ -538,6 +538,7 @@ class Table(object):
         # Default init
         self.maskString=''
         self.mask=None
+        self.columns_pre_transpose = None
 
         self.filename        = filename
         self.fileformat      = fileformat
@@ -580,13 +581,22 @@ class Table(object):
         self.convertTimeColumns(dayfirst=dayfirst)
 
     def transpose(self):
-        # Not done smartly..
+        # Not done smartly, likely to duplicate memory..
         try:
             df = self.data.drop(['Index'], axis=1)
         except:
             df = self.data
         M = df.values.T
         cols = ['C{}'.format(i) for i in range(M.shape[1])]
+        if self.columns_pre_transpose is None:
+            # It's the first time we transpose, we backup the columns
+            self.columns_pre_transpose = df.columns.copy()
+        else:
+            # We have transposed before, we restore the columns
+            if len(self.columns_pre_transpose) == len(cols):
+                cols = self.columns_pre_transpose 
+            self.columns_pre_transpose = None
+
         df = pd.DataFrame(data=M, columns=cols)
         self.setData(df)
 
