@@ -562,7 +562,6 @@ class ColumnPopup(wx.Menu):
             if dlg.ShowModal()==wx.ID_OK:
                 sName    = dlg.name.GetValue()
                 sFormula = dlg.formula.GetValue()
-                dlg.Destroy()
                 if len(self.ISel)>0:
                     iFilt=self.ISel[-1]
                     iFull=self.parent.Filt2Full[iFilt]
@@ -592,6 +591,7 @@ class ColumnPopup(wx.Menu):
                     bValid=True
             else:
                 bCancelled=True
+            dlg.Destroy()
         if bCancelled:
             return
         if bValid:
