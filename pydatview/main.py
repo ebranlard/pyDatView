@@ -673,7 +673,7 @@ class MainFrame(wx.Frame):
 
     def onSave(self, event=None):
         # using the navigation toolbar save functionality
-        self.plotPanel.navTB.save_figure()
+        self.plotPanel.navTBBottom.save_figure()
 
     def onAbout(self, event=None):
         io_userpath = os.path.join(weio.defaultUserDataDir(), 'pydatview_io')
