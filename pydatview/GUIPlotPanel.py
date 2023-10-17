@@ -267,6 +267,7 @@ class PlotTypePanel(wx.Panel):
 
     def regular_select(self, event=None):
         self.clear_measures()
+        self.parent.cleanMarkers()
         self.parent.cbLogY.SetValue(False)
         # 
         self.parent.spcPanel.Hide();
@@ -280,6 +281,7 @@ class PlotTypePanel(wx.Panel):
 
     def compare_select(self, event=None):
         self.clear_measures()
+        self.parent.cleanMarkers()
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.cmpPanel, self.cbCompare.GetValue())
         self.parent.spcPanel.Hide();
@@ -290,6 +292,7 @@ class PlotTypePanel(wx.Panel):
 
     def fft_select(self, event=None):
         self.clear_measures()
+        self.parent.cleanMarkers()
         self.parent.show_hide(self.parent.spcPanel, self.cbFFT.GetValue())
         self.parent.cbLogY.SetValue(self.cbFFT.GetValue())
         self.parent.pdfPanel.Hide();
@@ -299,6 +302,7 @@ class PlotTypePanel(wx.Panel):
 
     def pdf_select(self, event=None):
         self.clear_measures()
+        self.parent.cleanMarkers()
         self.parent.cbLogX.SetValue(False)
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.pdfPanel, self.cbPDF.GetValue())
@@ -310,6 +314,7 @@ class PlotTypePanel(wx.Panel):
 
     def minmax_select(self, event):
         self.clear_measures()
+        self.parent.cleanMarkers()
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.mmxPanel, self.cbMinMax.GetValue())
         self.parent.spcPanel.Hide();
@@ -904,10 +909,14 @@ class PlotPanel(wx.Panel):
                         return
                     if event.button == 1:
                         # We add a marker
-                        # from pydatview.tools.colors import fColrs, python_colors
+                        from pydatview.tools.colors import fColrs, python_colors
                         n = len(self.markers)
-                        #marker = GUIMeasure(1, python_colors(n+1))
-                        marker = GUIMeasure(1, 'firebrick')
+                        IDs = set([m.ID for m in self.markers])
+                        All = set(np.arange(1,n+2))
+                        ID = list(All.difference(IDs))[0] # Should be only of size 1
+                        #marker = GUIMeasure(1, python_colors(n+1), ID=ID)
+                        marker = GUIMeasure(1, fColrs(ID, cmap='darker'), ID=ID)
+                        #marker = GUIMeasure(1, 'firebrick', ID=ID)
                         #GUIMeasure(2, 'darkgreen')
                         self.markers.append(marker)
                         marker.setAndPlot(self.fig.axes, ax, x, y, self.plotData)
@@ -1664,6 +1673,7 @@ class PlotPanel(wx.Panel):
 
         autoscale = (self.cbAutoScale.IsChecked()) or (force_autoscale)
         self.plot_all(autoscale=autoscale)
+        self.plotMarkers()
         self.canvas.draw()
 
 

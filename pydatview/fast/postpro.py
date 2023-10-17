@@ -962,7 +962,7 @@ def spanwisePostProRows(df, FST_In=None):
     Cols=df.columns.values
     if r_AD is not None:
         ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
-    if r_ED is not None:
+    if r_ED_bld is not None:
         ColsInfoED, nrMaxED = spanwiseColED(Cols)
     if r_BD is not None:
         ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
@@ -975,9 +975,9 @@ def spanwisePostProRows(df, FST_In=None):
                 M_AD = np.zeros((len(v), len(dfRad_AD), len(dfRad_AD.columns)))
                 Col_AD=dfRad_AD.columns.values
             M_AD[i, :, : ] = dfRad_AD.values
-        if r_ED is not None and len(r_ED)>0:
+        if r_ED_bld is not None and len(r_ED_bld)>0:
             dfRad_ED = extract_spanwise_data(ColsInfoED, nrMaxED, df=None, ts=df.iloc[i])
-            dfRad_ED = insert_spanwise_columns(dfRad_ED, r_ED, R=R, IR=IR_ED)
+            dfRad_ED = insert_spanwise_columns(dfRad_ED, r_ED_bld, R=R, IR=IR_ED)
             if i==0:
                 M_ED = np.zeros((len(v), len(dfRad_ED), len(dfRad_ED.columns)))
                 Col_ED=dfRad_ED.columns.values

@@ -1,11 +1,14 @@
 import numpy as np
-from pydatview.common import isString, isDate, getDt, pretty_time, pretty_num, pretty_date, isDateScalar
+from pydatview.common import isString, isDate, getDt, pretty_time, pretty_num_short, pretty_date, isDateScalar
 
 
 class GUIMeasure:
-    def __init__(self, index, color):
+    def __init__(self, index, color, ID=None):
         # Main data
         self.index = index
+        if ID is None:
+            ID = self.index
+        self.ID = ID
         self.color = color
         self.P_target_raw = None # closest x-y point stored in "raw" form (including datetime)
         self.P_target_num = None # closest x-y point stored in "num" form (internal matplotlib xy)
@@ -88,7 +91,7 @@ class GUIMeasure:
 
     def plotAnnotation(self, ax, xc, yc):
         #self.clearAnnotation()
-        sAnnotation = '{}: ({}, {})'.format(self.index, formatValue(xc), formatValue(yc))
+        sAnnotation = '{}: ({}, {})'.format(self.ID, formatValue(xc), formatValue(yc))
         bbox_args = dict(boxstyle='round', fc='0.9', alpha=0.75)
         annotation = ax.annotate(sAnnotation, (xc, yc), xytext=(5, -2), textcoords='offset points', color=self.color, bbox=bbox_args)
         self.annotations.append(annotation)
@@ -211,7 +214,7 @@ def formatValue(value):
         elif isString(value):
             return value
         else:
-            return pretty_num(value)
+            return pretty_num_short(value).strip()
     except TypeError:
         return ''
 
