@@ -103,8 +103,8 @@ class MaskToolPanel(ActionEditor):
         self.btAdd   = self.getBtBitmap(self, u'Mask (add)','add'  , self.onAdd)
         self.btApply = self.getToggleBtBitmap(self, 'Apply','cloud', self.onToggleApply)
 
-        self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
-        self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
+        #self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
+        #self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
 
         self.lb         = wx.StaticText( self, -1, """(Example of mask: "({Time}>100) && ({Time}<50) && ({WS}==5)" or "{Date} > '2018-10-01'" or "['substring' in str(x) for x in {string_variable}]")""")
         self.textMask = wx.TextCtrl(self, wx.ID_ANY, 'Dummy', style = wx.TE_PROCESS_ENTER)
@@ -119,14 +119,14 @@ class MaskToolPanel(ActionEditor):
         btSizer.Add(self.btApply                ,0,flag = wx.ALL|wx.EXPAND, border = 1)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
-        row_sizer.Add(self.cbTabs                       , 0, wx.CENTER|wx.LEFT, 2)
-        row_sizer.Add(wx.StaticText(self, -1, 'Mask:'), 0, wx.CENTER|wx.LEFT, 5)
-        row_sizer.Add(self.textMask, 1, wx.CENTER|wx.LEFT|wx.EXPAND, 5)
+        #row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
+        #row_sizer.Add(self.cbTabs                       , 0, wx.CENTER|wx.LEFT, 2)
+        row_sizer.Add(wx.StaticText(self, -1, 'Mask:'), 0, wx.CENTER|wx.LEFT|wx.ALIGN_CENTER_VERTICAL, 1)
+        row_sizer.Add(self.textMask, 1,                    wx.CENTER|wx.LEFT|wx.RIGHT,                 1)
 
         vert_sizer = wx.BoxSizer(wx.VERTICAL)
-        vert_sizer.Add(self.lb     ,0, flag = wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM, border = 5)
-        vert_sizer.Add(row_sizer   ,1, flag = wx.EXPAND|wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM, border = 5)
+        vert_sizer.Add(self.lb     ,0, flag =           wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM, border = 4)
+        vert_sizer.Add(row_sizer   ,1, flag = wx.EXPAND|wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM, border = 3)
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(btSizer      ,0, flag = wx.LEFT           ,border = 5)
@@ -135,7 +135,7 @@ class MaskToolPanel(ActionEditor):
 
         # --- Events
         # NOTE: getBtBitmap and getToggleBtBitmap already specify the binding
-        self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
+        #self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
         self.textMask.Bind(wx.EVT_TEXT_ENTER, self.onParamChangeAndPressEnter)
 
         # --- Init triggers
@@ -160,6 +160,7 @@ class MaskToolPanel(ActionEditor):
     def onParamChangeAndPressEnter(self, event=None):
         # We apply
         if self.data['active']:
+            self._GUI2Data()
             self.action.apply(self.tabList, force=True)
             self.action.updateGUI() # We call the guiCallback
         else:
@@ -168,7 +169,7 @@ class MaskToolPanel(ActionEditor):
 
     # --- Table related
     def onTabChange(self,event=None):
-        iSel=self.cbTabs.GetSelection()
+        #iSel=self.cbTabs.GetSelection()
         # TODO need a way to retrieve "data" from action, perTab
         if iSel==0:
             maskString = self.tabList.commonMaskString  # for "all"
@@ -180,10 +181,10 @@ class MaskToolPanel(ActionEditor):
     def updateTabList(self,event=None):
         tabListNames = ['All opened tables']+self.tabList.getDisplayTabNames()
         #try:
-        iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
-        self.cbTabs.Clear()
-        [self.cbTabs.Append(tn) for tn in tabListNames]
-        self.cbTabs.SetSelection(iSel)
+        #iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
+        #self.cbTabs.Clear()
+        #[self.cbTabs.Append(tn) for tn in tabListNames]
+        #self.cbTabs.SetSelection(iSel)
         #except RuntimeError:
         #    pass
           

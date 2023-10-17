@@ -85,7 +85,7 @@ class Action():
             raise Exception('{}: cannot apply on None tabList'.format(self))
 
         for t in tabList:
-            print('>>> Applying action', self.name, 'to', t.nickname)
+            #print('>>> Applying action', self.name, 'to', t.nickname)
             try:
                 # TODO TODO TODO Collect errors here
                 self.tableFunctionApply(t, data=self.data)
@@ -201,12 +201,12 @@ class IrreversibleTableAction(Action):
         if force:
             self.applied = False
         if self.applied:
-            print('>>> Action: Skipping irreversible action', self.name)
+            #print('>>> Action: Skipping irreversible action', self.name)
             return
         Action.apply(self, tabList)
 
     def cancel(self, *args, **kwargs):
-        print('>>> Action: Cancel: skipping irreversible action', self.name)
+        #print('>>> Action: Cancel: skipping irreversible action', self.name)
         pass
     
     def __repr__(self):
@@ -222,7 +222,7 @@ class ReversibleTableAction(Action):
         if force:
             self.applied = False
         if self.applied:
-            print('>>> Action: Apply: Skipping irreversible action', self.name)
+            #print('>>> Action: Apply: Skipping irreversible action', self.name)
             return
         Action.apply(self, tabList)
 
@@ -232,7 +232,7 @@ class ReversibleTableAction(Action):
             print('[WARN] Cannot cancel action {} on None tablist'.format(self))
             return
         for t in tabList:
-            print('>>> Action: Cancel: ', self, 'to', t.nickname)
+            #print('>>> Action: Cancel: ', self, 'to', t.nickname)
             try:
                 self.tableFunctionCancel(t, data=self.data)
             except Exception as e:
@@ -252,7 +252,7 @@ class AdderAction(Action):
         if force:
             self.applied = False
         if self.applied:
-            print('>>> Action: Skipping Adder action', self.name)
+            #print('>>> Action: Skipping Adder action', self.name)
             return
         # Call parent function applyAndAdd
         dfs_new, names_new, errors =  Action.applyAndAdd(self, tabList)
@@ -426,7 +426,7 @@ class Pipeline(object):
         # Cancel the action in Editor
         if a.guiEditorObj is not None:
             try:
-                print('[Pipe] Canceling action in guiEditor because the action is removed')
+                #print('[Pipe] Canceling action in guiEditor because the action is removed')
                 a.guiEditorObj.cancelAction() # NOTE: should not trigger a plot
             except:
                 print('[FAIL] Pipeline: Failed to call cancelAction() in GUI.')

@@ -67,11 +67,13 @@ class SamplerToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
         import wx
-        PlotDataActionEditor.__init__(self, parent, action, tables=True)
+        PlotDataActionEditor.__init__(self, parent, action, tables=False)
 
         # --- Data
         from pydatview.tools.signal_analysis import SAMPLERS
         self._SAMPLERS_USER    = SAMPLERS.copy()
+        self.xmin=0
+        self.xmax=1
 
         # --- GUI elements
         self.cbMethods  = wx.ComboBox(self, -1, choices=[s['name'] for s in self._SAMPLERS_USER], style=wx.CB_READONLY)
@@ -80,17 +82,26 @@ class SamplerToolPanel(PlotDataActionEditor):
         self.textNewX = wx.TextCtrl(self, wx.ID_ANY, '', style      = wx.TE_PROCESS_ENTER)
         self.textOldX = wx.TextCtrl(self, wx.ID_ANY|wx.TE_READONLY)
         self.textOldX.Enable(False)
+        self.textOldX2 = wx.TextCtrl(self, wx.ID_ANY|wx.TE_READONLY)
+        self.textOldX2.Enable(False)
+
+        self.btXRange = self.getBtBitmap(self, 'Update x','compute', self.setCurrentX)
 
         # --- Layout
-        msizer  = wx.FlexGridSizer(rows=2, cols=4, hgap=2, vgap=0)
-        msizer.Add(wx.StaticText(self, -1, 'Table:')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
-        msizer.Add(self.cbTabs                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
-        msizer.Add(wx.StaticText(self, -1, 'Current x:          '), 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
-        msizer.Add(self.textOldX                        , 1, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND, 1)
+        msizer  = wx.FlexGridSizer(rows=3, cols=4, hgap=2, vgap=0)
         msizer.Add(wx.StaticText(self, -1, 'Method:')   , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
         msizer.Add(self.cbMethods                       , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
         msizer.Add(self.lbNewX                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
         msizer.Add(self.textNewX                        , 1, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND, 1)
+        msizer.Add(wx.StaticText(self, -1, '      ')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(self.btXRange                        , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        #msizer.Add(self.cbTabs                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(wx.StaticText(self, -1, 'Current x:          '), 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(self.textOldX                        , 1, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND, 1)
+        msizer.Add(wx.StaticText(self, -1, '      ')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(wx.StaticText(self, -1, '      ')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(wx.StaticText(self, -1, '      ')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        msizer.Add(self.textOldX2                       , 1, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.EXPAND, 1)
         msizer.AddGrowableCol(3,1)
 
         #self.sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -115,17 +126,25 @@ class SamplerToolPanel(PlotDataActionEditor):
                 return i
         return -1
 
-    def setCurrentX(self):
+    def setCurrentX(self, event=None):
         if len(self.plotPanel.plotData)==0:
             return
-        x= np.array(self.plotPanel.plotData[0].x).astype(str)
+        x= np.array(self.plotPanel.plotData[0].x)
         if len(x)<50:
-            s=', '.join(x)
+            s=', '.join(x.astype(str))
         else:
-            s=', '.join(x[[0,1,2,3]])
+            s=', '.join(x[[0,1,2,3]].astype(str))
             s+=', ...,  '
-            s+=', '.join(x[[-3,-2,-1]])
+            s+=', '.join(x[[-3,-2,-1]].astype(str))
         self.textOldX.SetValue(s)
+        self.xmin = np.min(x)
+        self.xmax = np.max(x)
+        self.textOldX2.SetValue('xmin={}, xmax={}, length={}'.format(self.xmin, self.xmax, len(x)))
+        # Update linspace...
+        self._GUI2Data()
+        if self.data['name'] == 'Linspace':
+            self.data['param']= [self.xmin, self.xmax, int(self.data['param'][2])]
+            self.textNewX.SetValue('{} , {}, {:d}'.format(*self.data['param']))
 
     def onMethodChange(self, event=None, init=True):
         """ Select the method, but does not applied it to the plotData 
@@ -134,6 +153,9 @@ class SamplerToolPanel(PlotDataActionEditor):
         """
         iOpt = self.cbMethods.GetSelection()
         opts   = self._SAMPLERS_USER[iOpt]
+        # Update linspace...
+        if opts['name'] == 'Linspace':
+            opts['param']=[self.xmin, self.xmax, int(opts['param'][2])]
         # check if selection is the same as the one currently used
         if self.data['name'] == opts['name']:
             opts['param'] = self.data['param']
@@ -181,10 +203,9 @@ class SamplerToolPanel(PlotDataActionEditor):
         #
         self.setCurrentX()
 
-
     def onAdd(self, event=None):
         # TODO put this in GUI2Data???
-        iSel          = self.cbTabs.GetSelection()
+        #iSel          = self.cbTabs.GetSelection()
         icol, colname = self.plotPanel.selPanel.xCol
         self.data['icol'] = icol
 
@@ -199,11 +220,13 @@ adapt the "y" values accordingly.
 
 To resample perform the following step:
 
-- Chose a resampling method:
+- Choose a resampling method:
    - replace: specify all the new x-values
    - insert : insert a list of x values to the existing ones
    - delete : delete a list of x values from the existing ones
    - every-n : use every n values 
+   - linspace : a linear spacing, insert a xmin, xmax and number of values
+                (works only when x is increasing monotically)
    - time-based: downsample using sample averaging or upsample using
                  linear interpolation, x-axis must already be in seconds
    - delta x : specify a delta for uniform spacing of x values

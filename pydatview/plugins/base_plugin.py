@@ -12,7 +12,7 @@ from pydatview.common import CHAR, Error, Info, Warn
 from pydatview.plotdata import PlotData
 from pydatview.pipeline import AdderAction
 
-TOOL_BORDER=15
+TOOL_BORDER=5
 
 # --------------------------------------------------------------------------------}
 # --- Default class for tools
@@ -67,7 +67,7 @@ class ActionEditor(GUIToolPanel):
      - the action data
      - a set of function handles to process some triggers and callbacks
     """
-    def __init__(self, parent, action, buttons=None, tables=True):
+    def __init__(self, parent, action, buttons=None, tables=False):
         GUIToolPanel.__init__(self, parent)
             
         # --- Data
@@ -172,7 +172,7 @@ class ActionEditor(GUIToolPanel):
 # --------------------------------------------------------------------------------{
 class PlotDataActionEditor(ActionEditor):
 
-    def __init__(self, parent, action, buttons=None, tables=True):
+    def __init__(self, parent, action, buttons=None, tables=False):
         """ 
         """
         ActionEditor.__init__(self, parent, action=action)

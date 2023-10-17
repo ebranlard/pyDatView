@@ -72,7 +72,7 @@ class FilterToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
         import wx # avoided at module level for unittests
-        PlotDataActionEditor.__init__(self, parent, action, tables=True, **kwargs)
+        PlotDataActionEditor.__init__(self, parent, action, tables=False, **kwargs)
 
         # --- Data
         from pydatview.tools.signal_analysis import FILTERS
@@ -86,25 +86,25 @@ class FilterToolPanel(PlotDataActionEditor):
         self.lbInfo = wx.StaticText( self, -1, '')
 
         # --- Layout
-        horzSizerT = wx.BoxSizer(wx.HORIZONTAL)
-        horzSizerT.Add(wx.StaticText(self, -1, 'Table:')  , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 5)
-        horzSizerT.Add(self.cbTabs                        , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 1)
+        #horzSizerT = wx.BoxSizer(wx.HORIZONTAL)
+        #horzSizerT.Add(wx.StaticText(self, -1, 'Table:')  , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 5)
+        #horzSizerT.Add(self.cbTabs                        , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 1)
 
         horzSizer = wx.BoxSizer(wx.HORIZONTAL)
-        horzSizer.Add(wx.StaticText(self, -1, 'Filter:')  , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 5)
+        horzSizer.Add(wx.StaticText(self, -1, 'Filter:')  , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 0)
         horzSizer.Add(self.cbFilters                      , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 1)
         horzSizer.Add(self.lbParamName                    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 5)
         horzSizer.Add(self.tParam                         , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.LEFT, 1)
 
 
         vertSizer = wx.BoxSizer(wx.VERTICAL)
-        vertSizer.Add(self.lbInfo  ,0, flag = wx.LEFT          ,border = 5)
-        vertSizer.Add(horzSizerT   ,1, flag = wx.LEFT|wx.EXPAND,border = 1)
-        vertSizer.Add(horzSizer    ,1, flag = wx.LEFT|wx.EXPAND,border = 1)
+        vertSizer.Add(self.lbInfo  ,0, flag = wx.TOP   ,border = 4)
+        #vertSizer.Add(horzSizerT   ,1, flag = wx.LEFT|wx.EXPAND,border = 1)
+        vertSizer.Add(horzSizer    ,1, flag = wx.TOP|wx.EXPAND,border = 6)
 
         # self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         # self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 1)
-        self.sizer.Add(vertSizer    ,1, flag = wx.EXPAND|wx.LEFT          ,border = 1)
+        self.sizer.Add(vertSizer    ,1, flag = wx.LEFT,border = 6)
         self.sizer.Layout()
 
 
@@ -187,7 +187,7 @@ class FilterToolPanel(PlotDataActionEditor):
 
     def onAdd(self, event=None):
         # TODO put this in GUI2Data???
-        iSel          = self.cbTabs.GetSelection()
+        #iSel          = self.cbTabs.GetSelection()
         icol, colname = self.plotPanel.selPanel.xCol
         self.data['icol'] = icol
 
@@ -202,7 +202,7 @@ applying a given filter (typically cutting off some frequencies).
 
 To filter perform the following step:
 
-- Chose a filtering method:
+- Choose a filtering method:
    - Moving average: apply a moving average filter, with
           a length specified by the window size (in indices)
    - High pass 1st order: apply a first oder high-pass filter,

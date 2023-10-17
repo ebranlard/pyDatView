@@ -946,7 +946,7 @@ pyDatView help:
             # See Bug #128 - Issue with wxPython 4.1 on Windows
             import locale
             locale.setlocale(locale.LC_ALL, "C")
-            print('[INFO] Setting locale to C')
+            #print('[INFO] Setting locale to C')
             #self.SetAssertMode(wx.APP_ASSERT_SUPPRESS) # Try this
 
 # --------------------------------------------------------------------------------}

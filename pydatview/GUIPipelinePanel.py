@@ -190,10 +190,10 @@ class PipelinePanel(wx.Panel, Pipeline):
             ac = self.find(action.name)
             if ac is not None:
                 if ac.unique:
-                    print('>>> Deleting unique action before inserting it again', ac.name)
+                    #print('>>> Deleting unique action before inserting it again', ac.name)
                     self.remove(ac, silent=True, updateGUI=False)
         # Add to pipeline
-        print('>>> GUIPipeline: Adding action',action.name)
+        #print('>>> GUIPipeline: Adding action',action.name)
         # Call parent class (data)
         Pipeline.append(self, action, overwrite=overwrite, apply=apply, updateGUI=updateGUI, tabList=tabList)
         # Add to GUI
@@ -207,7 +207,7 @@ class PipelinePanel(wx.Panel, Pipeline):
 
     def remove(self, action, silent=False, cancel=True, updateGUI=True, tabList=None):
         """ NOTE: the action is only removed from the pipeline, not deleted. """
-        print('>>> Deleting action', action.name)
+        #print('>>> Deleting action', action.name)
         # Call parent class (data)
         Pipeline.remove(self, action, cancel=cancel, updateGUI=updateGUI, tabList=tabList)
         # Remove From GUI

@@ -103,9 +103,9 @@ class RadialToolPanel(ActionEditor):
         self.btClose = self.getBtBitmap(self,'Close'  ,'close'  , self.destroy)
         self.btAdd  = self.getBtBitmap(self,'Average','compute', self.onAdd) # ART_PLUS
 
-        self.lb         = wx.StaticText( self, -1, """Select tables, averaging method and average parameter (`Period` methods uses the `azimuth` signal) """)
-        self.cbTabs     = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
-        self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
+        self.lb         = wx.StaticText( self, -1, """Select averaging method and average parameter (`Period` methods uses the `azimuth` signal) """)
+        #self.cbTabs     = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
+        #self.cbTabs.Enable(False) # <<< Cancelling until we find a way to select tables and action better
        
         self.cbMethod   = wx.ComboBox(self, choices=sAVG_METHODS, style=wx.CB_READONLY)
         
@@ -118,16 +118,16 @@ class RadialToolPanel(ActionEditor):
         btSizer.Add(self.btAdd    ,0, flag = wx.ALL|wx.EXPAND, border = 1)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
-        row_sizer.Add(self.cbTabs                       , 0, wx.CENTER|wx.LEFT, 2)
-        row_sizer.Add(wx.StaticText(self, -1, 'Method:'), 0, wx.CENTER|wx.LEFT, 5)
+        #row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
+        #row_sizer.Add(self.cbTabs                       , 0, wx.CENTER|wx.LEFT, 2)
+        row_sizer.Add(wx.StaticText(self, -1, 'Method:'), 0, wx.ALIGN_LEFT|wx.CENTER|wx.LEFT, 0)
         row_sizer.Add(self.cbMethod                     , 0, wx.CENTER|wx.LEFT, 2)
         row_sizer.Add(wx.StaticText(self, -1, 'Param:') , 0, wx.CENTER|wx.LEFT, 5)
-        row_sizer.Add(self.textAverageParam             , 0, wx.CENTER|wx.LEFT|wx.RIGHT| wx.EXPAND, 2)
+        row_sizer.Add(self.textAverageParam             , 0, wx.CENTER|wx.LEFT|wx.RIGHT, 2)
 
         vert_sizer = wx.BoxSizer(wx.VERTICAL)
-        vert_sizer.Add(self.lb     ,0, flag =wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM,border = 5)
-        vert_sizer.Add(row_sizer   ,0, flag =wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM,border = 5)
+        vert_sizer.Add(self.lb     ,0, flag =wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM,border = 4)
+        vert_sizer.Add(row_sizer   ,0, flag =wx.ALIGN_LEFT|wx.TOP|wx.BOTTOM,border = 4)
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 5)
@@ -136,7 +136,7 @@ class RadialToolPanel(ActionEditor):
 
         # --- Events
         # NOTE: getBtBitmap and getToggleBtBitmap already specify the binding
-        self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
+        #self.cbTabs.Bind   (wx.EVT_COMBOBOX, self.onTabChange)
 
         # --- Init triggers
         self._Data2GUI()
@@ -153,10 +153,10 @@ class RadialToolPanel(ActionEditor):
     def updateTabList(self,event=None):
         tabListNames = ['All opened tables']+self.tabList.getDisplayTabNames()
         #try:
-        iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
-        self.cbTabs.Clear()
-        [self.cbTabs.Append(tn) for tn in tabListNames]
-        self.cbTabs.SetSelection(iSel)
+        #iSel=np.min([self.cbTabs.GetSelection(),len(tabListNames)])
+        #self.cbTabs.Clear()
+        #[self.cbTabs.Append(tn) for tn in tabListNames]
+        #self.cbTabs.SetSelection(iSel)
         #except RuntimeError:
         #    pass
 

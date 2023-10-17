@@ -95,14 +95,14 @@ class BinningToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
         import wx
-        PlotDataActionEditor.__init__(self, parent, action, tables=True, **kwargs)
+        PlotDataActionEditor.__init__(self, parent, action, tables=False, **kwargs)
 
         # --- GUI elements
         self.scBins = wx.SpinCtrl(self,      value='50', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(60,-1) )
         self.textXMin = wx.TextCtrl(self, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(70,-1))
         self.textXMax = wx.TextCtrl(self, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(70,-1))
 
-        self.btXRange = self.getBtBitmap(self, 'Default','compute', self.reset)
+        self.btXRange = self.getBtBitmap(self, 'Update x','compute', self.reset)
         self.lbDX     = wx.StaticText(self, -1, '')
         self.scBins.SetRange(3, 10000)
 
@@ -111,12 +111,14 @@ class BinningToolPanel(PlotDataActionEditor):
         lbInputs.SetFont(boldFont)
 
         # --- Layout
-        msizer  = wx.FlexGridSizer(rows=1, cols=3, hgap=2, vgap=0)
-        msizer.Add(wx.StaticText(self, -1, 'Table:')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
-        msizer.Add(self.cbTabs                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        #msizer  = wx.FlexGridSizer(rows=1, cols=3, hgap=2, vgap=0)
+        #msizer.Add(wx.StaticText(self, -1, '      ')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        #msizer.Add(wx.StaticText(self, -1, '      ')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        #msizer.Add(wx.StaticText(self, -1, 'Table:')    , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
+        #msizer.Add(self.cbTabs                          , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM, 1)
 #         msizer.Add(self.btXRange                        , 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL|wx.TOP|wx.BOTTOM|wx.LEFT, 1)
 
-        msizer2 = wx.FlexGridSizer(rows=2, cols=5, hgap=2, vgap=1)
+        msizer2 = wx.FlexGridSizer(rows=2, cols=5, hgap=4, vgap=1)
 
         msizer2.Add(lbInputs                                   , 0, wx.LEFT|wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL          , 0)
         msizer2.Add(wx.StaticText(self, -1, '#bins: ')         , 0, wx.LEFT|wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL          , 1)
@@ -131,8 +133,8 @@ class BinningToolPanel(PlotDataActionEditor):
         #msizer2.AddGrowableCol(4,1)
 
         vsizer = wx.BoxSizer(wx.VERTICAL)
-        vsizer.Add(msizer,0, flag = wx.TOP            ,border = 1)
-        vsizer.Add(msizer2,0, flag = wx.TOP|wx.EXPAND ,border = 1)
+        #vsizer.Add(msizer,0, flag = wx.TOP            ,border = 1)
+        vsizer.Add(msizer2,0, flag = wx.TOP,border = 1)
 
         #self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         #self.sizer.Add(btSizer  ,0, flag = wx.LEFT           , border = 5)
@@ -143,7 +145,7 @@ class BinningToolPanel(PlotDataActionEditor):
         self.scBins.Bind  (wx.EVT_SPINCTRL      , self.onParamChangeArrow)
         self.scBins.Bind  (wx.EVT_SPINCTRLDOUBLE, self.onParamChangeArrow)
         self.scBins.Bind  (wx.EVT_TEXT_ENTER, self.onParamChangeEnter)    
-        self.cbTabs.Bind  (wx.EVT_COMBOBOX, self.onTabChange)
+        #self.cbTabs.Bind  (wx.EVT_COMBOBOX, self.onTabChange)
         self.textXMin.Bind(wx.EVT_TEXT_ENTER, self.onParamChangeEnter)
         self.textXMax.Bind(wx.EVT_TEXT_ENTER, self.onParamChangeEnter)
 
@@ -205,7 +207,7 @@ class BinningToolPanel(PlotDataActionEditor):
             return
 
         # TODO put this in GUI2Data???
-        iSel          = self.cbTabs.GetSelection()
+        #iSel          = self.cbTabs.GetSelection()
         icol, colname = self.plotPanel.selPanel.xCol
         self.data['icol']    = icol
         self.data['colname'] = colname
