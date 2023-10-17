@@ -440,11 +440,11 @@ class TablePopup(wx.Menu):
         self.mainframe.exportTab(self.ISel[0]);
 
     def OnSort(self, event):
-        self.tabList.sort(method=method)
+        self.tabList.sort(method='byName')
         # Updating tables
-        self.update_tabs(self.tabList)
+        self.selPanel.update_tabs(self.tabList)
         # Trigger a replot
-        self.onTabSelectionChange()
+        self.selPanel.onTabSelectionChange()
 
 class ColumnPopup(wx.Menu):
     """ Popup Menu when right clicking on the column list """
