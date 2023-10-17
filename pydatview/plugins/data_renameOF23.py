@@ -6,7 +6,7 @@ from pydatview.pipeline import ReversibleTableAction
 # --------------------------------------------------------------------------------}
 # --- Action
 # --------------------------------------------------------------------------------{
-def renameFldAeroAction(label, mainframe=None):
+def renameOFChannelsAction(label, mainframe=None):
     """ 
     Return an "action" for the current plugin, to be used in the pipeline.
     """
@@ -26,8 +26,8 @@ def renameFldAeroAction(label, mainframe=None):
 
     action = ReversibleTableAction(
             name=label, 
-            tableFunctionApply = renameFldAero,
-            tableFunctionCancel= renameAeroFld,
+            tableFunctionApply = renameToNew,
+            tableFunctionCancel= renameToOld,
             guiCallback=guiCallback,
             mainframe=mainframe, # shouldnt be needed
             data = data,
@@ -45,20 +45,21 @@ _imports=[]
 _data_var=''
 _code="""# TODO rename channels not implemented"""
 
-def renameFldAero(tab, data=None):
-    tab.renameColumns(strReplDict={'Aero':'Fld'}) # New:Old
 
-def renameAeroFld(tab, data=None):
-    tab.renameColumns( strReplDict={'Fld':'Aero'}) # New:Old
+def renameToOld(tab, data=None):
+    tab.renameColumns( regReplDict={'B':'^AB(?=\dN)', 'AOA_':'Alpha_', 'AIn_':'AxInd_', 'ApI_':'TnInd_'}) # New:Old
+
+def renameToNew(tab, data=None):
+    tab.renameColumns( regReplDict={'AB':'^B(?=\dN)', 'Alpha_':'AOA_', 'AxInd_':'AIn_', 'TnInd_':'ApI_'}) # New:Old
 
 
-class TestRenameFldAero(unittest.TestCase):
+class TestRenameOFChannels(unittest.TestCase):
 
     def test_change_units(self):
         from pydatview.Tables import Table
-        tab = Table.createDummy(n=10, columns=['RtFldCp [-]','B1FldFx [N]', 'angle [rad]'])
-        renameFldAero(tab)
-        self.assertEqual(tab.columns, ['Index','RtAeroCp [-]', 'B1AeroFx [N]', 'angle [rad]'])
+        tab = Table.createDummy(n=10, columns=['B1N001_[-]'])
+        renameToNew(tab)
+        self.assertEqual(tab.columns, ['Index','AB1N001_[-]'])
 
 
 if __name__ == '__main__':

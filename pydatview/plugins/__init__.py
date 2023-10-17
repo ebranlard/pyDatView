@@ -60,6 +60,10 @@ def _data_renameFldAero(label, mainframe=None):
     from .data_renameFldAero import renameFldAeroAction
     return renameFldAeroAction(label, mainframe)
 
+def _data_renameOF23(label, mainframe=None):
+    from .data_renameOF23 import renameOFChannelsAction
+    return renameOFChannelsAction(label, mainframe)
+
 # --- Adding actions
 def _data_radialConcat(label, mainframe=None):
     from .data_radialConcat import radialConcatAction
@@ -113,5 +117,6 @@ OF_DATA_PLUGINS_WITH_EDITOR=OrderedDict([ # TODO
 # DATA_PLUGINS_SIMPLE: simple data plugins constructors should return an Action
 OF_DATA_PLUGINS_SIMPLE=OrderedDict([
     ('Radial Time Concatenation'  , _data_radialConcat),
-    ('Rename "Fld" > "Aero'  , _data_renameFldAero),
+    ('v3.4 - Rename "Fld" > "Aero'        , _data_renameFldAero),
+    ('v2.3 - Rename "B*N* " > "AB*N* '    , _data_renameOF23),
     ])

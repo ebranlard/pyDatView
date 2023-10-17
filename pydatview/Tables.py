@@ -792,18 +792,28 @@ class Table(object):
     def renameColumn(self,iCol,newName):
         self.data.columns.values[iCol]=newName
 
-    def renameColumns(self, strReplDict=None):
+    def renameColumns(self, strReplDict=None, regReplDict=None):
         """ Rename all the columns  of given table
         - strReplDict: a string replacement dictionary of the form: {'new':'old'}
+        - regReplDict: a regexp string replacement dictionary of the form: {'new':'old'}
         """
+        cols = self.data.columns
+        newcols = []
         if strReplDict is not None:
-            cols = self.data.columns
-            newcols = []
             for c in cols:
                 for new,old in strReplDict.items():
                     c = c.replace(old,new)
                 newcols.append(c)
-            self.data.columns = newcols
+        elif regReplDict is not None:
+            import re
+            for c in cols:
+                for new,old in regReplDict.items():
+                    c = re.sub(old, new, c)
+                newcols.append(c)
+        else:
+            raise NotImplementedError('Provide a replace dictionary')
+        self.data.columns = newcols
+
 
     def deleteColumns(self, ICol):
         """ Delete columns by index, not column names which can have duplicates"""
