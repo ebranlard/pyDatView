@@ -683,7 +683,7 @@ class PlotPanel(wx.Panel):
 
         if self.subplotsPar is not None:
             if self.cbPlotMatrix.GetValue(): # TODO detect it
-                self.subplotsPar['right'] = 0.98 - subplotsPar['left']
+                self.subplotsPar['right'] = 0.98 - self.subplotsPar['left']
             # See GUIToolBox.py configure_toolbar
             self.fig.subplots_adjust(**self.subplotsPar)
             return
@@ -741,12 +741,14 @@ class PlotPanel(wx.Panel):
 
     def measure_event(self, event):
         if self.cbMeasure.IsChecked():
+            # Can't measure and Mark points at the same time
+            self.cbMarkPt.SetValue(False) 
+            self.cleanMarkers()
             # We do nothing, onMouseRelease will trigger the plot and setting
-            pass
         else:
             self.cleanMeasures()
-            # We redraw
-            self.redraw_same_data()
+        # We redraw after cleaning (measures or markers)
+        self.redraw_same_data()
 
     def setAndPlotMeasures(self, ax, x, y, which=None):
         if which is None:
@@ -796,13 +798,17 @@ class PlotPanel(wx.Panel):
         self.lbDeltaY.SetLabel('')
 
     def markpt_event(self, event):
+
         if self.cbMarkPt.IsChecked():
-            self.markers = [] 
+            # Can't measure and Mark points at the same time
+            self.cbMeasure.SetValue(False) 
+            self.cleanMeasures()
             # We do nothing, onMouseRelease will trigger the plot and setting
+            self.markers = [] 
         else:
             self.cleanMarkers()
-            # We redraw
-            self.redraw_same_data()
+        # We redraw after cleaning markesr or measures
+        self.redraw_same_data()
 
     def plotMarkers(self):
         for marker in self.markers:
