@@ -87,12 +87,12 @@ class FormulaDialog(wx.Dialog):
 
 
  
-        self.btOK = wx.Button(self, wx.ID_OK)#, label = "OK"    )
+        btOK = wx.Button(self, wx.ID_OK)#, label = "OK"    )
         btCL = wx.Button(self,label = "Cancel")
         bt_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        bt_sizer.Add(self.btOK, 0 ,wx.ALL,5)
+        bt_sizer.Add(btOK, 0 ,wx.ALL,5)
         bt_sizer.Add(btCL, 0 ,wx.ALL,5)
-        #btOK.Bind(wx.EVT_BUTTON,self.onOK    )
+        btOK.Bind(wx.EVT_BUTTON,self.onOK    )
         btCL.Bind(wx.EVT_BUTTON,self.onCancel)
 
 
@@ -261,8 +261,11 @@ class FormulaDialog(wx.Dialog):
         else:
             raise Exception('Unknown quick formula {}'.s)
 
+    def onOK(self, event):
+        self.EndModal(wx.ID_OK)
+
     def onCancel(self, event):
-        self.Destroy()
+        self.EndModal(wx.ID_CANCEL)
 # --------------------------------------------------------------------------------}
 # --- Popup menus
 # --------------------------------------------------------------------------------{
@@ -435,6 +438,7 @@ class TablePopup(wx.Menu):
         if dlg.ShowModal() == wx.ID_OK:
             newName=dlg.GetValue()
             self.mainframe.renameTable(self.ISel[0],newName)
+        dlg.Destroy()
 
     def OnExportTab(self, event):
         self.mainframe.exportTab(self.ISel[0]);
@@ -504,6 +508,7 @@ class ColumnPopup(wx.Menu):
             self.parent.updateColumn(iFilt,newName) #faster
             self.parent.selPanel.updateLayout()
             # a trigger for the plot is required but skipped for now
+        dlg.Destroy()
 
     def OnEditColumn(self, event):
         if len(self.ISel) != 1:
@@ -557,41 +562,40 @@ class ColumnPopup(wx.Menu):
         xcol  = no_unit(xcol)
 
         while (not bValid) and (not bCancelled):
-            dlg = FormulaDialog(title=title,columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,name=sName,formula=sFormula)
-            dlg.CentreOnParent()
-            if dlg.ShowModal()==wx.ID_OK:
-                sName    = dlg.name.GetValue()
-                sFormula = dlg.formula.GetValue()
-                if len(self.ISel)>0:
-                    iFilt=self.ISel[-1]
-                    iFull=self.parent.Filt2Full[iFilt]
-                else:
-                    iFull = -1
+            with FormulaDialog(title=title,columns=columns,xcol=xcol,xunit=xunit,unit=main_unit,name=sName,formula=sFormula) as dlg:
+                dlg.CentreOnParent()
+                if dlg.ShowModal()==wx.ID_OK:
+                    sName    = dlg.name.GetValue()
+                    sFormula = dlg.formula.GetValue()
+                    if len(self.ISel)>0:
+                        iFilt=self.ISel[-1]
+                        iFull=self.parent.Filt2Full[iFilt]
+                    else:
+                        iFull = -1
 
-                ITab,STab = self.selPanel.getSelectedTables()
-                #if main.tabList.haveSameColumns(ITab):
-                sError=''
-                nError=0
-                haveSameColumns= self.selPanel.tabList.haveSameColumns(ITab)
-                for iTab,sTab in zip(ITab,STab):
-                    if haveSameColumns or self.parent.tab.active_name == sTab:
-                        # apply formula to all tables with same columns, otherwise only to active table
-                        if edit:
-                            bValid=self.selPanel.tabList[iTab].setColumnByFormula(sName,sFormula,iFull)
-                            iOffset = 0 # we'll stay on this column that we are editing
-                        else:
-                            bValid=self.selPanel.tabList[iTab].addColumnByFormula(sName,sFormula,iFull)
-                            iOffset = 1 # we'll select this newly created column
-                        if not bValid:
-                            sError+='The formula didn''t eval for table {}\n'.format(sTab)
-                            nError+=1
-                if len(sError)>0:
-                    Error(self.parent,sError)
-                if nError<len(ITab):
-                    bValid=True
-            else:
-                bCancelled=True
-            dlg.Destroy()
+                    ITab,STab = self.selPanel.getSelectedTables()
+                    #if main.tabList.haveSameColumns(ITab):
+                    sError=''
+                    nError=0
+                    haveSameColumns= self.selPanel.tabList.haveSameColumns(ITab)
+                    for iTab,sTab in zip(ITab,STab):
+                        if haveSameColumns or self.parent.tab.active_name == sTab:
+                            # apply formula to all tables with same columns, otherwise only to active table
+                            if edit:
+                                bValid=self.selPanel.tabList[iTab].setColumnByFormula(sName,sFormula,iFull)
+                                iOffset = 0 # we'll stay on this column that we are editing
+                            else:
+                                bValid=self.selPanel.tabList[iTab].addColumnByFormula(sName,sFormula,iFull)
+                                iOffset = 1 # we'll select this newly created column
+                            if not bValid:
+                                sError+='The formula didn''t eval for table {}\n'.format(sTab)
+                                nError+=1
+                    if len(sError)>0:
+                        Error(self.parent,sError)
+                    if nError<len(ITab):
+                        bValid=True
+                else:
+                    bCancelled=True
         if bCancelled:
             return
         if bValid:
