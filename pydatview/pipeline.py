@@ -308,8 +308,8 @@ class Pipeline(object):
 
         # --- Files and number of tables
         fileNamesNonEmpty = [f for f in tabList.filenames if len(f)>0]
-        fileNames = np.unique(tabList.filenames)
-        fileNamesTrue = [f for f in fileNames if len(f)>0]
+        fileNames         = np.unique(tabList.filenames)
+        fileNamesTrue     = list(dict.fromkeys(fileNamesNonEmpty)) # Unique and non Empty, preserving order
         scripterOptions['oneTabPerFile'] = False
         scripterOptions['oneRawTab'] = False
         if len(fileNames)==len(fileNamesTrue):
