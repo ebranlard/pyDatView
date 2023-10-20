@@ -1,5 +1,49 @@
 import wx
 import wx.stc as stc
+from pydatview.common import CHAR, Info
+
+_HELP = """Script generation
+
+Generates a python code that perform the same actions and plot as pyDatView. 
+
+Disclaimer:
+   Not all of pyDatView features are supported and the user will likely have to adjust the code
+   manually in order to get a fully working script. 
+
+This feature is intended to:
+ - Generate a concise code (therefore with limited error handling)
+ - Include most of the actions from pyDatView pipelines.
+ - Ease the transition from pyDatView to python scripting.
+
+Feature: 
+ - Save the python script to a file  (button "Save to file")
+ - Attempt to execute/test the script using a system call (button "Run Script")
+ - Update the code if you change things in pyDatView (button "Update")
+ - Modify it directly in the text editor
+ - Modify it using some of the menu provided to change how the code is generated.
+      (see Options below)
+
+Requirements: 
+  You need to be familiar with git and python. 
+  You need to install ONE of the following python library:
+    - library= welib,     repository= https://github.com/ebranlard/welib
+    - library= pydatview, repository= https://github.com/ebranlard/pyDatView
+    - library= pyFAST,    repository= https://github.com/openfast/python-toolbox 
+  You can install a given library as follows:
+      git clone repository    # Replace repository with the address above
+      cd library              # Replace library with the folder generated after cloning
+      pip install -e .        # Note the "."
+  Make sure to chose the library you installed using the Options (see below)
+
+Options:
+ - Library: chose the library you want to use (will affect the import statements)
+            See "Requirements" for the different library and how to install them.
+ - DF storage: chose how you want to store/name the pandas dataframes. 
+              - "enumeration" is the simplest: df1, df2, etc.
+              - "dict" will store the dataframes in dictionaries
+              - "list" will store the dataframes in a list dfs[0], dfs[1], etc.
+ - Comment level: the verbosity of the comments in the code.
+"""
 
 class GUIScripterFrame(wx.Frame):
     def __init__(self, parent, mainframe, pipeLike, title):
@@ -15,7 +59,7 @@ class GUIScripterFrame(wx.Frame):
         self.text_ctrl = stc.StyledTextCtrl(self.panel, style=wx.TE_MULTILINE)
         self.setup_syntax_highlighting()
 
-
+        self.btHelp= wx.Button(self.panel, label=CHAR['help']+' '+"Help", style=wx.BU_EXACTFIT)
         self.btGen = wx.Button(self.panel, label="Update")
         self.btRun = wx.Button(self.panel, label="Run Script (beta)")
         self.btSave = wx.Button(self.panel, label="Save to File")
@@ -42,6 +86,7 @@ class GUIScripterFrame(wx.Frame):
         
         vbox.Add(self.text_ctrl, proportion=1, flag=wx.EXPAND | wx.ALL, border=2)
         
+        hbox.Add(self.btHelp, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=5)
         hbox.Add(     txtLib, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=5)
         hbox.Add(self.cbLib, proportion=1, flag=wx.EXPAND|wx.ALL, border=5)
         hbox.Add(     txtDFS, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=5)
@@ -56,6 +101,7 @@ class GUIScripterFrame(wx.Frame):
         self.panel.SetSizerAndFit(vbox)
 
         # -- Binding
+        self.btHelp.Bind(wx.EVT_BUTTON, self.onHelp)
         self.btSave.Bind(wx.EVT_BUTTON, self.onSave)
         self.btRun.Bind(wx.EVT_BUTTON, self.onRun)
         self.btGen.Bind(wx.EVT_BUTTON, self.generateScript)
@@ -64,6 +110,7 @@ class GUIScripterFrame(wx.Frame):
         self.cbCom.Bind(wx.EVT_CHOICE, self.generateScript)
 
         self.generateScript()
+
 
     def _GUI2Data(self, *args, **kwargs):
         # GUI2Data
@@ -145,6 +192,9 @@ class GUIScripterFrame(wx.Frame):
                 file.write(self.text_ctrl.GetValue())
         
         dialog.Destroy()
+
+    def onHelp(self,event=None):
+        Info(self, _HELP)
 
     def setup_syntax_highlighting(self):
         # --- Basic
