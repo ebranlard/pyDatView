@@ -151,7 +151,7 @@ class LogDecToolPanel(GUIToolPanel):
 #         if True:
             fn, zeta, info = freqDampEstimator(x, t, opts=self.data)
         except:
-            self.results.SeValue('Failed. The signal needs to look like the decay of a first order system.')
+            self.results.SetValue('Failed. The signal needs to look like the decay of a first order system.')
             event.Skip()
             return
 
