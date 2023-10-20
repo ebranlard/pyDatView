@@ -24,7 +24,8 @@ Feature:
       (see Options below)
 
 Requirements: 
-  You need to be familiar with git and python. 
+  If you used an windows installer (".exe"), use the "pyDatView" library (see "Options"). 
+  Otherwise, you need to be familiar with git and python. 
   You need to install ONE of the following python library:
     - library= welib,     repository= https://github.com/ebranlard/welib
     - library= pydatview, repository= https://github.com/ebranlard/pyDatView
