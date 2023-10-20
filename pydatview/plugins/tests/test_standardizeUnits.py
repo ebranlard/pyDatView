@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from pydatview.plugins.data_standardizeUnits import changeUnits
+from pydatview.plugins.data_standardizeUnits import changeUnitsTab
 
 class TestChangeUnits(unittest.TestCase):
 
