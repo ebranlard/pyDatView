@@ -75,8 +75,10 @@ class ExcelFile(File):
 
 
     def _toDataFrame(self):
-        #cols=['Alpha_[deg]','Cl_[-]','Cd_[-]','Cm_[-]']
-        #dfs[name] = pd.DataFrame(data=..., columns=cols)
-        #df=pd.DataFrame(data=,columns=) 
-        return self.data
+        if len(self.data)==1:
+            # Return a single dataframe
+            return self.data[list(self.data.keys())[0]]
+        else:
+            # Return dictionary
+            return self.data
 
