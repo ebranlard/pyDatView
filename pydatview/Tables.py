@@ -561,6 +561,9 @@ class Table(object):
         self.setupName(name=str(name))
 
     def setData(self, data, dayfirst=False):
+        # sanitize columns, we only accept strings
+        data.columns = data.columns.astype(str)
+
         # Adding index
         if data.columns[0].lower().find('index')>=0:
             pass
