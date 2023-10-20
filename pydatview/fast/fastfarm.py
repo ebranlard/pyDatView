@@ -7,7 +7,7 @@ from pydatview.io.fast_input_file import FASTInputFile
 from pydatview.io.fast_output_file import FASTOutputFile
 from pydatview.io.turbsim_file import TurbSimFile
 
-from . import postpro as fastlib
+from pydatview.fast import postpro as fastlib
 
 # --------------------------------------------------------------------------------}
 # --- Small helper functions

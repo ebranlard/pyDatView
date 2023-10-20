@@ -307,15 +307,18 @@ class Pipeline(object):
             scripterOptions={}
 
         # --- Files and number of tables
+        fileNamesNonEmpty = [f for f in tabList.filenames if len(f)>0]
         fileNames = np.unique(tabList.filenames)
-        fileNamesTrue = [t for t in fileNames if len(t)>0]
+        fileNamesTrue = [f for f in fileNames if len(f)>0]
+        scripterOptions['oneTabPerFile'] = False
+        scripterOptions['oneRawTab'] = False
         if len(fileNames)==len(fileNamesTrue):
             # No tables were added
             if len(fileNamesTrue) == len(tabList):
                 # Each file returned one table only
                 scripterOptions['oneTabPerFile'] = True
-            else:
-                scripterOptions['oneTabPerFile'] = False
+        if len(fileNamesNonEmpty) == 1:
+            scripterOptions['oneRawTab'] = True
 
         scripter = PythonScripter()
         scripter.setFiles(fileNamesTrue)

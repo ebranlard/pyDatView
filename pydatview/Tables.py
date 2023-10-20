@@ -474,25 +474,6 @@ class TableList(object): # todo inherit list
 #             except Exception as e:
 #                 errors.append('Filtering failed for table: '+t.nickname+'\n'+exception2string(e))
 #         return dfs_new, names_new, errors
-# 
-#     # --- Radial average related
-#     def radialAvg(self,avgMethod,avgParam):
-#         """ Apply radial average on table list 
-#         TODO Make this part of the action
-#         """
-#         dfs_new   = []
-#         names_new = []
-#         errors=[]
-#         for i,t in enumerate(self._tabs):
-#             try:
-#                 dfs, names = t.radialAvg(avgMethod,avgParam)
-#                 for df,n in zip(dfs,names):
-#                     if df is not None:
-#                         dfs_new.append(df)
-#                         names_new.append(n)
-#             except Exception as e:
-#                 errors.append('Radial averaging failed for table: '+t.nickname+'\n'+exception2string(e))
-#         return dfs_new, names_new, errors
 
 
     @staticmethod
@@ -755,8 +736,8 @@ class Table(object):
         if data is None:
             data={'flavor':'WE'}
         # NOTE: moved to a plugin, but interface kept
-        from pydatview.plugins.data_standardizeUnits import changeUnits
-        changeUnits(self, data=data)
+        from pydatview.plugins.data_standardizeUnits import changeUnitsTab
+        changeUnitsTab(self, data=data)
 
     def convertTimeColumns(self, dayfirst=False):
         if len(self.data)>0:

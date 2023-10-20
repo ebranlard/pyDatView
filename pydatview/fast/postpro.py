@@ -4,13 +4,16 @@ import pandas as pd
 import numpy as np
 import re
 
-# --- fast libraries
+
 import pydatview.io as weio
 from pydatview.common import PyDatViewException as WELIBException
 from  pydatview.io.fast_input_file import FASTInputFile
 from  pydatview.io.fast_output_file import FASTOutputFile
 from  pydatview.io.fast_input_deck import FASTInputDeck
+
+# --- fast libraries
 from pydatview.fast.subdyn import SubDyn
+import pydatview.fast.fastfarm as fastfarm
 
 # --------------------------------------------------------------------------------}
 # --- Tools for IO 
@@ -907,6 +910,57 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     # Combine all into a dictionary
     return out
 
+def radialAvg(filename, avgMethod, avgParam, raw_name='', df=None, raiseException=True):
+    """
+    Wrapper function, for instance used by pyDatView apply either:
+       spanwisePostPro or spanwisePostProFF (FAST.Farm)
+    """
+
+    base,out_ext = os.path.splitext(filename)
+    if df is None:
+        df = FASTOutputFile(filename).toDataFrame()
+
+    # --- Detect if it's a FAST Farm file
+    sCols = ''.join(df.columns)
+    if sCols.find('WkDf')>1 or sCols.find('CtT')>0:
+        # --- FAST FARM files
+        Files=[base+ext for ext in ['.fstf','.FSTF','.Fstf','.fmas','.FMAS','.Fmas'] if os.path.exists(base+ext)]
+        if len(Files)==0:
+            fst_in=None
+            #raise Exception('Error: No .fstf file found with name: '+base+'.fstf')
+        else:
+            fst_in=Files[0]
+
+        dfRad,_,dfDiam =  fastfarm.spanwisePostProFF(fst_in,avgMethod=avgMethod,avgParam=avgParam,D=1,df=df)
+        dfs_new  = [dfRad,dfDiam]
+        names_new=[raw_name+'_rad', raw_name+'_diam']
+    else:
+        # --- FAST files
+        # HACK for AD file to find the right .fst file
+        iDotAD=base.lower().find('.ad')
+        if iDotAD>1:
+            base=base[:iDotAD]
+        #
+        Files=[base+ext for ext in ['.fst','.FST','.Fst','.dvr','.Dvr','.DVR'] if os.path.exists(base+ext)]
+        if len(Files)==0:
+            fst_in=None
+            #raise Exception('Error: No .fst file found with name: '+base+'.fst')
+        else:
+            fst_in=Files[0]
+
+        try:
+            out = spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = df)
+            dfRadED=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']
+            dfs_new  = [dfRadAD, dfRadED, dfRadBD]
+            names_new=[raw_name+'_AD', raw_name+'_ED', raw_name+'_BD'] 
+        except:
+            if raiseException:
+                raise
+            else:
+                print('[WARN] radialAvg failed for filename {}'.format(filename))
+                dfs_new =[None]
+                names_new=['']
+    return dfs_new, names_new
 
 def spanwisePostProRows(df, FST_In=None):
     """ 

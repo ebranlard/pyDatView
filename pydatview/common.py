@@ -519,8 +519,6 @@ class DummyMainFrame():
 
 
 if __name__ == '__main__':
-#     from welib.tools.clean_exceptions import *
-
     try:
         raise Exception('Hello')
     except Exception as excp:

@@ -8,8 +8,8 @@ _WELIB={
     'pydatview.fast.postpro':'welib.fast.postpro',
         }
 _PYFAST={
-    'pydatview.io':'pyFAST.input_output',
-    'pydatview.tools.tictoc':'pyFAST.tools.tictoc',
+    'pydatview.io'          :'pyFAST.input_output',
+    'pydatview.tools'       :'pyFAST.tools',
     'pydatview.fast.postpro':'pyFAST.postpro', # I think...
         }
 
@@ -23,6 +23,7 @@ _defaultOpts={
         'libFlavor':'pydatview',
         'dfsFlavor':'dict',
         'oneTabPerFile':False,
+        'oneRawTab':False,
         'indent':'    ',
         'verboseCommentLevel':1,
         }
@@ -187,6 +188,15 @@ class PythonScripter:
             elif self.opts['dfsFlavor'] == 'list':
                 script.append("for df in dfs:")
 
+        def onlyOneFile():
+            return len(self.filenames)==1
+        def oneTabPerFile():
+            return self.opts['oneTabPerFile']
+        def oneRawTab():
+            return self.opts['oneRawTab']
+        def dontListFiles():
+            return oneRawTab() or (onlyOneFile() and oneTabPerFile())
+
 
 
         script = []
@@ -215,8 +225,7 @@ class PythonScripter:
 
         # --- List of files
         script.append("\n# --- Script parameters")
-        nFiles = len(self.filenames)
-        if nFiles==1 and  self.opts['oneTabPerFile']:
+        if dontListFiles():
             script.append("filename = '{}'".format(self.filenames[0]))
         else:
             script.append("filenames = []")
@@ -255,7 +264,7 @@ class PythonScripter:
         # --- List of Dataframes
         script.append("\n# --- Open and convert files to DataFrames")
         if self.opts['dfsFlavor'] == 'dict':
-            if nFiles==1 and  self.opts['oneTabPerFile']:
+            if dontListFiles():
                 script.append("dfs = {}")
                 script.append("dfs[0] = weio.read(filename).toDataFrame()")
             else:
@@ -273,7 +282,7 @@ class PythonScripter:
                     script.append(indent2 + "dfs[f'tab{iFile}'] = dfs_or_df")
         elif self.opts['dfsFlavor'] == 'list':
             script.append("dfs = []")
-            if nFiles==1 and  self.opts['oneTabPerFile']:
+            if dontListFiles():
                 script.append("dfs.append( weio.read(filename).toDataFrame() )")
             else:
                 script.append("for iFile, filename in enumerate(filenames):")
@@ -289,7 +298,7 @@ class PythonScripter:
                     script.append(indent2 + "dfs.append(dfs_or_df)")
 
         elif self.opts['dfsFlavor'] == 'enumeration':
-            if nFiles==1 and  self.opts['oneTabPerFile']:
+            if dontListFiles():
                 script.append(f"df1 = weio.read(filename).toDataFrame()")
             else:
                 for iFile, filename in enumerate(self.filenames):
@@ -317,32 +326,51 @@ class PythonScripter:
             script.append("\n# --- Apply adder actions to dataframes")
             script.append("dfs_add = [] ; names_add =[]")
             if self.opts['dfsFlavor'] == 'dict':
-                script.append("for k, (key, df) in enumerate(dfs.items()):")
-                script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
-                for actionname, actioncode in self.adder_actions.items():
-                    addActionCode(actionname, actioncode[1], indent1)
-                    script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
+                if dontListFiles():
+                    script.append('df = dfs[0] # NOTE: we assume that only one dataframe is present' )
+                    for actionname, actioncode in self.adder_actions.items():
+                        addActionCode(actionname, actioncode[1], indent0)
+                        script.append(indent0+"dfs_add += dfs_new ; names_add += names_new")
+                else:
+                    script.append("for k, (key, df) in enumerate(dfs.items()):")
+                    script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
+                    for actionname, actioncode in self.adder_actions.items():
+                        addActionCode(actionname, actioncode[1], indent1)
+                        script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
                 script.append("for name_new, df_new in zip(names_add, dfs_new):")
                 script.append(indent1+"if df_new is not None:")
                 script.append(indent2+"dfs[name_new] = df_new")
 
             elif self.opts['dfsFlavor'] == 'list':
-                script.append("for k, df in enumerate(dfs):")
-                script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
-                for actionname, actioncode in self.adder_actions.items():
-                    addActionCode(actionname, actioncode[1], indent1)
-                    script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
+                if dontListFiles():
+                    script.append('df = dfs[0]')
+                    for actionname, actioncode in self.adder_actions.items():
+                        addActionCode(actionname, actioncode[1], indent0)
+                        script.append(indent0+"dfs_add += dfs_new ; names_add += names_new")
+                else:
+                    script.append("for k, df in enumerate(dfs):")
+                    script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
+                    for actionname, actioncode in self.adder_actions.items():
+                        addActionCode(actionname, actioncode[1], indent1)
+                        script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
                 script.append("for name_new, df_new in zip(names_add, dfs_new):")
                 script.append(indent1+"if df_new is not None:")
                 script.append(indent2+"dfs += [df_new]")
 
             elif self.opts['dfsFlavor'] == 'enumeration':
-                for iTab in range(nTabs):
-                    script.append("filename = filenames[{}] # NOTE: this is approximate..".format(iTab))
-                    script.append('df = df{}'.format(iTab+1))
-                    for actionname, actioncode in self.adder_actions.items():
-                        addActionCode(actionname, actioncode[1], '')
-                    script.append("df{} = dfs_new[0] # NOTE: we only keep the first table here..".format(nTabs+iTab+1))
+                if dontListFiles():
+                    for iTab in range(nTabs):
+                        script.append('df = df{}'.format(iTab+1))
+                        for actionname, actioncode in self.adder_actions.items():
+                            addActionCode(actionname, actioncode[1], '')
+                        script.append("df{} = dfs_new[0] # NOTE: we only keep the first table here..".format(nTabs+iTab+1))
+                else:
+                    for iTab in range(nTabs):
+                        script.append("filename = filenames[{}] # NOTE: this is approximate..".format(iTab))
+                        script.append('df = df{}'.format(iTab+1))
+                        for actionname, actioncode in self.adder_actions.items():
+                            addActionCode(actionname, actioncode[1], '')
+                        script.append("df{} = dfs_new[0] # NOTE: we only keep the first table here..".format(nTabs+iTab+1))
                 nTabs += nTabs
 
 

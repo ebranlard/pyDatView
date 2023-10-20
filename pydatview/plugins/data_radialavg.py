@@ -1,4 +1,5 @@
 import numpy as np
+from pydatview.common import PyDatViewException
 from pydatview.plugins.base_plugin import GUIToolPanel, TOOL_BORDER
 from pydatview.plugins.base_plugin import ActionEditor
 
@@ -68,22 +69,19 @@ def radialAvgAction(label, mainframe, data=None):
 # --------------------------------------------------------------------------------}
 # --- Main methods
 # --------------------------------------------------------------------------------{
-_imports = ["from pydatview.plugins.data_radialavg import radialAvg"]
-_imports += ["from pydatview.Tables import Table"]
+_imports = ["from pydatview.fast.postpro import radialAvg"]
 _data_var='dataRadialAvg'
-_code = """# NOTE: this code relies on pydatview for now. It will be adapted for welib/pyFAST later.
-#     For the most part, the underlying functions are:
-# dfRad,_,dfDiam =  fastfarm.spanwisePostProFF(filename, avgMethod=avgMethod,avgParam=avgParam, D=1, df=df)
-# out            = fastlib.spanwisePostPro(filename, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df=df)
-tab=Table(data=df, filename=filename)
-dfs_new, names_new = radialAvg(tab, dataRadialAvg)
-"""
+_code = """dfs_new, names_new = radialAvg(filename, avgMethod=dataRadialAvg['avgMethod'], avgParam=dataRadialAvg['avgParam'], df=df, raiseException=False)"""
 
 # add method  
 def radialAvg(tab, data=None):
     """ NOTE: radial average may return several dataframe"""
+    from pydatview.fast.postpro import radialAvg as radialAvgPostPro
     #print('>>> RadialAvg',data)
-    dfs_new, names_new = tab.radialAvg(data['avgMethod'],data['avgParam'])
+    dfs_new, names_new = radialAvgPostPro(filename=tab.filename, df=tab.data, avgMethod=data['avgMethod'],avgParam=data['avgParam'])
+    if all(df is None for df in dfs_new):
+        raise PyDatViewException('No OpenFAST radial data found for table: '+tab.nickname)
+
     return dfs_new, names_new
 
 # --------------------------------------------------------------------------------}
