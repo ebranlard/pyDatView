@@ -4,14 +4,13 @@ import pandas as pd
 import numpy as np
 import re
 
-
 import pydatview.io as weio
 from pydatview.common import PyDatViewException as WELIBException
+
+# --- fast libraries
 from  pydatview.io.fast_input_file import FASTInputFile
 from  pydatview.io.fast_output_file import FASTOutputFile
 from  pydatview.io.fast_input_deck import FASTInputDeck
-
-# --- fast libraries
 from pydatview.fast.subdyn import SubDyn
 import pydatview.fast.fastfarm as fastfarm
 
