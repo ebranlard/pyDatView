@@ -445,11 +445,14 @@ def Error(parent, message, caption = 'Error!'):
     dlg.ShowModal()
     dlg.Destroy()
 
-def exception2string(excp, iMax=40, prefix='    | '):
+def exception2string(excp, iMax=40, prefix='    | ', prevStack=True):
     if isinstance(excp, PyDatViewException):
         return prefix + excp.args[0]
     else:
-        stack = traceback.extract_stack()[:-3] + traceback.extract_tb(excp.__traceback__)
+        stack=[]
+        if prevStack:
+            stack += traceback.extract_stack()[:-3]
+        stack += traceback.extract_tb(excp.__traceback__)
         stacklist = traceback.format_list(stack)
         # --- Parse stacktrace for file/ line / content
         traceback_dicts=[]

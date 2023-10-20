@@ -20,21 +20,22 @@ except:
 
 #  GUI
 import wx
-from .GUIPlotPanel import PlotPanel
-from .GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
-from .GUISelectionPanel import ColumnPopup,TablePopup
-from .GUIInfoPanel import InfoPanel
-from .GUIPipelinePanel import PipelinePanel
-from .GUIToolBox import GetKeyString, TBAddTool
-from .Tables import TableList, Table
+from pydatview.GUIPlotPanel import PlotPanel
+from pydatview.GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
+from pydatview.GUISelectionPanel import ColumnPopup,TablePopup
+from pydatview.GUIInfoPanel import InfoPanel
+from pydatview.GUIPipelinePanel import PipelinePanel
+from pydatview.GUIToolBox import GetKeyString, TBAddTool
+from pydatview.Tables import TableList, Table
 # Helper
-from .common import *
-from .GUICommon import *
+from pydatview.common import exception2string, PyDatViewException
+from pydatview.common import *
+from pydatview.GUICommon import *
 import pydatview.io as weio # File Formats and File Readers
 # Pluggins
-from .plugins import DATA_PLUGINS_WITH_EDITOR, DATA_PLUGINS_SIMPLE, TOOLS
-from .plugins import OF_DATA_PLUGINS_WITH_EDITOR, OF_DATA_PLUGINS_SIMPLE
-from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
+from pydatview.plugins import DATA_PLUGINS_WITH_EDITOR, DATA_PLUGINS_SIMPLE, TOOLS
+from pydatview.plugins import OF_DATA_PLUGINS_WITH_EDITOR, OF_DATA_PLUGINS_SIMPLE
+from pydatview.appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
 # --------------------------------------------------------------------------------}
 # --- GLOBAL 
@@ -861,7 +862,7 @@ def MyExceptionHook(etype, value, trace):
      standard Python header: ``Traceback (most recent call last)``.
     """
     from wx._core import wxAssertionError
-    # Printing exception
+    # Printing exception to screen
     traceback.print_exception(etype, value, trace)
     if etype==wxAssertionError:
         if wx.Platform == '__WXMAC__':
@@ -870,17 +871,26 @@ def MyExceptionHook(etype, value, trace):
     # Then showing to user the last error
     frame = wx.GetApp().GetTopWindow()
     tmp = traceback.format_exception(etype, value, trace)
+    sException=''
     if tmp[-1].find('Exception: Error:')==0:
-        Error(frame,tmp[-1][18:])
+        sException = tmp[-1][18:]
     elif tmp[-1].find('Exception: Warn:')==0:
         Warn(frame,tmp[-1][17:])
     else:
-        exception = 'The following exception occured:\n\n'+ tmp[-1]  + '\n'+tmp[-2].strip()
-        Error(frame,exception)
+        sException = 'The following exception occured:\n\n'
+        #sException += tmp[-1]  + '\n'
+        #sException += tmp[-2].strip()
+        #if len(tmp)>2:
+        #    sException += '\n'+tmp[-3].strip()
+        ## TODO make this a custom dialog where the user can copy paste the error more easily...
+        sException += exception2string(value, prevStack=False)
+
     try:
         frame.Thaw() # Make sure any freeze event is stopped
     except:
         pass
+    if len(sException)>0:
+        Error(frame, sException)
 
 # --------------------------------------------------------------------------------}
 # --- Tests 
@@ -975,19 +985,34 @@ def showApp(firstArg=None, dataframes=None, filenames=[], names=None):
         elif isinstance(firstArg, pd.DataFrame):
             dataframes=[firstArg]
     # Load files or dataframe depending on interface
-    if (dataframes is not None) and (len(dataframes)>0):
-        if names is None:
-            names=['df{}'.format(i+1) for i in range(len(dataframes))]
-        frame.load_dfs(dataframes, names)
-    elif len(filenames)>0:
-        frame.load_files(filenames, fileformats=None, bPlot=True)
+    err = None
+    # NOTE: any exceptions occurring before MainLoop will result in the window to close
+    try:
+        if (dataframes is not None) and (len(dataframes)>0):
+            if names is None:
+                names=['df{}'.format(i+1) for i in range(len(dataframes))]
+            frame.load_dfs(dataframes, names)
+        elif len(filenames)>0:
+            frame.load_files(filenames, fileformats=None, bPlot=True)
+    except Exception as e:
+        try:
+            frame.Thaw()
+        except:
+            pass
+        # Print to screen:
+        traceback.print_exc()
+        # Store it to display it later in App
+        err = 'Errors occured while loading files:\n\n'
+        err += exception2string(e)
 
     #frame.onShowTool(toolName='')
     #frame.onDataPlugin(toolName='Radial Average')
     #frame.onDataPlugin(toolName='Resample')
     #frame.onScript()
-
+    if err is not None:
+        wx.FutureCall(100,  Error, frame, err)
     app.MainLoop()
+    # Nothing will be reached here until the window is opened
 
 
 def cmdline():

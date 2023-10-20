@@ -343,41 +343,49 @@ class InfoPanel(wx.Panel):
 
     def _showStats(self,erase=True):
         self.Freeze()
-        selCols=[c for c in self.Cols if c['s']]
-        # Adding columns
-        if erase:
-            self.clean()
-            AL={'L':wx.LIST_FORMAT_LEFT,'R':wx.LIST_FORMAT_RIGHT,'C':wx.LIST_FORMAT_CENTER}
-            for i,c in enumerate(selCols):
-                if c['s']:
-                    self.tbStats.InsertColumn(i,c['name'], AL[c['al']])
-        # Inserting items
-        index = self.tbStats.GetItemCount()
-        for pd in self.PD:
-            for j,c in enumerate(selCols):
-                # Calling dedicated function: either a function handle, f(PD), or a method, pd.m.
-                if 'm' in c.keys():
-                    v,sv=getattr(pd,c['m'])()
-                else:
-                    v,sv=c['f'](pd)
+        try:
+            selCols=[c for c in self.Cols if c['s']]
+            # Adding columns
+            if erase:
+                self.clean()
+                AL={'L':wx.LIST_FORMAT_LEFT,'R':wx.LIST_FORMAT_RIGHT,'C':wx.LIST_FORMAT_CENTER}
+                for i,c in enumerate(selCols):
+                    if c['s']:
+                        self.tbStats.InsertColumn(i,c['name'], AL[c['al']])
+            # Inserting items
+            index = self.tbStats.GetItemCount()
+            for pd in self.PD:
+                for j,c in enumerate(selCols):
+                    # Calling dedicated function: either a function handle, f(PD), or a method, pd.m.
+                    try:
+                        if 'm' in c.keys():
+                            v,sv=getattr(pd,c['m'])()
+                        else:
+                            v,sv=c['f'](pd)
+                    except:
+                        # print statement because developper should fix this..
+                        print('GUIInfoPanel: Stat {} failed'.format(c['name']))
+                        v= np.nan
+                        sv='NA'
 
-                # Insert items
-                try:
-                    if j==0:
-                        self.tbStats.InsertItem(index,  sv)
-                    else:
-                        self.tbStats.SetItem(index, j,sv)
-                except:
-                    if j==0:
-                        self.tbStats.InsertStringItem(index,  sv)
-                    else:
-                        self.tbStats.SetStringItem(index, j,sv)
-            index +=1
+                    # Insert items
+                    try:
+                        if j==0:
+                            self.tbStats.InsertItem(index,  sv)
+                        else:
+                            self.tbStats.SetItem(index, j,sv)
+                    except:
+                        if j==0:
+                            self.tbStats.InsertStringItem(index,  sv)
+                        else:
+                            self.tbStats.SetStringItem(index, j,sv)
+                index +=1
 
-        for i in range(self.tbStats.GetColumnCount()):
-            self.tbStats.SetColumnWidth(i, wx.LIST_AUTOSIZE_USEHEADER) 
-        self.tbStats.RefreshRows()
-        self.Thaw()
+            for i in range(self.tbStats.GetColumnCount()):
+                self.tbStats.SetColumnWidth(i, wx.LIST_AUTOSIZE_USEHEADER) 
+            self.tbStats.RefreshRows()
+        finally:
+            self.Thaw()
 
 
     def setPlotMatrixCallbacks(self, callback_left, callback_right):
