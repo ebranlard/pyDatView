@@ -134,7 +134,7 @@ def read_flex_res(filename, dtype=np.float32):
 
 
 def read_flex_sensor(sensor_file):
-    with open(sensor_file, encoding="utf-8") as fid:
+    with open(sensor_file, 'r') as fid:
         sensor_info_lines = fid.readlines()[2:]
     sensor_info = []
     d=dict({ 'ID':[],'Gain':[],'Offset':[],'Unit':[],'Name':[],'Description':[]});
