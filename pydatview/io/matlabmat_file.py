@@ -63,7 +63,6 @@ class MatlabMatFile(File):
             raise EmptyFileError('File is empty:',self.filename)
 
         mfile = scipy.io.loadmat(self.filename)
-        import pdb; pdb.set_trace()
 
     def write(self, filename=None):
         """ Rewrite object to file, or write object to `filename` if provided """

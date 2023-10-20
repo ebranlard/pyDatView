@@ -136,7 +136,7 @@ class PlotData():
         PD.y0 =PD.y
 
     def __repr__(s):
-        s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}\n'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
+        s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
         #s1='id:{}, it:{}, sx:"{}", xyMeas:{}\n'.format(s.id,s.it,s.sx,s.xyMeas)
         return s1
 
@@ -305,7 +305,6 @@ class PlotData():
         PD._xAtYMin  = PD._xAtYMinCalc(PD._yMin[0])
         PD._xAtYMax  = PD._xAtYMaxCalc(PD._yMax[0])
 
-
     # --------------------------------------------------------------------------------}
     # --- Stats functions that should only becalled once, could maybe use @attributes..
     # --------------------------------------------------------------------------------{
@@ -315,8 +314,11 @@ class PlotData():
         elif PD.yIsDate:
             return PD.y[0],'{}'.format(PD.y[0])
         else:
-            v=np.nanmin(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanmin(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def _yMaxCalc(PD):
@@ -325,8 +327,11 @@ class PlotData():
         elif PD.yIsDate:
             return PD.y[-1],'{}'.format(PD.y[-1])
         else:
-            v=np.nanmax(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanmax(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def _xAtYMinCalc(PD, yMin):
@@ -361,8 +366,11 @@ class PlotData():
         elif PD.xIsDate:
             return PD.x[0],'{}'.format(PD.x[0])
         else:
-            v=np.nanmin(PD.x)
-            s=pretty_num(v)
+            try:
+                v=np.nanmin(PD.x)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def _xMaxCalc(PD):
@@ -371,8 +379,11 @@ class PlotData():
         elif PD.xIsDate:
             return PD.x[-1],'{}'.format(PD.x[-1])
         else:
-            v=np.nanmax(PD.x)
-            s=pretty_num(v)
+            try:
+                v=np.nanmax(PD.x)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def xMin(PD):
@@ -415,24 +426,33 @@ class PlotData():
         if PD.yIsString or  PD.yIsDate:
             return None,'NA'
         else:
-            v=np.nanmean(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanmean(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def yMedian(PD):
         if PD.yIsString or  PD.yIsDate:
             return None,'NA'
         else:
-            v=np.nanmedian(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanmedian(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def yStd(PD):
         if PD.yIsString or  PD.yIsDate:
             return None,'NA'
         else:
-            v=np.nanstd(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanstd(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def yName(PD):
@@ -480,18 +500,23 @@ class PlotData():
             dtAll=getDt([PD.x[0],PD.x[-1]])
             return np.nan,pretty_time(dtAll)
         else:
-            v=np.nanmax(PD.y)-np.nanmin(PD.y)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.nanmax(PD.y)-np.nanmin(PD.y)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan,'NA'
 
     def yAbsMax(PD):
         if PD.yIsString or PD.yIsDate:
             return 'NA','NA'
         else:
-            v=max(np.abs(PD._y0Min[0]),np.abs(PD._y0Max[0]))
-            s=pretty_num(v)
-        return v,s
-
+            try:
+                v=max(np.abs(PD._y0Min[0]),np.abs(PD._y0Max[0]))
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan,'NA'
 
     def xRange(PD):
         if PD.xIsString:
@@ -500,51 +525,71 @@ class PlotData():
             dtAll=getDt([PD.x[0],PD.x[-1]])
             return np.nan,pretty_time(dtAll)
         else:
-            v=np.nanmax(PD.x)-np.nanmin(PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.nanmax(PD.x)-np.nanmin(PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
 
     def inty(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
     def intyintdx(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y,x=PD.x)/np.trapz(y=PD.x*0+1,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y,x=PD.x)/np.trapz(y=PD.x*0+1,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
     def intyx1(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y*PD.x,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y*PD.x,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
+                
 
     def intyx1_scaled(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y*PD.x,x=PD.x)
-            v=v/np.trapz(y=PD.y,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y*PD.x,x=PD.x)
+                v=v/np.trapz(y=PD.y,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
     def intyx2(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y*PD.x**2,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y*PD.x**2,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
+
 
     # --------------------------------------------------------------------------------}
     # --- Measure - TODO: cleanup
@@ -649,9 +694,13 @@ class PlotData():
             dt=getDt(PD.x)
             return dt,pretty_time(dt)
         else:
-            v=PD.x[1]-PD.x[0]
-            s=pretty_num(v)
-            return v,s
+            try:
+                v=PD.x[1]-PD.x[0]
+                s=pretty_num(v)
+                return v,s
+            except:
+                print('plotdata: computing dx failed for {}'.format(PD))
+                return np.nan, 'NA'
 
     def xMax(PD):
         if PD.xIsString:
@@ -659,18 +708,24 @@ class PlotData():
         elif  PD.xIsDate:
             return PD.x[-1],'{}'.format(PD.x[-1])
         else:
-            v=np.nanmax(PD.x)
-            s=pretty_num(v)
-            return v,s
+            try:
+                v=np.nanmax(PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
     def xMin(PD):
         if PD.xIsString:
             return PD.x[0],PD.x[0]
         elif  PD.xIsDate:
             return PD.x[0],'{}'.format(PD.x[0])
         else:
-            v=np.nanmin(PD.x)
-            s=pretty_num(v)
-            return v,s
+            try:
+                v=np.nanmin(PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
     def leq(PD, m, method=None):
         from pydatview.tools.fatigue import equivalent_load
@@ -684,7 +739,10 @@ class PlotData():
                 except ModuleNotFoundError:
                     print('[INFO] module fatpack not installed, default to windap method for equivalent load')
                     method='rainflow_windap'
-            v=equivalent_load(PD.x, PD.y, m=m, Teq=1, bins=100, method=method)
+            try:
+                v = equivalent_load(PD.x, PD.y, m=m, Teq=1, bins=100, method=method)
+            except:
+                v = np.nan
             return v,pretty_num(v)
 
     def Info(PD,var):

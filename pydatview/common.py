@@ -355,12 +355,15 @@ def pretty_date(d, timespan=None):
     return s
 
 def pretty_num(x):
-    if np.isnan(x):
+    try:
+        if np.isnan(x):
+            return 'NA'
+        if abs(x)<1000 and abs(x)>1e-4:
+            return "{:9.4f}".format(x)
+        else:
+            return '{:.3e}'.format(x)
+    except:
         return 'NA'
-    if abs(x)<1000 and abs(x)>1e-4:
-        return "{:9.4f}".format(x)
-    else:
-        return '{:.3e}'.format(x)
 
 def pretty_num_short(x,digits=3):
     if digits==4:
