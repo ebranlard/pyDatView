@@ -106,8 +106,11 @@ class GUIMeasure:
 
     def plotLine(self, ax):
         """ plot vertical line across axis"""
-        line = ax.axvline(x=self.P_target_raw[0], color=self.color, linewidth=0.5)
-        self.lines.append(line)
+        try:
+            line = ax.axvline(x=self.P_target_raw[0], color=self.color, linewidth=0.5)
+            self.lines.append(line)
+        except:
+            print('[FAIL] GUIMeasure: cannot plot line', self.P_target_raw[0])
 
     def plot(self, axes, PD):
         """ 
