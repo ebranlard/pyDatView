@@ -31,11 +31,54 @@ class TestPlotData(unittest.TestCase):
         x = np.linspace(-2,2,100)
         y = x**3
         PD = PlotData(x,y)
-        PD.toMinMax(xScale=True,yScale=True)
+        # --- Scale both
+        PD.toMinMax(xScale=True, yScale=True, yCenter='None')
         self.assertAlmostEqual(np.min(PD.x),0.0)
         self.assertAlmostEqual(np.min(PD.y),0.0)
+        self.assertAlmostEqual(PD._xMin[0],0.0)
+        self.assertAlmostEqual(PD._yMin[0],0.0)
         self.assertAlmostEqual(np.max(PD.x),1.0)
         self.assertAlmostEqual(np.max(PD.y),1.0)
+        self.assertAlmostEqual(PD._xMax[0] ,1.0)
+        self.assertAlmostEqual(PD._yMax[0] ,1.0)
+
+        # --- Y Center 0  
+        x = np.linspace(-2,2,100)
+        y = x**3 + 10
+        PD = PlotData(x,y)
+        PD.toMinMax(xScale=False, yScale=False, yCenter='Mean=0')
+        self.assertAlmostEqual(np.mean(PD.y),0.0)
+        self.assertAlmostEqual(np.min(PD.y),-8.0)
+        self.assertAlmostEqual(PD._yMin[0] ,-8.0)
+        self.assertAlmostEqual(np.max(PD.y),8.0)
+        self.assertAlmostEqual(PD._yMax[0] ,8.0)
+
+        PD = PlotData(x,y)
+        PD.toMinMax(xScale=False, yScale=False, yCenter='Mid=0')
+        self.assertAlmostEqual(np.min(PD.y),-8.0)
+        self.assertAlmostEqual(PD._yMin[0] ,-8.0)
+        self.assertAlmostEqual(np.max(PD.y),8.0)
+        self.assertAlmostEqual(PD._yMax[0] ,8.0)
+
+        # --- Y Center ref
+        x = np.linspace(-2,2,100)
+        y = x**3 + 10
+        PD = PlotData(x,y)
+        PD.toMinMax(xScale=False, yScale=False, yCenter='Mean=ref', yRef=20)
+        self.assertAlmostEqual(np.mean(PD.y),20+0.0)
+        self.assertAlmostEqual(np.min(PD.y) ,20+-8.0)
+        self.assertAlmostEqual(PD._yMin[0]  ,20+-8.0)
+        self.assertAlmostEqual(np.max(PD.y) ,20+8.0)
+        self.assertAlmostEqual(PD._yMax[0]  ,20+8.0)
+
+        PD = PlotData(x,y)
+        PD.toMinMax(xScale=False, yScale=False, yCenter='Mid=ref', yRef=20)
+        self.assertAlmostEqual(np.min(PD.y),20+-8.0)
+        self.assertAlmostEqual(PD._yMin[0] ,20+-8.0)
+        self.assertAlmostEqual(np.max(PD.y),20+8.0)
+        self.assertAlmostEqual(PD._yMax[0] ,20+8.0)
+
+
 
     def test_PDF(self):
         # --- Test the PDF conversion of plotdata

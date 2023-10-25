@@ -81,24 +81,54 @@ class PDFCtrlPanel(wx.Panel):
 class MinMaxPanel(wx.Panel):
     def __init__(self, parent):
         super(MinMaxPanel,self).__init__(parent)
-        self.parent   = parent
+        # Data
+        self.parent = parent
+        self.yRef = None
         self.cbxMinMax = wx.CheckBox(self, -1, 'xMinMax',(10,10))
         self.cbyMinMax = wx.CheckBox(self, -1, 'yMinMax',(10,10))
         self.cbxMinMax.SetValue(False)
         self.cbyMinMax.SetValue(True)
+        lbCentering  = wx.StaticText( self, -1, 'Y-centering:')
+        self.lbyRef  = wx.StaticText( self, -1, '            ')
+        self.cbyMean  = wx.ComboBox(self, choices=['None', 'Mid=0', 'Mid=ref', 'Mean=0', 'Mean=ref'], style=wx.CB_READONLY)
+        #self.cbyMean  = wx.ComboBox(self, choices=['None', '0', 'Mean of means'] , style=wx.CB_READONLY)
+        self.cbyMean.SetSelection(0)
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
         dummy_sizer.Add(self.cbxMinMax ,0, flag=wx.CENTER|wx.LEFT, border = 1)
         dummy_sizer.Add(self.cbyMinMax ,0, flag=wx.CENTER|wx.LEFT, border = 1)
+        dummy_sizer.Add(lbCentering    ,0, flag=wx.CENTER|wx.LEFT, border = 2)
+        dummy_sizer.Add(self.cbyMean   ,0, flag=wx.CENTER|wx.LEFT, border = 1)
+        dummy_sizer.Add(self.lbyRef    ,0, flag=wx.CENTER|wx.LEFT, border = 2)
         self.SetSizer(dummy_sizer)
         self.Bind(wx.EVT_CHECKBOX, self.onMinMaxChange)
+        self.cbyMean.Bind(wx.EVT_COMBOBOX, self.onMeanChange)
         self.Hide() 
 
-    def onMinMaxChange(self,event=None):
+    def setYRef(self, yRef=None):
+        self.yRef = yRef
+        if yRef is None:
+            self.lbyRef.SetLabel('')
+        else:
+            self.lbyRef.SetLabel('Y-ref: '+pretty_num(yRef))
+
+
+    def onMinMaxChange(self, event=None):
+        self.parent.load_and_draw(); # DATA HAS CHANGED
+
+    def onMeanChange(self, event=None):
+        self.setYRef(None)
+        if self.cbyMean.GetValue()=='None':
+            self.cbyMinMax.Enable(True)
+        else:
+            self.cbyMinMax.Enable(False)
         self.parent.load_and_draw(); # DATA HAS CHANGED
 
     def _GUI2Data(self):
         data={'yScale':self.cbyMinMax.IsChecked(),
-              'xScale':self.cbxMinMax.IsChecked()}
+              'xScale':self.cbxMinMax.IsChecked(),
+              'yCenter':self.cbyMean.GetValue(),
+              'yRef':self.yRef,
+              }
         return data
 
 class CompCtrlPanel(wx.Panel):
@@ -990,9 +1020,19 @@ class PlotPanel(wx.Panel):
         if nBins_out != data['nBins']:
             self.pdfPanel.scBins.SetValue(data['nBins'])
 
-    def setPD_MinMax(self,PD):
+    def setPD_MinMax(self, PD, firstCall=False):
         """ Convert plot data to MinMax data based on GUI options"""
         data = self.mmxPanel._GUI2Data()
+        if data['yCenter'] in ['Mean=ref', 'Mid=ref']:
+            if firstCall:
+                try:
+                    data['yRef'] = PD._y0Mean[0] # Will fail for strings
+                    if np.isnan(data['yRef']): # Will fail for datetimes
+                        data['yRef'] = 0
+                except:
+                    data['yRef'] = 0
+                    print('[WARN] Fail to get yRef, setting it to 0')
+                self.mmxPanel.setYRef(data['yRef']) # Update GUI
         try:
             PD.toMinMax(**data)
         except Exception as e:
@@ -1043,7 +1083,7 @@ class PlotPanel(wx.Panel):
                 PD.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
                 # Possible change of data
                 if plotType=='MinMax':
-                    self.setPD_MinMax(PD) 
+                    self.setPD_MinMax(PD, firstCall=i==0) 
                 elif plotType=='PDF':
                     self.setPD_PDF(PD, PD.c)  
                 elif plotType=='FFT':

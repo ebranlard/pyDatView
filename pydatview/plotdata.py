@@ -197,21 +197,47 @@ class PlotData():
         return nBins
 
 
-    def toMinMax(PD, xScale=False, yScale=True):
+    def toMinMax(PD, xScale=False, yScale=True, yCenter='None', yRef=0):
         """ Convert plot data to MinMax data based on GUI options
         NOTE: inPlace
         """
-        if yScale:
-            if PD.yIsString:
-                raise Exception('Warn: Cannot compute min-max for strings')
-            mi = PD._y0Min[0] #mi= np.nanmin(PD.y)
-            mx = PD._y0Max[0] #mx= np.nanmax(PD.y)
-            if mi == mx:
-                PD.y=PD.y*0
-            else:
-                PD.y = (PD.y-mi)/(mx-mi)
-            PD._yMin=0,'0'
-            PD._yMax=1,'1'
+        # --- Scaling and offset for the y axis
+        ymi = PD._y0Min[0]
+        ymx = PD._y0Max[0]
+        yOff = 0
+        if yCenter in ['Mean=0', 'Mid=0']:
+            yRef = 0
+        if yCenter=='None':
+            if yScale:
+                if PD.yIsString:
+                    raise Exception('Warn: Cannot compute min-max for strings')
+                if ymi == ymx:
+                    PD.y=PD.y*0
+                else:
+                    PD.y = (PD.y-ymi)/(ymx-ymi)
+                PD._yMin=0,'0'
+                PD._yMax=1,'1'
+        elif yCenter in ['Mean=0','Mean=ref']:
+            if PD.yIsString or PD.yIsDate:
+                raise Exception('Warn: Cannot offset y-center for strings or dates')
+            yOff = yRef - PD._y0Mean[0]
+            PD.y = PD.y + yOff # NOTE: we don't use "+=" to avoid casting issue between int and float
+            ymi  = ymi  + yOff
+            ymx  = ymx  + yOff
+            PD._yMin=ymi,str(ymi)
+            PD._yMax=ymx,str(ymx)
+        elif yCenter in ['Mid=0','Mid=ref']:
+            if PD.yIsString or PD.yIsDate:
+                raise Exception('Warn: Cannot offset y-center for strings or dates')
+            yOff = yRef - (ymx+ymi)/2
+            PD.y = PD.y + yOff # NOTE: we don't use "+=" to avoid casting issue between int and float
+            ymi  = ymi  + yOff
+            ymx  = ymx  + yOff
+            PD._yMin=ymi,str(ymi)
+            PD._yMax=ymx,str(ymx)
+        else:
+            raise NotImplementedError('yCenter {}'.format(yCenter))
+        # --- Scaling for the x axis
         if xScale:
             if PD.xIsString:
                 raise Exception('Warn: Cannot compute min-max for strings')
