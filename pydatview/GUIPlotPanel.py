@@ -394,7 +394,7 @@ class EstheticsPanel(wx.Panel):
         self.cbLgdFont.SetSelection(i)
         # Line Width Font
         lbLW = wx.StaticText( self, -1, 'Line width:')
-        LWChoices = ['0.5','1.0','1.25','1.5','2.0','2.5','3.0']
+        LWChoices = ['0.5','1.0','1.25','1.5','1.75','2.0','2.5','3.0']
         self.cbLW = wx.ComboBox(self, choices=LWChoices , style=wx.CB_READONLY)
         try:
             i = LWChoices.index(str(data['LineWidth']))
@@ -1229,7 +1229,12 @@ class PlotPanel(wx.Panel):
         plot_options['step'] = self.cbStepPlot.IsChecked()
         plot_options['logX'] = self.cbLogX.IsChecked()
         plot_options['logY'] = self.cbLogY.IsChecked()
-        plot_options['grid'] = self.cbGrid.IsChecked()
+        if self.cbGrid.IsChecked():
+            plot_options['grid'] = {'visible': self.cbGrid.IsChecked(), 'linestyle':'-', 'linewidth':0.5, 'color':'#b0b0b0'}
+        else:
+            plot_options['grid'] = {'visible': False}
+        #plot_options['tick_params'] = {'direction':'in', 'top':True, 'right':True, 'labelright':False, 'labeltop':False, 'which':'both'}
+        plot_options['tick_params'] = {}
 
         plot_options['lw']=plotStyle['LineWidth']
         plot_options['ms']=plotStyle['MarkerSize']
@@ -1278,7 +1283,6 @@ class PlotPanel(wx.Panel):
 
         # --- PlotStyles
         plotStyle, plot_options, font_options, font_options_legd = self.getPlotOptions()
-
 
         # --- Loop on axes. Either use ax.iPD to chose the plot data, or rely on plotmatrix
         for axis_idx, ax_left in enumerate(axes):
@@ -1337,7 +1341,7 @@ class PlotPanel(wx.Panel):
                 except:
                     pass
 
-            ax_left.grid(plot_options['grid'])
+            ax_left.grid(**plot_options['grid'])
             if ax_right is not None:
                 l = ax_left.get_ylim()
                 l2 = ax_right.get_ylim()
@@ -1347,13 +1351,17 @@ class PlotPanel(wx.Panel):
                 if len(ax_left.lines) == 0:
                     ax_left.set_yticks(ax_right.get_yticks())
                     ax_left.yaxis.set_visible(False)
-                    ax_right.grid(plot_options['grid'])
+                    ax_right.grid(**plot_options['grid'])
 
             # Special Grids
             if self.pltTypePanel.cbCompare.GetValue():
                 if self.cmpPanel.rbType.GetStringSelection()=='Y-Y':
                     xmin,xmax=ax_left.get_xlim()
-                    ax_left.plot([xmin,xmax],[xmin,xmax],'k--',linewidth=0.5)
+
+            # Ticks
+            ax_left.tick_params(**plot_options['tick_params'])
+            if ax_right is not None:
+                ax_right.tick_params(**plot_options['tick_params'])
 
             # Labels
             yleft_labels = []
