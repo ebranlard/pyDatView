@@ -53,8 +53,9 @@ _code="""df = df[eval(maskData['formattedMaskString'])]"""
 
 def applyMask(tab, data):
     #    dfs, names, errors = tabList.applyCommonMaskString(maskString, bAdd=False)
-    data['formattedMaskString'] = formatMaskString(tab.data, data['maskString'])
-    dfs, name = tab.applyMaskString(data['formattedMaskString'], bAdd=False)
+    formattedMaskString = formatMaskString(tab.data, data['maskString'])
+    dfs, name = tab.applyMaskString(formattedMaskString, bAdd=False) # Might raise an Exception
+    data['formattedMaskString'] = formattedMaskString # We only store the "succesful" masks
 
 def removeMask(tab, data):
     tab.clearMask()
