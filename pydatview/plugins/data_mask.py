@@ -4,6 +4,38 @@ from pydatview.plugins.base_plugin import ActionEditor, TOOL_BORDER
 from pydatview.common import CHAR, Error, Info, pretty_num_short
 from pydatview.common import DummyMainFrame
 from pydatview.pipeline import ReversibleTableAction
+_HELP="""Mask
+
+The masking operation is used to select a subset of the data based on some criteria
+defined by a "mask". Currently the mask is applied to all the tables opened in pyDatView but
+if it fails on some tables, the errors are not fatal (they will be reported in the "Errors" 
+link in the taskbar).
+
+Usage:
+ - Fill a mask string in the field "Mask"
+ - Click on the Button Mask to apply the mask to all tables. 
+ - Click on the Button"Mask (add)" to create copy of the tables with the masked applied 
+    (this is useful if you want to further export these tables, or perform comparisons between
+     unmask and masked data sets).
+
+Mask specifications:
+ - The mask should be in "Python" syntax, except that the columns are referenced using 
+   a special notation.
+ - Columns are referenced with curly brackets. The units are removed for convenience.
+   For instance: "{Time}" corresponds to the columns 'Time_[s]' or 'Time (s)' or 'Time'.
+ - Basic selection can be done with the operators '==', '<', '<=', etc.
+ - The Python syntax for logical operations is:
+     - and:  (A) && (B)
+     - or :  (A) || (B)
+ - Numpy operations may be performed using "np."
+     
+Example of masks:
+    - "({Time}>100) && ({Time}<50) && ({WindSpeed}==5)": Select data where time is between 50 
+        and 100 and where the WindSpeed is 5.
+    - "{Date} > '2018-10-01'": Select dates after a given date
+    - "['John' in str(x) for x in {Names}]": Select Names that contain 'John'
+
+"""
 # --------------------------------------------------------------------------------}
 # --- Data
 # --------------------------------------------------------------------------------{
@@ -92,7 +124,7 @@ def formatMaskString(df, sMask):
 class MaskToolPanel(ActionEditor):
     def __init__(self, parent, action=None):
         import wx # avoided at module level for unittests
-        ActionEditor.__init__(self, parent, action=action)
+        ActionEditor.__init__(self, parent, action=action, help_string=_HELP)
 
         # --- Creating "Fake data" for testing only!
         if action is None:
@@ -102,6 +134,7 @@ class MaskToolPanel(ActionEditor):
         # --- GUI elements
         self.btClose = self.getBtBitmap(self, 'Close','close', self.destroy)
         self.btAdd   = self.getBtBitmap(self, u'Mask (add)','add'  , self.onAdd)
+        self.btHelp  = self.getBtBitmap(self, u'Help'      ,'help' , self.onHelp)
         self.btApply = self.getToggleBtBitmap(self, 'Apply','cloud', self.onToggleApply)
 
         #self.cbTabs     = wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
@@ -115,7 +148,7 @@ class MaskToolPanel(ActionEditor):
         # --- Layout
         btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=2, vgap=0)
         btSizer.Add(self.btClose                ,0,flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(wx.StaticText(self, -1, '') ,0,flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btHelp                 ,0,flag = wx.ALL|wx.EXPAND, border = 1)
         btSizer.Add(self.btAdd                  ,0,flag = wx.ALL|wx.EXPAND, border = 1)
         btSizer.Add(self.btApply                ,0,flag = wx.ALL|wx.EXPAND, border = 1)
 

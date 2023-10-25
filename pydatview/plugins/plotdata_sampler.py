@@ -2,6 +2,33 @@ import numpy as np
 from pydatview.plugins.base_plugin import PlotDataActionEditor, TOOL_BORDER
 from pydatview.common import Error, Info
 from pydatview.pipeline import PlotDataAction
+_HELP = """Resampling.
+
+The resampling operation changes the "x" values of a table/plot and 
+adapt the "y" values accordingly.
+
+To resample perform the following step:
+
+- Choose a resampling method:
+   - replace: specify all the new x-values
+   - insert : insert a list of x values to the existing ones
+   - delete : delete a list of x values from the existing ones
+   - every-n : use every n values 
+   - linspace : a linear spacing, insert a xmin, xmax and number of values
+                (works only when x is increasing monotically)
+   - time-based: downsample using sample averaging or upsample using
+                 linear interpolation, x-axis must already be in seconds
+   - delta x : specify a delta for uniform spacing of x values
+
+- Specify the x values as a space or comma separated list
+
+- Click on one of the following buttons:
+   - Plot: will display the resampled data on the figure
+   - Apply: will perform the resampling on the fly for all new plots
+   - Add: will create new table(s) with resampled values for all 
+          signals. This process might take some time.
+          Select a table or choose all (default)
+"""
 # --------------------------------------------------------------------------------}
 # --- Data
 # --------------------------------------------------------------------------------{
@@ -67,7 +94,7 @@ class SamplerToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
         import wx
-        PlotDataActionEditor.__init__(self, parent, action, tables=False)
+        PlotDataActionEditor.__init__(self, parent, action, help_string=_HELP, tables=False)
 
         # --- Data
         from pydatview.tools.signal_analysis import SAMPLERS
@@ -211,35 +238,6 @@ class SamplerToolPanel(PlotDataActionEditor):
 
         # Call parent class
         PlotDataActionEditor.onAdd(self)
-
-    def onHelp(self,event=None):
-        Info(self,"""Resampling.
-
-The resampling operation changes the "x" values of a table/plot and 
-adapt the "y" values accordingly.
-
-To resample perform the following step:
-
-- Choose a resampling method:
-   - replace: specify all the new x-values
-   - insert : insert a list of x values to the existing ones
-   - delete : delete a list of x values from the existing ones
-   - every-n : use every n values 
-   - linspace : a linear spacing, insert a xmin, xmax and number of values
-                (works only when x is increasing monotically)
-   - time-based: downsample using sample averaging or upsample using
-                 linear interpolation, x-axis must already be in seconds
-   - delta x : specify a delta for uniform spacing of x values
-
-- Specify the x values as a space or comma separated list
-
-- Click on one of the following buttons:
-   - Plot: will display the resampled data on the figure
-   - Apply: will perform the resampling on the fly for all new plots
-   - Add: will create new table(s) with resampled values for all 
-          signals. This process might take some time.
-          Select a table or choose all (default)
-""")
 
 if __name__ == '__main__':
     from pydatview.plugins.base_plugin import demoPlotDataActionPanel

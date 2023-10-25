@@ -6,7 +6,7 @@ from pydatview.tools.damping import freqDampEstimator, zetaEnvelop
 
 _HELP = """Damping and frequency estimation.
 
-This tool attemps to estimate the natural frequency and damping ratio of the signal,
+This tool attempts to estimate the natural frequency and damping ratio of the signal,
 assuming it has a dominant frequency and an exponential decay or growth.
 The damping ratio is referred to as "zeta".
 
@@ -40,7 +40,7 @@ NOTE: you can zoom on the figure first (and deselect "AutoScale"), to perform th
 # --------------------------------------------------------------------------------{
 class LogDecToolPanel(GUIToolPanel):
     def __init__(self, parent):
-        super(LogDecToolPanel,self).__init__(parent)
+        super(LogDecToolPanel,self).__init__(parent, help_string=_HELP)
         self.data = {}
         # --- GUI
         btClose = self.getBtBitmap(self,'Close'  ,'close'  ,self.destroy  )
@@ -105,9 +105,6 @@ class LogDecToolPanel(GUIToolPanel):
     def onClear(self): 
         #.mainframe.plotPanel.load_and_draw  # or action.guiCallback
         return self.parent.load_and_draw()
-
-    def onHelp(self,event=None):
-        Info(self, _HELP)
 
     # --- Fairly generic
     def _GUI2Data(self):

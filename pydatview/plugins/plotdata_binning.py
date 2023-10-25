@@ -2,6 +2,27 @@ import numpy as np
 from pydatview.plugins.base_plugin import PlotDataActionEditor, TOOL_BORDER
 from pydatview.common import Error, Info, pretty_num_short
 from pydatview.pipeline import PlotDataAction
+_HELP = """Binning.
+
+The binning operation computes average y values for a set of x ranges.
+
+To bin perform the following step:
+
+- Specify the number of bins (#bins)
+- Specify the min and max of the x values (or click on "Update x")
+- Click on one of the following buttons:
+   - Plot: will display the binned data on the figure
+   - Apply: will perform the binning on the fly for all new plots
+           (click on Clear to stop applying)
+   - Add: will create new table(s) with binned values for all 
+          signals. This process might take some time.
+          Select a table or choose all (default)
+
+   - Update x: retrieve the minimum and maximum x values of the current plot and update the
+              corresponding fields in the GUI. The values can then used to make sure the bins
+              cover the full range of the data.
+               
+"""
 # --------------------------------------------------------------------------------}
 # --- Data
 # --------------------------------------------------------------------------------{
@@ -95,7 +116,7 @@ class BinningToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
         import wx
-        PlotDataActionEditor.__init__(self, parent, action, tables=False, **kwargs)
+        PlotDataActionEditor.__init__(self, parent, action, tables=False, help_string=_HELP, **kwargs)
 
         # --- GUI elements
         self.scBins = wx.SpinCtrl(self,      value='50', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(60,-1) )
@@ -214,28 +235,6 @@ class BinningToolPanel(PlotDataActionEditor):
 
         # Call parent class
         PlotDataActionEditor.onAdd(self)
-
-    def onHelp(self,event=None):
-        Info(self,"""Binning.
-
-The binning operation computes average y values for a set of x ranges.
-
-To bin perform the following step:
-
-- Specify the number of bins (#bins)
-- Specify the min and max of the x values (or click on "Default")
-
-- Click on one of the following buttons:
-   - Plot: will display the binned data on the figure
-   - Apply: will perform the binning on the fly for all new plots
-           (click on Clear to stop applying)
-   - Add: will create new table(s) with biined values for all 
-          signals. This process might take some time.
-          Select a table or choose all (default)
-""")
-
-
-
 
 if __name__ == '__main__':
     from pydatview.plugins.base_plugin import demoPlotDataActionPanel

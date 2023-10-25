@@ -5,8 +5,23 @@ import copy
 from pydatview.plugins.base_plugin import GUIToolPanel
 from pydatview.common import Error, Info, pretty_num_short, PyDatViewException
 from pydatview.tools.curve_fitting import model_fit, extract_key_miscnum, extract_key_num, MODELS, FITTERS, set_common_keys
+_HELP = """Curve fitting
 
+To perform a curve fit, adjusts the "Inputs section on the left":
+- Select a predefined equation to fit, using the scrolldown menu.
+- Adjust the initial guess for the parameters (if wanted)
+- (Only for few models: set constants values)
+- Click on "Fit"
 
+If you select a user-defined model:
+- Equation parameters are specified using curly brackets
+- Numpy functions are available using "np."
+
+Buttons:
+- Clear: remove the fit from the plot
+- Add: add the fit data to the list of tables (can then be exported)
+                
+"""
 # --------------------------------------------------------------------------------}
 # --- Curve Fitting
 # --------------------------------------------------------------------------------{
@@ -27,7 +42,7 @@ MODELS_EXTRA =[
 
 class CurveFitToolPanel(GUIToolPanel):
     def __init__(self, parent):
-        super(CurveFitToolPanel,self).__init__(parent)
+        super(CurveFitToolPanel,self).__init__(parent, help_string=_HELP)
 
         # Data
         self.x     = None
@@ -243,23 +258,4 @@ class CurveFitToolPanel(GUIToolPanel):
         name='model_fit'
         if self.x is not None and self.y_fit is not None:
             df=pd.DataFrame({self.sx:self.x, self.sy:self.y_fit})
-            self.parent.addTables([df], [name], bAdd=True)
 
-    def onHelp(self,event=None):
-        Info(self,"""Curve fitting is still in beta.
-
-To perform a curve fit, adjusts the "Inputs section on the left":
-- Select a predefined equation to fit, using the scrolldown menu.
-- Adjust the initial gues for the parameters (if wanted)
-- (Only for few models: set constants values)
-- Click on "Fit"
-
-If you select a user-defined model:
-- Equation parameters are specified using curly brackets
-- Numpy functions are available using "np"
-
-Buttons:
-- Clear: remove the fit from the plot
-- Add: add the fit data to the list of tables (can then be exported)
-                
-""")

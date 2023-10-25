@@ -3,6 +3,23 @@ from pydatview.plugins.base_plugin import PlotDataActionEditor, TOOL_BORDER
 from pydatview.common import Error, Info
 from pydatview.pipeline import PlotDataAction
 import platform
+_HELP="""Outlier removal
+
+Removes outliers from the plotted data. 
+
+Currently, the only method implemented is the "Median-std".
+
+Usage:
+ - Adjust the parameter of the method.
+ - Click on "Apply" to apply the filtering on the fly to all the data being plotted.
+
+Methods:
+ - Median-std: rejects data points that are away from the median by a distance 
+               corresponding to a fraction of the standard deviation of the signal.
+               This fraction is referred to as "Median deviations".
+               The smaller the fraction the more data will be removed.
+
+"""
 # --------------------------------------------------------------------------------}
 # --- Data
 # --------------------------------------------------------------------------------{
@@ -61,7 +78,7 @@ class RemoveOutliersToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
         import wx
-        PlotDataActionEditor.__init__(self, parent, action, tables=False, buttons=[''], **kwargs)
+        PlotDataActionEditor.__init__(self, parent, action, tables=False, sButtons=['Close','Help','Apply'], nBtCols=3, help_string=_HELP, **kwargs)
 
         # --- GUI elements
         #self.btClose = self.getBtBitmap(self,'Close','close',self.destroy)
@@ -77,8 +94,6 @@ class RemoveOutliersToolPanel(PlotDataActionEditor):
         
         # --- Layout        
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
-#         self.sizer.Add(self.btClose,0,flag = wx.LEFT|wx.CENTER,border = 1)
-#         self.sizer.Add(self.btApply,0,flag = wx.LEFT|wx.CENTER,border = 5)
         hsizer.Add(lb1         ,0,flag = wx.LEFT|wx.CENTER,border = 5)
         hsizer.Add(self.tMD    ,0,flag = wx.LEFT|wx.CENTER,border = 5)
         hsizer.Add(self.lb     ,0,flag = wx.LEFT|wx.CENTER,border = 5)

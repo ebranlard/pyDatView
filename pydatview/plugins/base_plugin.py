@@ -18,9 +18,10 @@ TOOL_BORDER=5
 # --- Default class for tools
 # --------------------------------------------------------------------------------{
 class GUIToolPanel(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, help_string =''):
         super(GUIToolPanel,self).__init__(parent)
         self.parent   = parent
+        self.help_string = help_string
 
     def destroyData(self):
         if hasattr(self, 'action'):
@@ -56,6 +57,10 @@ class GUIToolPanel(wx.Panel):
             par.Bind(wx.EVT_TOGGLEBUTTON, callback, bt)
         return bt
 
+    def onHelp(self, event=None):
+        Info(self, self.help_string)
+
+
 # --------------------------------------------------------------------------------}
 # --- Default class for GUI to edit plugin and control an action
 # --------------------------------------------------------------------------------{
@@ -67,8 +72,8 @@ class ActionEditor(GUIToolPanel):
      - the action data
      - a set of function handles to process some triggers and callbacks
     """
-    def __init__(self, parent, action, buttons=None, tables=False):
-        GUIToolPanel.__init__(self, parent)
+    def __init__(self, parent, action, buttons=None, tables=False, help_string=''):
+        GUIToolPanel.__init__(self, parent, help_string=help_string)
             
         # --- Data
         self.data           = action.data
@@ -163,19 +168,15 @@ class ActionEditor(GUIToolPanel):
     def onClear(self, event=None):
         self.redrawHandle()
 
-    def onHelp(self,event=None):
-        Info(self, """Dummy help""")
-
-
 # --------------------------------------------------------------------------------}
 # --- Default class for GUI to edit plugin and control a plot data action
 # --------------------------------------------------------------------------------{
 class PlotDataActionEditor(ActionEditor):
 
-    def __init__(self, parent, action, buttons=None, tables=False):
+    def __init__(self, parent, action, sButtons=None, tables=False, help_string='', nBtRows=None, nBtCols=None):
         """ 
         """
-        ActionEditor.__init__(self, parent, action=action)
+        ActionEditor.__init__(self, parent, action=action, help_string=help_string)
             
         # --- Data
         self.data      = action.data
@@ -189,24 +190,35 @@ class PlotDataActionEditor(ActionEditor):
         self.action.guiEditorObj = self
 
         # --- GUI elements
-        if buttons is None:
-            buttons=['Close', 'Add', 'Help', 'Clear', 'Plot', 'Apply']
+        if sButtons is None:
+            sButtons=['Close', 'Add', 'Help', 'Clear', 'Plot', 'Apply']
         self.btAdd   = None
         self.btHelp  = None
         self.btClear = None
         self.btPlot  = None
-        nButtons = 0
-        self.btClose = self.getBtBitmap(self,'Close','close',self.destroy); nButtons+=1
-        if 'Add' in buttons:
-            self.btAdd   = self.getBtBitmap(self, 'Add','add'  , self.onAdd); nButtons+=1
-        if 'Help' in buttons:
-            self.btHelp  = self.getBtBitmap(self, 'Help','help', self.onHelp); nButtons+=1
-        if 'Clear' in buttons:
-            self.btClear = self.getBtBitmap(self, 'Clear Plot','sun'   , self.onClear); nButtons+=1
-        if 'Plot' in buttons:
-            self.btPlot  = self.getBtBitmap(self, 'Plot ' ,'chart'  , self.onPlot); nButtons+=1
-        self.btApply = self.getToggleBtBitmap(self,'Apply','cloud',self.onToggleApply); nButtons+=1
-
+        nButtons = len(sButtons)
+        buttons=[]
+        for lbl in sButtons:
+            if lbl=='Close':
+                self.btClose = self.getBtBitmap(self,'Close','close',self.destroy)
+                buttons.append(self.btClose)
+            elif lbl=='Add':
+                self.btAdd   = self.getBtBitmap(self, 'Add', 'add'  , self.onAdd)
+                buttons.append(self.btAdd)
+            elif lbl=='Help':
+                self.btHelp  = self.getBtBitmap(self, 'Help', 'help', self.onHelp)
+                buttons.append(self.btHelp)
+            elif lbl=='Clear':
+                self.btClear = self.getBtBitmap(self, 'Clear Plot', 'sun', self.onClear)
+                buttons.append(self.btClear)
+            elif lbl=='Plot':
+                self.btPlot  = self.getBtBitmap(self, 'Plot ', 'chart'  , self.onPlot)
+                buttons.append(self.btPlot)
+            elif lbl=='Apply':
+                self.btApply = self.getToggleBtBitmap(self, 'Apply', 'cloud', self.onToggleApply)
+                buttons.append(self.btApply)
+            else:
+                raise NotImplementedError('Button: {}'.format(lbl))
         
         if tables:
             self.cbTabs= wx.ComboBox(self, -1, choices=[], style=wx.CB_READONLY)
@@ -215,17 +227,13 @@ class PlotDataActionEditor(ActionEditor):
             self.cbTabs = None
 
         # --- Layout
-        btSizer  = wx.FlexGridSizer(rows=int(nButtons/2), cols=2, hgap=2, vgap=0)
-        btSizer.Add(self.btClose                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        if self.btClear is not None:
-            btSizer.Add(self.btClear                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        if self.btAdd is not None:
-            btSizer.Add(self.btAdd                  , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        if self.btPlot is not None:
-            btSizer.Add(self.btPlot                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        if self.btHelp is not None:
-            btSizer.Add(self.btHelp                 , 0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btApply                , 0, flag = wx.ALL|wx.EXPAND, border = 1)
+        if nBtCols is None:
+            nBtCols=2
+        if nBtRows is None:
+            nBtRows = int(np.ceil(nButtons/nBtCols))
+        btSizer  = wx.FlexGridSizer(rows=nBtRows, cols=nBtCols, hgap=2, vgap=0)
+        for bt in buttons:
+            btSizer.Add(bt, 0, flag = wx.ALL|wx.EXPAND, border = 1)
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.Add(btSizer      ,0, flag = wx.LEFT          ,border = 1)

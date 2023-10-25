@@ -7,6 +7,50 @@ from pydatview.plugins.base_plugin import ActionEditor
 # from pydatview.common import DummyMainFrame
 from pydatview.pipeline import AdderAction
 
+_HELP = """Nodal/Radial averaging
+
+Nodal averaging is useful to extract OpenFAST/FAST.Farm outputs as function 
+of a given nodal variable(typically: the radial position along the blade span, or
+the tower height, or downstream wake locations).
+
+OpenFAST outputs these nodal variables in different channels such as: 
+   B1N001Alpha(t), B1N002Alpha(t), etc.
+
+The nodal averaging tool perform a time average of these channels, so that they can 
+be plotted as function of their spatial variable (e.g. the radial position).
+For the example above, the nodal averaging would return Alpha(r), with r the radial
+position.
+
+Two methods are available to perform the time averaging:
+ - Last `n` seconds: average over the `n` last seconds of the time series, where `n` is, 
+                     the user input parameter value. Setting `n` > tmax will correspond
+                     to the entire time series.
+ - Last `n` periods: average the time series over the last `n` rotor revolutions. 
+                     This is the recommend approach for quasi-periodic signals
+                     (such as wind turbines outputs), with a rotor.
+                     The script will need a column named "Azimuth" to perform correctly.
+                     
+Behind the scene, the script:
+ - Determines whether it is an OpenFAST or FAST.Farm output.
+ - Attempts to open the OpenFAST input files to find out the nodal locations (
+    (e.g., by opening the AeroDyn blade file, the ElastoDyn file, etc.)
+   If the files can't be read the variables will be plotted as function of "index"
+   instead of the spatial coordinates (e.g., r). 
+   Better results are therefore obtained if the input files are accessible by pyDatView. 
+
+Requirements:
+  - A column named "time" (case and unit incensitive) need to be present.
+  - For the period averaging, a column named "azimuth" need to be present.
+  - For better results, OpenFAST inputs files should be accessible (i.e. the output file
+    should not have been moved or renamed)
+
+
+NOTE: 
+ - The action "nodal time concatenation" takes all the time series of a given variable
+   and concatenate them into one channel.
+      B1Alpha =  [B1N001Alpha(t), B1N002Alpha(t), etc. ] 
+
+"""
 
 # --------------------------------------------------------------------------------}
 # --- Radial
@@ -90,7 +134,7 @@ def radialAvg(tab, data=None):
 class RadialToolPanel(ActionEditor):
     def __init__(self, parent, action=None):
         import wx # avoided at module level for unittests
-        super(RadialToolPanel,self).__init__(parent, action=action)
+        super(RadialToolPanel,self).__init__(parent, action=action, help_string=_HELP)
 
         # --- Creating "Fake data" for testing only!
         if action is None:
@@ -100,6 +144,7 @@ class RadialToolPanel(ActionEditor):
         # --- GUI elements
         self.btClose = self.getBtBitmap(self,'Close'  ,'close'  , self.destroy)
         self.btAdd  = self.getBtBitmap(self,'Average','compute', self.onAdd) # ART_PLUS
+        self.btHelp  = self.getBtBitmap(self, 'Help','help', self.onHelp)
 
         self.lb         = wx.StaticText( self, -1, """Select averaging method and average parameter (`Period` methods uses the `azimuth` signal) """)
         #self.cbTabs     = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
@@ -110,10 +155,11 @@ class RadialToolPanel(ActionEditor):
         self.textAverageParam = wx.TextCtrl(self, wx.ID_ANY, '', size = (36,-1), style=wx.TE_PROCESS_ENTER)
 
         # --- Layout
-        btSizer  = wx.FlexGridSizer(rows=2, cols=1, hgap=0, vgap=0)
+        btSizer  = wx.FlexGridSizer(rows=2, cols=2, hgap=0, vgap=0)
         #btSizer  = wx.BoxSizer(wx.VERTICAL)
         btSizer.Add(self.btClose   ,0, flag = wx.ALL|wx.EXPAND, border = 1)
-        btSizer.Add(self.btAdd    ,0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btAdd     ,0, flag = wx.ALL|wx.EXPAND, border = 1)
+        btSizer.Add(self.btHelp    ,0, flag = wx.ALL|wx.EXPAND, border = 1)
 
         row_sizer = wx.BoxSizer(wx.HORIZONTAL)
         #row_sizer.Add(wx.StaticText(self, -1, 'Tab:')   , 0, wx.CENTER|wx.LEFT, 0)
@@ -173,7 +219,6 @@ class RadialToolPanel(ActionEditor):
         iSel = AVG_METHODS.index(self.data['avgMethod'])
         self.cbMethod.SetSelection(iSel)
         self.textAverageParam.SetValue(str(self.data['avgParam']))
-
 
 
 if __name__ == '__main__':

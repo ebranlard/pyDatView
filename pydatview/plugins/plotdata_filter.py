@@ -3,6 +3,30 @@ from pydatview.plugins.base_plugin import PlotDataActionEditor, TOOL_BORDER
 from pydatview.common import Error, Info
 from pydatview.pipeline import PlotDataAction
 import platform
+
+_HELP="""Filtering.
+
+The filtering operation changes the "y" values of a table/plot, 
+applying a given filter (typically cutting off some frequencies).
+
+To filter perform the following step:
+
+- Choose a filtering method:
+   - Moving average: apply a moving average filter, with
+          a length specified by the window size (in indices)
+   - High pass 1st order: apply a first order high-pass filter,
+          passing the frequencies above the cutoff frequency parameter.
+   - Low pass 1st order: apply a first order low-pass filter,
+          passing the frequencies below the cutoff frequency parameter.
+
+- Click on one of the following buttons:
+   - Plot: will display the filtered data on the figure
+   - Apply: will perform the filtering on the fly for all new plots
+   - Add: will create new table(s) with filtered values for all 
+          signals. This process might take some time.
+          Currently done for all tables.
+"""
+
 # --------------------------------------------------------------------------------}
 # --- Data
 # --------------------------------------------------------------------------------{
@@ -72,7 +96,7 @@ class FilterToolPanel(PlotDataActionEditor):
 
     def __init__(self, parent, action, **kwargs):
         import wx # avoided at module level for unittests
-        PlotDataActionEditor.__init__(self, parent, action, tables=False, **kwargs)
+        PlotDataActionEditor.__init__(self, parent, action, tables=False, help_string=_HELP, **kwargs)
 
         # --- Data
         from pydatview.tools.signal_analysis import FILTERS
@@ -193,31 +217,6 @@ class FilterToolPanel(PlotDataActionEditor):
 
         # Call parent class
         PlotDataActionEditor.onAdd(self)
-
-    def onHelp(self,event=None):
-        Info(self,"""Filtering.
-
-The filtering operation changes the "y" values of a table/plot, 
-applying a given filter (typically cutting off some frequencies).
-
-To filter perform the following step:
-
-- Choose a filtering method:
-   - Moving average: apply a moving average filter, with
-          a length specified by the window size (in indices)
-   - High pass 1st order: apply a first oder high-pass filter,
-          passing the frequencies above the cutoff frequency parameter.
-   - Low pass 1st order: apply a first oder low-pass filter,
-          passing the frequencies below the cutoff frequency parameter.
-
-- Click on one of the following buttons:
-   - Plot: will display the filtered data on the figure
-   - Apply: will perform the filtering on the fly for all new plots
-   - Add: will create new table(s) with filtered values for all 
-          signals. This process might take some time.
-          Currently done for all tables.
-""")
-
 
 
 if __name__ == '__main__':
