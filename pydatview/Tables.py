@@ -1,6 +1,7 @@
 import numpy as np
 import os.path
 from dateutil import parser
+import datetime
 import pandas as pd
 from pydatview.common import no_unit, ellude_common, getDt, exception2string, PyDatViewException
 import pydatview.io as weio # File Formats and File Readers
@@ -740,11 +741,32 @@ class Table(object):
         changeUnitsTab(self, data=data)
 
     def convertTimeColumns(self, dayfirst=False):
+
+        def convertTimeColumn(c):
+            print('[INFO] Converting column {} to datetime, dayfirst: {}. May take a while...'.format(c, dayfirst))
+            try:
+                # TODO THIS CAN BE VERY SLOW...
+                self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=True).to_pydatetime()
+                print('       Done.')
+            except:
+                try:
+                    print('[FAIL] Attempting without infer datetime. May take a while...')
+                    self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=False).to_pydatetime()
+                    print('       Done.')
+                except:
+                    # Happens if values are e.g. "Monday, Tuesday"
+                    print('[FAIL] Inferring column as string instead')
+
+
         if len(self.data)>0:
             for i,c in enumerate(self.data.columns.values):
                 y = self.data.iloc[:,i]
                 if y.dtype == object:
-                    if isinstance(y.values[0], str):
+                    if isinstance(y.values[0], datetime.datetime):
+                        isDate=True
+                        convertTimeColumn(c)
+
+                    elif isinstance(y.values[0], str):
                         # tring to convert to date
                         try:
                             vals = parser.parse(y.values[0])
@@ -755,21 +777,10 @@ class Table(object):
                             else:
                                 isDate=False
                         if isDate:
-                            print('[INFO] Converting column {} to datetime, dayfirst: {}. May take a while...'.format(c, dayfirst))
-                            try:
-                                # TODO THIS CAN BE VERY SLOW...
-                                self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=True).to_pydatetime()
-                                print('       Done.')
-                            except:
-                                try:
-                                    print('[FAIL] Attempting without infer datetime. May take a while...')
-                                    self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=False).to_pydatetime()
-                                    print('       Done.')
-                                except:
-                                    # Happens if values are e.g. "Monday, Tuesday"
-                                    print('[FAIL] Inferring column as string instead')
+                            convertTimeColumn(c)
                         else:
                             print('Column {} inferred as string'.format(c))
+                            self.data[c] = self.data[c].str.strip()
                     elif isinstance(y.values[0], (float, int)):
                         try:
                             self.data[c]=self.data[c].astype(float)
@@ -777,7 +788,7 @@ class Table(object):
                         except:
                             self.data[c]=self.data[c].astype(str)
                             print('Column {} inferred and converted to string'.format(c))
-                    else :
+                    else:
                         print('>> Unknown type:',type(y.values[0]))
             #print(self.data.dtypes)
 
