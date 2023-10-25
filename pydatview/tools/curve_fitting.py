@@ -364,6 +364,7 @@ def gentorque(x, p):
     return GenTrq
 
 
+# TODO TODO TODO WHY DID I GO FOR STRINGS AND NOT DICTIONARIES FOR CONSTS AND BOUNDS????
 MODELS =[
 #     {'label':'User defined model',
 #          'name':'eval:',
@@ -483,7 +484,7 @@ def model_fit(func, x, y, p0=None, bounds=None, **fun_kwargs):
         consts     = FITTERS[i]['consts']
         args, missing = set_common_keys(consts, fun_kwargs)
         if len(missing)>0:
-            raise Exception('Curve fitting with `{}` requires the following arguments {}. Missing: {}'.format(func,consts.keys(),missing))
+            raise Exception('Curve fitting with `{}` requires the following arguments {}. Missing: {}'.format(func, list(consts.keys()), missing))
         # Calling the class
         fitter = FitterDict['handle'](x=x, y=y, p0=p0, bounds=bounds, **fun_kwargs)
     else:
@@ -586,7 +587,7 @@ class ModelFitter():
 
         self.model['consts'], missing = set_common_keys(self.model['consts'],  fun_kwargs )
         if len(missing)>0:
-            raise Exception('Curve fitting with function `{}` requires the following arguments {}. Missing: {}'.format(func.__name__,consts.keys(),missing))
+            raise Exception('Curve fitting with function `{}` requires the following arguments {}. Missing: {}'.format(self.model['name'],list(self.model['consts'].keys()),missing))
 
     def setup_bounds(self, bounds, nParams):
         if bounds is not None:

@@ -1005,7 +1005,7 @@ def showApp(firstArg=None, dataframes=None, filenames=[], names=None):
         err = 'Errors occured while loading files:\n\n'
         err += exception2string(e)
 
-    #frame.onShowTool(toolName='')
+    #frame.onShowTool(toolName='Curve fitting')
     #frame.onDataPlugin(toolName='Radial Average')
     #frame.onDataPlugin(toolName='Resample')
     #frame.onScript()

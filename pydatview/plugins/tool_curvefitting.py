@@ -1,8 +1,9 @@
 import wx
 import numpy as np
+import pandas as pd
 import copy
 from pydatview.plugins.base_plugin import GUIToolPanel
-from pydatview.common import Error, Info, pretty_num_short
+from pydatview.common import Error, Info, pretty_num_short, PyDatViewException
 from pydatview.tools.curve_fitting import model_fit, extract_key_miscnum, extract_key_num, MODELS, FITTERS, set_common_keys
 
 
@@ -193,7 +194,13 @@ class CurveFitToolPanel(GUIToolPanel):
             bounds=self.textBounds.GetLineText(0).replace('np.inf','inf')
             # Guess
             p0=self.textGuess.GetLineText(0).replace('np.inf','inf')
-            fun_kwargs=extract_key_num(self.textConstants.GetLineText(0).replace('np.inf','inf'))
+            fun_kwargs     = extract_key_num(self.textConstants.GetLineText(0).replace('np.inf','inf'))
+            fun_kwargs_ref = extract_key_num(d['consts'])
+            if set(fun_kwargs_ref.keys()) != set(fun_kwargs.keys()):
+                Error(self, 'The Field `Constants` should contain the keys: {}'.format(list(fun_kwargs_ref.keys())))
+                return 
+
+
         #print('>>> Model fit sFunc :',sFunc     )
         #print('>>> Model fit p0    :',p0        )
         #print('>>> Model fit bounds:',bounds    )
