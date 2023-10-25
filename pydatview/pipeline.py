@@ -344,9 +344,6 @@ class Pipeline(object):
                     #print('[INFO] Scripting routine for action {}'.format(action.name))
                     scripter.addAction(action.name, action_code, imports, code_init)
 
-        # --- Fake preplot actions that change the plot type
-        scripter.setPlotType(plotType, plotTypeData)
-
         # --- Preplot actions
         for action in self.actionsPlotFilters:
             action_code, imports, code_init = action.getScript()
@@ -355,6 +352,9 @@ class Pipeline(object):
             else:
                 #print('[INFO] Scripting routine for plot action {}'.format(action.name))
                 scripter.addPreplotAction(action.name, action_code, imports, code_init)
+
+        # --- Fake preplot actions that change the plot type
+        scripter.setPlotType(plotType, plotTypeData)
 
         # --- Formulae
         from pydatview.formulae import formatFormula

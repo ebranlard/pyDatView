@@ -92,8 +92,6 @@ class PythonScripter:
 
     def setPlotType(self, plotType, plotTypeOptions=None):
         """ Setup a prePlot action depending on plot Type"""
-        if len(self.preplot_actions)>0:
-            raise Exception('PlotType should be the first preplot_action!')
         opts = plotTypeOptions
         action_code = None
         imports     = None
