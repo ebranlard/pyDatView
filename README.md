@@ -106,9 +106,12 @@ Documentation is scarce for now, but here are some tips for using the program:
  - You can open several files at once, with same or different filetypes. Upon opening multiple files, a new table appears with the list of open files.
  - To add multiple channels or data from multiple files to a plot, use `ctrl + click` or shift-click to make selections.
  - Look for the menus indicated by the "sandwich" symbol (3 horizontal bars &#2630;). These menus are also accessible with right clicks. 
- - The menus will allow you to edit tables (rename, delete them), add or remove columns (for instance to convert a signal from one unit to another unit), or change the values displayed in the information table at the bottom. 
- - Few options are also available in the menus `data` and `tools` located at the top of the program. 
- - The modes and file format drop down menus at the top can usually be kept on `auto`. If a file cannot be read, pay attention to the file extension used, and possibly select a specific file format in the dropdown menu instead of `auto`. 
+ - The menus will allow you to edit tables (rename, delete, reload, merge), add or remove columns (for instance to convert a signal from one unit to another unit), or change the values displayed in the information table at the bottom. 
+ - Different "actions" (e.g. filtering, binning, masking) are available in the menus `data` and `tools` located at the top of the program. 
+ - The modes and fileformat drop down menus at the top can usually be kept on `auto`. If a file cannot be read, pay attention to the file extension used, and possibly select a specific file format in the dropdown menu instead of `auto`. 
+ - Above the taskbar is the "Pipeline" which lists the different actions (e.g. binning, filtering, mask) that are applied to the different tables before being plotted. The pipeline actions will be reapplied on reload, and python code for them will be generated when exporting a script.
+ - Different plot styling options can be found below the plot area. The button next to the "Save" icon can be used to customize the esthetics of the plot (e.g. fontsize, linewidth, legend location).
+ - Live plotting can be disabled using the check box "Live plot". This is useful when manipulating large datasets, and potentially wanting to delete some columns without plotting them.
  
  
 
@@ -119,6 +122,8 @@ Main features:
 - Reload of data (e.g. on file change)
 - Display of statistics
 - Export figure as pdf, png, eps, svg
+- Export python script
+- Export data as csv, or other file formats
 
 Different kind of plots:
 - Scatter plots or line plots
@@ -128,13 +133,19 @@ Different kind of plots:
 
 Plot options:
 - Logarithmic scales on x and y axis
-- Scaling of data between 0 and 1 using min and max
+- Scaling data ("min/max") when ranges and means are different
 - Synchronization of the x-axis of the sub-figures while zooming
+- Markers annotations and Measurements
+- Plot styling options
 
 Data manipulation options:
  - Remove columns in a table, add columns using a given formula, and export the table to csv
  - Mask part of the data (for instance selecting times above a certain value to remove the transient). Apply the mask temporarily, or create a new table from it
- - Estimate logarithmic decrement from a signal tthat is decaying
+ - Filter data (e.g. moving averaging, low-pass filters)
+ - Bin data
+ - Change units
+ - Estimate frequency and damping from a signal
+ - Curve fitting
  - Extract radial data from OpenFAST input files
 
 
