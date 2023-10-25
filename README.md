@@ -260,6 +260,7 @@ where the result from `brew --prefix` is usually `/usr/loca/` and the `XXX` abov
 
 
 
+Note also that several users have been struggling to run pyDatView on the mac Terminal in new macOS systems. If you encounter the same issues, we recommend using the integrated zsh terminal from [VSCode](https://code.visualstudio.com) or using a more advanced terminal like [iterm2](https://iterm2.com/downloads.html) and perform the installation steps there. Also, make sure to stick to the base anaconda environment.
 
 ### Easy access
 To easily access the program later, you can add an alias to your `.bashrc` or install the pydatview module:
@@ -281,10 +282,10 @@ If you believe your fileformat will be beneficial to the wind energy community, 
 Follow the procedure mentioned in the README of the weio repository (in particualr adding unit tests and minimalistic example files).
 
 
-
 ## Contributing
 Any contributions to this project are welcome! If you find this project useful, you can also buy me a coffee (donate a small amount) with the link below:
 
 
 <a href="https://www.buymeacoffee.com/hTpOQGl" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Donate just a small amount, buy me a coffee" style="height: 41px !important;width: 174px" ></a>
 
+<a href="https://www.buymeacoffee.com/hTpOQGl" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Donate just a small amount, buy me a coffee" style="height: 41px !important;width: 174px" ></a>
