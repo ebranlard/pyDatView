@@ -27,7 +27,7 @@ jobs:
         run: |
           git fetch --unshallow   > /dev/null
           git fetch --tags        > /dev/null
-          export CURRENT_TAG="v0.3"
+          export CURRENT_TAG="v0.4"
           export CURRENT_DEV_TAG="$CURRENT_TAG-dev"
           # BRANCH FAILS
           export BRANCH1=`git rev-parse --abbrev-ref HEAD`

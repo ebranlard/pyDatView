@@ -2,6 +2,7 @@
 # Creating a new release
 
 Steps:
+- Change version in setup.py
 - Change PROG\_VERSION in pydateview/main.py
 - Change version in installler.cfg
 - Change CURRENT\_DEV\_TAG in .github/workflows/tests.yml   (not pretty...)
