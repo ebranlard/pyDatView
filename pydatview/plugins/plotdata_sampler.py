@@ -85,7 +85,7 @@ class SamplerToolPanel(PlotDataActionEditor):
         self.textOldX2 = wx.TextCtrl(self, wx.ID_ANY|wx.TE_READONLY)
         self.textOldX2.Enable(False)
 
-        self.btXRange = self.getBtBitmap(self, 'Update x','compute', self.setCurrentX)
+        self.btXRange = self.getBtBitmap(self, 'Update x', 'update', self.setCurrentX)
 
         # --- Layout
         msizer  = wx.FlexGridSizer(rows=3, cols=4, hgap=2, vgap=0)

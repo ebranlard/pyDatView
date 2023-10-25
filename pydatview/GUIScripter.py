@@ -43,7 +43,7 @@ Options:
               - "enumeration" is the simplest: df1, df2, etc.
               - "dict" will store the dataframes in dictionaries
               - "list" will store the dataframes in a list dfs[0], dfs[1], etc.
- - Comment level: the verbosity of the comments in the code.
+ - Verbosity: the verbosity of the code and comments.
 """
 
 class GUIScripterFrame(wx.Frame):
@@ -61,9 +61,9 @@ class GUIScripterFrame(wx.Frame):
         self.setup_syntax_highlighting()
 
         self.btHelp= wx.Button(self.panel, label=CHAR['help']+' '+"Help", style=wx.BU_EXACTFIT)
-        self.btGen = wx.Button(self.panel, label="Update")
-        self.btRun = wx.Button(self.panel, label="Run Script (beta)")
-        self.btSave = wx.Button(self.panel, label="Save to File")
+        self.btGen = wx.Button(self.panel, label=CHAR['update']+' '+"Update", style=wx.BU_EXACTFIT)
+        self.btRun = wx.Button(self.panel, label=CHAR['compute']+' '+"Run", style=wx.BU_EXACTFIT)
+        self.btSave = wx.Button(self.panel, label=CHAR['save']+' '+"Save", style=wx.BU_EXACTFIT)
 
         txtLib = wx.StaticText(self.panel, -1, 'Library:')
         libflavors = ["welib", "pydatview", "pyFAST"]
@@ -75,10 +75,10 @@ class GUIScripterFrame(wx.Frame):
         self.cbDFS = wx.Choice(self.panel, choices=DFSflavors)
         self.cbDFS.SetSelection(0)
 
-        txtCom= wx.StaticText(self.panel, -1, 'Comment level:')
-        ComLevels = ["1", "2"]
+        txtCom= wx.StaticText(self.panel, -1, 'Verbosity:')
+        ComLevels = ["1", "2", "3"]
         self.cbCom = wx.Choice(self.panel, choices=ComLevels)
-        self.cbCom.SetSelection(0)
+        self.cbCom.SetSelection(1)
 
         
         # --- Layout

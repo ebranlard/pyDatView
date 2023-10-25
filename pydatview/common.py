@@ -28,6 +28,11 @@ CHAR={
 'help'     : u'\u2753',
 'pencil'   : u'\u270f', # draw
 'pick'     : u'\u26cf',
+'downarrow': u'\u2193',
+'update'   : u'\u27F3',
+# 'update'   : u'\u21BB',
+# 'update'   : u'\U0001F5D8',
+'save'     : u'\U0001F5AB',
 'hammer'   : u'\U0001f528',
 'wrench'   : u'\U0001f527',
 'ruler'    : u'\U0001F4CF', # measure

@@ -25,7 +25,7 @@ _defaultOpts={
         'oneTabPerFile':False,
         'oneRawTab':False,
         'indent':'    ',
-        'verboseCommentLevel':1,
+        'verboseCommentLevel':2,
         }
 _defaultPlotStyle={
     'grid':False, 'logX':False, 'logY':False,
@@ -141,8 +141,16 @@ class PythonScripter:
                     action_code = []
                     if opts['xScale']:
                         action_code+=["x = (x-np.min(x))/(np.max(x)-np.min(x))"]
-                    if opts['yScale']:
-                        action_code+=["y = (y-np.min(y))/(np.max(y)-np.min(y))"]
+                    comment=''
+                    if opts['yCenter'].find('ref')>0:
+                        comment=' # TODO: add yRef'
+                    if opts['yCenter']=='None':
+                        if opts['yScale']:
+                            action_code+=["y = (y-np.min(y))/(np.max(y)-np.min(y))"]
+                    elif opts['yCenter'].startswith('Mean'):
+                        action_code+=["y -= np.mean(y)"+comment]
+                    elif opts['yCenter'].startswith('Mid'):
+                        action_code+=["y -= (np.min(y)+np.max(y))/2"+comment]
                     action_code = '\n'.join(action_code)
 
             elif plotType=='Compare':
@@ -180,6 +188,15 @@ class PythonScripter:
 
     def generate(self, pltshow=True):
 
+        script = []
+        verboseCommentLevel = self.opts['verboseCommentLevel']
+        indent0= ''
+        indent1= self.opts['indent']
+        indent2= indent1 + indent1
+        indent3= indent2 + indent1
+        plotStyle = self.plotStyle
+    
+        # --- Helper functions
         def forLoopOnDFs():
             if self.opts['dfsFlavor'] == 'dict':
                 script.append("for key, df in dfs.items():")
@@ -195,16 +212,17 @@ class PythonScripter:
         def dontListFiles():
             return oneRawTab() or (onlyOneFile() and oneTabPerFile())
 
+        def addActionCode(actioname, actioncode, ind, codeFail='pass'):
+            if verboseCommentLevel>=3: 
+                script.append(ind+ "# Apply action {}".format(actioname))
+            if verboseCommentLevel>=2: 
+                script.append(ind+'try:')
+                script.append('\n'.join(ind+indent1+l for l in actioncode.splitlines()))
+                script.append(ind+'except:')
+                script.append(ind+indent1+codeFail)
+            else:
+                script.append('\n'.join(ind        +l for l in actioncode.splitlines()))
 
-
-        script = []
-
-        verboseCommentLevel = self.opts['verboseCommentLevel']
-        indent0= ''
-        indent1= self.opts['indent']
-        indent2= indent1 + indent1
-        indent3= indent2 + indent1
-        plotStyle = self.plotStyle
 
 
         # --- Disclaimer
@@ -231,11 +249,15 @@ class PythonScripter:
                 script.append(f"filenames += ['{filename}']")
 
         # --- Init data/preplot/adder actions
+        if len(self.actions)>0 or len(self.preplot_actions)>0 or len(self.adder_actions)>0:
+            script.append("\n# --- Data for different actions")
+
         if len(self.actions)>0:
-            script.append("\n# --- Data for actions")
+            if verboseCommentLevel>=3:
+                script.append("# --- Data for actions")
             for actionname, actioncode in self.actions.items():
                 if actioncode[0] is not None and len(actioncode[0].strip())>0:
-                    if verboseCommentLevel>=2:
+                    if verboseCommentLevel>=3:
                         script.append("# Data for action {}".format(actionname))
                     script.append(actioncode[0].strip())
 
@@ -243,18 +265,20 @@ class PythonScripter:
             script_pre = []
             for actionname, actioncode in self.preplot_actions.items():
                 if actioncode[0] is not None and len(actioncode[0].strip())>0:
-                    if verboseCommentLevel>=2:
+                    if verboseCommentLevel>=3:
                         script_pre.append("# Data for preplot action {}".format(actionname))
                     script_pre.append(actioncode[0].strip())
             if len(script_pre)>0:
-                script.append("\n# --- Data for preplot actions")
+                if verboseCommentLevel>=3:
+                    script.append("# --- Data for preplot actions")
                 script+=script_pre
 
         if len(self.adder_actions)>0:
-            script.append("\n# --- Data for actions that add new dataframes")
+            if verboseCommentLevel>=3:
+                script.append("# --- Data for actions that add new dataframes")
             for actionname, actioncode in self.adder_actions.items():
                 if actioncode[0] is not None and len(actioncode[0].strip())>0:
-                    if verboseCommentLevel>=2:
+                    if verboseCommentLevel>=3:
                         script.append("# Data for adder action {}".format(actionname))
                     script.append(actioncode[0].strip())
 
@@ -272,7 +296,7 @@ class PythonScripter:
                     script.append(indent1 + "dfs[iFile] = weio.read(filename).toDataFrame()")
                 else:
                     script.append(indent1 + "dfs_or_df = weio.read(filename).toDataFrame()")
-                    script.append(indent1 + "# NOTE: we need a different action if the file contains multiple dataframes")
+                    #script.append(indent1 + "# NOTE: we need a different action if the file contains multiple dataframes")
                     script.append(indent1 + "if isinstance(dfs_or_df, dict):")
                     script.append(indent2 + "for k,df in dfs_or_df.items():")
                     script.append(indent3 + "dfs[k+f'{iFile}'] = df")
@@ -288,7 +312,7 @@ class PythonScripter:
                     script.append(indent1 + "df = weio.read(filenames[iFile]).toDataFrame()")
                     script.append(indent1 + "dfs.append(df)")
                 else:
-                    script.append(indent1 + "# NOTE: we need a different action if the file contains multiple dataframes")
+                    #script.append(indent1 + "# NOTE: we need a different action if the file contains multiple dataframes")
                     script.append(indent1 + "dfs_or_df = weio.read(filenames[iFile]).toDataFrame()")
                     script.append(indent1 + "if isinstance(dfs_or_df, dict):")
                     script.append(indent2 + "dfs+= list(dfs_or_df.values()) # NOTE: user will need to adapt this.")
@@ -308,32 +332,26 @@ class PythonScripter:
                             script.append("# NOTE: we need a different action if the file contains multiple dataframes")
                         script.append(f"dfs_or_df = weio.read('{filename}').toDataFrame()")
                         script.append("if isinstance(dfs_or_df, dict):")
-                        script.append(indent1 + f"df{iFile1} = dfs_or_df.items()[0][1] # NOTE: user will need to adapt this.")
+                        script.append(indent1 + f"df{iFile1} = next(iter(dfs_or_df.values())) # NOTE: user will need to adapt this.")
                         script.append("else:")
                         script.append(indent1 + f"df{iFile1} = dfs_or_df")
 
         # --- Adder actions 
         nTabs = len(self.filenames) # Approximate
         if len(self.adder_actions)>0:
-            def addActionCode(actioname, actioncode, ind):
-                script.append(ind+ "# Apply action {}".format(actioname))
-                lines = actioncode.split("\n")
-                indented_lines = [ind + line for line in lines]
-                script.append("\n".join(indented_lines))
-
             script.append("\n# --- Apply adder actions to dataframes")
             script.append("dfs_add = [] ; names_add =[]")
             if self.opts['dfsFlavor'] == 'dict':
                 if dontListFiles():
                     script.append('df = dfs[0] # NOTE: we assume that only one dataframe is present' )
                     for actionname, actioncode in self.adder_actions.items():
-                        addActionCode(actionname, actioncode[1], indent0)
+                        addActionCode(actionname, actioncode[1], indent0, codeFail='dfs_new=[]; names_new=[]')
                         script.append(indent0+"dfs_add += dfs_new ; names_add += names_new")
                 else:
                     script.append("for k, (key, df) in enumerate(dfs.items()):")
                     script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
                     for actionname, actioncode in self.adder_actions.items():
-                        addActionCode(actionname, actioncode[1], indent1)
+                        addActionCode(actionname, actioncode[1], indent1, codeFail='dfs_new=[]; names_new=[]')
                         script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
                 script.append("for name_new, df_new in zip(names_add, dfs_new):")
                 script.append(indent1+"if df_new is not None:")
@@ -343,13 +361,13 @@ class PythonScripter:
                 if dontListFiles():
                     script.append('df = dfs[0]')
                     for actionname, actioncode in self.adder_actions.items():
-                        addActionCode(actionname, actioncode[1], indent0)
+                        addActionCode(actionname, actioncode[1], indent0, codeFail='dfs_new=[]; names_new=[]')
                         script.append(indent0+"dfs_add += dfs_new ; names_add += names_new")
                 else:
                     script.append("for k, df in enumerate(dfs):")
                     script.append(indent1 + "filename = filenames[k] # NOTE: this is approximate..")
                     for actionname, actioncode in self.adder_actions.items():
-                        addActionCode(actionname, actioncode[1], indent1)
+                        addActionCode(actionname, actioncode[1], indent1, codeFail='dfs_new=[]; names_new=[]')
                         script.append(indent1+"dfs_add += dfs_new ; names_add += names_new")
                 script.append("for name_new, df_new in zip(names_add, dfs_new):")
                 script.append(indent1+"if df_new is not None:")
@@ -410,14 +428,6 @@ class PythonScripter:
 
         # --- Data Actions
         if len(self.actions)>0:
-
-            def addActionCode(actioname, actioncode, ind):
-                if verboseCommentLevel>2: 
-                    script.append(ind+ "# Apply action {}".format(actioname))
-                lines = actioncode.split("\n")
-                indented_lines = [ind + line for line in lines]
-                script.append("\n".join(indented_lines))
-
             script.append("\n# --- Apply actions to dataframes")
             if self.opts['dfsFlavor'] == 'dict':
                 script.append("for k, df in dfs.items():")
@@ -438,10 +448,17 @@ class PythonScripter:
                         addActionCode(actionname, actioncode[1], '')
                     script.append('df{} = df'.format(iTab+1))
 
+        if len(self.preplot_actions)>0:
+            script.append("\n# --- Plot preprocessing")
+            script.append("def preproXY(x, y):")
+            for actionname, actioncode in self.preplot_actions.items():
+                script.append('\n'.join(indent1+l for l in actioncode[1].splitlines()))
+            script.append(indent1+"return x, y")
+
         # --- Plot Styling
         script.append("\n# --- Plot")
         #  Plot Styling
-        if verboseCommentLevel>=2:
+        if verboseCommentLevel>=3:
             script.append("# Plot styling")
         # NOTE: dfs not known for enumerate
         script.append("lw = {} ".format(plotStyle['LineWidth']))
@@ -452,7 +469,7 @@ class PythonScripter:
         #script.append("cols=['r', 'g', 'b'] * 100")
         if self.opts['dfsFlavor'] == 'dict':
             script.append("tabNames = list(dfs.keys())")
-        if verboseCommentLevel>=2:
+        if verboseCommentLevel>=3:
             script.append("# Subplots")
 
         if self.subPlots['i']==1 and self.subPlots['j']==1:
@@ -493,10 +510,8 @@ class PythonScripter:
                 if sAxes_new != sAxes: 
                     sAxes=sAxes_new
                     script.append(sAxes_new)
-            if verboseCommentLevel>=2:
-                script.append("\n# Selecting data for df{}".format(df_index+1))
-            if len(self.preplot_actions)>0:
-                sPlotXY='x, y, '
+            if verboseCommentLevel>=3:
+                script.append("\n# Selecting data and plotting for df{}".format(df_index+1))
             if self.opts['dfsFlavor'] in ['dict', 'list']:
                 if self.opts['dfsFlavor'] == 'dict':
                     sDF_new = "dfs[tabNames[{}]]".format(df_index)
@@ -505,27 +520,18 @@ class PythonScripter:
                 if sDF_new != sDF:
                     sDF = sDF_new
                     script.append("df = "+sDF)
-                if len(self.preplot_actions)>0:
-                    script.append("x = df['{}'].values".format(column_x))
-                    script.append("y = df['{}'].values".format(column_y))
-                else:
-                    sPlotXY ="df['{}'], df['{}'], ".format(column_x, column_y)
+                sPlotXY ="df['{}'], df['{}']".format(column_x, column_y)
             elif self.opts['dfsFlavor'] == 'enumeration':
-                if len(self.preplot_actions)>0:
-                    script.append("x = df{}['{}'].values".format(df_index+1, column_x))
-                    script.append("y = df{}['{}'].values".format(df_index+1, column_y))
-                else:
-                    sPlotXY ="df{}['{}'], df{}['{}'], ".format(df_index+1, column_x, df_index+1, column_y)
+                sPlotXY ="df{}['{}'], df{}['{}']".format(df_index+1, column_x, df_index+1, column_y)
 
             if len(self.preplot_actions)>0:
-                if verboseCommentLevel>=2:
-                    script.append("# Applying preplot action for df{}".format(df_index+1))
-                for actionname, actioncode in self.preplot_actions.items():
-                    script.append(actioncode[1])
+                #script.append("x, y = preproXY({})".format(sPlotXY))
+                sPlotXY="*preproXY({}), ".format(sPlotXY)
+                #sPlotXY='x, y, '
+            else:
+                sPlotXY=sPlotXY+', '
 
             # --- Plot
-            if verboseCommentLevel>=2:
-                script.append("# Plotting for df{}".format(df_index+1))
             label =column_y.replace('_',' ') # TODO for table comparison
             plotLine = "ax.plot("
             plotLine += sPlotXY

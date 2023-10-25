@@ -102,7 +102,7 @@ class BinningToolPanel(PlotDataActionEditor):
         self.textXMin = wx.TextCtrl(self, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(70,-1))
         self.textXMax = wx.TextCtrl(self, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER|wx.TE_RIGHT, size=wx.Size(70,-1))
 
-        self.btXRange = self.getBtBitmap(self, 'Update x','compute', self.reset)
+        self.btXRange = self.getBtBitmap(self, 'Update x', 'update', self.reset)
         self.lbDX     = wx.StaticText(self, -1, '')
         self.scBins.SetRange(3, 10000)
 
