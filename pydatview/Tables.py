@@ -635,6 +635,8 @@ class Table(object):
         self.mask=None
 
     def applyMaskString(self, sMask, bAdd=True):
+        # Remove any existing filter
+        self.clearMask()
         # Apply mask on Table
         df = self.data
         df_new   = None
