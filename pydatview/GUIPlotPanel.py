@@ -999,12 +999,12 @@ class PlotPanel(wx.Panel):
             self.mmxPanel.cbxMinMax.SetValue(False)
             raise e # Used to be Warn
 
-    def setPD_FFT(self,pd):
+    def setPD_FFT(self, PD):
         """ Convert plot data to FFT data based on GUI options"""
         data = self.spcPanel._GUI2Data()
         # Convert plotdata to FFT data
         try:
-            Info = pd.toFFT(**data) 
+            Info = PD.toFFT(**data) 
             # Trigger
             if hasattr(Info,'nExp') and Info.nExp!=data['nExp']:
                 self.spcPanel.scP2.SetValue(Info.nExp)
@@ -1015,7 +1015,7 @@ class PlotPanel(wx.Panel):
             raise e
 
 
-    def transformPlotData(self,PD):
+    def transformPlotData(self, PD):
         """" 
         Apply MinMax, PDF or FFT transform to plot based on GUI data
         """
@@ -1023,7 +1023,7 @@ class PlotPanel(wx.Panel):
         if plotType=='MinMax':
             self.setPD_MinMax(PD) 
         elif plotType=='PDF':
-            self.setPD_PDF(PD,PD.c)  
+            self.setPD_PDF(PD, PD.c)  
         elif plotType=='FFT':
             self.setPD_FFT(PD) 
 
@@ -1039,16 +1039,16 @@ class PlotPanel(wx.Panel):
         try:
             for i,idx in enumerate(ID):
                 # Initialize each plotdata based on selected table and selected id channels
-                pd=PlotData();
-                pd.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
+                PD = PlotData();
+                PD.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
                 # Possible change of data
                 if plotType=='MinMax':
-                    self.setPD_MinMax(pd) 
+                    self.setPD_MinMax(PD) 
                 elif plotType=='PDF':
-                    self.setPD_PDF(pd,pd.c)  
+                    self.setPD_PDF(PD, PD.c)  
                 elif plotType=='FFT':
-                    self.setPD_FFT(pd) 
-                self.plotData.append(pd)
+                    self.setPD_FFT(PD) 
+                self.plotData.append(PD)
         except Exception as e:
             self.plotData=[]
             raise e
