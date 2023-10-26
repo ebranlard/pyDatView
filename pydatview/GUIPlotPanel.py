@@ -1695,7 +1695,8 @@ class PlotPanel(wx.Panel):
             self.cleanPlot();
             return
         elif len(self.plotData) == 1:
-            if self.plotData[0].xIsString or self.plotData[0].yIsString or self.plotData[0].xIsDate or self.plotData[0].yIsDate:
+            if self.plotData[0].xIsString or self.plotData[0].yIsString: 
+                # or self.plotData[0].xIsDate or self.plotData[0].yIsDate:
                 self.cbAutoScale.SetValue(True)
             else:
                 if len(self.xlim_prev)==0: # Might occur if some date didn't plot before (e.g. strings)

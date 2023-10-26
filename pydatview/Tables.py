@@ -233,7 +233,8 @@ class TableList(object): # todo inherit list
     def sort(self, method='byName'):
         if method=='byName':
             tabnames_display=self.getDisplayTabNames()
-            self._tabs = [t for _,t in sorted(zip(tabnames_display,self._tabs))]
+            # Cannot use sorted(zip()) below
+            self._tabs = [self._tabs[i] for i in np.argsort(tabnames_display)] 
         else:
             raise PyDatViewException('Sorting method unknown: `{}`'.format(method))
 

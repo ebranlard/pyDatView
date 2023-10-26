@@ -1172,7 +1172,7 @@ class SelectionPanel(wx.Panel):
                     self.threeColumnsMode()
                 else:
                     #self.simColumnsMode(self)
-                    raise Exception('Too many panels selected with significant columns differences.')
+                    raise PyDatViewException('Too many panels selected with significant columns differences.')
 
     def sameColumnsMode(self):
         self.currentMode = 'sameColumnsMode'
