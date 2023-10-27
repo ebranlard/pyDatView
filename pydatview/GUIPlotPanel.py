@@ -261,7 +261,7 @@ class PlotTypePanel(wx.Panel):
         super(PlotTypePanel,self).__init__(parent)
         #self.SetBackgroundColour('yellow')
         # data
-        self.parent   = parent
+        self.parent   = parent # PlotPanel is parent
         # --- Ctrl Panel
         self.cbRegular = wx.RadioButton(self, -1, 'Regular',style=wx.RB_GROUP)
         self.cbPDF     = wx.RadioButton(self, -1, 'PDF'    ,                 )
@@ -298,41 +298,46 @@ class PlotTypePanel(wx.Panel):
     def regular_select(self, event=None):
         self.clear_measures()
         self.parent.cleanMarkers()
+        self.parent.Freeze()
         self.parent.cbLogY.SetValue(False)
-        # 
         self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
         self.parent.cmpPanel.Hide();
         self.parent.mmxPanel.Hide();
         self.parent.slEsth.Hide();
         self.parent.plotsizer.Layout()
-        #
+        self.parent.Thaw()
         self.parent.load_and_draw() # Data changes
 
     def compare_select(self, event=None):
         self.clear_measures()
         self.parent.cleanMarkers()
+        self.parent.Freeze()
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.cmpPanel, self.cbCompare.GetValue())
         self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
         self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
+        self.parent.Thaw()
         self.parent.load_and_draw() # Data changes
 
     def fft_select(self, event=None):
         self.clear_measures()
         self.parent.cleanMarkers()
+        self.parent.Freeze()
         self.parent.show_hide(self.parent.spcPanel, self.cbFFT.GetValue())
         self.parent.cbLogY.SetValue(self.cbFFT.GetValue())
         self.parent.pdfPanel.Hide();
         self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
+        self.parent.Thaw()
         self.parent.load_and_draw() # Data changes
 
     def pdf_select(self, event=None):
         self.clear_measures()
         self.parent.cleanMarkers()
+        self.parent.Freeze()
         self.parent.cbLogX.SetValue(False)
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.pdfPanel, self.cbPDF.GetValue())
@@ -340,17 +345,20 @@ class PlotTypePanel(wx.Panel):
         self.parent.cmpPanel.Hide();
         self.parent.mmxPanel.Hide();
         self.parent.plotsizer.Layout()
+        self.parent.Thaw()
         self.parent.load_and_draw() # Data changes
 
     def minmax_select(self, event):
         self.clear_measures()
         self.parent.cleanMarkers()
+        self.parent.Freeze()
         self.parent.cbLogY.SetValue(False)
         self.parent.show_hide(self.parent.mmxPanel, self.cbMinMax.GetValue())
         self.parent.spcPanel.Hide();
         self.parent.pdfPanel.Hide();
         self.parent.cmpPanel.Hide();
         self.parent.plotsizer.Layout()
+        self.parent.Thaw()
         self.parent.load_and_draw() # Data changes
 
     def clear_measures(self):
@@ -688,6 +696,7 @@ class PlotPanel(wx.Panel):
 
     def onEsthToggle(self,event):
         self.esthToggle=not self.esthToggle
+        self.Freeze()
         if self.esthToggle:
             self.slCtrl.Show()
             self.esthPanel.Show()
@@ -695,6 +704,7 @@ class PlotPanel(wx.Panel):
             self.slCtrl.Hide()
             self.esthPanel.Hide()
         self.plotsizer.Layout()
+        self.Thaw()
         event.Skip()
 
     def setSubplotSpacing(self, init=False, tight=False):
@@ -876,6 +886,7 @@ class PlotPanel(wx.Panel):
     def show_hide(self,panel,bShow):
         if bShow:
             panel.Show()
+            panel.Refresh()
             self.slEsth.Show()
         else:
             self.slEsth.Hide()
