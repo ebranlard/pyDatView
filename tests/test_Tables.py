@@ -40,12 +40,48 @@ class TestTable(unittest.TestCase):
         #      self.tabList.from_dataframes(dataframes=dfs, names=names, bAdd=bAdd)
         #
 
+    def test_merge(self):
+
+        tab1=Table(data=pd.DataFrame(data={'ID': np.arange(0,3,0.5),'ColA': [10,10.5,11,11.5,12,12.5]}))
+        tab2=Table(data=pd.DataFrame(data={'ID': np.arange(1,4),'ColB': [11,12,13]}))
+        tablist = TableList([tab1,tab2])
+        #
+        name, df = tablist.mergeTabs(ICommonColPerTab=[1,1], extrap='nan')
+        np.testing.assert_almost_equal(df['ID']   , [0      , 0.5    , 1.0 , 1.5  , 2.0 , 2.5  , 3.0])
+        np.testing.assert_almost_equal(df['ColA'] , [10     , 10.5   , 11  , 11.5 , 12  , 12.5 , np.nan] )
+        np.testing.assert_almost_equal(df['ColB'] , [np.nan , np.nan , 11  , 11.5 , 12  , 12.5 , 13.0] )
+        np.testing.assert_almost_equal(df['Index'], [0,1,2,3,4,5,6])
+
+    def test_vstack(self):
+        # Vertical stack
+        tab1=Table(data=pd.DataFrame(data={'ID0': np.arange(0,3,0.5),'ColA': [10,10.5,11,11.5,12,12.5]}))
+        tab2=Table(data=pd.DataFrame(data={'ID': np.arange(1,4),'ColA': [11,12,13]}))
+        tablist = TableList([tab1,tab2])
+
+        # Concatenate keep only the common columns
+        name, df = tablist.vstack(commonOnly=True)
+        np.testing.assert_almost_equal(df['Index'], [0,1,2,3,4,5,6,7,8])
+        np.testing.assert_almost_equal(df['ColA'], np.concatenate((tab1.data['ColA'], tab2.data['ColA'], )))
+        np.testing.assert_equal(df.columns.values, ['Index','ColA'])
+
+
+    def test_resample(self):
+        tab1=Table(data=pd.DataFrame(data={'BlSpn': [0,1,2],'Chord': [1,2,1]}))
+        
+        # Test Insertion of new values into table
+        icol=1
+        opt = {'name': 'Insert', 'param': np.array([0.5, 1.5])}
+        df, name_new = tab1.applyResampling(icol, opt, bAdd=True)
+        np.testing.assert_almost_equal(df['Index'], [0,1,2,3,4])
+        np.testing.assert_almost_equal(df['BlSpn'], [0,0.5,1.0,1.5,2.0])
+        np.testing.assert_almost_equal(df['Chord'], [1,1.5,2.0,1.5,1.0])
+
 
     def test_load_files_misc_formats(self):
         tablist = TableList()
         files =[
-                os.path.join(self.scriptdir,'../weio/weio/tests/example_files/CSVComma.csv'),
-                os.path.join(self.scriptdir,'../weio/weio/tests/example_files/HAWCStab2.pwr')
+                os.path.join(self.scriptdir,'../example_files/CSVComma.csv'),
+                os.path.join(self.scriptdir,'../example_files/HAWCStab2.pwr')
                 ]
         # --- First read without fileformats 
         tablist.load_tables_from_files(filenames=files, fileformats=None, bAdd=False)
@@ -70,14 +106,20 @@ class TestTable(unittest.TestCase):
         df = pd.DataFrame(data=data, columns=['om [rad/s]','F [N]', 'angle_[rad]'])
         tab=Table(data=df)
         tab.changeUnits()
-        np.testing.assert_almost_equal(tab.data.values[:,0],[1])
-        np.testing.assert_almost_equal(tab.data.values[:,1],[2])
-        np.testing.assert_almost_equal(tab.data.values[:,2],[10])
-        self.assertEqual(tab.columns, ['om [rpm]', 'F [kN]', 'angle [deg]'])
+        np.testing.assert_almost_equal(tab.data.values[:,1],[1])
+        np.testing.assert_almost_equal(tab.data.values[:,2],[2])
+        np.testing.assert_almost_equal(tab.data.values[:,3],[10])
+        np.testing.assert_equal(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle_[deg]'])
 
+    def test_renameColumns(self):
+        tab = Table.createDummy(n=3, columns=['RtFldCp [-]','B1FldFx [N]', 'angle [rad]'])
+        tab.renameColumns(strReplDict={'Aero':'Fld'})
+        np.testing.assert_equal(tab.columns, ['Index','RtAeroCp [-]', 'B1AeroFx [N]', 'angle [rad]'])
 
 if __name__ == '__main__':
 #     TestTable.setUpClass()
+#     TestTable().test_merge()
+#     TestTable().test_resample()
 #     tt= TestTable()
 #     tt.test_load_files_misc_formats()
     unittest.main()

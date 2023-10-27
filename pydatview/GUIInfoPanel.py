@@ -100,8 +100,8 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'Abs. Max'     , 'al':'R' , 'm':'yAbsMax',                         's' :False})
         self.ColsReg.append({'name':'Range'        , 'al':'R' , 'm':'yRange',                          's' :True})
         self.ColsReg.append({'name':'dx'           , 'al':'R' , 'm':'dx'    ,                          's' :True})
-        self.ColsReg.append({'name':'Meas 1'       , 'al':'R' , 'm':'meas1'  ,                         's' :False})
-        self.ColsReg.append({'name':'Meas 2'       , 'al':'R' , 'm':'meas2'  ,                         's' :False})
+        self.ColsReg.append({'name':'yMeas 1'      , 'al':'R' , 'm':'ymeas1' ,                         's' :False})
+        self.ColsReg.append({'name':'yMeas 2'      , 'al':'R' , 'm':'ymeas2' ,                         's' :False})
         self.ColsReg.append({'name':'Mean (Meas)'  , 'al':'R' , 'm':'yMeanMeas'  ,                     's' :False})
         self.ColsReg.append({'name':'Min (Meas)'   , 'al':'R' , 'm':'yMinMeas'  ,                      's' :False})
         self.ColsReg.append({'name':'Max (Meas)'   , 'al':'R' , 'm':'yMaxMeas'  ,                      's' :False})
@@ -148,8 +148,8 @@ class InfoPanel(wx.Panel):
         self.ColsFFT.append({'name':'nWin(FFT)'     , 'al':'R' , 'f':lambda x:x.Info('LWin')  ,        's' :False})
         self.ColsFFT.append({'name':'nFFT(FFT)'     , 'al':'R' , 'f':lambda x:x.Info('nFFT')  ,        's' :False})
         self.ColsFFT.append({'name':'n(FFT)'        , 'al':'R' , 'm':'ylen'  ,                         's' :True})
-        self.ColsFFT.append({'name':'Meas 1'        , 'al':'R' , 'm':'meas1'  ,                        's' :False})
-        self.ColsFFT.append({'name':'Meas 2'        , 'al':'R' , 'm':'meas2'  ,                        's' :False})
+        self.ColsFFT.append({'name':'yMeas 1'       , 'al':'R' , 'm':'ymeas1' ,                        's' :False})
+        self.ColsFFT.append({'name':'yMeas 2'       , 'al':'R' , 'm':'ymeas2' ,                        's' :False})
         self.ColsFFT.append({'name':'Mean (Meas)'   , 'al':'R' , 'm':'yMeanMeas'  ,                    's' :False})
         self.ColsFFT.append({'name':'Min (Meas)'    , 'al':'R' , 'm':'yMinMeas'  ,                     's' :False})
         self.ColsFFT.append({'name':'Max (Meas)'    , 'al':'R' , 'm':'yMaxMeas'  ,                     's' :False})
@@ -189,8 +189,8 @@ class InfoPanel(wx.Panel):
         self.ColsPDF.append({'name':'Min(PDF)'      , 'al':'R' , 'm':'yMin'  ,                         's' :True})
         self.ColsPDF.append({'name':'Max(PDF)'      , 'al':'R' , 'm':'yMax'  ,                         's' :True})
         self.ColsPDF.append({'name':u'\u222By(PDF)' , 'al':'R' , 'm':'inty'  ,                         's' :True})
-        self.ColsPDF.append({'name':'Meas 1'        , 'al':'R' , 'm':'meas1'  ,                        's' :False})
-        self.ColsPDF.append({'name':'Meas 2'        , 'al':'R' , 'm':'meas2'  ,                        's' :False})
+        self.ColsPDF.append({'name':'yMeas 1'       , 'al':'R' , 'm':'ymeas1' ,                        's' :False})
+        self.ColsPDF.append({'name':'yMeas 2'       , 'al':'R' , 'm':'ymeas2' ,                        's' :False})
         self.ColsPDF.append({'name':'Mean (Meas)'   , 'al':'R' , 'm':'yMeanMeas'  ,                    's' :False})
         self.ColsPDF.append({'name':'Min (Meas)'    , 'al':'R' , 'm':'yMinMeas'  ,                     's' :False})
         self.ColsPDF.append({'name':'Max (Meas)'    , 'al':'R' , 'm':'yMaxMeas'  ,                     's' :False})
@@ -231,8 +231,6 @@ class InfoPanel(wx.Panel):
         self.PD=[]
         self.tab_mode = None
         self.last_sub = False
-        self.meas_xy1 = (None, None)
-        self.meas_xy2 = (None, None)
 
         self.tbStats = TestListCtrl(self, size=(-1,100),
                          style=wx.LC_REPORT
@@ -271,6 +269,27 @@ class InfoPanel(wx.Panel):
         sizer.Add(self.tbStats, 2, wx.LEFT|wx.RIGHT|wx.EXPAND, border=3)
         self.SetSizer(sizer)
         self.SetMaxSize((-1, 50))
+
+    # --- GUI Data
+    def saveData(self, data):
+        data['ColumnsRegular'] = [c['name'] for c in self.ColsReg    if c['s']]
+        data['ColumnsFFT']     = [c['name'] for c in self.ColsFFT    if c['s']]
+        data['ColumnsMinMax']  = [c['name'] for c in self.ColsMinMax if c['s']]
+        data['ColumnsPDF']     = [c['name'] for c in self.ColsPDF    if c['s']]
+        data['ColumnsCmp']     = [c['name'] for c in self.ColsCmp    if c['s']]
+        # Not storing meas
+        data['ColumnsRegular'] = [c for c in data['ColumnsRegular'] if c.find('Meas')<0] 
+        data['ColumnsFFT']     = [c for c in data['ColumnsFFT']     if c.find('Meas')<0]
+
+    @staticmethod
+    def defaultData():
+        data={}
+        data['ColumnsRegular'] = ['Column','Mean','Std','Min','Max','Range','dx','n']
+        data['ColumnsFFT']     = ['Column','Mean','Std','Min','Max','Min(FFT)','Max(FFT)',u'\u222By(FFT)','dx(FFT)','xMax(FFT)','n(FFT)','n']
+        data['ColumnsMinMax']  = ['Column','Mean','Std','Min','Max','Mean(MinMax)','Std(MinMax)',u'\u222By(MinMax)','n']
+        data['ColumnsPDF']     = ['Column','Mean','Std','Min','Max','Min(PDF)','Max(PDF)',u'\u222By(PDF)','n(PDF)']
+        data['ColumnsCmp']     = ['Column','Mean(Cmp)','Std(Cmp)','Min(Cmp)','Max(Cmp)','n(Cmp)']
+        return data
 
     def CopyToClipBoard(self, event):
         nCols=self.tbStats.GetColumnCount()
@@ -324,43 +343,49 @@ class InfoPanel(wx.Panel):
 
     def _showStats(self,erase=True):
         self.Freeze()
-        selCols=[c for c in self.Cols if c['s']]
-        # Adding columns
-        if erase:
-            self.clean()
-            AL={'L':wx.LIST_FORMAT_LEFT,'R':wx.LIST_FORMAT_RIGHT,'C':wx.LIST_FORMAT_CENTER}
-            for i,c in enumerate(selCols):
-                if c['s']:
-                    self.tbStats.InsertColumn(i,c['name'], AL[c['al']])
-        # Inserting items
-        index = self.tbStats.GetItemCount()
-        for PD in self.PD:
-            for j,c in enumerate(selCols):
-                # TODO: could be nicer:
-                if 'm' in c.keys():
-                    if c['m'] in ('meas1', 'meas2'):
-                        v,sv=getattr(PD,c['m'])(self.meas_xy1, self.meas_xy2)
-                    else:
-                        v,sv=getattr(PD,c['m'])()
-                else:
-                    v,sv=c['f'](PD)
+        try:
+            selCols=[c for c in self.Cols if c['s']]
+            # Adding columns
+            if erase:
+                self.clean()
+                AL={'L':wx.LIST_FORMAT_LEFT,'R':wx.LIST_FORMAT_RIGHT,'C':wx.LIST_FORMAT_CENTER}
+                for i,c in enumerate(selCols):
+                    if c['s']:
+                        self.tbStats.InsertColumn(i,c['name'], AL[c['al']])
+            # Inserting items
+            index = self.tbStats.GetItemCount()
+            for pd in self.PD:
+                for j,c in enumerate(selCols):
+                    # Calling dedicated function: either a function handle, f(PD), or a method, pd.m.
+                    try:
+                        if 'm' in c.keys():
+                            v,sv=getattr(pd,c['m'])()
+                        else:
+                            v,sv=c['f'](pd)
+                    except:
+                        # print statement because developper should fix this..
+                        print('GUIInfoPanel: Stat {} failed'.format(c['name']))
+                        v= np.nan
+                        sv='NA'
 
-                try:
-                    if j==0:
-                        self.tbStats.InsertItem(index,  sv)
-                    else:
-                        self.tbStats.SetItem(index, j,sv)
-                except:
-                    if j==0:
-                        self.tbStats.InsertStringItem(index,  sv)
-                    else:
-                        self.tbStats.SetStringItem(index, j,sv)
-            index +=1
+                    # Insert items
+                    try:
+                        if j==0:
+                            self.tbStats.InsertItem(index,  sv)
+                        else:
+                            self.tbStats.SetItem(index, j,sv)
+                    except:
+                        if j==0:
+                            self.tbStats.InsertStringItem(index,  sv)
+                        else:
+                            self.tbStats.SetStringItem(index, j,sv)
+                index +=1
 
-        for i in range(self.tbStats.GetColumnCount()):
-            self.tbStats.SetColumnWidth(i, wx.LIST_AUTOSIZE_USEHEADER) 
-        self.tbStats.RefreshRows()
-        self.Thaw()
+            for i in range(self.tbStats.GetColumnCount()):
+                self.tbStats.SetColumnWidth(i, wx.LIST_AUTOSIZE_USEHEADER) 
+            self.tbStats.RefreshRows()
+        finally:
+            self.Thaw()
 
 
     def setPlotMatrixCallbacks(self, callback_left, callback_right):
@@ -471,20 +496,22 @@ class InfoPanel(wx.Panel):
             if c['name'] == name:
                 c['s'] = value
 
-    def setMeasurements(self, xy1, xy2):
-        if xy1 is not None:
-            self.meas_xy1 = xy1
-            self.menu.setItem('Meas 1', True)
-            self.setCol('Meas 1', True)
-        if xy2 is not None:
-            self.meas_xy2 = xy2
-            for col in ['Meas 2', 'Mean (Meas)', 'Min (Meas)', 'Max (Meas)']:
-                self.menu.setItem(col, True)
-                self.setCol(col, True)
-        elif xy1 is None:
-            for col in ['Meas 1', 'Meas 2', 'Mean (Meas)', 'Min (Meas)', 'Max (Meas)']:
-                self.menu.setItem(col, False)
-                self.setCol(col, False)
+    def clearMeasurements(self):
+        # Clear 
+        for col in ['yMeas 1', 'yMeas 2', 'Mean (Meas)', 'Min (Meas)', 'Max (Meas)']:
+            self.menu.setItem(col, False)
+            self.setCol(col, False)
+        self._showStats()
+
+    def showMeasure1(self):
+        self.menu.setItem('yMeas 1', True)
+        self.setCol('yMeas 1', True)
+        self._showStats()
+
+    def showMeasure2(self):
+        for col in ['yMeas 2', 'Mean (Meas)', 'Min (Meas)', 'Max (Meas)']:
+            self.menu.setItem(col, True)
+            self.setCol(col, True)
         self._showStats()
 
     def clean(self):

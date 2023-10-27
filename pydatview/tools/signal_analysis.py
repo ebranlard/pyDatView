@@ -1,4 +1,8 @@
-from __future__ import division
+""" 
+Signal analysis tools.
+NOTE: naming this module "signal.py" can sometimes create conflict with numpy
+
+"""
 import numpy as np
 from numpy.random import rand
 import pandas as pd
@@ -6,9 +10,9 @@ import pandas as pd
 
 # --- List of available filters
 FILTERS=[
-    {'name':'Moving average','param':100,'paramName':'Window Size','paramRange':[0,100000],'increment':1},
-    {'name':'Low pass 1st order','param':1.0,'paramName':'Cutoff Freq.','paramRange':[0.0001,100000],'increment':0.1},
-    {'name':'High pass 1st order','param':1.0,'paramName':'Cutoff Freq.','paramRange':[0.0001,100000],'increment':0.1},
+    {'name':'Moving average'      , 'param':100 , 'paramName':'Window Size'  , 'paramRange':[1      , 100000] , 'increment':1  , 'digits':0} , 
+    {'name':'Low pass 1st order'  , 'param':1.0, 'paramName':'Cutoff Freq.' , 'paramRange':[0.0001 , 100000] , 'increment':0.1, 'digits':4} , 
+    {'name':'High pass 1st order' , 'param':0.1 , 'paramName':'Cutoff Freq.' , 'paramRange':[0.0001 , 100000] , 'increment':0.1, 'digits':4} , 
 ]
 
 SAMPLERS=[
@@ -16,8 +20,9 @@ SAMPLERS=[
     {'name':'Insert',  'param':[], 'paramName':'Insert list'},
     {'name':'Remove',  'param':[], 'paramName':'Remove list'},
     {'name':'Every n', 'param':2  , 'paramName':'n'},
+    {'name':'Linspace', 'param':[0,1,100]  , 'paramName':'xmin, xmax, n'},
     {'name':'Time-based', 'param':0.01  , 'paramName':'Sample time (s)'},
-    {'name':'Delta x', 'param':0.1, 'paramName':'dx'},
+    {'name':'Delta x', 'param':[0.1,np.nan,np.nan], 'paramName':'dx, xmin, xmax'},
 ]
 
 
@@ -65,26 +70,28 @@ def multiInterp(x, xp, fp, extrap='bounded'):
     xp  = np.asarray(xp)
     assert fp.shape[1]==len(xp), 'Second dimension of fp should have the same length as xp'
 
-    j   = np.searchsorted(xp, x) - 1
-    dd  = np.zeros(len(x))
+    j = np.searchsorted(xp, x, 'left') - 1
+    dd  = np.zeros(len(x)) #*np.nan
     bOK = np.logical_and(j>=0, j< len(xp)-1)
-    bLower =j<0
-    bUpper =j>=len(xp)-1
     jOK = j[bOK]
     dd[bOK] = (x[bOK] - xp[jOK]) / (xp[jOK + 1] - xp[jOK])
     jBef=j 
     jAft=j+1
     # 
+    bLower =j<0
+    bUpper =j>=len(xp)-1
     # Use first and last values for anything beyond xp
     jAft[bUpper] = len(xp)-1
     jBef[bUpper] = len(xp)-1
     jAft[bLower] = 0
     jBef[bLower] = 0
     if extrap=='bounded':
+        #OK
         pass
-        # OK
     elif extrap=='nan':
-        dd[~bOK] = np.nan
+        # Set values to nan if out of bounds
+        bBeyond= np.logical_or(x<np.min(xp), x>np.max(xp))
+        dd[bBeyond] = np.nan
     else:
         raise NotImplementedError()
 
@@ -101,6 +108,9 @@ def interpArray(x, xp, fp, extrap='bounded'):
     # Sanity
     xp  = np.asarray(xp)
     assert fp.shape[1]==len(xp), 'Second dimension of fp should have the same length as xp'
+
+    if fp.shape[1]==0:
+        raise Exception('Second dimension of fp should be >0')
 
     j   = np.searchsorted(xp, x) - 1
     if j<0:
@@ -126,6 +136,23 @@ def interpArray(x, xp, fp, extrap='bounded'):
         return (1 - dd) * fp[:,j] + fp[:,j+1] * dd
 
 
+def interpDF(x_new, xLabel, df, extrap='bounded'):
+    """ Resample a dataframe using linear interpolation"""
+    x_old = df[xLabel].values
+    #x_new=np.sort(x_new)
+    # --- Method 1 (pandas)
+    #df_new = df_old.copy()
+    #df_new = df_new.set_index(x_old)
+    #df_new = df_new.reindex(df_new.index | x_new)
+    #df_new = df_new.interpolate().loc[x_new]
+    #df_new = df_new.reset_index()
+    # --- Method 2 interp storing dx
+    data_new=multiInterp(x_new, x_old, df.values.T, extrap=extrap)
+    df_new = pd.DataFrame(data=data_new.T, columns=df.columns.values)
+    df_new[xLabel] = x_new # Just in case this value was replaced by nan..
+    return df_new
+
+
 def resample_interp(x_old, x_new, y_old=None, df_old=None):
     #x_new=np.sort(x_new)
     if df_old is not None:
@@ -138,10 +165,10 @@ def resample_interp(x_old, x_new, y_old=None, df_old=None):
         # --- Method 2 interp storing dx
         data_new=multiInterp(x_new, x_old, df_old.values.T)
         df_new = pd.DataFrame(data=data_new.T, columns=df_old.columns.values)
-        return x_new, df_new
+        return df_new
 
     if y_old is not None:
-        return x_new, np.interp(x_new, x_old, y_old)
+        return np.interp(x_new, x_old, y_old)
 
 
 def applySamplerDF(df_old, x_col, sampDict):
@@ -159,13 +186,13 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
         if len(param)==0:
             raise Exception('Error: At least one value is required to resample the x values with')
         x_new = param
-        return resample_interp(x_old, x_new, y_old, df_old)
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
 
     elif sampDict['name']=='Insert':
         if len(param)==0:
             raise Exception('Error: provide a list of values to insert')
         x_new = np.sort(np.concatenate((x_old.ravel(),param)))
-        return resample_interp(x_old, x_new, y_old, df_old)
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
 
     elif sampDict['name']=='Remove':
         I=[]
@@ -176,14 +203,42 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
             if len(Ifound)>0:
                 I+=list(Ifound.ravel())
         x_new=np.delete(x_old,I)
-        return resample_interp(x_old, x_new, y_old, df_old)
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
 
     elif sampDict['name']=='Delta x':
         if len(param)==0:
             raise Exception('Error: provide value for dx')
         dx    = param[0]
-        x_new = np.arange(x_old[0], x_old[-1]+dx/2, dx)
-        return resample_interp(x_old, x_new, y_old, df_old)
+        if dx==0:
+            raise Exception('Error: `dx` cannot be 0')
+        if len(param)==1:
+            # NOTE: not using min/max if data loops (like airfoil)
+            xmin =  np.nanmin(x_old) 
+            xmax =  np.nanmax(x_old) + dx/2
+        elif len(param)==3:
+            xmin  = param[1]
+            xmax  = param[2]
+            if np.isnan(xmin):
+                xmin =  np.nanmin(x_old) 
+            if np.isnan(xmax):
+                xmax =  np.nanmax(x_old) + dx/2
+        else:
+            raise Exception('Error: the sampling parameters should be a list of three values `dx, xmin, xmax`')
+        x_new = np.arange(xmin, xmax, dx)
+        if len(x_new)==0:
+            xmax = xmin+dx*1.1 # NOTE: we do it like this to account for negative dx
+            x_new = np.arange(xmin, xmax, dx)
+        param = [dx, xmin, xmax]
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
+
+    elif sampDict['name']=='Linspace':
+        if len(param)!=3:
+            raise Exception('Error: Provide three parameters for linspace: xmin, xmax, n')
+        xmin  = float(param[0])
+        xmax  = float(param[1])
+        n     = int(param[2])
+        x_new = np.linspace(xmin, xmax, n)
+        return x_new, resample_interp(x_old, x_new, y_old, df_old)
 
     elif sampDict['name']=='Every n':
         if len(param)==0:
@@ -300,11 +355,12 @@ def applyFilterDF(df_old, x_col, options):
 # --------------------------------------------------------------------------------}
 # ---  
 # --------------------------------------------------------------------------------{
-def zero_crossings(y,x=None,direction=None):
+def zero_crossings(y, x=None, direction=None, bouncingZero=False):
     """
       Find zero-crossing points in a discrete vector, using linear interpolation.
 
       direction: 'up' or 'down', to select only up-crossings or down-crossings
+      bouncingZero: also returns zeros that are exactly zero and do not change sign
 
       returns: 
           x values xzc such that y(yzc)==0
@@ -315,6 +371,9 @@ def zero_crossings(y,x=None,direction=None):
     """
     if x is None:
         x=np.arange(len(y))
+    else:
+        x = np.asarray(x)
+    y = np.asarray(y)
 
     if np.any((x[1:] - x[0:-1]) <= 0.0):
         raise Exception('x values need to be in ascending order')
@@ -328,7 +387,8 @@ def zero_crossings(y,x=None,direction=None):
     # Selecting points that are exactly 0 and where neighbor change sign
     iZero = np.where(y == 0.0)[0]
     iZero = iZero[np.where((iZero > 0) & (iZero < x.size-1))]
-    iZero = iZero[np.where(y[iZero-1]*y[iZero+1] < 0.0)]
+    if not bouncingZero:
+        iZero = iZero[np.where(y[iZero-1]*y[iZero+1] < 0.0)] # we only accept zeros that change signs
 
     # Concatenate 
     xzc  = np.concatenate((xzc, x[iZero]))
@@ -347,26 +407,47 @@ def zero_crossings(y,x=None,direction=None):
         I= np.where(sign==-1)[0]
         return xzc[I],iBef[I]
     elif direction is not None:
-        raise Exception('Direction should be either `up` or `down`')
+        raise Exception('Direction should be either `up` or `down` or `None`')
     return xzc, iBef, sign
 
 
 # --------------------------------------------------------------------------------}
 # --- Correlation  
 # --------------------------------------------------------------------------------{
-def correlation(x, nMax=80, dt=1, method='manual'):
+def correlation(x, nMax=80, dt=1, method='numpy'):
     """ 
     Compute auto correlation of a signal
     """
+
+    def acf(x, nMax=20):
+        return np.array([1]+[np.corrcoef(x[:-i], x[i:])[0,1]  for i in range(1, nMax)])
+
+
     nvec   = np.arange(0,nMax)
-    sigma2 = np.var(x)
-    R    = np.zeros(nMax)
-    R[0] =1
-    for i,nDelay in enumerate(nvec[1:]):
-        R[i+1] = np.mean(  x[0:-nDelay] * x[nDelay:]  ) / sigma2
+    if method=='manual':
+        sigma2 = np.var(x)
+        R    = np.zeros(nMax)
+        R[0] =1
+        for i,nDelay in enumerate(nvec[1:]):
+            R[i+1] = np.mean(  x[0:-nDelay] * x[nDelay:]  ) / sigma2
+            #R[i+1] = np.corrcoef(x[:-nDelay], x[nDelay:])[0,1] 
+
+    elif method=='numpy':
+        R= acf(x, nMax=nMax)
+    else:
+        raise NotImplementedError()
 
     tau = nvec*dt
     return R, tau
+# Auto-correlation comes in two versions: statistical and convolution. They both do the same, except for a little detail: The statistical version is normalized to be on the interval [-1,1]. Here is an example of how you do the statistical one:
+# 
+# 
+# def autocorr(x):
+#     result = numpy.correlate(x, x, mode='full')
+#     return result[result.size/2:]
+
+
+
 
 
 def correlated_signal(coeff, n=1000, seed=None):
@@ -422,6 +503,110 @@ def find_time_offset(t, f, g, outputAll=False):
     else:
         return t_offset
 
+def amplitude(x, t=None, T = None, mask=None, debug=False):
+    """
+    Compute signal amplitude (max-min)/2.
+    If a frequency is provided, the calculation is the average on each period
+
+    x: signal time series
+    mask - time at which transient starts 
+    """
+    if mask is not None:
+        x = x[mask]
+        if t is not None:
+            t = t[mask]
+    #
+    if T is not None and t is not None:
+        t -= t[0]
+        if t[-1]<=T:
+            return (np.max(x)-np.min(x))/2
+        n = int(t[-1]/T)
+        A = 0
+        for i in range(n):
+            b = np.logical_and(t<=(i+1)*T ,  t>=i*T)
+            A+=(np.max(x[b])-np.min(x[b]))/2
+        A/=n
+
+        if debug:
+            import matplotlib.pyplot as plt
+            from welib.tools.colors import python_colors
+            fig,ax = plt.subplots(1, 1, sharey=False, figsize=(6.4,4.8)) # (6.4,4.8)
+            fig.subplots_adjust(left=0.12, right=0.95, top=0.95, bottom=0.11, hspace=0.20, wspace=0.20)
+            ax.plot(t,  x-np.mean(x) ,'k-', lw=3, label='Original')
+            for i in range(n):
+                b = np.logical_and(t<=(i+1)*T ,  t>=i*T)
+                A=(np.max(x[b])-np.min(x[b]))/2
+                ax.plot(t[b]- i*T,  x[b]-np.mean(x[b]), c=python_colors(i),  label='A={}'.format(A))
+                ax.plot([0,0,T,T,0],[-A,A,A,-A,-A] ,'--', c=python_colors(i)  )
+            ax.set_xlabel('time')
+            ax.set_ylabel('x')
+            ax.legend()
+        return A
+
+        # split signals into  subsets
+    else:
+        return (np.max(x)-np.min(x))/2
+
+def phase_shift(A, B, t, omega, tStart=0, deg=True, debug=False):
+    """
+    A: reference signal
+    omega: expected frequency of reference signal
+    """
+    b =t>=tStart
+    t = t[b]
+    A = A[b]
+    B = B[b]
+    t_offset, lag, xcorr = find_time_offset(t, A, B, outputAll=True)
+    phi0 = t_offset*omega # Phase offset in radians
+    phi  = np.mod(phi0, 2*np.pi)  
+    if phi > 0.8 * np.pi:
+        phi = phi-2*np.pi
+    if deg: 
+        phi *=180/np.pi
+        phi0*=180/np.pi
+        if phi<-190:
+            phi+=360
+#     if debug:
+#         raise NotImplementedError()
+    return phi 
+
+def input_output_amplitude_phase(t, u, y, omega_u=None, A_u=None, deg=True, mask=None, debug=False):
+    """ 
+    Return amplitude ratio and phase shift between a reference input `u` and output `y`
+       Typically used when the input is a sinusoidal signal and the output is "similar".
+
+    INPUTS:
+     - t: time vector, length nt
+     - u: input time series, length nt
+     - y: output time series, length nt
+     - omega_u: cyclic frequency, required to convert time offset to phase
+                when provided, amplitude ratio is computed for each possible periods, and averaged
+     - A_u : amplitude of input signal (typically known if y is a sinusoid)
+     - deg: phase is returned in degrees
+     - mask: mask to be applied to t, u, y
+    """
+    if mask is not None:
+        t = t[mask]
+        u = u[mask]
+        y = y[mask]
+    if omega_u is None:
+        raise NotImplementedError()
+        T=None
+    else:
+        T = 2*np.pi/omega_u
+
+    # --- Amplitude ratio
+    A_y = amplitude(y, t, T=T, debug=debug)
+    if A_u is None:
+        A_u = amplitude(u, t, T=T)
+    G = A_y/A_u
+
+    # --- Phase shift
+    phi = phase_shift(u, y, t, omega_u, deg=deg, debug=debug)
+
+    return G, phi
+    
+
 def sine_approx(t, x, method='least_square'):
     """ 
     Sinusoidal approximation of input signal x
@@ -444,7 +629,7 @@ def sine_approx(t, x, method='least_square'):
 # --- Convolution 
 # --------------------------------------------------------------------------------{
 def convolution_integral(time, f, g, method='auto'):
-    """
+    r"""
     Compute convolution integral:
        f * g = \int 0^t f(tau) g(t-tau) dtau  = g * f
     For now, only works for uniform time vector, an exception is raised otherwise

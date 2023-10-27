@@ -1,40 +1,230 @@
-# --------------------------------------------------------------------------------}
-# --- Info 
-# --------------------------------------------------------------------------------{
-# Tools for fatigue analysis
-#
-# Taken from:
-#    repository:  wetb
-#    package:     wetb.fatigue_tools,
-#    institution: DTU wind energy, Denmark 
-#    main author: mmpe
-'''
-Created on 04/03/2013
-@author: mmpe
+"""
+Tools for fatigue analysis
 
 
-'eq_load' calculate equivalent loads using one of the two rain flow counting methods
-'cycle_matrix' calculates a matrix of cycles (binned on amplitude and mean value)
-'eq_load_and_cycles' is used to calculate eq_loads of multiple time series (e.g. life time equivalent load)
+Main functions:
+- equivalent_load: calculate damage equivalent load for a given signal
+- find_range_count: returns range and number of cycles for a given signal
 
-The methods uses the rainflow counting routines (See documentation in top of methods):
-- 'rainflow_windap': (Described in "Recommended Practices for Wind Turbine Testing - 3. Fatigue Loads",
-                      2. edition 1990, Appendix A)
-or
-- 'rainflow_astm' (based on the c-implementation by Adam Nieslony found at the MATLAB Central File Exchange
-                   http://www.mathworks.com/matlabcentral/fileexchange/3026)
-'''
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import absolute_import
-from future import standard_library
+Subfunctions:
+- eq_load: calculate equivalent loads using one of the two rain flow counting methods
+- cycle_matrix: calculates a matrix of cycles (binned on amplitude and mean value)
+- eq_load_and_cycles: calculate eq_loads of multiple time series (e.g. life time equivalent load)
+
+
+Main aglorithms for rain flow counting:
+- rainflow_windap: taken from [2], based on [3]
+- rainflow_astm: taken from [2], based [4]
+- fatpack: using [5]
+
+
+References:
+  [1] Hayman (2012) MLife theory manual for Version 1.00
+  [2] Wind energy toolbox, wetb.fatigue_tools, DTU wind energy, Denmark
+  [3] "Recommended Practices for Wind Turbine Testing - 3. Fatigue Loads", 2. edition 1990, Appendix A
+  [4] Adam Nieslony - Rainflow Counting Algorithm, MATLAB Central File Exchange 
+      http://www.mathworks.com/matlabcentral/fileexchange/3026)
+  [5] Fatpack - Python package
+      https://github.com/Gunnstein/fatpack
+
+
+"""
 import warnings
-standard_library.install_aliases()
 import numpy as np
 
 
-__all__  = ['rainflow_astm', 'rainflow_windap','eq_load','eq_load_and_cycles','cycle_matrix','cycle_matrix2']
+__all__  = ['equivalent_load', 'find_range_count']
+__all__  += ['rainflow_astm', 'rainflow_windap','eq_load','eq_load_and_cycles','cycle_matrix','cycle_matrix2']
+
+
+class SignalConstantError(Exception):
+    pass
+
+
+def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap',
+        meanBin=True, binStartAt0=False,
+        outputMore=False, debug=False):
+    """Equivalent load calculation
+
+    Calculate the damage equivalent load for a given signal and a given Wohler exponent
+
+    INPUTS
+     - time : array-like, the time values corresponding to the signal (s)
+     - signals : array-like, the load signal
+     - m :    Wohler exponent (default is 3)
+     - Teq : The equivalent period (Default 1, for 1Hz)
+     - bins : Number of bins in rainflow count histogram
+     - method: rain flow counting algorithm: 'rainflow_windap', 'rainflow_astm' or 'fatpack'
+     - meanBin: if True, use the mean of the ranges within a bin (recommended)
+              otherwise use the middle of the bin (not recommended).
+     - binStartAt0: if True bins start at zero. Otherwise, start a lowest range
+     - outputMore: if True, returns range, cycles and bins as well
+
+    OUTPUTS
+     - Leq : the equivalent load for given m and Teq
+
+        or (if outputMore is True )
+
+     - Leq, S, N, bins, DELi: 
+        - S: ranges
+        - N: cycles
+        - bins: bin edges
+        - DELi: component 'i' of the DEL (for cycle i)
+    """
+    time   = np.asarray(time)
+    signal = np.asarray(signal)
+
+    # Remove nan, might not be the cleanest
+    b = ~np.isnan(signal)
+    signal = signal[b]
+    time   = time[b]
+
+    try:
+        if len(time)<=1:
+            raise Exception()
+        if type(time[0]) is np.datetime64:
+            T = T/np.timedelta64(1,'s') # or T.item().total_seconds()
+        else:
+            T = time[-1]-time[0] # time length of signal (s). Will fail for signal of length 1
+        if T==0:
+            raise Exception()
+
+        neq = T/Teq # number of equivalent periods, see Eq. (26) of [1]
+
+        # --- Range (S) and counts (N)
+        N, S, bins = find_range_count(signal, bins=bins, method=method, meanBin=meanBin, binStartAt0=binStartAt0)
+
+        # --- get DEL 
+        DELi = S**m * N / neq
+        Leq = DELi.sum() ** (1/m)     # See e.g. eq. (30) of [1]
+
+    except:
+        if outputMore:
+            return np.nan, np.nan, np.nan, np.nan, np.nan
+        else:
+            return np.nan
+
+    if debug:
+        for i,(b,n,s,DEL) in enumerate(zip(bins, N, S, DELi)):
+            if n>0:
+                print('Bin {:3d}: [{:6.1f}-{:6.1f}] Mid:{:6.1f} - Mean:{:6.1f} Counts:{:4.1f} DEL:{:8.1f} Fraction:{:3.0f}%'.format(i,b,bins[i+1],(b+bins[i+1])/2,s,n,DEL,DEL/Leq**m*100))
+    if outputMore:
+        return Leq, S, N, bins, DELi
+    else:
+        return Leq
+
+ 
+def find_range_count(signal, bins, method='rainflow_windap', meanBin=True, binStartAt0=True):
+    """
+    Returns number of cycles `N` for each range range `S` 
+    Equidistant bins are setup based on the min/max of the signal.
+    INPUTS:
+     - signal: array 
+     - bins : 1d-array, int
+         If bins is a sequence, left edges (and the rightmost edge) of the bins.
+         If bins is an int, a sequence is created dividing the range `min`--`max` of signal into `bins` number of equally sized bins.
+    OUTPUTS:
+      - N: number of cycles for each bin
+      - S: Ranges for each bin
+           S is either the center of the bin (meanBin=False) 
+               or 
+           S is the mean of the ranges within this bin (meanBin=True)
+      - S_bin_edges: edges of the bins
+    """
+
+    if method in rainflow_func_dict.keys():
+        rainflow_func = rainflow_func_dict[method]
+        try:
+            N, S, S_bin_edges, _, _ = cycle_matrix(signal, ampl_bins=bins, mean_bins=1, rainflow_func=rainflow_func, binStartAt0=binStartAt0)
+        except SignalConstantError:
+            return np.nan, np.nan, np.nan
+
+        S_bin_edges = S_bin_edges.flatten()
+        N           = N.flatten()
+        S           = S.flatten()
+        S_mid = (S_bin_edges[:-1] + S_bin_edges[1:]) / 2
+        if not meanBin:
+            S=S_mid
+
+    elif method=='fatpack':
+        import fatpack
+        # find rainflow ranges
+        try:
+            ranges = fatpack.find_rainflow_ranges(signal)
+        except IndexError:
+            # Currently fails for constant signal
+            return np.nan, np.nan, np.nan
+        # --- Legacy fatpack
+        # if (not binStartAt0) and (not meanBin):
+        #    N, S = fatpack.find_range_count(ranges, bins)
+        # --- Setup bins
+        # If binStartAt0 is True, the same bins as WINDAP are used
+        S_bin_edges = create_bins(ranges, bins, binStartAt0=binStartAt0)
+        # --- Using bin_count to get value at center of bins 
+        N, S = bin_count(ranges, S_bin_edges, meanBin=meanBin)
+
+    else:
+        raise NotImplementedError('Rain flow algorithm {}'.format(method))
+
+    # Remove NaN
+    b = np.isnan(S)
+    S[b] = 0
+    N[b] = 0
+
+    return N, S, S_bin_edges
+
+def create_bins(x, bins, binStartAt0=False):
+    """ 
+    Equidistant bins are setup based on the min/max of the x, unless the user provided the bins as a sequence.
+    INPUTS:
+     - x: array 
+     - bins : 1d-array, int
+         If bins is a sequence, left edges (and the rightmost edge) of the bins.
+         If bins is an int, a sequence is created dividing the range `min`--`max` of x into `bins` number of equally sized bins.
+    OUTPUTS: 
+      - bins:
+    """
+    if isinstance(bins, int):
+        xmax = np.max(x)
+        xmin, xmax = np.min(x), np.max(x)
+        if binStartAt0:
+            xmin = 0
+        else:
+            xmin = np.min(x)
+            if xmin==xmax:
+                # I belive that's what's done by histogram. double check
+                xmin=xmin-0.5
+                xmax=xmax+0.5
+        bins = np.linspace(xmin, xmax, num=bins + 1) 
+    return bins
+
+
+def bin_count(x, bins, meanBin=True):
+    """ 
+    Return counts of x within bins
+    """
+    if not meanBin:
+        # Use the middle of the bin
+        N, bns = np.histogram(x, bins=bins)
+        S = bns[:-1] + np.diff(bns) / 2.
+    else:
+        bins = create_bins(x, bins, binStartAt0=False)
+        import pandas as pd
+        df = pd.DataFrame(data=x, columns=['x'])
+        xmid = (bins[:-1]+bins[1:])/2
+        df['x_mid']= pd.cut(df['x'], bins= bins, labels = xmid ) # Adding a column that has bin attribute
+        df2        = df.groupby('x_mid').mean()   # Average by bin
+        df['N']  = 1
+        dfCount       = df[['N','x_mid']].groupby('x_mid').sum()
+        df2['N'] = dfCount['N']
+        # Just in case some bins are missing (will be nan)
+        df2       = df2.reindex(xmid)
+        df2 = df2.fillna(0)
+        S = df2['x'].values
+        N = df2['N'].values
+    return N, S
+
+ 
 
 
 def check_signal(signal):
@@ -49,7 +239,7 @@ def check_signal(signal):
         if signal.shape[1] > 1:
             raise TypeError('signal must have one column only, not: ' + str(signal.shape[1]))
     if np.min(signal) == np.max(signal):
-        raise TypeError("Signal contains no variation")
+        raise SignalConstantError("Signal is constant, cannot compute DLC and range")
 
 
 def rainflow_windap(signal, levels=255., thresshold=(255 / 50)):
@@ -242,11 +432,12 @@ def eq_load_and_cycles(signals, no_bins=46, m=[3, 4, 6, 8, 10, 12], neq=[10 ** 6
     cycles, ampl_bin_mean = cycles.flatten(), ampl_bin_mean.flatten()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        #DEL =      [[(          (cycles * ampl_bin_mean ** _m) / _neq)  for _m in np.atleast_1d(m)]  for _neq in np.atleast_1d(neq)]
         eq_loads = [[((np.nansum(cycles * ampl_bin_mean ** _m) / _neq) ** (1. / _m)) for _m in np.atleast_1d(m)]  for _neq in np.atleast_1d(neq)]
     return eq_loads, cycles, ampl_bin_mean, ampl_bin_edges
 
 
-def cycle_matrix(signals, ampl_bins=10, mean_bins=10, rainflow_func=rainflow_windap):
+def cycle_matrix(signals, ampl_bins=10, mean_bins=10, rainflow_func=rainflow_windap, binStartAt0=True):
     """Markow load cycle matrix
 
     Calculate the Markow load cycle matrix
@@ -264,6 +455,8 @@ def cycle_matrix(signals, ampl_bins=10, mean_bins=10, rainflow_func=rainflow_win
         if array-like, the bin edges for mea
     rainflow_func : {rainflow_windap, rainflow_astm}, optional
         The rainflow counting function to use (default is rainflow_windap)
+    binStartAt0 : boolean 
+        Start the bins at 0. Otherwise, start at the min of ranges
 
     Returns
     -------
@@ -292,7 +485,7 @@ def cycle_matrix(signals, ampl_bins=10, mean_bins=10, rainflow_func=rainflow_win
         ampls, means = rainflow_func(signals[:])
         weights = np.ones_like(ampls)
     if isinstance(ampl_bins, int):
-        ampl_bins = np.linspace(0, 1, num=ampl_bins + 1) * ampls[weights>0].max()
+        ampl_bins = create_bins(ampls[weights>0], ampl_bins, binStartAt0=binStartAt0)
     cycles, ampl_edges, mean_edges = np.histogram2d(ampls, means, [ampl_bins, mean_bins], weights=weights)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -746,6 +939,7 @@ def pair_range_amplitude_mean(x):  # cpdef pair_range(np.ndarray[long,ndim=1]  x
     return ampl_mean
 
 
+rainflow_func_dict = {'rainflow_windap':rainflow_windap, 'rainflow_astm':rainflow_astm}
 
 
 # --------------------------------------------------------------------------------}
@@ -772,7 +966,7 @@ class TestFatigue(unittest.TestCase):
             # mean value of the signal shouldn't matter
             signal = amplitude * np.sin(time) + 5
             r_eq_1hz = eq_load(signal, no_bins=1, m=m, neq=neq)[0]
-            r_eq_1hz_expected = ((2*nr_periods*amplitude**m)/neq)**(1/m)
+            r_eq_1hz_expected = 2*((nr_periods*amplitude**m)/neq)**(1/m)
             np.testing.assert_allclose(r_eq_1hz, r_eq_1hz_expected)
 
             # sine signal with 20 periods (40 peaks)
@@ -782,7 +976,7 @@ class TestFatigue(unittest.TestCase):
             # mean value of the signal shouldn't matter
             signal = amplitude * np.sin(time) + 9
             r_eq_1hz2 = eq_load(signal, no_bins=1, m=m, neq=neq)[0]
-            r_eq_1hz_expected2 = ((2*nr_periods*amplitude**m)/neq)**(1/m)
+            r_eq_1hz_expected2 = 2*((nr_periods*amplitude**m)/neq)**(1/m)
             np.testing.assert_allclose(r_eq_1hz2, r_eq_1hz_expected2)
 
             # 1hz equivalent should be independent of the length of the signal
@@ -851,6 +1045,174 @@ class TestFatigue(unittest.TestCase):
         #         print (cycle_matrix([(.5, signal1), (.5, signal2)], 4, 8, rainflow_func=rainflow_astm))
 
 
+    def test_equivalent_load(self):
+        """ Higher level interface """
+        try:
+            import fatpack
+            hasFatpack=True
+        except:
+            hasFatpack=False
+        dt = 0.1
+        f0 = 1  ; 
+        A  = 5  ; 
+        t=np.arange(0,10,dt);
+        y=A*np.sin(2*np.pi*f0*t)
+
+        Leq = equivalent_load(t, y, m=10, bins=100, method='rainflow_windap')
+        np.testing.assert_almost_equal(Leq, 9.4714702, 3)
+
+        Leq = equivalent_load(t, y, m=1, bins=100, method='rainflow_windap')
+        np.testing.assert_almost_equal(Leq, 9.4625320, 3)
+
+        Leq = equivalent_load(t, y, m=4, bins=10, method='rainflow_windap')
+        np.testing.assert_almost_equal(Leq, 9.420937, 3)
+
+
+        if hasFatpack:
+            Leq = equivalent_load(t, y, m=4, bins=10, method='fatpack', binStartAt0=False, meanBin=False)
+            np.testing.assert_almost_equal(Leq, 9.584617089, 3)
+
+            Leq = equivalent_load(t, y, m=4, bins=1, method='fatpack', binStartAt0=False, meanBin=False)
+            np.testing.assert_almost_equal(Leq, 9.534491302, 3)
+
+
+
+    def test_equivalent_load_sines(self):
+        # Check analytical formulae for sine of various frequencies
+        # See welib.tools.examples.Example_Fatigue.py
+        try:
+            import fatpack
+            hasFatpack=True
+        except:
+            hasFatpack=False
+
+        # --- Dependency on frequency
+        m     = 2   # Wohler slope
+        A     = 3   # Amplitude
+        nT    = 100 # Number of periods
+        nPerT = 100 # Number of points per period
+        Teq   = 1  # Equivalent period [s]
+        nBins = 10  # Number of bins
+
+        vf =np.linspace(0.1,10,21)
+        vT  = 1/vf
+        T_max=np.max(vT*nT)
+        vomega =vf*2*np.pi
+        Leq1    = np.zeros_like(vomega)
+        Leq2    = np.zeros_like(vomega)
+        Leq_ref = np.zeros_like(vomega)
+        for it, (T,omega) in enumerate(zip(vT,vomega)):
+            # --- Option 1 - Same number of periods
+            time = np.linspace(0, nT*T, nPerT*nT+1)
+            signal = A * np.sin(omega*time) # Mean does not matter 
+            T_all=time[-1]
+            Leq1[it] = equivalent_load(time, signal, m=m, Teq=Teq, bins=nBins, method='rainflow_windap')
+            if hasFatpack:
+                Leq2[it] = equivalent_load(time, signal, m=m, Teq=Teq, bins=nBins, method='fatpack', binStartAt0=False)
+        Leq_ref = 2*A*(vf*Teq)**(1/m)
+        np.testing.assert_array_almost_equal(    Leq1/A, Leq_ref/A, 2)
+        if hasFatpack:
+            np.testing.assert_array_almost_equal(Leq2/A, Leq_ref/A, 2)
+        #import matplotlib.pyplot as plt
+        #fig,ax = plt.subplots(1, 1, sharey=False, figsize=(6.4,4.8)) # (6.4,4.8)
+        #fig.subplots_adjust(left=0.12, right=0.95, top=0.95, bottom=0.11, hspace=0.20, wspace=0.20)
+        #ax.plot(vf, Leq_ref/A,  'kd' , label ='Theory')
+        #ax.plot(vf, Leq1   /A,   'o' , label ='Windap m={}'.format(m))
+        #if hasFatpack:
+        #    ax.plot(vf, Leq2/A,  'k.' , label ='Fatpack')
+        #ax.legend()
+        #plt.show()
+
+    def test_equivalent_load_sines_sum(self):
+        # --- Sum of two sinusoids
+        try:
+            import fatpack
+            hasFatpack=True
+        except:
+            hasFatpack=False
+        bs0 = True # Bin Start at 0
+        m     = 2   # Wohler slope
+        nPerT = 100 # Number of points per period
+        Teq   = 1  # Equivalent period [s]
+        nBins = 10 # Number of bins
+        nT1   = 10 # Number of periods
+        nT2   = 20 # Number of periods
+        T1 = 10
+        T2 = 5
+        A1 = 3 # Amplitude
+        A2 = 5 # Amplitude
+        # --- Signals
+        time1 = np.linspace(0, nT1*T1, nPerT*nT1+1)
+        time2 = np.linspace(0, nT2*T2, nPerT*nT2+1)
+        signal1 = A1 * np.sin(2*np.pi/T1*time1)
+        signal2 = A2 * np.sin(2*np.pi/T2*time2)
+        # --- Individual Leq
+        #print('----------------- SIGNAL 1')
+        DEL1 = (2*A1)**m * nT1/time1[-1]
+        Leq_th = (DEL1)**(1/m)
+        Leq1 = equivalent_load(time1, signal1, m=m, Teq=Teq, bins=nBins, method='rainflow_windap', binStartAt0=bs0)
+        if hasFatpack:
+            Leq2 = equivalent_load(time1, signal1, m=m, Teq=Teq, bins=nBins, method='fatpack', binStartAt0=bs0)
+            np.testing.assert_array_almost_equal(Leq2, Leq_th, 3)
+        np.testing.assert_array_almost_equal(Leq1, Leq_th, 1)
+        #print('>>> Leq1   ',Leq1)
+        #print('>>> Leq2   ',Leq2)
+        #print('>>> Leq TH ',Leq_th)
+        #print('----------------- SIGNAL 2')
+        DEL2 = (2*A2)**m * nT2/time2[-1]
+        Leq_th = (DEL2)**(1/m)
+        Leq1 = equivalent_load(time2, signal2, m=m, Teq=Teq, bins=nBins, method='rainflow_windap', binStartAt0=bs0)
+        if hasFatpack:
+            Leq2 = equivalent_load(time2, signal2, m=m, Teq=Teq, bins=nBins, method='fatpack', binStartAt0=bs0)
+            np.testing.assert_array_almost_equal(Leq2, Leq_th, 3)
+        np.testing.assert_array_almost_equal(Leq1, Leq_th, 1)
+        #print('>>> Leq1   ',Leq1)
+        #print('>>> Leq2   ',Leq2)
+        #print('>>> Leq TH ',Leq_th)
+        # --- Concatenation
+        #print('----------------- CONCATENATION')
+        signal = np.concatenate((signal1, signal2))
+        time   = np.concatenate((time1, time2+time1[-1]))
+        T_all=time[-1]
+        DEL1 = (2*A1)**m * nT1/T_all  
+        DEL2 = (2*A2)**m * nT2/T_all  
+        Leq_th = (DEL1+DEL2)**(1/m)
+        Leq1 = equivalent_load(time, signal, m=m, Teq=Teq, bins=nBins, method='rainflow_windap', binStartAt0=bs0)
+        if hasFatpack:
+            Leq2 = equivalent_load(time, signal, m=m, Teq=Teq, bins=nBins, method='fatpack', binStartAt0=bs0)
+            np.testing.assert_array_almost_equal(Leq2, Leq_th, 1)
+        np.testing.assert_array_almost_equal(Leq1, Leq_th, 1)
+        #print('>>> Leq1   ',Leq1)
+        #print('>>> Leq2   ',Leq2)
+        #print('>>> Leq TH ',Leq_th)
+
+
+
+    def test_eqload_cornercases(self):
+        try:
+            import fatpack
+            hasFatpack=True
+        except:
+            hasFatpack=False
+        # Signal of length 1
+        time=[0]; signal=[0]
+        Leq= equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap')
+        np.testing.assert_equal(Leq, np.nan)
+            
+        # Datetime
+        time= [np.datetime64('2023-10-01'), np.datetime64('2023-10-02')]
+        signal= [0,1]
+        Leq= equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap')
+        np.testing.assert_equal(Leq, np.nan)
+
+        # Constant signal
+        time =[0,1]
+        signal =[1,1]
+        Leq= equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap')
+        np.testing.assert_equal(Leq, np.nan)
+        if hasFatpack:
+            Leq= equivalent_load(time, signal, m=3, Teq=1, bins=100, method='fatpack')
+            np.testing.assert_equal(Leq, np.nan)
 
 
 

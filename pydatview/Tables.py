@@ -1,34 +1,48 @@
 import numpy as np
 import os.path
 from dateutil import parser
+import datetime
 import pandas as pd
-try:
-    from .common import no_unit, ellude_common, getDt
-except:
-    from common import no_unit, ellude_common, getDt
-try:
-    import weio.weio as weio# File Formats and File Readers
-except:
-    print('')
-    print('Error: the python package `weio` was not imported successfully.\n')
-    print('Most likely the submodule `weio` was not cloned with `pyDatView`')
-    print('Type the following command to retrieve it:\n')
-    print('   git submodule update --init --recursive\n')
-    print('Alternatively re-clone this repository into a separate folder:\n')
-    print('   git clone --recurse-submodules https://github.com/ebranlard/pyDatView\n')
-    sys.exit(-1)
-
-
+from pydatview.common import no_unit, ellude_common, getDt, exception2string, PyDatViewException
+import pydatview.io as weio # File Formats and File Readers
+from pydatview.formulae import evalFormula
 
 # --------------------------------------------------------------------------------}
 # --- TabList 
 # --------------------------------------------------------------------------------{
 class TableList(object): # todo inherit list
-    def __init__(self,tabs=[]):
-        self._tabs=tabs
-        self.Naming='Ellude'
+
+    def __init__(self, tabs=None, options=None):
+        if tabs is None:
+            tabs =[]
+        self._tabs  = tabs
+        self.hasswap=False
+
+        self.options = self.defaultOptions() if options is None else options
+
+    # --- Options 
+    def saveOptions(self, optionts):
+        options['naming']   = self.options['naming']
+        options['dayfirst'] = self.options['dayfirst']
+        
+    @staticmethod
+    def defaultOptions():
+        options={}
+        options['naming']   = 'Ellude'
+        options['dayfirst'] = False
+        return options
 
     # --- behaves like a list...
+    #def __delitem__(self, key):
+    #    self.__delattr__(key)
+
+    def __getitem__(self, key):
+        return self._tabs[key]
+
+    def __setitem__(self, key, value):
+        raise Exception('Setting not allowed')
+        self._tabs[key] = value
+
     def __iter__(self):
         self.__n = 0
         return self
@@ -40,7 +54,13 @@ class TableList(object): # todo inherit list
         else:
             raise StopIteration
 
-    def append(self,t):
+    def __len__(self):
+        return len(self._tabs)
+
+    def len(self):
+        return len(self._tabs)
+
+    def append(self, t):
         if isinstance(t,list):
             self._tabs += t
         else:
@@ -48,17 +68,20 @@ class TableList(object): # todo inherit list
 
     # --- Main high level methods
     def from_dataframes(self, dataframes=[], names=[], bAdd=False):
+        assert(len(dataframes)==len(names))
         if not bAdd:
             self.clean() # TODO figure it out
         # Returning a list of tables 
         for df,name in zip(dataframes, names):
             if df is not None:
-                self.append(Table(data=df, name=name))
+                self.append(Table(data=df, name=name, dayfirst=self.options['dayfirst']))
 
-    def load_tables_from_files(self, filenames=[], fileformats=None, bAdd=False):
+    def load_tables_from_files(self, filenames=[], fileformats=None, bAdd=False, bReload=False, statusFunction=None):
         """ load multiple files into table list"""
         if not bAdd:
             self.clean() # TODO figure it out
+        if bReload:
+            self.hasswap=False
 
         if fileformats is None:
             fileformats=[None]*len(filenames)
@@ -66,86 +89,128 @@ class TableList(object): # todo inherit list
 
         # Loop through files, appending tables within files
         warnList=[]
-        for f,ff in zip(filenames, fileformats):
+        newTabs=[]
+        for i, (f,ff) in enumerate(zip(filenames, fileformats)):
+            if statusFunction is not None:
+                statusFunction(i)
             if f in self.unique_filenames:
                 warnList.append('Warn: Cannot add a file already opened ' + f)
             elif len(f)==0:
                 pass
                 #    warn+= 'Warn: an empty filename was skipped' +'\n'
             else:
-                tabs, warnloc = self._load_file_tabs(f,fileformat=ff) 
+                tabs, warnloc = self._load_file_tabs(f,fileformat=ff, bReload=bReload) 
                 if len(warnloc)>0:
                     warnList.append(warnloc)
                 self.append(tabs)
+                newTabs +=tabs
         
-        return warnList
+        return newTabs, warnList
 
-    def _load_file_tabs(self, filename, fileformat=None):
-        """ load a single file, adds table """
+    def _load_file_tabs(self, filename, fileformat=None, bReload=False):
+        """ load a single file, returns a list (often of size one) of tables """
         # Returning a list of tables 
         tabs=[]
         warn=''
         if not os.path.isfile(filename):
             warn = 'Error: File not found: `'+filename+'`\n'
             return tabs, warn
-        try:
-            #F = weio.read(filename, fileformat = fileformat)
-            # --- Expanded version of weio.read
-            F = None
-            if fileformat is None:
-                fileformat, F = weio.detectFormat(filename)
-            # Reading the file with the appropriate class if necessary
-            if not isinstance(F, fileformat.constructor):
-                F=fileformat.constructor(filename=filename)
-            dfs = F.toDataFrame()
-        except weio.FileNotFoundError as e:
-            warn = 'Error: A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}\n'.format(filename, e.filename)
-        except IOError:
-            warn = 'Error: IO Error thrown while opening file: '+filename+'\n'
-        except MemoryError:
-            warn='Error: Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).\n'
-        except weio.EmptyFileError:
-            warn='Error: File empty!\n\nFile is empty: '+filename+'\n\nOpen a different file.\n'
-        except weio.FormatNotDetectedError:
-            warn='Error: File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list\n'
-        except weio.WrongFormatError as e:
-            warn='Error: Wrong file format!\n\nFile: '+filename+'\n\n'   \
-                    'The file parser for the selected format failed to open the file.\n\n'+   \
-                    'The reported error was:\n'+e.args[0]+'\n\n' +   \
-                    'Double-check your file format and report this error if you think it''s a bug.\n'
-        except weio.BrokenFormatError as e:
-            warn = 'Error: Inconsistency in the file format!\n\nFile: '+filename+'\n\n'   \
-                   'The reported error was:\n\n'+e.args[0]+'\n\n' +   \
-                   'Double-check your file format and report this error if you think it''s a bug.'
-        except:
-            raise
+
+        fileformatAllowedToFailOnReload = (fileformat is not None) and bReload
+        if fileformatAllowedToFailOnReload:
+            try:
+                F = fileformat.constructor(filename=filename)
+                dfs = F.toDataFrame()
+            except:
+                warnLoc = 'Failed to read file:\n\n   {}\n\nwith fileformat: {}\n\nIf you see this message, the reader tried again and succeeded with "auto"-fileformat.\n\n'.format(filename, fileformat.name)
+                tabs,warn = self._load_file_tabs(filename, fileformat=None, bReload=False)
+                return tabs, warnLoc+warn
+
+        else:
+
+            try:
+                #F = weio.read(filename, fileformat = fileformat)
+                # --- Expanded version of weio.read
+                F = None
+                if fileformat is None:
+                    fileformat, F = weio.detectFormat(filename)
+                # Reading the file with the appropriate class if necessary
+                if not isinstance(F, fileformat.constructor):
+                    F=fileformat.constructor(filename=filename)
+                dfs = F.toDataFrame()
+            except weio.FileNotFoundError as e:
+                warn = 'Error: A file was not found!\n\n While opening:\n\n {}\n\n the following file was not found:\n\n {}\n'.format(filename, e.filename)
+            except IOError:
+                warn = 'Error: IO Error thrown while opening file: '+filename+'\n'
+            except MemoryError:
+                warn='Error: Insufficient memory!\n\nFile: '+filename+'\n\nTry closing and reopening the program, or use a 64 bit version of this program (i.e. of python).\n'
+            except weio.EmptyFileError:
+                warn='Error: File empty!\n\nFile is empty: '+filename+'\n\nOpen a different file.\n'
+            except weio.FormatNotDetectedError:
+                warn='Error: File format not detected!\n\nFile: '+filename+'\n\nUse an explicit file-format from the list\n'
+            except weio.WrongFormatError as e:
+                warn='Error: Wrong file format!\n\nFile: '+filename+'\n\n'   \
+                        'The file parser for the selected format failed to open the file.\n\n'+   \
+                        'The reported error was:\n'+e.args[0]+'\n\n' +   \
+                        'Double-check your file format and report this error if you think it''s a bug.\n'
+            except weio.BrokenFormatError as e:
+                warn = 'Error: Inconsistency in the file format!\n\nFile: '+filename+'\n\n'   \
+                       'The reported error was:\n\n'+e.args[0]+'\n\n' +   \
+                       'Double-check your file format and report this error if you think it''s a bug.'
+            except:
+                raise
         if len(warn)>0:
             return tabs, warn
 
+        # --- Creating list of tables here
         if dfs is None:
             pass
         elif not isinstance(dfs,dict):
             if len(dfs)>0:
-                tabs=[Table(data=dfs, filename=filename, fileformat=fileformat)]
+                tabs=[Table(data=dfs, filename=filename, fileformat=fileformat, dayfirst=self.options['dayfirst'])]
         else:
             for k in list(dfs.keys()):
                 if len(dfs[k])>0:
-                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=fileformat))
+                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=fileformat, dayfirst=self.options['dayfirst']))
         if len(tabs)<=0:
             warn='Warn: No dataframe found in file: '+filename+'\n'
         return tabs, warn
 
-    def getTabs(self):
-        # TODO remove me later
-        return self._tabs
+    def reloadOneTab(self, iTab, desired_fileformat=None):
+        filename = self._tabs[iTab].filename
+        if desired_fileformat is None:
+            fileformat = self._tabs[iTab].fileformat
+        else:
+            raise Exception('TODO figure how to prescirbe the file format on reload')
+        if filename is None or len(filename)==0:
+            raise Exception('Cannot reload Table as it was not set from a file')
 
-    def len(self):
-        return len(self._tabs)
+        # Find all the tables that have the same filename. NOTE: some may have been deleted..
+        ITab = [iTab for iTab, t in enumerate(self._tabs) if t.filename==filename]
+
+        # Store list of names
+        OldNames = [t.name for t in self._tabs if t.filename==filename]
+
+        # Load the file
+        tabs, warn = self._load_file_tabs(filename, fileformat=fileformat, bReload=False)
+        # Replace in tab list:
+        nTabs = len(tabs)
+        for i in range(nTabs): 
+            if i>=len(ITab):
+                # we append
+                self._tabs.append(tabs[i])
+            else:
+                # NOTE we assume that these tables are added succesively, 
+                iTab = ITab[i]
+                self._tabs[iTab] = tabs[i]
+                if not self.hasswap:
+                    # If swapped were used, we can't really reuse their old names
+                    self._tabs[iTab].name = OldNames[i]
 
     def haveSameColumns(self,I=None):
         if I is None:
             I=list(range(len(self._tabs)))
-        A=[len(self._tabs[i].columns)==len(self._tabs[I[0]].columns) for i in I ]
+        A=[len(self._tabs[i].data.columns)==len(self._tabs[I[0]].data.columns) for i in I ]
         if all(A):
             B=[self._tabs[i].columns_clean==self._tabs[I[0]].columns_clean for i in I] #list comparison
             return all(B)
@@ -155,17 +220,104 @@ class TableList(object): # todo inherit list
     def renameTable(self, iTab, newName):
         oldName = self._tabs[iTab].name
         if newName in [t.name for t in self._tabs]:
-            raise Exception('Error: This table already exist, choose a different name.')
+            raise PyDatViewException('Error: This table already exist, choose a different name.')
         # Renaming table
         self._tabs[iTab].rename(newName)
         return oldName
 
+    def swap(self, i1, i2):
+        """ Swap two elements of the list"""
+        self.hasswap=True
+        self._tabs[i1], self._tabs[i2] = self._tabs[i2], self._tabs[i1]
+
     def sort(self, method='byName'):
         if method=='byName':
             tabnames_display=self.getDisplayTabNames()
-            self._tabs = [t for _,t in sorted(zip(tabnames_display,self._tabs))]
+            # Cannot use sorted(zip()) below
+            self._tabs = [self._tabs[i] for i in np.argsort(tabnames_display)] 
         else:
-            raise Exception('Sorting method unknown: `{}`'.format(method))
+            raise PyDatViewException('Sorting method unknown: `{}`'.format(method))
+
+    def mergeTabs(self, I=None, ICommonColPerTab=None, extrap='nan'):
+        """ 
+        Merge table together.
+        TODO: add options for how interpolation/merging is done
+
+        I: index of tables to merge, if None: all tables are merged
+        """
+        from pydatview.tools.signal_analysis import interpDF
+        #from pydatview.tools.signal_analysis import applySampler
+        #df_new, name_new = t.applyResampling(iCol,sampDict, bAdd=bAdd)
+        if I is None:
+            I = range(len(self._tabs))
+
+        dfs = [self._tabs[i].data for i in I]
+        if ICommonColPerTab is None:
+            # --- Option 0 - Index concatenation 
+            print('Using dataframe index concatenation...')
+            df = pd.concat(dfs, axis=1)
+            # Remove duplicated columns
+            #df = df.loc[:,~df.columns.duplicated()].copy()
+        else:
+            try:
+                # --- Option 1 - We combine all the x from the common column together 
+                # NOTE: We use unique and sort, which will distrupt the user data (e.g. Airfoil Coords)
+                #       The user should then use other methods (when implemented)
+                x_new=[]
+                cols = []
+                for it, icol in  zip(I, ICommonColPerTab):
+                    xtab = self._tabs[it].data.iloc[:, icol].values
+                    cols.append(self._tabs[it].data.columns[icol])
+                    x_new = np.concatenate( (x_new, xtab) ) 
+                x_new = np.unique(np.sort(x_new)) 
+                # Create interpolated dataframes based on x_new
+                dfs_new = []
+                for i, (col, df_old) in enumerate(zip(cols, dfs)):
+                    df = interpDF(x_new, col, df_old, extrap=extrap)
+                    if 'Index' in df.columns:
+                        df = df.drop(['Index'], axis=1)
+                    if i>0:
+                        df = df.drop([col], axis=1)
+                    dfs_new.append(df)
+                df = pd.concat(dfs_new, axis=1)
+                # Reindex at the end
+                df.insert(0, 'Index', np.arange(df.shape[0]))
+            except:
+                # --- Option 0 - Index concatenation 
+                print('Using dataframe index concatenation...')
+                df = pd.concat(dfs, axis=1)                 
+        newName = self._tabs[I[0]].name+'_merged'
+        self.append(Table(data=df, name=newName))
+        return newName, df
+
+    def vstack(self, I=None, commonOnly=False):
+        """ 
+        Vertical stacking of tables
+
+        I: index of tables to stack, if None: all tables are stacked
+        commonOnly: if True, keep only the common columns. 
+                    Otherwise, NaN will be introduced for missing columns
+        """
+        if I is None:
+            I = range(len(self._tabs))
+        dfs = [self._tabs[i].data for i in I]
+
+        if commonOnly:
+            # --- Concatenate all but keep only common columns
+            df = pd.concat(dfs, join='inner', ignore_index=True)
+        else:
+            # --- Concatenate all, not worrying about common columns
+            df = pd.concat(dfs, ignore_index=True)
+        # Set unique index
+        if 'Index' in df.columns:
+            df = df.drop(['Index'], axis=1)
+        df.insert(0, 'Index', np.arange(df.shape[0]))
+        # Add to table list 
+        newName = self._tabs[I[0]].name+'_concat'
+        self.append(Table(data=df, name=newName))
+        return newName, df
+
+
 
     def deleteTabs(self, I):
         self._tabs = [t for i,t in enumerate(self._tabs) if i not in I]
@@ -174,11 +326,8 @@ class TableList(object): # todo inherit list
         for t,tn in zip(self._tabs,names):
             t.active_name=tn
 
-    def setNaming(self,naming):
-        self.Naming=naming
-
     def getDisplayTabNames(self):
-        if self.Naming=='Ellude':
+        if self.options['naming']=='Ellude':
             # Temporary hack, using last names if all last names are unique
             names = [t.raw_name for t in self._tabs]
             last_names=[n.split('|')[-1] for n in names]
@@ -186,10 +335,10 @@ class TableList(object): # todo inherit list
                 return  ellude_common(last_names)
             else:
                 return  ellude_common(names)
-        elif self.Naming=='FileNames':
+        elif self.options['naming']=='FileNames':
             return [os.path.splitext(os.path.basename(t.filename))[0] for t in self._tabs]
         else:
-            raise Exception('Table naming unknown: {}'.format(self.Naming))
+            raise PyDatViewException('Table naming unknown: {}'.format(self.options['naming']))
 
     # --- Properties
     @property
@@ -219,6 +368,17 @@ class TableList(object): # todo inherit list
                 fileformats.append(t.fileformat)
         return filenames, fileformats
 
+    @property
+    def naming(self):
+        return self.options['naming']
+
+    @naming.setter
+    def naming(self, naming):
+        if naming not in ['FileNames', 'Ellude']:
+            raise NotImplementedError('Naming',naming)
+        self.options['naming']=naming
+
+
     def clean(self):
         del self._tabs
         self._tabs=[]
@@ -227,91 +387,107 @@ class TableList(object): # todo inherit list
         return '\n'.join([t.__repr__() for t in self._tabs])
 
     # --- Mask related
-    @property
-    def maskStrings(self):
-        return [t.maskString for t in self._tabs]
-
-    @property
-    def commonMaskString(self):
-        maskStrings=set(self.maskStrings)
-        if len(maskStrings) == 1:
-            return next(iter(maskStrings))
-        else:
-            return ''
-
-    def clearCommonMask(self):
-        for t in self._tabs:
-            t.clearMask()
-
-    def applyCommonMaskString(self,maskString,bAdd=True):
-        dfs_new   = []
-        names_new = []
-        errors=[]
-        for i,t in enumerate(self._tabs):
-            try:
-                df_new, name_new = t.applyMaskString(maskString, bAdd=bAdd)
-                if df_new is not None: 
-                    # we don't append when string is empty
-                    dfs_new.append(df_new)
-                    names_new.append(name_new)
-            except:
-                errors.append('Mask failed for table: '+t.active_name) # TODO
-
-        return dfs_new, names_new, errors
-
-    # --- Resampling TODO MOVE THIS OUT OF HERE OR UNIFY
-    def applyResampling(self,iCol,sampDict,bAdd=True):
-        dfs_new   = []
-        names_new = []
-        errors=[]
-        for i,t in enumerate(self._tabs):
+#     @property
+#     def maskStrings(self):
+#         return [t.maskString for t in self._tabs]
+# 
+#     @property
+#     def commonMaskString(self):
+#         maskStrings=set(self.maskStrings)
+#         if len(maskStrings) == 1:
+#             return next(iter(maskStrings))
+#         else:
+#             return ''
+# 
+#     def clearCommonMask(self):
+#         for t in self._tabs:
+#             t.clearMask()
+# 
+#     def applyCommonMaskString(self,maskString,bAdd=True):
+#         # Apply mask on tablist
+#         dfs_new   = []
+#         names_new = []
+#         errors=[]
+#         for i,t in enumerate(self._tabs):
 #             try:
-            df_new, name_new = t.applyResampling(iCol,sampDict, bAdd=bAdd)
-            if df_new is not None: 
-                # we don't append when string is empty
-                dfs_new.append(df_new)
-                names_new.append(name_new)
-#             except:
-#                 errors.append('Resampling failed for table: '+t.active_name) # TODO
-        return dfs_new, names_new, errors
+#                 df_new, name_new = t.applyMaskString(maskString, bAdd=bAdd)
+#                 if df_new is not None: 
+#                     # we don't append when string is empty
+#                     dfs_new.append(df_new)
+#                     names_new.append(name_new)
+#             except Exception as e:
+#                 errors.append('Mask failed for table: '+t.nickname+'\n'+exception2string(e))
+# 
+#         return dfs_new, names_new, errors
 
-    # --- Filtering  TODO MOVE THIS OUT OF HERE OR UNIFY
-    def applyFiltering(self,iCol,options,bAdd=True):
-        dfs_new   = []
-        names_new = []
-        errors=[]
-        for i,t in enumerate(self._tabs):
+
+    # --- Formulas
+    def storeFormulas(self):
+        formulas = {}
+        for tab in self._tabs:
+            f = tab.formulas # list of dict('pos','formula','name')
+            f = sorted(f, key=lambda k: k['pos']) # Sort formulae by position in list of formua
+            formulas[tab.raw_name]=f # we use raw_name as key
+        return formulas
+
+    # --- Formulas
+    def applyFormulas(self, formulas):
+        """ formuals: dict as returned by storeFormulas"""
+        for tab in self._tabs:
+            if tab.raw_name in formulas.keys():
+                for f in formulas[tab.raw_name]:
+                    tab.addColumnByFormula(f['name'], f['formula'], f['pos']-1)
+
+
+#     # --- Resampling TODO MOVE THIS OUT OF HERE OR UNIFY
+#     def applyResampling(self,iCol,sampDict,bAdd=True):
+#         """ Apply resampling on table list 
+#         TODO Make this part of the action
+#         """
+#         dfs_new   = []
+#         names_new = []
+#         errors=[]
+#         for i,t in enumerate(self._tabs):
 #             try:
-            df_new, name_new = t.applyFiltering(iCol, options, bAdd=bAdd)
-            if df_new is not None: 
-                # we don't append when string is empty
-                dfs_new.append(df_new)
-                names_new.append(name_new)
-#             except:
-#                 errors.append('Resampling failed for table: '+t.active_name) # TODO
-        return dfs_new, names_new, errors
+#                 df_new, name_new = t.applyResampling(iCol, sampDict, bAdd=bAdd)
+#                 if df_new is not None: 
+#                     # we don't append when string is empty
+#                     dfs_new.append(df_new)
+#                     names_new.append(name_new)
+#             except Exception as e:
+#                 errors.append('Resampling failed for table: '+t.nickname+'\n'+exception2string(e))
+#         return dfs_new, names_new, errors
+# 
+#     # --- Filtering  TODO MOVE THIS OUT OF HERE OR UNIFY
+#     def applyFiltering(self,iCol,options,bAdd=True):
+#         """ Apply filtering on table list 
+#         TODO Make this part of the action
+#         """
+#         dfs_new   = []
+#         names_new = []
+#         errors=[]
+#         for i,t in enumerate(self._tabs):
+#             try:
+#                 df_new, name_new = t.applyFiltering(iCol, options, bAdd=bAdd)
+#                 if df_new is not None: 
+#                     # we don't append when string is empty
+#                     dfs_new.append(df_new)
+#                     names_new.append(name_new)
+#             except Exception as e:
+#                 errors.append('Filtering failed for table: '+t.nickname+'\n'+exception2string(e))
+#         return dfs_new, names_new, errors
 
 
-
-
-    # --- Radial average related
-    def radialAvg(self,avgMethod,avgParam):
-        dfs_new   = []
-        names_new = []
-        errors=[]
-        for i,t in enumerate(self._tabs):
-            dfs, names = t.radialAvg(avgMethod,avgParam)
-            for df,n in zip(dfs,names):
-                if df is not None:
-                    dfs_new.append(df)
-                    names_new.append(n)
-        return dfs_new, names_new, errors
-
-
-    # --- Element--related functions
-    def get(self,i):
-        return self._tabs[i]
-
+    @staticmethod
+    def createDummy(nTabs=3, n=30, addLabel=True):
+        tabs=[]
+        label=''
+        for iTab in range(nTabs):
+            if addLabel:
+                label='_'+str(iTab)
+            tabs.append( Table.createDummy(n=n, label=label))
+        tablist = TableList(tabs)
+        return tablist
 
 
 # --------------------------------------------------------------------------------}
@@ -322,9 +498,10 @@ class Table(object):
     """ 
     Main attributes:
       - data
-      - columns
+      - columns       # TODO get rid of me
       - name
-      - raw_name 
+      - raw_name      # Should be unique and can be used for identification
+      - ID            # Should be unique and can be used for identification
       - active_name
       - filename   
       - fileformat 
@@ -340,10 +517,11 @@ class Table(object):
     #    active_name : 
     #    raw_name    : 
     #    filename    : 
-    def __init__(self,data=None,name='',filename='',columns=[], fileformat=None):
+    def __init__(self, data=None, name='', filename='', fileformat=None, dayfirst=False):
         # Default init
         self.maskString=''
         self.mask=None
+        self.columns_pre_transpose = None
 
         self.filename        = filename
         self.fileformat      = fileformat
@@ -353,22 +531,66 @@ class Table(object):
             self.fileformat_name = ''
         self.formulas = []
 
-        if not isinstance(data,pd.DataFrame):
-            # ndarray??
+        if not isinstance(data, pd.DataFrame):
             raise NotImplementedError('Tables that are not dataframe not implemented.')
-        else:
-            # --- Pandas DataFrame 
-            self.data    = data 
-            self.columns = self.columnsFromDF(data)
-            # --- Trying to figure out how to name this table
-            if name is None or len(str(name))==0:
-                if data.columns.name is not None:
-                    name=data.columns.name
-
-        self.setupName(name=str(name))
         
-        self.convertTimeColumns()
+        # --- Modify and store input DataFrame 
+        self.setData(data, dayfirst=dayfirst)
 
+        # --- Trying to figure out how to name this table
+        if name is None or len(str(name))==0:
+            if data.columns.name is not None:
+                name=data.columns.name
+        self.setupName(name=str(name))
+
+    def setData(self, data, dayfirst=False):
+        # sanitize columns, we only accept strings
+        data.columns = data.columns.astype(str)
+
+        # Adding index
+        if data.columns[0].lower().find('index')>=0:
+            pass
+        else:
+            data.insert(0, 'Index', np.arange(data.shape[0]))
+
+        # Delete empty columns at the end (e.g. csv files)
+        while True:
+            if data.columns[-1]=='' and data.iloc[:,-1].isnull().all():
+                print('[Info] Removing last column because all NaN')
+                data=data.iloc[:,:-1]
+            else:
+                break
+
+
+        # --- Store in object
+        self.data    = data 
+        self.convertTimeColumns(dayfirst=dayfirst)
+
+    def transpose(self):
+        # Not done smartly, likely to duplicate memory..
+        try:
+            df = self.data.drop(['Index'], axis=1)
+        except:
+            df = self.data
+        M = df.values.T
+        cols = ['C{}'.format(i) for i in range(M.shape[1])]
+        if self.columns_pre_transpose is None:
+            # It's the first time we transpose, we backup the columns
+            self.columns_pre_transpose = df.columns.copy()
+        else:
+            # We have transposed before, we restore the columns
+            if len(self.columns_pre_transpose) == len(cols):
+                cols = self.columns_pre_transpose 
+            self.columns_pre_transpose = None
+
+        df = pd.DataFrame(data=M, columns=cols)
+        self.setData(df)
+
+    #def reload(self):
+    #    Not Obvious how to do that for files thatreturn several tables
+    #    if self.filename is None or len(self.filename)==0:
+    #        raise Exception('Cannot reload Table, as it was not set from a file')
+    #    print('>>> Table reload')
 
     def setupName(self,name=''):
         # Creates a "codename": path | basename | name | ext
@@ -394,7 +616,6 @@ class Table(object):
         self.name=name
         self.active_name=self.name
 
-
     def __repr__(self):
         s='Table object:\n'
         s+=' - name: {}\n'.format(self.name)
@@ -405,30 +626,20 @@ class Table(object):
         s+=' - fileformat_name : {}\n'.format(self.fileformat_name)
         s+=' - columns    : {}\n'.format(self.columns)
         s+=' - nCols x nRows: {}x{}\n'.format(self.nCols, self.nRows)
+        s+=' - maskString: {}\n'.format(self.maskString)
         return s
 
-    def columnsFromDF(self,df):
-        return [s.replace('_',' ') for s in df.columns.values.astype(str)]
 
     # --- Mask
     def clearMask(self):
         self.maskString=''
         self.mask=None
 
-    def applyMaskString(self,maskString,bAdd=True):
+    def applyMaskString(self, sMask, bAdd=True):
+        # Remove any existing filter
+        self.clearMask()
+        # Apply mask on Table
         df = self.data
-        Index = np.array(range(df.shape[0]))
-        sMask=maskString.replace('{Index}','Index')
-        for i,c in enumerate(self.columns):
-            c_no_unit = no_unit(c).strip()
-            c_in_df   = df.columns[i]
-            # TODO sort out the mess with asarray (introduced to have and/or
-            # as array won't work with date comparison
-            # NOTE: using iloc to avoid duplicates column issue
-            if isinstance(df.iloc[0,i], pd._libs.tslibs.timestamps.Timestamp):
-                sMask=sMask.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
-            else:
-                sMask=sMask.replace('{'+c_no_unit+'}','np.asarray(df[\''+c_in_df+'\'])')
         df_new   = None
         name_new = None
         if len(sMask.strip())>0 and sMask.strip().lower()!='no mask':
@@ -439,19 +650,24 @@ class Table(object):
                     name_new=self.raw_name+'_masked'
                 else:
                     self.mask=mask
-                    self.maskString=maskString
+                    self.maskString=sMask
             except:
-                raise Exception('Error: The mask failed for table: '+self.name)
+                # TODO come up with better error messages
+                raise Exception('Error: The mask failed to evaluate for table: '+self.nickname)
+            if sum(mask)==0:
+                self.clearMask()
+                raise PyDatViewException('Error: The mask returned no value for table: '+self.nickname)
         return df_new, name_new
 
     # --- Important manipulation TODO MOVE THIS OUT OF HERE OR UNIFY
     def applyResampling(self, iCol, sampDict, bAdd=True):
-        from pydatview.tools.signal import applySamplerDF
-        if iCol==0:
-            raise Exception('Cannot resample based on index')
-        colName=self.data.columns[iCol-1]
+        # Resample Table
+        from pydatview.tools.signal_analysis import applySamplerDF
+        colName=self.data.columns[iCol]
         df_new =applySamplerDF(self.data, colName, sampDict=sampDict)
-        df_new
+        # Reindex afterwards
+        if df_new.columns[0]=='Index':
+            df_new['Index'] = np.arange(0,len(df_new))
         if bAdd:
             name_new=self.raw_name+'_resampled'
         else:
@@ -460,12 +676,12 @@ class Table(object):
         return df_new, name_new
 
     def applyFiltering(self, iCol, options, bAdd=True):
-        from pydatview.tools.signal import applyFilterDF
-        if iCol==0:
-            raise Exception('Cannot filter based on index')
-        colName=self.data.columns[iCol-1]
+        from pydatview.tools.signal_analysis import applyFilterDF
+        colName=self.data.columns[iCol]
         df_new =applyFilterDF(self.data, colName, options)
-        df_new
+        # Reindex afterwards
+        if df_new.columns[0]=='Index':
+            df_new['Index'] = np.arange(0,len(df_new))
         if bAdd:
             name_new=self.raw_name+'_filtered'
         else:
@@ -474,8 +690,9 @@ class Table(object):
         return df_new, name_new
 
 
-    def radialAvg(self,avgMethod, avgParam):
-        import pydatview.fast.fastlib as fastlib
+    def radialAvg(self, avgMethod, avgParam):
+        # TODO make this a pluggin
+        import pydatview.fast.postpro as fastlib
         import pydatview.fast.fastfarm as fastfarm
         df = self.data
         base,out_ext = os.path.splitext(self.filename)
@@ -509,27 +726,53 @@ class Table(object):
             else:
                 fst_in=Files[0]
 
+            out= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = self.data)
+            dfRadED=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']
 
-            dfRadED, dfRadAD, dfRadBD= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = self.data)
             dfs_new  = [dfRadAD, dfRadED, dfRadBD]
             names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
+        if all(df is None for df in dfs_new):
+            raise PyDatViewException('No OpenFAST radial data found for table: '+self.nickname)
         return dfs_new, names_new
 
-    def changeUnits(self, flavor='WE'):
+    def changeUnits(self, data=None):
         """ Change units of the table """
+        if data is None:
+            data={'flavor':'WE'}
         # NOTE: moved to a plugin, but interface kept
-        from pydatview.plugins.data_standardizeUnits import changeUnits
-        changeUnits(self, flavor=flavor)
+        from pydatview.plugins.data_standardizeUnits import changeUnitsTab
+        changeUnitsTab(self, data=data)
 
-    def convertTimeColumns(self):
+    def convertTimeColumns(self, dayfirst=False):
+
+        def convertTimeColumn(c):
+            print('[INFO] Converting column {} to datetime, dayfirst: {}. May take a while...'.format(c, dayfirst))
+            try:
+                # TODO THIS CAN BE VERY SLOW...
+                self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=True).to_pydatetime()
+                print('       Done.')
+            except:
+                try:
+                    print('[FAIL] Attempting without infer datetime. May take a while...')
+                    self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=False).to_pydatetime()
+                    print('       Done.')
+                except:
+                    # Happens if values are e.g. "Monday, Tuesday"
+                    print('[FAIL] Inferring column as string instead')
+
+
         if len(self.data)>0:
             for i,c in enumerate(self.data.columns.values):
                 y = self.data.iloc[:,i]
                 if y.dtype == object:
-                    if isinstance(y.values[0], str):
+                    if isinstance(y.values[0], datetime.datetime):
+                        isDate=True
+                        convertTimeColumn(c)
+
+                    elif isinstance(y.values[0], str):
                         # tring to convert to date
                         try:
-                            parser.parse(y.values[0])
+                            vals = parser.parse(y.values[0])
                             isDate=True
                         except:
                             if y.values[0]=='NaT':
@@ -537,14 +780,10 @@ class Table(object):
                             else:
                                 isDate=False
                         if isDate:
-                            try:
-                                self.data[c]=pd.to_datetime(self.data[c].values).to_pydatetime()
-                                print('Column {} converted to datetime'.format(c))
-                            except:
-                                # Happens if values are e.g. "Monday, Tuesday"
-                                print('Conversion to datetime failed, column {} inferred as string'.format(c))
+                            convertTimeColumn(c)
                         else:
                             print('Column {} inferred as string'.format(c))
+                            self.data[c] = self.data[c].str.strip()
                     elif isinstance(y.values[0], (float, int)):
                         try:
                             self.data[c]=self.data[c].astype(float)
@@ -552,40 +791,64 @@ class Table(object):
                         except:
                             self.data[c]=self.data[c].astype(str)
                             print('Column {} inferred and converted to string'.format(c))
-                    else :
+                    else:
                         print('>> Unknown type:',type(y.values[0]))
             #print(self.data.dtypes)
 
 
     # --- Column manipulations
     def renameColumn(self,iCol,newName):
-        self.columns[iCol]=newName
         self.data.columns.values[iCol]=newName
 
-    def deleteColumns(self,ICol):
+    def renameColumns(self, strReplDict=None, regReplDict=None):
+        """ Rename all the columns  of given table
+        - strReplDict: a string replacement dictionary of the form: {'new':'old'}
+        - regReplDict: a regexp string replacement dictionary of the form: {'new':'old'}
+        """
+        cols = self.data.columns
+        newcols = []
+        if strReplDict is not None:
+            for c in cols:
+                for new,old in strReplDict.items():
+                    c = c.replace(old,new)
+                newcols.append(c)
+        elif regReplDict is not None:
+            import re
+            for c in cols:
+                for new,old in regReplDict.items():
+                    c = re.sub(old, new, c)
+                newcols.append(c)
+        else:
+            raise NotImplementedError('Provide a replace dictionary')
+        self.data.columns = newcols
+
+
+    def deleteColumns(self, ICol):
         """ Delete columns by index, not column names which can have duplicates"""
         IKeep =[i for i in np.arange(self.data.shape[1]) if i not in ICol]
         self.data = self.data.iloc[:, IKeep] # Drop won't work for duplicates
+        # TODO find a way to add a "formula" attribute to a column of a dataframe to avoid dealing with "pos".
         for i in sorted(ICol, reverse=True):
-            del(self.columns[i])
+            # Remove formulae if these are part of the columns deleted
             for f in self.formulas:
-                if f['pos'] == (i + 1):
+                if f['pos'] == i:
                     self.formulas.remove(f)
                     break
+            # Shift formulae locations due to column being removed
             for f in self.formulas:
-                if f['pos'] > (i + 1):
+                if f['pos'] > i:
                     f['pos'] = f['pos'] - 1
 
     def rename(self,new_name):
         self.name='>'+new_name
 
-    def addColumn(self,sNewName,NewCol,i=-1,sFormula=''):
+    def addColumn(self, sNewName, NewCol, i=-1, sFormula=''):
         if i<0:
             i=self.data.shape[1]
         elif i>self.data.shape[1]+1:
             i=self.data.shape[1]
-        self.data.insert(int(i),sNewName,NewCol)
-        self.columns=self.columnsFromDF(self.data)
+        self.data.insert(int(i+1),sNewName,NewCol)
+        # Due to new column, formulas position needs to be incremented.
         for f in self.formulas:
             if f['pos'] > i:
                 f['pos'] = f['pos'] + 1
@@ -594,88 +857,65 @@ class Table(object):
     def setColumn(self,sNewName,NewCol,i,sFormula=''):
         if i<1:
             raise ValueError('Cannot set column at position ' + str(i))
-        self.data = self.data.drop(columns=self.data.columns[i-1])
-        self.data.insert(int(i-1),sNewName,NewCol)
-        self.columns=self.columnsFromDF(self.data)
+        self.data = self.data.drop(columns=self.data.columns[i])
+        self.data.insert(int(i),sNewName,NewCol)
         for f in self.formulas:
             if f['pos'] == i:
                 f['name'] = sNewName
                 f['formula'] = sFormula
         
-    def getColumn(self,i):
-        """ Return column of data, where i=0 is the index column
+    def getColumn(self, i):
+        """ Return column of data
         If a mask exist, the mask is applied
 
         TODO TODO TODO get rid of this!
         """
-        if i <= 0 :
-            x = np.array(range(self.data.shape[0]))
-            if self.mask is not None:
-                x=x[self.mask]
-
-            c = None
-            isString = False
-            isDate   = False
+        if self.mask is not None:
+            c = self.data.iloc[self.mask, i]
+            x = self.data.iloc[self.mask, i].values
         else:
-            if self.mask is not None:
-                c = self.data.iloc[self.mask, i-1]
-                x = self.data.iloc[self.mask, i-1].values
-            else:
-                c = self.data.iloc[:, i-1]
-                x = self.data.iloc[:, i-1].values
+            c = self.data.iloc[:, i]
+            x = self.data.iloc[:, i].values
 
-            isString = c.dtype == np.object and isinstance(c.values[0], str)
-            if isString:
-                x=x.astype(str)
-            isDate   = np.issubdtype(c.dtype, np.datetime64)
-            if isDate:
-                dt=getDt(x)
-                if dt>1:
-                    x=x.astype('datetime64[s]')
-                else:
-                    x=x.astype('datetime64')
+        isString = c.dtype == object and isinstance(c.values[0], str)
+        if isString:
+            x=x.astype(str)
+        isDate   = np.issubdtype(c.dtype, np.datetime64)
+        if isDate:
+            dt=getDt(x)
+            if dt>1:
+                x=x.astype('datetime64[s]')
+            else:
+                x=x.astype('datetime64')
         return x,isString,isDate,c
 
-
-    def evalFormula(self,sFormula):
-        df = self.data
-        Index = np.array(range(df.shape[0]))
-        sFormula=sFormula.replace('{Index}','Index')
-        for i,c in enumerate(self.columns):
-            c_no_unit = no_unit(c).strip()
-            c_in_df   = df.columns[i]
-            sFormula=sFormula.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
-        try:
-            NewCol=eval(sFormula)
-            return NewCol
-        except:
-            return None
-
-    def addColumnByFormula(self,sNewName,sFormula,i=-1):
-        NewCol=self.evalFormula(sFormula)
+    def addColumnByFormula(self, sNewName, sFormulaRaw, i=-1):
+        NewCol=evalFormula(self.data, sFormulaRaw)
         if NewCol is None:
             return False
         else:
-            self.addColumn(sNewName,NewCol,i,sFormula)
+            self.addColumn(sNewName,NewCol,i,sFormulaRaw)
             return True
     
-    def setColumnByFormula(self,sNewName,sFormula,i=-1):
-        NewCol=self.evalFormula(sFormula)
+    def setColumnByFormula(self, sNewName, sFormulaRaw, i=-1):
+        NewCol=evalFormula(self.data, sFormulaRaw)
         if NewCol is None:
             return False
         else:
-            self.setColumn(sNewName,NewCol,i,sFormula)
+            self.setColumn(sNewName,NewCol,i,sFormulaRaw)
             return True
 
 
-    def export(self,path):
-        if isinstance(self.data, pd.DataFrame):
-            try:
-                self.data.to_csv(path,sep=',',index=False) #python3
-            except:
-                self.data.to_csv(path,sep=str(u',').encode('utf-8'),index=False) #python 2.
+    def export(self, path, fformat='auto'):
+        from pydatview.io.converters import writeDataFrameAutoFormat, writeDataFrameToFormat
+        df = self.data
+        base, ext = os.path.splitext(path)
+        if 'Index' in df.columns.values:
+            df = df.drop(['Index'], axis=1)
+        if fformat=='auto':
+            writeDataFrameAutoFormat(df, path)
         else:
-            raise NotImplementedError('Export of data that is not a dataframe')
+            writeDataFrameToFormat(df, path, fformat=fformat)
 
 
 
@@ -693,8 +933,16 @@ class Table(object):
         return (self.nRows, self.nCols)
 
     @property
+    def columns(self):
+        return self.data.columns.values #.astype(str)
+
+    @columns.setter
+    def columns(self, cols):
+        raise Exception('Columns is read only')
+
+    @property
     def columns_clean(self):
-        return [no_unit(s) for s in self.columns]
+        return [no_unit(s) for s in self.data.columns.values.astype(str)]
 
     @property
     def name(self):
@@ -714,12 +962,48 @@ class Table(object):
         self.__name=new_name
 
     @property
+    def nickname(self):
+        sp = self.name.split('|')
+        return sp[-1]
+
+    @property
     def nCols(self):
         return len(self.columns) 
 
     @property
     def nRows(self):
         return len(self.data.iloc[:,0]) # TODO if not panda
+    
+    @staticmethod
+    def createDummy(n, label='', columns=None, nCols=None):
+        """ create a dummy table of length n
+        If columns or nCols are provided, they are used for the 
+        """
+        # 
+        if nCols is None and columns is None:
+            t       = np.linspace(0, 4*np.pi, n)
+            x       = np.sin(t)+10
+            alpha_d = np.linspace(0, 360, n)
+            P       = np.random.normal(0,100,n)+5000
+            RPM     = np.random.normal(-0.2,0.2,n) + 12.
+            d={'Time_[s]':t,  
+                    'x{}_[m]'.format(label): x, 
+                    'alpha{}_[deg]'.format(label):alpha_d,
+                    'P{}_[W]'.format(label):P, 
+                    'RotSpeed{}_[rpm]'.format(label):RPM}
+        else:
+            units=['m','m/s','kn','rad','w','deg']
+            if columns is None:
+                columns = ['C{}{}_[{}]'.format(i,label, units[np.mod(i, len(units))] ) for i in range(nCols)]
+            nCols=len(columns)
+        
+            d = np.zeros((n, nCols))
+            for i in range(nCols):
+                d[:,i] = np.random.normal(0, 1, n) + i
+        df = pd.DataFrame(data=d, columns= columns)
+        return Table(data=df, name='Dummy '+label)
+
+
 
 
 if __name__ == '__main__':
@@ -727,5 +1011,7 @@ if __name__ == '__main__':
     from Tables import Table
     import numpy as np
 
-    def OnTabPopup(event):
-        self.PopupMenu(TablePopup(self,selPanel.tabPanel.lbTab), event.GetPosition())
+
+
+
+

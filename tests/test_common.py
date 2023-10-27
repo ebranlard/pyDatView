@@ -1,5 +1,3 @@
-# - *- coding: utf- 8 - *-
-from __future__ import unicode_literals,print_function
 import unittest
 import numpy as np
 import pandas as pd
@@ -19,6 +17,8 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(unit   ('speed [m/s]'),'m/s'  )
         self.assertEqual(unit   ('speed [m/s' ),'m/s'  ) # ...
         self.assertEqual(no_unit('speed [m/s]'),'speed')
+        self.assertEqual(no_unit('i [-]'),'i')
+        self.assertEqual(unit   ('i [-]'),'-')
 
     def test_splitunit(self):
         self.assertEqual(splitunit   ('speed [m/s]'),('speed ','m/s'  ))

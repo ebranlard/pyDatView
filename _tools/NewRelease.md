@@ -2,6 +2,7 @@
 # Creating a new release
 
 Steps:
+- Change version in setup.py
 - Change PROG\_VERSION in pydateview/main.py
 - Change version in installler.cfg
 - Change CURRENT\_DEV\_TAG in .github/workflows/tests.yml   (not pretty...)
@@ -40,4 +41,26 @@ git push --delete origin vtag
 git tag new old
 git tag -d old
 git push origin new :old
+
+
+
+
+# Profiling
+Dependencies:
+```
+pip install snakeviz pyprof2calltree
+#or
+pip install viztracer
+```
+
+Profile:
+```
+make prof
+```
+
+Runs the following:
+```
+viztracer  .\tests\prof_all.py
+vizviewer.exe .\result.json
+```
 

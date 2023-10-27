@@ -8,7 +8,7 @@ else
     detected_OS := $(patsubst MINGW%,MSYS,$(detected_OS))
 endif
 
-testfile= weio/weio/tests/example_files/FASTIn_arf_coords.txt
+testfile= example_files/FASTIn_arf_coords.txt
 all:
 ifeq ($(detected_OS),Darwin)        # Mac OS X
 	./pythonmac pyDatView.py $(testfile)
@@ -54,6 +54,8 @@ prof:
 	python -m cProfile -o tests/prof_all.prof  tests/prof_all.py
 	python -m pyprof2calltree -i tests/prof_all.prof -o tests/callgrind.prof_all.prof
 	snakeviz tests/prof_all.prof
+	#viztracer  .\tests\prof_all.py
+	#vizviewer.exe .\result.json
 
 
 exe:

@@ -4,6 +4,13 @@ import os
 import platform
 import datetime
 import re
+import inspect
+import traceback
+
+
+class PyDatViewException(Exception):
+    pass
+
 
 CHAR={
 'menu'     : u'\u2630',
@@ -21,6 +28,11 @@ CHAR={
 'help'     : u'\u2753',
 'pencil'   : u'\u270f', # draw
 'pick'     : u'\u26cf',
+'downarrow': u'\u2193',
+'update'   : u'\u27F3',
+# 'update'   : u'\u21BB',
+# 'update'   : u'\U0001F5D8',
+'save'     : u'\U0001F5AB',
 'hammer'   : u'\U0001f528',
 'wrench'   : u'\U0001f527',
 'ruler'    : u'\U0001F4CF', # measure
@@ -135,7 +147,7 @@ def extract_key_tuples(text):
     all=(0.1,-2),b=(inf,0), c=(-inf,0.3e+10)
     """
     regex = re.compile(r'(?P<key>[\w\-]+)=\((?P<value1>[0-9+epinf.-]*?),(?P<value2>[0-9+epinf.-]*?)\)($|,)')
-    return  {match.group("key"): (np.float(match.group("value1")),np.float(match.group("value2"))) for match in regex.finditer(text.replace(' ',''))}
+    return  {match.group("key"): (float(match.group("value1")),float(match.group("value2"))) for match in regex.finditer(text.replace(' ',''))}
 
 
 def extract_key_num(text):
@@ -143,7 +155,7 @@ def extract_key_num(text):
     all=0.1, b=inf, c=-0.3e+10
     """
     regex = re.compile(r'(?P<key>[\w\-]+)=(?P<value>[0-9+epinf.-]*?)($|,)')
-    return {match.group("key"): np.float(match.group("value")) for match in regex.finditer(text.replace(' ',''))}
+    return {match.group("key"): float(match.group("value")) for match in regex.finditer(text.replace(' ',''))}
 
 def getDt(x):
     """ returns dt in s """
@@ -236,21 +248,21 @@ def cleanCol(s):
 def no_unit(s):
     s=s.replace('_[',' [')
     iu=s.rfind(' [')
-    if iu>1:
+    if iu>0:
         return s[:iu]
     else:
         return s
 
 def unit(s):
     iu=s.rfind('[')
-    if iu>1:
+    if iu>0:
         return s[iu+1:].replace(']','')
     else:
         return ''
 
 def splitunit(s):
     iu=s.rfind('[')
-    if iu>1:
+    if iu>0:
         return s[:iu], s[iu+1:].replace(']','')
     else:
         return s, ''
@@ -339,11 +351,24 @@ def pretty_time(t):
         s='{:.1f}y'.format(y)
     return s
 
+
+def pretty_date(d, timespan=None):
+    """
+    TODO, placeholder for pretty date based on a given timespan
+    """
+    s ='{}'.format(d)
+    return s
+
 def pretty_num(x):
-    if abs(x)<1000 and abs(x)>1e-4:
-        return "{:9.4f}".format(x)
-    else:
-        return '{:.3e}'.format(x)
+    try:
+        if np.isnan(x):
+            return 'NA'
+        if abs(x)<1000 and abs(x)>1e-4:
+            return "{:9.4f}".format(x)
+        else:
+            return '{:.3e}'.format(x)
+    except:
+        return 'NA'
 
 def pretty_num_short(x,digits=3):
     if digits==4:
@@ -425,12 +450,56 @@ def Error(parent, message, caption = 'Error!'):
     dlg.ShowModal()
     dlg.Destroy()
 
+def exception2string(excp, iMax=40, prefix='    | ', prevStack=True):
+    if isinstance(excp, PyDatViewException):
+        return prefix + excp.args[0]
+    else:
+        stack=[]
+        if prevStack:
+            stack += traceback.extract_stack()[:-3]
+        stack += traceback.extract_tb(excp.__traceback__)
+        stacklist = traceback.format_list(stack)
+        # --- Parse stacktrace for file/ line / content
+        traceback_dicts=[]
+        for i, line in enumerate(stacklist):
+            element = line.split(',')
+            d = {}
+            filename = element[0].strip().lstrip('File').strip(' "')
+            # We identify "local content" and strip the path
+            if i==0:
+                basePath = os.path.dirname(filename)
+            isLoc = filename.find(basePath)==0
+            filename = filename.replace(basePath,'')
+            if filename[0] == '\\':
+                filename=filename[1:]
+            filename = filename[:iMax] + (filename[iMax:] and '..')
+            d['File'] = filename
+            d['isLocal'] = isLoc
+            d['line'] = int(element[1].strip().lstrip('line').strip())
+            content=element[2].strip().lstrip('in').strip().split('\n')
+            d['mod']  = content[0]
+            if len(content)>1:
+                d['content']  = content[1].strip()
+            else:
+                d['content']  = ''
+            traceback_dicts.append(d)
+        # ---
+        string=''
+        for d in traceback_dicts:
+            if d['content'].find('MainLoop')>0:
+                continue
+            if d['isLocal']:
+                string+=prefix+'{:40s}|{:<6d}| {:s}\n'.format(d['File'],d['line'],d['content'])
+            else:
+                #string+='|(backtrace continues)'
+                break
+        string += prefix+'{} {}'.format(excp.__class__,excp)
+    return string
 
 
 # --------------------------------------------------------------------------------}
 # ---  
 # --------------------------------------------------------------------------------{
-
 def isString(x):
     b = x.dtype == object and isinstance(x.values[0], str)
     return b 
@@ -438,3 +507,24 @@ def isString(x):
 def isDate(x):
     return np.issubdtype(x.dtype, np.datetime64)
 
+def isDateScalar(x):
+    return np.issubdtype(x, np.datetime64)
+
+
+
+# Create a Dummy Main Frame Class for testing purposes (e.g. of plugins)
+
+class DummyMainFrame():
+    def __init__(self, parent): self.parent=parent; 
+    def addAction            (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+    def removeAction         (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+    def load_dfs             (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+    def mainFrameUpdateLayout(self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+    def redraw               (self, *args, **kwargs): Info(self.parent, 'This is dummy '+inspect.stack()[0][3])
+
+
+if __name__ == '__main__':
+    try:
+        raise Exception('Hello')
+    except Exception as excp:
+        s= exception2string(excp)

@@ -1,18 +1,16 @@
-
-from __future__ import absolute_import
-
+import os
+import time
+import pydatview
+import pandas as pd
+import numpy as np
+import wx
+from pydatview.perfmon import PerfMon, Timer
+from pydatview.main import MainFrame
+import pydatview.io as weio
+import gc
+scriptDir = os.path.dirname(__file__)
 
 def test_heavy():
-    import time
-    import sys
-    import pydatview
-    import pandas as pd
-    import numpy as np
-    import wx
-    from pydatview.perfmon import PerfMon, Timer
-    from pydatview.pydatview import MainFrame
-    from pydatview.GUISelectionPanel import ellude_common
-    import gc
     dt = 0
     with Timer('Test'):
         # --- Test df
@@ -31,24 +29,24 @@ def test_heavy():
         with PerfMon('Plot 1'):
             app = wx.App(False)
             frame = MainFrame()
-            frame.load_df(df)
+            frame.load_dfs([df])
             del df
         time.sleep(dt) 
         with PerfMon('Redraw 1'):
             frame.selPanel.colPanel1.lbColumns.SetSelection(-1)
             frame.selPanel.colPanel1.lbColumns.SetSelection(2)
-            frame.plotPanel.redraw()
+            frame.redraw()
         time.sleep(dt) 
         with PerfMon('Redraw 1 (igen)'):
             frame.selPanel.colPanel1.lbColumns.SetSelection(-1)
             frame.selPanel.colPanel1.lbColumns.SetSelection(2)
-            frame.plotPanel.redraw()
+            frame.redraw()
         time.sleep(dt) 
         with PerfMon('FFT 1'):
             frame.plotPanel.pltTypePanel.cbFFT.SetValue(True)
             #frame.plotPanel.cbLogX.SetValue(True)
             #frame.plotPanel.cbLogY.SetValue(True)
-            frame.plotPanel.redraw()
+            frame.redraw()
             frame.plotPanel.pltTypePanel.cbFFT.SetValue(False)
         time.sleep(dt) 
         with PerfMon('Plot 3'):
@@ -57,26 +55,46 @@ def test_heavy():
             frame.onColSelectionChange()
         time.sleep(dt) 
         with PerfMon('Redraw 3'):
-            frame.plotPanel.redraw()
+            frame.redraw()
         time.sleep(dt) 
         with PerfMon('FFT 3'):
             frame.plotPanel.pltTypePanel.cbFFT.SetValue(True)
-            frame.plotPanel.redraw()
+            frame.redraw()
             frame.plotPanel.pltTypePanel.cbFFT.SetValue(False)
 
 
 
+def test_debug(show=False):
+    dt = 0
+    with Timer('Test'):
+        with PerfMon('read'):
+            df1 =weio.read(os.path.join(scriptDir,'../Processed.Data_bkp.csv')).toDataFrame()
+            #df2=None
+            #df1 =weio.read(os.path.join(scriptDir,'../ad_driver_m50.1.outb')).toDataFrame()
+            #df2 =weio.read(os.path.join(scriptDir,'../ad_driver_p50.csv')).toDataFrame()
+
+        time.sleep(dt) 
+        with PerfMon('AppStart 1'):
+            app = wx.App(False)
+            frame = MainFrame()
+        with PerfMon('Load dfs'):
+            #frame.load_dfs([df1])
+            #frame.load_dfs([df1, df2])
+        with PerfMon('Plot 1'):
+            frame.selPanel.tabPanel.lbTab.SetSelection(0)
+            #frame.selPanel.tabPanel.lbTab.SetSelection(1)
+            frame.onTabSelectionChange()
+            #frame.redraw()
+    if show:
+        app.MainLoop()
+
+
+def test_files(filenames):
+    pydatview.test(filenames=filenames)
+
 if __name__ == '__main__':
-    import sys
-    import os
-    root_dir=os.getcwd()
-    script_dir=os.path.dirname(os.path.realpath(__file__))
-    sys.path.append(root_dir)
-#     print(root_dir)
-    #filenames=['../_TODO/DLC120_ws13_yeNEG_s2_r3_PIT.SFunc.outb','../_TODO/DLC120_ws13_ye000_s1_r1.SFunc.outb']
-#     filenames=['../weio/_tests/CSVComma.csv']
 #     filenames =[os.path.join(script_dir,f) for f in filenames]
-    
-    #pydatview.test(filenames=filenames)
 
     test_heavy()
+    #test_debug(False)
+    #test_debug(False)

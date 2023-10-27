@@ -1,11 +1,20 @@
-from __future__ import absolute_import
 import os
 import numpy as np
-from .common import no_unit, unit, inverse_unit, has_chinese_char
-from .common import isString, isDate, getDt
-from .common import unique, pretty_num, pretty_time
-from .GUIMeasure import find_closest # Should not depend on wx 
+from pydatview.common import no_unit, unit, inverse_unit, has_chinese_char
+from pydatview.common import isString, isDate, getDt
+from pydatview.common import unique, pretty_num, pretty_time, pretty_date
+import matplotlib.dates as mdates
 
+# --------------------------------------------------------------------------------}
+# --- PlotDataList functions
+# --------------------------------------------------------------------------------{
+def PDL_xlabel(PDL):
+    #PD[axes[-1].iPD[0]].sx, **font_options)
+    return PDL[-1].sx
+
+# --------------------------------------------------------------------------------}
+# --- PlotData 
+# --------------------------------------------------------------------------------{
 class PlotData():
     """ 
     Class for plot data
@@ -16,7 +25,7 @@ class PlotData():
     def __init__(PD, x=None, y=None, sx='', sy=''):
         """ Dummy init for now """
         PD.id=-1
-        PD.it=-1 # tablx index
+        PD.it=-1 # table index
         PD.ix=-1 # column index
         PD.iy=-1 # column index
         PD.sx='' # x label
@@ -25,41 +34,66 @@ class PlotData():
         PD.syl='' # y label for legend
         PD.filename = ''
         PD.tabname = ''
+        PD.tabID   = -1
         PD.x        =[]     # x data
         PD.y        =[]     # y data
         PD.xIsString=False  # true if strings
         PD.xIsDate  =False  # true if dates
         PD.yIsString=False  # true if strings
         PD.yIsDate  =False  # true if dates
+        # Misc data
+        PD._xMin = None
+        PD._xMax = None
+        PD._yMin = None
+        PD._yMax = None
+        PD._xAtYMin = None
+        PD._xAtYMax = None
+        # Backup data
+        PD._x0Min = None
+        PD._x0Max = None
+        PD._y0Min = None
+        PD._y0Max = None
+        PD._x0AtYMin = None
+        PD._x0AtYMax = None
+        PD._y0Std  = None
+        PD._y0Mean = None
+        PD._n0     = None
+        PD.x0 = None
+        PD.y0 = None
+        # Store xyMeas input values so we don't need to recompute xyMeas in case they didn't change
+        PD.xyMeasInput1 = (None, None)
+        PD.xyMeasInput2 = (None, None)
+        PD.xyMeas      = [(None,None)]*2 # 2 measures for now
 
         if x is not None and y is not None:
             PD.fromXY(x,y,sx,sy)
 
-    def fromIDs(PD, tabs, i, idx, SameCol, Options={}):
+    def fromIDs(PD, tabs, i, idx, SameCol, pipeline=None):
         """ Nasty initialization of plot data from "IDs" """
         PD.id = i
         PD.it = idx[0] # table index
         PD.ix = idx[1] # x index
         PD.iy = idx[2] # y index
-        PD.sx = idx[3] # x label
-        PD.sy = idx[4] # y label
+        PD.sx = idx[3].replace('_',' ') # x label
+        PD.sy = idx[4].replace('_',' ') # y label
         PD.syl = ''    # y label for legend
         PD.st = idx[5] # table label
         PD.filename = tabs[PD.it].filename
         PD.tabname  = tabs[PD.it].active_name
+        PD.tabID   = -1 # TODO
         PD.SameCol  = SameCol
         PD.x, PD.xIsString, PD.xIsDate,_ = tabs[PD.it].getColumn(PD.ix)  # actual x data, with info
         PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
         PD.c =c  # raw values, used by PDF
 
-        PD._post_init(Options=Options)
+        PD._post_init(pipeline=pipeline)
 
     def fromXY(PD, x, y, sx='', sy=''):
         PD.x  = x
         PD.y  = y
         PD.c  = y
-        PD.sx = sx
-        PD.sy = sy
+        PD.sx = sx.replace('_',' ')
+        PD.sy = sy.replace('_',' ')
         PD.xIsString = isString(x)
         PD.yIsString = isString(y)
         PD.xIsDate   = isDate  (x)
@@ -68,32 +102,14 @@ class PlotData():
         PD._post_init()
 
 
-    def _post_init(PD, Options={}):
-        # --- Perform data manipulation on the fly
-        #[print(k,v) for k,v in Options.items()]
-        keys=Options.keys()
-        # TODO setup an "Order"
-        if 'RemoveOutliers' in keys:
-            if Options['RemoveOutliers']:
-                from pydatview.tools.signal import reject_outliers
-                try:
-                    PD.x, PD.y = reject_outliers(PD.y, PD.x, m=Options['OutliersMedianDeviation'])
-                except:
-                    raise Exception('Warn: Outlier removal failed. Desactivate it or use a different signal. ')
-        if 'Filter' in keys:
-            if Options['Filter']:
-                from pydatview.tools.signal import applyFilter
-                PD.y = applyFilter(PD.x, PD.y, Options['Filter'])
+    def _post_init(PD, pipeline=None):
 
-        if 'Sampler' in keys:
-            if Options['Sampler']:
-                from pydatview.tools.signal import applySampler
-                PD.x, PD.y = applySampler(PD.x, PD.y, Options['Sampler'])
+        # --- Apply filters from pipeline on the fly
+        #if pipeline is not None:
+        #    print('[PDat]', pipeline.__reprFilters__())
+        if pipeline is not None:
+            PD.x, PD.y = pipeline.applyOnPlotData(PD.x, PD.y, PD.tabID) # TODO pass the tabID
 
-        if 'Binning' in keys:
-            if Options['Binning']:
-                if Options['Binning']['active']:
-                    PD.x, PD.y = Options['Binning']['applyCallBack'](PD.x, PD.y, Options['Binning'])
 
         # --- Store stats
         n=len(PD.y)
@@ -118,13 +134,25 @@ class PlotData():
         PD._n0     = (n,'{:d}'.format(n))
         PD.x0 =PD.x
         PD.y0 =PD.y
-        # Store xyMeas input values so we don't need to recompute xyMeas in case they didn't change
-        PD.xyMeasInput1, PD.xyMeasInput2 = None, None
-        PD.xyMeas1, PD.xyMeas2 = None, None
 
     def __repr__(s):
-        s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}\n'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
+        s1='id:{}, it:{}, ix:{}, iy:{}, sx:"{}", sy:"{}", st:{}, syl:{}'.format(s.id,s.it,s.ix,s.iy,s.sx,s.sy,s.st,s.syl)
+        #s1='id:{}, it:{}, sx:"{}", xyMeas:{}\n'.format(s.id,s.it,s.sx,s.xyMeas)
         return s1
+
+
+    def toXY_date2num(self):
+        """ return a XY array, converting dates to num if necessary"""
+        if self.xIsDate :
+            X = mdates.date2num(self.x)
+        else:
+            X = self.x
+        if self.yIsDate :
+            Y = mdates.date2num(self.y)
+        else:
+            Y = self.y
+        XY = np.array([X, Y]).transpose()
+        return XY
 
     def toPDF(PD, nBins=30, smooth=False):
         """ Convert y-data to Probability density function (PDF) as function of x 
@@ -169,21 +197,47 @@ class PlotData():
         return nBins
 
 
-    def toMinMax(PD, xScale=False, yScale=True):
+    def toMinMax(PD, xScale=False, yScale=True, yCenter='None', yRef=0):
         """ Convert plot data to MinMax data based on GUI options
         NOTE: inPlace
         """
-        if yScale:
-            if PD.yIsString:
-                raise Exception('Warn: Cannot compute min-max for strings')
-            mi = PD._y0Min[0] #mi= np.nanmin(PD.y)
-            mx = PD._y0Max[0] #mx= np.nanmax(PD.y)
-            if mi == mx:
-                PD.y=PD.y*0
-            else:
-                PD.y = (PD.y-mi)/(mx-mi)
-            PD._yMin=0,'0'
-            PD._yMax=1,'1'
+        # --- Scaling and offset for the y axis
+        ymi = PD._y0Min[0]
+        ymx = PD._y0Max[0]
+        yOff = 0
+        if yCenter in ['Mean=0', 'Mid=0']:
+            yRef = 0
+        if yCenter=='None':
+            if yScale:
+                if PD.yIsString:
+                    raise Exception('Warn: Cannot compute min-max for strings')
+                if ymi == ymx:
+                    PD.y=PD.y*0
+                else:
+                    PD.y = (PD.y-ymi)/(ymx-ymi)
+                PD._yMin=0,'0'
+                PD._yMax=1,'1'
+        elif yCenter in ['Mean=0','Mean=ref']:
+            if PD.yIsString or PD.yIsDate:
+                raise Exception('Warn: Cannot offset y-center for strings or dates')
+            yOff = yRef - PD._y0Mean[0]
+            PD.y = PD.y + yOff # NOTE: we don't use "+=" to avoid casting issue between int and float
+            ymi  = ymi  + yOff
+            ymx  = ymx  + yOff
+            PD._yMin=ymi,str(ymi)
+            PD._yMax=ymx,str(ymx)
+        elif yCenter in ['Mid=0','Mid=ref']:
+            if PD.yIsString or PD.yIsDate:
+                raise Exception('Warn: Cannot offset y-center for strings or dates')
+            yOff = yRef - (ymx+ymi)/2
+            PD.y = PD.y + yOff # NOTE: we don't use "+=" to avoid casting issue between int and float
+            ymi  = ymi  + yOff
+            ymx  = ymx  + yOff
+            PD._yMin=ymi,str(ymi)
+            PD._yMax=ymx,str(ymx)
+        else:
+            raise NotImplementedError('yCenter {}'.format(yCenter))
+        # --- Scaling for the x axis
         if xScale:
             if PD.xIsString:
                 raise Exception('Warn: Cannot compute min-max for strings')
@@ -277,7 +331,6 @@ class PlotData():
         PD._xAtYMin  = PD._xAtYMinCalc(PD._yMin[0])
         PD._xAtYMax  = PD._xAtYMaxCalc(PD._yMax[0])
 
-
     # --------------------------------------------------------------------------------}
     # --- Stats functions that should only becalled once, could maybe use @attributes..
     # --------------------------------------------------------------------------------{
@@ -287,8 +340,11 @@ class PlotData():
         elif PD.yIsDate:
             return PD.y[0],'{}'.format(PD.y[0])
         else:
-            v=np.nanmin(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanmin(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def _yMaxCalc(PD):
@@ -297,8 +353,11 @@ class PlotData():
         elif PD.yIsDate:
             return PD.y[-1],'{}'.format(PD.y[-1])
         else:
-            v=np.nanmax(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanmax(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def _xAtYMinCalc(PD, yMin):
@@ -333,8 +392,11 @@ class PlotData():
         elif PD.xIsDate:
             return PD.x[0],'{}'.format(PD.x[0])
         else:
-            v=np.nanmin(PD.x)
-            s=pretty_num(v)
+            try:
+                v=np.nanmin(PD.x)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def _xMaxCalc(PD):
@@ -343,8 +405,11 @@ class PlotData():
         elif PD.xIsDate:
             return PD.x[-1],'{}'.format(PD.x[-1])
         else:
-            v=np.nanmax(PD.x)
-            s=pretty_num(v)
+            try:
+                v=np.nanmax(PD.x)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def xMin(PD):
@@ -387,24 +452,33 @@ class PlotData():
         if PD.yIsString or  PD.yIsDate:
             return None,'NA'
         else:
-            v=np.nanmean(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanmean(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def yMedian(PD):
         if PD.yIsString or  PD.yIsDate:
             return None,'NA'
         else:
-            v=np.nanmedian(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanmedian(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def yStd(PD):
         if PD.yIsString or  PD.yIsDate:
             return None,'NA'
         else:
-            v=np.nanstd(PD.y)
-            s=pretty_num(v)
+            try:
+                v=np.nanstd(PD.y)
+                s=pretty_num(v)
+            except:
+                return np.nan, 'NA'
         return (v,s)
 
     def yName(PD):
@@ -435,103 +509,142 @@ class PlotData():
         return v,s
 
     def y0TI(PD):
-        v=PD._y0Std[0]/PD._y0Mean[0]
-        s=pretty_num(v)
-        return v,s
+        if PD._y0Mean[0]==0:
+            return np.nan,'NA'
+        try:
+            v=PD._y0Std[0]/PD._y0Mean[0]
+            s=pretty_num(v)
+            return v,s
+        except:
+            return np.nan,'NA'
 
 
     def yRange(PD):
         if PD.yIsString:
             return 'NA','NA'
         elif PD.yIsDate:
-            dtAll=getDt([PD.x[-1]-PD.x[0]])
-            return '',pretty_time(dtAll)
+            dtAll=getDt([PD.x[0],PD.x[-1]])
+            return np.nan,pretty_time(dtAll)
         else:
-            v=np.nanmax(PD.y)-np.nanmin(PD.y)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.nanmax(PD.y)-np.nanmin(PD.y)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan,'NA'
 
     def yAbsMax(PD):
         if PD.yIsString or PD.yIsDate:
             return 'NA','NA'
         else:
-            v=max(np.abs(PD._y0Min[0]),np.abs(PD._y0Max[0]))
-            s=pretty_num(v)
-        return v,s
-
+            try:
+                v=max(np.abs(PD._y0Min[0]),np.abs(PD._y0Max[0]))
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan,'NA'
 
     def xRange(PD):
         if PD.xIsString:
             return 'NA','NA'
         elif PD.xIsDate:
-            dtAll=getDt([PD.x[-1]-PD.x[0]])
-            return '',pretty_time(dtAll)
+            dtAll=getDt([PD.x[0],PD.x[-1]])
+            return np.nan,pretty_time(dtAll)
         else:
-            v=np.nanmax(PD.x)-np.nanmin(PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.nanmax(PD.x)-np.nanmin(PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
 
     def inty(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
     def intyintdx(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y,x=PD.x)/np.trapz(y=PD.x*0+1,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y,x=PD.x)/np.trapz(y=PD.x*0+1,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
     def intyx1(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y*PD.x,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y*PD.x,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
+                
 
     def intyx1_scaled(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y*PD.x,x=PD.x)
-            v=v/np.trapz(y=PD.y,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y*PD.x,x=PD.x)
+                v=v/np.trapz(y=PD.y,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
     def intyx2(PD):
         if PD.yIsString or PD.yIsDate or PD.xIsString or PD.xIsDate:
             return None,'NA'
         else:
-            v=np.trapz(y=PD.y*PD.x**2,x=PD.x)
-            s=pretty_num(v)
-        return v,s
+            try:
+                v=np.trapz(y=PD.y*PD.x**2,x=PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
-    def meas1(PD, xymeas1, xymeas2):
-        if PD.xyMeasInput1 is not None and PD.xyMeasInput1 == xymeas1:
-            yv = PD.xyMeas1[1]
-            s = pretty_num(yv)
-        else:
-            xv, yv, s = PD._meas(xymeas1)
-            PD.xyMeas1 = [xv, yv]
-            PD.xyMeasInput1 = xymeas1
-        return yv, s
 
-    def meas2(PD, xymeas1, xymeas2):
-        if PD.xyMeasInput2 is not None and PD.xyMeasInput2 == xymeas2:
-            yv = PD.xyMeas2[1]
-            s = pretty_num(yv)
+    # --------------------------------------------------------------------------------}
+    # --- Measure - TODO: cleanup
+    # --------------------------------------------------------------------------------{
+    def ymeas1(PD):
+        # NOTE: calculation happens in GUIMeasure..
+        if PD.xyMeas[0][0] is not None:
+            yv = PD.xyMeas[0][1]
+            if PD.yIsString:
+                return yv, yb
+            elif PD.yIsDate:
+                return yv, pretty_date(yv)
+            else:
+                return yv, pretty_num(yv)
         else:
-            xv, yv, s = PD._meas(xymeas2)
-            PD.xyMeas2 = [xv, yv]
-            PD.xyMeasInput2 = xymeas2
-        return yv, s
+            return np.nan, 'NA'
+
+    def ymeas2(PD):
+        # NOTE: calculation happens in GUIMeasure..
+        if PD.xyMeas[1][0] is not None:
+            yv = PD.xyMeas[1][1]
+            if PD.yIsString:
+                return yv, yb
+            elif PD.yIsDate:
+                return yv, pretty_date(yv)
+            else:
+                return yv, pretty_num(yv)
+        else:
+            return np.nan, 'NA'
 
     def yMeanMeas(PD):
         return PD._measCalc('mean')
@@ -548,51 +661,56 @@ class PlotData():
     def xAtYMaxMeas(PD):
         return PD._measCalc('xmax')
 
-    def _meas(PD, xymeas):
-        try:
-            xv, yv = 'NA', 'NA'
-            xy = np.array([PD.x, PD.y]).transpose()
-            points = find_closest(xy, [xymeas[0], xymeas[1]], False)
-            if points.ndim == 1:
-                xv, yv = points[0:2]
-                s = pretty_num(yv)
-            else:
-                xv, yv = points[0, 0], points[0, 1]
-                s = ' / '.join([str(p) for p in points[:, 1]])
-        except (IndexError, TypeError):
-            xv, yv = 'NA', 'NA'
-            s='NA'
-        return  xv, yv, s
-
     def _measCalc(PD, mode):
-        if PD.xyMeas1 is None or PD.xyMeas2 is None:
-            return 'NA', 'NA'
+        # TODO clean up
+        if PD.xyMeas[0][0] is None or PD.xyMeas[1][0] is None:
+            return np.nan, 'NA'
+        if np.isnan(PD.xyMeas[0][0]) or np.isnan(PD.xyMeas[1][0]):
+            return np.nan, 'NA'
+        # We only support the case where y values are numeric
+        if PD.yIsDate or PD.yIsString:
+            return np.nan, 'NA'
+
         try:
-            v = 'NA'
-            left_index = np.where(PD.x == PD.xyMeas1[0])[0][0]
-            right_index = np.where(PD.x == PD.xyMeas2[0])[0][0]
+            v = np.nan
+            left_index  = np.argmin(np.abs(PD.x - PD.xyMeas[0][0]))
+            right_index = np.argmin(np.abs(PD.x - PD.xyMeas[1][0]))
             if left_index == right_index:
-                raise IndexError
+                return np.nan, 'Empty'
             if left_index > right_index:
                 left_index, right_index = right_index, left_index
+        except (IndexError, TypeError):
+            return np.nan, 'NA'
+
+        try:
+            yValues = PD.y[left_index:right_index]
             if mode == 'mean':
-                v = np.nanmean(PD.y[left_index:right_index])
+                v = np.nanmean(yValues)
+                s = pretty_num(v)
             elif mode == 'min':
-                v = np.nanmin(PD.y[left_index:right_index])
+                v = np.nanmin(yValues)
+                s = pretty_num(v)
             elif mode == 'max':
-                v = np.nanmax(PD.y[left_index:right_index])
+                v = np.nanmax(yValues)
+                s = pretty_num(v)
             elif mode == 'xmin':
-                v = PD.x[left_index + np.where(PD.y[left_index:right_index] == np.nanmin(PD.y[left_index:right_index]))[0][0]]
+                v = PD.x[left_index + np.where(yValues == np.nanmin(yValues))[0][0]]
+                if PD.xIsDate:
+                    s = pretty_date(v)
             elif mode == 'xmax':
-                v = PD.x[left_index + np.where(PD.y[left_index:right_index] == np.nanmax(PD.y[left_index:right_index]))[0][0]]
+                v = PD.x[left_index + np.where(yValues == np.nanmax(yValues))[0][0]]
+                if PD.xIsDate:
+                    s = pretty_date(v)
             else:
                 raise NotImplementedError('Error: Mode ' + mode + ' not implemented')
-            s = pretty_num(v)
         except (IndexError, TypeError):
-            v = 'NA'
-            s = 'NA'
+            return np.nan, 'NA'
+
         return v, s
 
+    # --------------------------------------------------------------------------------}
+    # --- Other Stats functions
+    # --------------------------------------------------------------------------------{
     def dx(PD):
         if len(PD.x)<=1:
             return 'NA','NA'
@@ -602,9 +720,13 @@ class PlotData():
             dt=getDt(PD.x)
             return dt,pretty_time(dt)
         else:
-            v=PD.x[1]-PD.x[0]
-            s=pretty_num(v)
-            return v,s
+            try:
+                v=PD.x[1]-PD.x[0]
+                s=pretty_num(v)
+                return v,s
+            except:
+                print('plotdata: computing dx failed for {}'.format(PD))
+                return np.nan, 'NA'
 
     def xMax(PD):
         if PD.xIsString:
@@ -612,26 +734,41 @@ class PlotData():
         elif  PD.xIsDate:
             return PD.x[-1],'{}'.format(PD.x[-1])
         else:
-            v=np.nanmax(PD.x)
-            s=pretty_num(v)
-            return v,s
+            try:
+                v=np.nanmax(PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
     def xMin(PD):
         if PD.xIsString:
             return PD.x[0],PD.x[0]
         elif  PD.xIsDate:
             return PD.x[0],'{}'.format(PD.x[0])
         else:
-            v=np.nanmin(PD.x)
-            s=pretty_num(v)
-            return v,s
+            try:
+                v=np.nanmin(PD.x)
+                s=pretty_num(v)
+                return v,s
+            except:
+                return np.nan, 'NA'
 
-    def leq(PD,m):
-        from pydatview.tools.fatigue import eq_load
+    def leq(PD, m, method=None):
+        from pydatview.tools.fatigue import equivalent_load
         if PD.yIsString or  PD.yIsDate:
             return 'NA','NA'
         else:
-            T,_=PD.xRange()
-            v=eq_load(PD.y, m=m, neq=T)[0][0]
+            if method is None:
+                try:
+                    import fatpack
+                    method='fatpack'
+                except ModuleNotFoundError:
+                    print('[INFO] module fatpack not installed, default to windap method for equivalent load')
+                    method='rainflow_windap'
+            try:
+                v = equivalent_load(PD.x, PD.y, m=m, Teq=1, bins=100, method=method)
+            except:
+                v = np.nan
             return v,pretty_num(v)
 
     def Info(PD,var):
@@ -643,6 +780,12 @@ class PlotData():
             return '','{:d}'.format(PD._Info.LOvlp)
         elif var=='nFFT':
             return '','{:d}'.format(PD._Info.nFFT)
+
+    @staticmethod
+    def createDummy(n=30):
+        x = np.linspace(0,4*np.pi,n)
+        y = np.sin(x)
+        return PlotData(x=x, y=y, sx='time [s]', sy='Signal [m]')
 
 
 # --------------------------------------------------------------------------------}

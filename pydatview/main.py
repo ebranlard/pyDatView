@@ -1,9 +1,3 @@
-from __future__ import division, unicode_literals, print_function, absolute_import
-from builtins import map, range, chr, str
-from io import open
-from future import standard_library
-standard_library.install_aliases()
-
 import numpy as np
 import os.path 
 import sys
@@ -26,40 +20,32 @@ except:
 
 #  GUI
 import wx
-from .GUIPlotPanel import PlotPanel
-from .GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
-from .GUISelectionPanel import ColumnPopup,TablePopup
-from .GUIInfoPanel import InfoPanel
-from .GUIToolBox import GetKeyString, TBAddTool
-from .Tables import TableList, Table
+from pydatview.GUIPlotPanel import PlotPanel
+from pydatview.GUISelectionPanel import SelectionPanel,SEL_MODES,SEL_MODES_ID
+from pydatview.GUISelectionPanel import ColumnPopup,TablePopup
+from pydatview.GUIInfoPanel import InfoPanel
+from pydatview.GUIPipelinePanel import PipelinePanel
+from pydatview.GUIToolBox import GetKeyString, TBAddTool
+from pydatview.Tables import TableList, Table
 # Helper
-from .common import *
-from .GUICommon import *
+from pydatview.common import exception2string, PyDatViewException
+from pydatview.common import *
+from pydatview.GUICommon import *
+import pydatview.io as weio # File Formats and File Readers
 # Pluggins
-from .plugins import dataPlugins
-
-try:
-    import weio.weio as weio# File Formats and File Readers
-except:
-    print('')
-    print('Error: the python package `weio` was not imported successfully.\n')
-    print('Most likely the submodule `weio` was not cloned with `pyDatView`')
-    print('Type the following command to retrieve it:\n')
-    print('   git submodule update --init --recursive\n')
-    print('Alternatively re-clone this repository into a separate folder:\n')
-    print('   git clone --recurse-submodules https://github.com/ebranlard/pyDatView\n')
-    sys.exit(-1)
-
-from .appdata import loadAppData, saveAppData, configFilePath, defaultAppData
+from pydatview.plugins import DATA_PLUGINS_WITH_EDITOR, DATA_PLUGINS_SIMPLE, TOOLS
+from pydatview.plugins import OF_DATA_PLUGINS_WITH_EDITOR, OF_DATA_PLUGINS_SIMPLE
+from pydatview.appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
 # --------------------------------------------------------------------------------}
 # --- GLOBAL 
 # --------------------------------------------------------------------------------{
 PROG_NAME='pyDatView'
-PROG_VERSION='v0.3-local'
+PROG_VERSION='v0.4-local'
 SIDE_COL       = [160,160,300,420,530]
 SIDE_COL_LARGE = [200,200,360,480,600]
 BOT_PANL =85
+ISTAT = 0 # Index of Status bar where main status info is provided
 
 #matplotlib.rcParams['text.usetex'] = False
 # matplotlib.rcParams['font.sans-serif'] = 'DejaVu Sans'
@@ -90,10 +76,27 @@ class FileDropTarget(wx.FileDropTarget):
               Format = None
           else:
               Format = self.parent.FILE_FORMATS[iFormat-1]
-          self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd)
+          self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd, bPlot=True)
       return True
 
 
+# --------------------------------------------------------------------------------}
+# --- Loader Menu 
+# --------------------------------------------------------------------------------{
+class LoaderMenuPopup(wx.Menu):
+    def __init__(self, parent, data):
+        wx.Menu.__init__(self)
+        self.parent = parent 
+        self.data = data 
+
+        # Populate menu
+        item = wx.MenuItem(self, -1, "Date format: dayfirst", kind=wx.ITEM_CHECK)
+        self.Append(item)
+        self.Bind(wx.EVT_MENU, lambda ev: self.setCheck(ev, 'dayfirst') )
+        self.Check(item.GetId(), self.data['dayfirst']) # Checking the menu box
+
+    def setCheck(self, event, label):
+        self.data['dayfirst'] = not self.data['dayfirst']
 
 
 # --------------------------------------------------------------------------------}
@@ -106,11 +109,12 @@ class MainFrame(wx.Frame):
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
         # --- Data
-        self.tabList=TableList()
         self.restore_formulas = []
         self.systemFontSize = self.GetFont().GetPointSize()
         self.data = loadAppData(self)
+        self.tabList=TableList(options=self.data['loaderOptions'])
         self.datareset = False
+        self.resized = False # used to trigger a tight layout after resize event
         # Global variables...
         setFontSize(self.data['fontSize'])
         setMonoFontSize(self.data['monoFontSize'])
@@ -130,32 +134,46 @@ class MainFrame(wx.Frame):
 
         fileMenu = wx.Menu()
         loadMenuItem  = fileMenu.Append(wx.ID_NEW,"Open file" ,"Open file"           )
+        scrpMenuItem  = fileMenu.Append(-1        ,"Export script" ,"Export script"           )
         exptMenuItem  = fileMenu.Append(-1        ,"Export table" ,"Export table"           )
         saveMenuItem  = fileMenu.Append(wx.ID_SAVE,"Save figure" ,"Save figure"           )
         exitMenuItem  = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
         menuBar.Append(fileMenu, "&File")
         self.Bind(wx.EVT_MENU,self.onExit  ,exitMenuItem)
         self.Bind(wx.EVT_MENU,self.onLoad  ,loadMenuItem)
+        self.Bind(wx.EVT_MENU,self.onScript,scrpMenuItem)
         self.Bind(wx.EVT_MENU,self.onExport,exptMenuItem)
         self.Bind(wx.EVT_MENU,self.onSave  ,saveMenuItem)
 
+        # --- Data Plugins
+        # NOTE: very important, need "s_loc" otherwise the lambda function take the last toolName
         dataMenu = wx.Menu()
         menuBar.Append(dataMenu, "&Data")
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e, 'Mask')  , dataMenu.Append(wx.ID_ANY, 'Mask'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Outlier'), dataMenu.Append(wx.ID_ANY, 'Outliers removal'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Filter') , dataMenu.Append(wx.ID_ANY, 'Filter'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'Resample') , dataMenu.Append(wx.ID_ANY, 'Resample'))
-        self.Bind(wx.EVT_MENU, lambda e: self.onShowTool(e,'FASTRadialAverage'), dataMenu.Append(wx.ID_ANY, 'FAST - Radial average'))
+        for toolName in DATA_PLUGINS_WITH_EDITOR.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
 
-        # --- Data Plugins
-        for string, function, isPanel in dataPlugins:
-            self.Bind(wx.EVT_MENU, lambda e, s_loc=string: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, string))
+        for toolName in DATA_PLUGINS_SIMPLE.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), dataMenu.Append(wx.ID_ANY, toolName))
 
+        # --- Tools Plugins
         toolMenu = wx.Menu()
         menuBar.Append(toolMenu, "&Tools")
-        self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'CurveFitting'), toolMenu.Append(wx.ID_ANY, 'Curve fitting'))
-        self.Bind(wx.EVT_MENU,lambda e: self.onShowTool(e, 'LogDec')      , toolMenu.Append(wx.ID_ANY, 'Damping from decay'))
+        for toolName in TOOLS.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), toolMenu.Append(wx.ID_ANY, toolName))
 
+        # --- OpenFAST Plugins
+        ofMenu = wx.Menu()
+        menuBar.Append(ofMenu, "&OpenFAST")
+        #for toolName in OF_DATA_TOOLS.keys(): # TODO remove me, should be an action
+        #    self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), ofMenu.Append(wx.ID_ANY, toolName))
+        for toolName in OF_DATA_PLUGINS_WITH_EDITOR.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), ofMenu.Append(wx.ID_ANY, toolName))
+
+        for toolName in OF_DATA_PLUGINS_SIMPLE.keys():
+            self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onDataPlugin(e, s_loc), ofMenu.Append(wx.ID_ANY, toolName))
+
+
+        # --- Help Menu
         helpMenu = wx.Menu()
         aboutMenuItem = helpMenu.Append(wx.NewId(), 'About', 'About')
         resetMenuItem = helpMenu.Append(wx.NewId(), 'Reset options', 'Rest options')
@@ -165,7 +183,8 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU,self.onReset, resetMenuItem)
 
 
-        self.FILE_FORMATS, errors= weio.fileFormats(ignoreErrors=True, verbose=False)
+        io_userpath = os.path.join(weio.defaultUserDataDir(), 'pydatview_io')
+        self.FILE_FORMATS, errors= weio.fileFormats(userpath=io_userpath, ignoreErrors=True, verbose=False)
         if len(errors)>0:
             for e in errors:
                 Warn(self, e)
@@ -176,33 +195,45 @@ class MainFrame(wx.Frame):
 
         # --- ToolBar
         tb = self.CreateToolBar(wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT)
-        self.toolBar = tb 
-        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
-        self.comboFormats.SetSelection(0)
+        tb.AddSeparator()
         self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)  
         self.comboMode.SetSelection(0)
-        self.Bind(wx.EVT_COMBOBOX, self.onModeChange, self.comboMode )
-        tb.AddSeparator()
+        #tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Mode: ' ) )
         tb.AddControl( self.comboMode ) 
+        self.cbLivePlot = wx.CheckBox(tb, -1, 'Live Plot') #,(10,10))
+        self.cbLivePlot.SetValue(True)
+        tb.AddControl( self.cbLivePlot ) 
         tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Format: ' ) )
+        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
+        self.comboFormats.SetSelection(0)
         tb.AddControl(self.comboFormats ) 
+        # Menu for loader options
+        self.btLoaderMenu = wx.Button(tb, wx.ID_ANY, CHAR['menu'], style=wx.BU_EXACTFIT)
+        tb.AddControl(self.btLoaderMenu)
+        self.loaderMenu = LoaderMenuPopup(tb, self.data['loaderOptions'])
         tb.AddSeparator()
+        TBAddTool(tb, "Open"  , 'ART_FILE_OPEN', self.onLoad)
+        TBAddTool(tb, "Reload", 'ART_REDO'     , self.onReload)
+        TBAddTool(tb, "Add"   , 'ART_PLUS'     , self.onAdd)
         #bmp = wx.Bitmap('help.png') #wx.Bitmap("NEW.BMP", wx.BITMAP_TYPE_BMP) 
-        TBAddTool(tb,"Open"  ,wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN),self.onLoad)
-        TBAddTool(tb,"Reload",wx.ArtProvider.GetBitmap(wx.ART_REDO),self.onReload)
-        try:
-            TBAddTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.ART_PLUS),self.onAdd)
-        except:
-            TBAddTool(tb,"Add"   ,wx.ArtProvider.GetBitmap(wx.FILE_OPEN),self.onAdd)
         #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onDEBUG)
         tb.AddStretchableSpace()
         tb.Realize() 
+        self.toolBar = tb 
+        # Bind Toolbox Events
+        self.Bind(wx.EVT_COMBOBOX, self.onModeChange, self.comboMode )
+        self.Bind(wx.EVT_COMBOBOX, self.onFormatChange, self.comboFormats )
+        tb.Bind(wx.EVT_BUTTON, self.onShowLoaderMenu, self.btLoaderMenu)
+        tb.Bind(wx.EVT_CHECKBOX, self.onLivePlotChange, self.cbLivePlot)
 
         # --- Status bar
         self.statusbar=self.CreateStatusBar(3, style=0)
-        self.statusbar.SetStatusWidths([200, -1, 70])
+        self.statusbar.SetStatusWidths([150, -1, 70])
+
+        # --- Pipeline
+        self.pipePanel = PipelinePanel(self, data=self.data['pipeline'], tabList=self.tabList)
 
         # --- Main Panel and Notebook
         self.MainPanel = wx.Panel(self)
@@ -226,12 +257,14 @@ class MainFrame(wx.Frame):
         slSep = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         self.FrameSizer.Add(slSep         ,0, flag=wx.EXPAND|wx.BOTTOM,border=0)
         self.FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND,border=0)
+        self.FrameSizer.Add(self.pipePanel,0, flag=wx.EXPAND,border=0)
         self.SetSizer(self.FrameSizer)
 
         self.SetSize(self.data['windowSize'])
         self.Center()
         self.Show()
         self.Bind(wx.EVT_SIZE, self.OnResizeWindow)
+        self.Bind(wx.EVT_IDLE, self.OnIdle)
         self.Bind(wx.EVT_CLOSE, self.onClose)
 
         # Shortcuts
@@ -252,6 +285,8 @@ class MainFrame(wx.Frame):
         #print('Clean memory')
         # force Memory cleanup
         self.tabList.clean()
+        if hasattr(self,'plotPanel'):
+            self.plotPanel.markers = []
         if not bReload:
             if hasattr(self,'selPanel'):
                 self.selPanel.clean_memory()
@@ -261,11 +296,16 @@ class MainFrame(wx.Frame):
                 self.plotPanel.cleanPlot()
         gc.collect()
 
-    def load_files(self, filenames=[], fileformats=None, bReload=False, bAdd=False):
+    def load_files(self, filenames=[], fileformats=None, bReload=False, bAdd=False, bPlot=True):
         """ load multiple files, only trigger the plot at the end """
         if bReload:
             if hasattr(self,'selPanel'):
                 self.selPanel.saveSelection() # TODO move to tables
+        else:
+            self.statusbar.SetStatusText('Loading files...', ISTAT)
+
+        # A function to update the status bar while we load files
+        statusFunction = lambda i: self.statusbar.SetStatusText('Loading files {}/{}'.format(i+1,len(filenames)), ISTAT)
 
         if not bAdd:
             self.clean_memory(bReload=bReload)
@@ -284,33 +324,36 @@ class MainFrame(wx.Frame):
         #filenames = [f for __, f in sorted(zip(base_filenames, filenames))]
 
         # Load the tables
-        warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd)
+        newTabs, warnList = self.tabList.load_tables_from_files(filenames=filenames, fileformats=fileformats, bAdd=bAdd, bReload=bReload, statusFunction=statusFunction)
+
+        # Apply postLoad pipeline
+        if bReload:
+            self.applyPipeline(self.tabList, force=True) # we force on reload
+        else:
+            self.applyPipeline(newTabs, force=True, applyToAll=True) # we apply only on newTabs
+
         if bReload:
             # Restore formulas that were previously added
-            for tab in self.tabList:
-                if tab.raw_name in self.restore_formulas.keys():
-                    for f in self.restore_formulas[tab.raw_name]:
-                        tab.addColumnByFormula(f['name'], f['formula'], f['pos']-1)
-            self.restore_formulas = {}
+            self.tabList.applyFormulas(self.formulas_backup)
+            self.formulas_backup = {}
         # Display warnings
         for warn in warnList: 
             Warn(self,warn)
         # Load tables into the GUI
         if self.tabList.len()>0:
-            self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=True)
+            self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=bPlot)
 
-    def load_df(self, df, name=None, bAdd=False, bPlot=True):
-        if bAdd:
-            self.tabList.append(Table(data=df, name=name))
-        else:
-            self.tabList = TableList( [Table(data=df, name=name)] )
-        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
-        if hasattr(self,'selPanel'):
-            self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
-
-    def load_dfs(self, dfs, names, bAdd=False):
+    def load_dfs(self, dfs, names=None, bAdd=False, bPlot=True):
+        """ Load one or multiple dataframes intoGUI """
+        # 
+        if not isinstance(dfs,list):
+            dfs=[dfs]
+        if names is None:
+            names = ['tab{}'.format(i) for i in range(len(dfs))]
+        if not isinstance(names,list):
+            names=[names]
         self.tabList.from_dataframes(dataframes=dfs, names=names, bAdd=bAdd)
-        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=True)
+        self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
 
@@ -321,6 +364,8 @@ class MainFrame(wx.Frame):
 
         if (not bReload) and (not bAdd):
             self.cleanGUI()
+        if (bReload):
+            self.statusbar.SetStatusText('Done reloading.', ISTAT)
         self.Freeze()
         # Setting status bar
         self.setStatusBar()
@@ -328,6 +373,7 @@ class MainFrame(wx.Frame):
         if bReload or bAdd:
             self.selPanel.update_tabs(self.tabList)
         else:
+            # --- Create a selPanel, plotPanel and infoPanel
             mode = SEL_MODES_ID[self.comboMode.GetSelection()]
             #self.vSplitter = wx.SplitterWindow(self.nb)
             self.vSplitter = wx.SplitterWindow(self.MainPanel)
@@ -335,7 +381,8 @@ class MainFrame(wx.Frame):
             self.tSplitter = wx.SplitterWindow(self.vSplitter)
             #self.tSplitter.SetMinimumPaneSize(20)
             self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, self.infoPanel, self)
+            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeLike=self.pipePanel, data=self.data['plotPanel'])
+            self.livePlotFreezeUnfreeze() # Dont enable panels if livePlot is not allowed
             self.tSplitter.SetSashGravity(0.9)
             self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
             self.tSplitter.SetMinimumPaneSize(BOT_PANL)
@@ -354,16 +401,16 @@ class MainFrame(wx.Frame):
             self.MainPanel.SetSizer(sizer)
             self.FrameSizer.Layout()
 
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel1.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel1.lbColumns)
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel2.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel2.lbColumns)
-            self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.selPanel.colPanel3.comboX   )
-            self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.selPanel.colPanel3.lbColumns)
-            self.Bind(wx.EVT_LISTBOX , self.onTabSelectionChange, self.selPanel.tabPanel.lbTab)
-            self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
 
-            self.selPanel.tabPanel.lbTab.Bind(wx.EVT_RIGHT_DOWN, self.OnTabPopup)
+            # --- Bind 
+            # The selPanel does the binding, but the callback is stored here because it involves plotPanel... TODO, rethink it
+            #self.selPanel.bindColSelectionChange(self.onColSelectionChangeCallBack)
+            self.selPanel.setTabSelectionChangeCallback(self.onTabSelectionChangeTrigger)
+            self.selPanel.setRedrawCallback(self.redrawCallback)
+            self.selPanel.setUpdateLayoutCallback(self.mainFrameUpdateLayout)
+            self.plotPanel.setAddTablesCallback(self.load_dfs)
+
+            self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
 
         # plot trigger
         if bPlot:
@@ -376,43 +423,42 @@ class MainFrame(wx.Frame):
         # Hack
         #self.onShowTool(tool='Filter')
         #self.onShowTool(tool='Resample')
+        #self.onDataPlugin(toolName='Mask')
         #self.onDataPlugin(toolName='Bin data')
+        #self.onDataPlugin(toolName='Remove Outliers')
+        #self.onDataPlugin(toolName='Filter')
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
         if ISel is None:
             ISel = list(np.arange(nTabs))
         if nTabs<0:
-            self.statusbar.SetStatusText('', 0) # Format
-            self.statusbar.SetStatusText('', 1) # Filenames
-            self.statusbar.SetStatusText('', 2) # Shape
+            self.statusbar.SetStatusText('', ISTAT) # Format
+            self.statusbar.SetStatusText('', ISTAT+1) # Filenames
+            self.statusbar.SetStatusText('', ISTAT+2) # Shape
         elif nTabs==1:
-            self.statusbar.SetStatusText(self.tabList.get(0).fileformat_name,  0)
-            self.statusbar.SetStatusText(self.tabList.get(0).filename  ,  1)
-            self.statusbar.SetStatusText(self.tabList.get(0).shapestring, 2)
+            self.statusbar.SetStatusText(self.tabList[0].fileformat_name, ISTAT+0)
+            self.statusbar.SetStatusText(self.tabList[0].filename       , ISTAT+1)
+            self.statusbar.SetStatusText(self.tabList[0].shapestring    , ISTAT+2)
         elif len(ISel)==1:
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).fileformat_name , 0)
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).filename   , 1)
-            self.statusbar.SetStatusText(self.tabList.get(ISel[0]).shapestring, 2)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].fileformat_name , ISTAT+0)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].filename        , ISTAT+1)
+            self.statusbar.SetStatusText(self.tabList[ISel[0]].shapestring     , ISTAT+2)
         else:
-            self.statusbar.SetStatusText(''                                   ,0) 
-            self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),1)
-            self.statusbar.SetStatusText('',2)
+            self.statusbar.SetStatusText('{} tables loaded'.format(nTabs)                                                     ,ISTAT+0) 
+            self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),ISTAT+1)
+            self.statusbar.SetStatusText(''                                                             ,ISTAT+2)
 
+    # --- Table Actions - TODO consider a table handler, or doing only the triggers
     def renameTable(self, iTab, newName):
         oldName = self.tabList.renameTable(iTab, newName)
         self.selPanel.renameTable(iTab, oldName, newName)
 
-    def sortTabs(self, method='byName'):
-        self.tabList.sort(method=method)
-        # Updating tables
-        self.selPanel.update_tabs(self.tabList)
-        # Trigger a replot
-        self.onTabSelectionChange()
-
-
     def deleteTabs(self, I):
         self.tabList.deleteTabs(I)
+        if len(self.tabList)==0:
+            self.cleanGUI()
+            return
 
         # Invalidating selections
         self.selPanel.tabPanel.lbTab.SetSelection(-1)
@@ -426,25 +472,37 @@ class MainFrame(wx.Frame):
         self.onTabSelectionChange()
 
     def exportTab(self, iTab):
-        tab=self.tabList.get(iTab)
+        tab=self.tabList[iTab]
         default_filename=tab.basename +'.csv'
-        with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename,
-                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
-                #, wildcard="CSV files (*.csv)|*.csv",
+
+        # --- Set list of allowed formats
+        # NOTE: this needs to be in harmony with io.converters
+        fformat= ['auto'   ]; wildcard ='auto (based on extension, default to CSV) (.*)|*.*|'
+        fformat+=['csv'    ]; wildcard+='CSV file (.csv,.txt)|*.csv;*.txt|'
+        fformat+=['outb'   ]; wildcard+='FAST output file (.outb)|*.outb|'
+        fformat+=['parquet']; wildcard+='Parquet file (.parquet)|*.parquet'
+        #fformat= ['excel'  ];wildcard+='Excel file (.xls,.xlsx)|*.xls;*.xlsx|'
+        #fformat+=['pkl'    ];wildcard+='Pickle file (.pkl)|*.pkl|'
+        #fformat+=['tecplot'];wildcard+='Tecplot ASCII file (.dat)|*.dat|'
+
+        with wx.FileDialog(self, "Save to CSV file", defaultFile=default_filename,
+                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT, wildcard=wildcard) as dlg:
             dlg.CentreOnParent()
             if dlg.ShowModal() == wx.ID_CANCEL:
                 return     # the user changed their mind
-            tab.export(dlg.GetPath())
+            path = dlg.GetPath()
+            fformat = fformat[dlg.GetFilterIndex()]
+            tab.export(path=path, fformat=fformat)
 
-    def onShowTool(self, event=None, tool=''):
+    def onShowTool(self, event=None, toolName=''):
         """ 
-        Show tool
-        tool in 'Outlier', 'Filter', 'LogDec','FASTRadialAverage', 'Mask', 'CurveFitting'
+        Show tool See pydatview.plugins.__init__.py
+        tool in 'Outlier', 'Filter', 'LogDec','Radial Average', 'Mask', 'CurveFitting'
         """
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
             return
-        self.plotPanel.showTool(tool)
+        self.plotPanel.showTool(toolName)
 
     def onDataPlugin(self, event=None, toolName=''):
         """ 
@@ -452,57 +510,143 @@ class MainFrame(wx.Frame):
           - simple plugins are directly exectued
           - plugins that are panels are sent over to plotPanel to show them
         TODO merge with onShowTool
+
+        See pydatview.plugins.__init__.py for list of toolNames
         """
         if not hasattr(self,'plotPanel'):
             Error(self,'Plot some data first')
             return
 
-        for thisToolName, function, isPanel in dataPlugins:
-            if toolName == thisToolName:
-                if isPanel:
-                    panelClass = function(self, event, toolName) # getting panelClass
-                    self.plotPanel.showToolPanel(panelClass)
-                else:
-                    function(self, event, toolName) # calling the data function
-                return
-        raise NotImplementedError('Tool: ',toolName)
+        if toolName in DATA_PLUGINS_WITH_EDITOR.keys():
+            # Check to see if the pipeline already contains this action
+            action = self.pipePanel.find(toolName) # old action to edit
+            if action is None:
+                function = DATA_PLUGINS_WITH_EDITOR[toolName]
+                action = function(label=toolName, mainframe=self) # getting brand new action
+            else:
+                print('>>> The action already exists, we use it for the GUI')
+            self.plotPanel.showToolAction(action)
+            # The panel will have the responsibility to apply/delete the action, updateGUI, etc
 
+        elif toolName in OF_DATA_PLUGINS_WITH_EDITOR.keys():
+            # Check to see if the pipeline already contains this action
+            action = self.pipePanel.find(toolName) # old action to edit
+            if action is None:
+                function = OF_DATA_PLUGINS_WITH_EDITOR[toolName]
+                action = function(label=toolName, mainframe=self) # getting brand new action
+            else:
+                print('>>> The action already exists, we use it for the GUI')
+            self.plotPanel.showToolAction(action)
+            # The panel will have the responsibility to apply/delete the action, updateGUI, etc
 
-    def onSashChangeMain(self,event=None):
+        elif toolName in DATA_PLUGINS_SIMPLE.keys():
+            function = DATA_PLUGINS_SIMPLE[toolName]
+            action = function(label=toolName, mainframe=self) # calling the data function
+            # Here we apply the action directly
+            # We can't overwrite, so we'll delete by name..
+            self.addAction(action, overwrite=False, apply=True, tabList=self.tabList, updateGUI=True)
+
+        elif toolName in OF_DATA_PLUGINS_SIMPLE.keys(): # TODO merge with DATA_PLUGINS_SIMPLE
+            function = OF_DATA_PLUGINS_SIMPLE[toolName]
+            action = function(label=toolName, mainframe=self) # calling the data function
+            # Here we apply the action directly
+            # We can't overwrite, so we'll delete by name..
+            self.addAction(action, overwrite=False, apply=True, tabList=self.tabList, updateGUI=True)
+        else:
+            raise NotImplementedError('Tool: ',toolName)
+
+    # --- Pipeline
+    def addAction(self, action, **kwargs):
+        self.pipePanel.append(action, **kwargs)
+    def removeAction(self, action, **kwargs):
+        self.pipePanel.remove(action, **kwargs)
+    def applyPipeline(self, *args, **kwargs):
+        self.pipePanel.apply(*args, **kwargs)
+    def checkErrors(self):
+        # TODO this should be done at a given point in the GUI
+        nErr = len(self.pipePanel.errorList)
+        if nErr>0:
+            if not self.pipePanel.user_warned:
+                if nErr>=len(self.tabList):
+                    if nErr==1:
+                        sErr='\n'+'\n'.join(self.pipePanel.errorList)
+                        Warn(self, message=sErr, caption = 'The following error occured when applying the pipeline actions:')
+                    else:
+                        sErr = '\n\nCheck `Errors` in the bottom right side of the window.'
+                        Warn(self, 'Errors occured on all tables.'+sErr)
+                #elif nErr<len(self.tabList):
+                #    Warn(self, 'Errors occured on some tables.'+sErr)
+                self.pipePanel.user_warned = True
+
+    def onSashChangeMain(self, event=None):
         pass
         # doent work because size is not communicated yet
         #if hasattr(self,'selPanel'):
         #    print('ON SASH')
         #    self.selPanel.setEquiSash(event)
 
-    def OnTabPopup(self,event):
-        menu = TablePopup(self,self.selPanel.tabPanel.lbTab)
-        self.PopupMenu(menu, event.GetPosition())
-        menu.Destroy()
 
-    def onTabSelectionChange(self,event=None):
-        # TODO This can be cleaned-up
-        ISel=self.selPanel.tabPanel.lbTab.GetSelections()
-        if len(ISel)>0:
-            # Letting seletion panel handle the change
-            self.selPanel.tabSelectionChanged()
-            # Update of status bar
-            self.setStatusBar(ISel)
-            # Trigger the colSelection Event
-            self.onColSelectionChange(event=None)
+    def onTabSelectionChange(self, event=None):
+        self.checkErrors()
+        # TODO get rid of me
+        self.selPanel.onTabSelectionChange()
 
-    def onColSelectionChange(self,event=None):
-        if hasattr(self,'plotPanel'):
-            # Letting selection panel handle the change
-            self.selPanel.colSelectionChanged()
-            # Redrawing
-            self.plotPanel.load_and_draw()
-            # --- Stats trigger
-            #self.showStats()
+    def onColSelectionChange(self, event=None):
+        # TODO get rid of me
+        self.selPanel.onColSelectionChange()
 
     def redraw(self):
+        self.checkErrors()
+        # TODO get rid of me
+        self.redrawCallback()
+
+    # --- CallBacks sent to panels
+    def onTabSelectionChangeTrigger(self, event=None):
+        # Update of status bar
+        ISel=self.selPanel.tabPanel.lbTab.GetSelections()
+        if len(ISel)>0:
+            self.setStatusBar(ISel)
+
+    def onColSelectionChangeTrigger(self, event=None):
+        pass
+
+    def onLivePlotChange(self, event=None):
+        if self.cbLivePlot.IsChecked():
+            if hasattr(self,'plotPanel'):
+                #print('[INFO] Reenabling live plot')
+                #self.plotPanel.Enable(True)
+                #self.infoPanel.Enable(True)
+                self.redrawCallback()
+        else:
+            if hasattr(self,'plotPanel'):
+                #print('[INFO] Disabling live plot')
+                for ax in self.plotPanel.fig.axes:
+                    ax.annotate('Live Plot Disabled', xy=(0.5, 0.5), size=20, xycoords='axes fraction', ha='center', va='center',)
+                    self.plotPanel.canvas.draw()
+                #self.plotPanel.Enable(False)
+                #self.infoPanel.Enable(False)
+
+    def livePlotFreezeUnfreeze(self):
+        pass
+        #if self.cbLivePlot.IsChecked():
+        #    if hasattr(self,'plotPanel'):
+        #        #print('[INFO] Enabling live plot')
+        #        #self.plotPanel.Enable(True)
+        #        self.infoPanel.Enable(True)
+        #else:
+        #    if hasattr(self,'plotPanel'):
+        #        #print('[INFO] Disabling live plot')
+        #        #self.plotPanel.Enable(False)
+        #        self.infoPanel.Enable(False)
+
+    def redrawCallback(self):
         if hasattr(self,'plotPanel'):
-            self.plotPanel.load_and_draw()
+            if self.cbLivePlot.IsChecked():
+                self.plotPanel.load_and_draw()
+            else:
+                pass
+                #print('[INFO] Drawing event skipped, live plot is not checked.')
+
 #     def showStats(self):
 #         self.infoPanel.showStats(self.plotPanel.plotData,self.plotPanel.pltTypePanel.plotType())
 
@@ -530,13 +674,13 @@ class MainFrame(wx.Frame):
 
     def onSave(self, event=None):
         # using the navigation toolbar save functionality
-        self.plotPanel.navTB.save_figure()
+        self.plotPanel.navTBBottom.save_figure()
 
     def onAbout(self, event=None):
-        defaultDir = weio.defaultUserDataDir() # TODO input file options
+        io_userpath = os.path.join(weio.defaultUserDataDir(), 'pydatview_io')
         About(self,PROG_NAME+' '+PROG_VERSION+'\n\n'
                 'pyDatView config file:\n     {}\n'.format(configFilePath())+
-                'weio data directory:     \n     {}\n'.format(os.path.join(defaultDir,'weio'))+
+                'pyDatView io data directory:\n     {}\n'.format(io_userpath)+
                 '\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
 
     def onReset (self, event=None):
@@ -557,15 +701,20 @@ class MainFrame(wx.Frame):
 
     def onReload(self, event=None):
         filenames, fileformats = self.tabList.filenames_and_formats
+        self.statusbar.SetStatusText('Reloading...', ISTAT)
         if len(filenames)>0:
+            # If only one file, use the comboBox to decide which fileformat to use
+            if len(filenames)==1:
+                iFormat=self.comboFormats.GetSelection()
+                if iFormat==0: # auto-format
+                    fileformats = [None]
+                else:
+                    fileformats = [self.FILE_FORMATS[iFormat-1]]
+
             # Save formulas to restore them after reload with sorted tabs
-            self.restore_formulas = {}
-            for tab in self.tabList._tabs:
-                f = tab.formulas # list of dict('pos','formula','name')
-                f = sorted(f, key=lambda k: k['pos']) # Sort formulae by position in list of formua
-                self.restore_formulas[tab.raw_name]=f # we use raw_name as key
+            self.formulas_backup = self.tabList.storeFormulas()
             # Actually load files (read and add in GUI)
-            self.load_files(filenames, fileformats=fileformats, bReload=True,bAdd=False)
+            self.load_files(filenames, fileformats=fileformats, bReload=True, bAdd=False, bPlot=True)
         else:
            Error(self,'Open one or more file first.')
 
@@ -584,6 +733,26 @@ class MainFrame(wx.Frame):
             self.exportTab(ISel[0])
         else:
            Error(self,'Open a file and select a table first.')
+
+    def onScript(self, event=None):
+        from pydatview.GUIScripter import GUIScripterFrame
+        GUIScripterFrame
+        pop = GUIScripterFrame(parent=None, mainframe=self, pipeLike=self.pipePanel, title="pyDatView - Script export")
+        pop.Show()
+#         if hasattr(self,'selPanel') and hasattr(self,'plotPanel'):
+#             script = pythonScript(self.tabList, self.selPanel, self.plotPanel)
+#         else:
+#             Error(self,'Open a file and generate a plot before exporting.')
+#         tab=self.tabList.get(iTab)
+#         default_filename=tab.basename +'.csv'
+#         with wx.FileDialog(self, "Save to CSV file",defaultFile=default_filename,
+#                 style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+#                 #, wildcard="CSV files (*.csv)|*.csv",
+#             dlg.CentreOnParent()
+#             if dlg.ShowModal() == wx.ID_CANCEL:
+#                 return     # the user changed their mind
+#             tab.export(dlg.GetPath())
+
 
     def onLoad(self, event=None):
         self.selectFile(bAdd=False)
@@ -613,7 +782,7 @@ class MainFrame(wx.Frame):
            if dlg.ShowModal() == wx.ID_CANCEL:
                return     # the user changed their mind
            filenames = dlg.GetPaths()
-           self.load_files(filenames,fileformats=[Format]*len(filenames),bAdd=bAdd)
+           self.load_files(filenames,fileformats=[Format]*len(filenames),bAdd=bAdd, bPlot=True)
 
     def onModeChange(self, event=None):
         if hasattr(self,'selPanel'):
@@ -622,26 +791,42 @@ class MainFrame(wx.Frame):
         # --- Trigger to check number of columns
         self.onTabSelectionChange()
 
+    def onFormatChange(self, event=None):
+        """ The user changed the format """
+        #if hasattr(self,'selPanel'):
+        #    ISel=self.selPanel.tabPanel.lbTab.GetSelections()
+        pass
+
+
+    def onShowLoaderMenu(self, event=None):
+        #pos = (self.btLoaderMenu.GetPosition()[0], self.btLoaderMenu.GetPosition()[1] + self.btLoaderMenu.GetSize()[1])
+        self.PopupMenu(self.loaderMenu) #, pos)
+
+
     def mainFrameUpdateLayout(self, event=None):
-        if hasattr(self,'selPanel'):
-            nWind=self.selPanel.splitter.nWindows
-            if self.Size[0]<=800:
-                sash=SIDE_COL[nWind]
-            else:
-                sash=SIDE_COL_LARGE[nWind]
-            self.resizeSideColumn(sash)
+        try:
+            if hasattr(self,'selPanel'):
+                nWind=self.selPanel.splitter.nWindows
+                if self.Size[0]<=800:
+                    sash=SIDE_COL[nWind]
+                else:
+                    sash=SIDE_COL_LARGE[nWind]
+                self.resizeSideColumn(sash)
+        except:
+            print('[Fail] An error occured in mainFrameUpdateLayout')
+
+    def OnIdle(self, event):
+        if self.resized:
+            self.resized = False
+            self.mainFrameUpdateLayout()
+            if hasattr(self,'plotPanel'):
+                self.plotPanel.setSubplotTight()
+            #self.Thaw() # Commented see #166
 
     def OnResizeWindow(self, event):
-        try:
-            self.mainFrameUpdateLayout()
-            self.Layout()
-        except:
-            pass
-        # NOTE: doesn't work...
-        #if hasattr(self,'plotPanel'):
-            # Subplot spacing changes based on figure size
-            #print('>>> RESIZE WINDOW')
-            #self.redraw()  
+        self.resized = True
+        #self.Freeze() # Commented see #166
+        self.Layout()
 
     # --- Side column
     def resizeSideColumn(self,width):
@@ -677,7 +862,7 @@ def MyExceptionHook(etype, value, trace):
      standard Python header: ``Traceback (most recent call last)``.
     """
     from wx._core import wxAssertionError
-    # Printing exception
+    # Printing exception to screen
     traceback.print_exception(etype, value, trace)
     if etype==wxAssertionError:
         if wx.Platform == '__WXMAC__':
@@ -686,17 +871,26 @@ def MyExceptionHook(etype, value, trace):
     # Then showing to user the last error
     frame = wx.GetApp().GetTopWindow()
     tmp = traceback.format_exception(etype, value, trace)
+    sException=''
     if tmp[-1].find('Exception: Error:')==0:
-        Error(frame,tmp[-1][18:])
+        sException = tmp[-1][18:]
     elif tmp[-1].find('Exception: Warn:')==0:
         Warn(frame,tmp[-1][17:])
     else:
-        exception = 'The following exception occured:\n\n'+ tmp[-1]  + '\n'+tmp[-2].strip()
-        Error(frame,exception)
+        sException = 'The following exception occured:\n\n'
+        #sException += tmp[-1]  + '\n'
+        #sException += tmp[-2].strip()
+        #if len(tmp)>2:
+        #    sException += '\n'+tmp[-3].strip()
+        ## TODO make this a custom dialog where the user can copy paste the error more easily...
+        sException += exception2string(value, prevStack=False)
+
     try:
         frame.Thaw() # Make sure any freeze event is stopped
     except:
         pass
+    if len(sException)>0:
+        Error(frame, sException)
 
 # --------------------------------------------------------------------------------}
 # --- Tests 
@@ -705,7 +899,7 @@ def test(filenames=None):
     if filenames is not None:
         app = wx.App(False)
         frame = MainFrame()
-        frame.load_files(filenames,fileformats=None)
+        frame.load_files(filenames,fileformats=None, bPlot=True)
         return
  
 # --------------------------------------------------------------------------------}
@@ -742,9 +936,6 @@ pyDatView help:
        /usr/lib/Cellar/python/XXXXX/Frameworks/python.framework/Versions/XXXX/bin/pythonXXX;
   - Your python is an anaconda python, use something like:;
        /anaconda3/bin/python.app   (NOTE: the '.app'!
-  - You are using a python 2 version, you can use the system one:
-       /Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX
-       /System/Library/Frameworks/Python.framework/Versions/XXX/bin/pythonXXX
 """
 
             elif wx.Platform == '__WXGTK__':
@@ -760,34 +951,69 @@ pyDatView help:
             else:
                 msg = 'Unable to create GUI' # TODO: more description is needed for wxMSW...
             raise SystemExit(msg)
+    def InitLocale(self):
+        if sys.platform.startswith('win') and sys.version_info > (3,8):
+            # See Bug #128 - Issue with wxPython 4.1 on Windows
+            import locale
+            locale.setlocale(locale.LC_ALL, "C")
+            #print('[INFO] Setting locale to C')
+            #self.SetAssertMode(wx.APP_ASSERT_SUPPRESS) # Try this
 
 # --------------------------------------------------------------------------------}
 # --- Mains 
 # --------------------------------------------------------------------------------{
-def showApp(firstArg=None,dataframe=None,filenames=[]):
+def showApp(firstArg=None, dataframes=None, filenames=[], names=None):
     """
-    The main function to start the data frame GUI.
+    The main function to start the pyDatView GUI and loads
+    Call this function with:
+      - filenames : list of filenames or a single filename (string)
+      OR
+      - dataframes: list of dataframes or a single dataframe
+      - names: list of names to be used for the multiple dataframes
     """
     app = MyWxApp(False)
     frame = MainFrame()
     # Optional first argument
     if firstArg is not None:
         if isinstance(firstArg,list):
-            filenames=firstArg
+            if isinstance(firstArg[0],str):
+                filenames=firstArg
+            else:
+                dataframes=firstArg
         elif isinstance(firstArg,str):
             filenames=[firstArg]
         elif isinstance(firstArg, pd.DataFrame):
-            dataframe=firstArg
-    #
-    if (dataframe is not None) and (len(dataframe)>0):
-        #import time
-        #tstart = time.time()
-        frame.load_df(dataframe)
-        #tend = time.time()
-        #print('PydatView time: ',tend-tstart)
-    elif len(filenames)>0:
-        frame.load_files(filenames, fileformats=None)
+            dataframes=[firstArg]
+    # Load files or dataframe depending on interface
+    err = None
+    # NOTE: any exceptions occurring before MainLoop will result in the window to close
+    try:
+        if (dataframes is not None) and (len(dataframes)>0):
+            if names is None:
+                names=['df{}'.format(i+1) for i in range(len(dataframes))]
+            frame.load_dfs(dataframes, names)
+        elif len(filenames)>0:
+            frame.load_files(filenames, fileformats=None, bPlot=True)
+    except Exception as e:
+        try:
+            frame.Thaw()
+        except:
+            pass
+        # Print to screen:
+        traceback.print_exc()
+        # Store it to display it later in App
+        err = 'Errors occured while loading files:\n\n'
+        err += exception2string(e)
+
+    #frame.onShowTool(toolName='Curve fitting')
+    #frame.onDataPlugin(toolName='Radial Average')
+    #frame.onDataPlugin(toolName='Resample')
+    #frame.onScript()
+    if err is not None:
+        wx.FutureCall(100,  Error, frame, err)
     app.MainLoop()
+    # Nothing will be reached here until the window is opened
+
 
 def cmdline():
     if len(sys.argv)>1:

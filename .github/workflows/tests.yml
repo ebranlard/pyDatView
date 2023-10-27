@@ -9,10 +9,10 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: [3.8]  # 2.7, 
+        python-version: [3.8, 3.9, 3.11]
 
     steps:
       # --- Install steps
@@ -25,12 +25,19 @@ jobs:
       - name: Versioning
         id: versioning
         run: |
-          git fetch --unshallow
-          git fetch --tags
-          export CURRENT_TAG="v0.3"
+          git fetch --unshallow   > /dev/null
+          git fetch --tags --force  > /dev/null
+          export CURRENT_TAG="v0.4"
           export CURRENT_DEV_TAG="$CURRENT_TAG-dev"
+          # BRANCH FAILS
+          export BRANCH1=`git rev-parse --abbrev-ref HEAD`
+          export BRANCH="${GITHUB_REF#refs/heads/}"
           echo "GIT DESCRIBE:      `git describe`"
           echo "GITHUB_REF:        $GITHUB_REF"
+          echo "GIT BRANCH1:       $BRANCH1"
+          echo "GIT BRANCH:        $BRANCH"
+          echo "Commits:           `git rev-list $CURRENT_TAG.. --count`"
+          echo "Commits-dev:       `git rev-list $CURRENT_DEV_TAG.. --count`"
           # Check if current version corresponds to a tagged commit
           if [[ $GITHUB_REF == *"tags"* ]]; then 
               echo ">>> This is a tagged version"
@@ -42,8 +49,13 @@ jobs:
               export VERSION_TAG=$CURRENT_TAG 
               export VERSION_NAME="$CURRENT_TAG-`git rev-list $CURRENT_TAG.. --count`"
               export FULL_VERSION_NAME="version $VERSION_NAME"
+              #elif [[ $BRANCH == "dev" ]]; then 
+              #    echo ">>> This is not a tagged version, but on the dev branch"
+              #    export VERSION_TAG=$CURRENT_DEV_TAG ;
+              #    export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
+              #    export FULL_VERSION_NAME="latest dev. version $VERSION_NAME"
           else
-              echo ">>> This is not a tagged version"
+              echo ">>> This is not a tagged version, but on a special branch"
               export VERSION_TAG=$CURRENT_DEV_TAG ;
               export VERSION_NAME=`git describe | sed 's/\(.*\)-.*/\1/'`
               export FULL_VERSION_NAME="latest dev. version $VERSION_NAME"
@@ -51,9 +63,11 @@ jobs:
           echo "VERSION_TAG        $VERSION_TAG"
           echo "VERSION_NAME:      $VERSION_NAME"
           echo "FULL_VERSION_NAME: $FULL_VERSION_NAME"
-          echo "::set-output name=FULL_VERSION_NAME::$FULL_VERSION_NAME"
-          echo "::set-output name=VERSION_NAME::$VERSION_NAME"
-          echo "::set-output name=VERSION_TAG::$VERSION_TAG"
+          # Save variables as github outputs
+          echo "BRANCH=$BRANCH"                       >> $GITHUB_OUTPUT
+          echo "VERSION_TAG=$VERSION_TAG"             >> $GITHUB_OUTPUT
+          echo "VERSION_NAME=$VERSION_NAME"           >> $GITHUB_OUTPUT
+          echo "FULL_VERSION_NAME=$FULL_VERSION_NAME" >> $GITHUB_OUTPUT
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
@@ -62,9 +76,16 @@ jobs:
 
       - name: Install python dependencies
         run: |
-          python -m pip install --upgrade pip
+          #python -m pip install --upgrade pip
+          # --- Attempt for wxpython, but we don't have access to X display
+          #sudo apt-get install libgtk-3-dev
+          #sudo apt-get install git curl libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 libsdl2-2.0-0 || true
+          #sudo apt-get install libnotify-dev || true
+          #sudo apt-get install libnotify4 || true
+          #pip install -U wxpython  || true
+          #pip install -U -f https://extras.wxpython.org/wxPython4/extras/linux/gtk3/ubuntu-22.04 wxPython || true
           pip install -r _tools/travis_requirements.txt
-          pip install -r weio/requirements.txt
+          pip install -e .
 
       - name: System info
         run: |
@@ -84,18 +105,29 @@ jobs:
         env:
             PY_VERSION: ${{matrix.python-version}}
             GH_EVENT  : ${{github.event_name}}
+            BRANCH    : ${{steps.versioning.outputs.BRANCH}}
         run: |
           echo "GH_EVENT    :  $GH_EVENT"
           echo "PY_VERSION  :  $PY_VERSION"
+          echo "GIT BRANCH  :  $BRANCH"
           export OK=0
           # Only deploy for push events
-          if [[ $PY_VERSION == "3.6" ]]; then
+          if [[ $PY_VERSION == "3.9" ]]; then
             if [[ $GH_EVENT == "push" ]]; then 
+              # BRANCH FAILS
+              if [[ $BRANCH == "main" ]] || [[ $BRANCH == "dev" ]] || [[ $BRANCH == "HEAD" ]] ; then 
                 export OK=1 ;
+              fi
             fi
           fi
           echo "DEPLOY      : $OK"
-          echo "::set-output name=GO::$OK"
+          if [[ $OK == "1" ]]; then
+              echo ">>> Deployment WILL take place"
+          else
+              echo ">>> Deployment WILL NOT take place"
+          fi
+          # Save variables as github outputs
+          echo "GO=$OK"  >> $GITHUB_OUTPUT
 
       # --- Run Deployments
       - name: Install system dependencies

@@ -41,6 +41,18 @@ def getMonoFont(widget):
     font.SetPointSize(_MONOFONTSIZE)
     return font
 
+
+class DummyPanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent, -1)
+        self.SetBackgroundColour((0,100,0))
+        txt = wx.StaticText(self, -1, 'This is a dummy panel')
+
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(txt, 0, wx.ALL , 10)
+        sizer.AddSpacer(3) 
+        self.SetSizer(sizer)
+
 # --------------------------------------------------------------------------------}
 # --- Helper functions
 # --------------------------------------------------------------------------------{
@@ -54,6 +66,13 @@ def About(parent, message):
             self.ShowModal()
             self.Destroy()
     MessageBox(parent, 'About', message)
+
+class MessageBox(wx.Dialog):
+    def __init__(self, parent, title, message):
+        wx.Dialog.__init__(self, parent, title=title, style=wx.CAPTION|wx.CLOSE_BOX)
+        text = wx.TextCtrl(self, style=wx.TE_READONLY|wx.BORDER_NONE|wx.TE_MULTILINE|wx.TE_AUTO_URL)
+        text.SetValue(message)
+        text.SetBackgroundColour(wx.SystemSettings.GetColour(4))
 
 def YesNo(parent, question, caption = 'Yes or no?'):
     dlg = wx.MessageDialog(parent, question, caption, wx.YES_NO | wx.ICON_QUESTION)
@@ -69,6 +88,8 @@ def Warn(parent, message, caption = 'Warning!'):
     dlg.ShowModal()
     dlg.Destroy()
 def Error(parent, message, caption = 'Error!'):
+    # For large errors we might want to use something else
+    #dlg = MessageBox(parent, title=caption, message=message)
     dlg = wx.MessageDialog(parent, message, caption, wx.OK | wx.ICON_ERROR)
     dlg.ShowModal()
     dlg.Destroy()
