@@ -173,8 +173,9 @@ class FASTOutputFile(File):
             df= self.data
             df.columns=cols
         else:
+            self.data = np.atleast_2d(self.data)
             if len(cols)!=self.data.shape[1]:
-                raise BrokenFormatError('Inconstistent number of columns between headers ({}) and data ({}) for file {}'.format(len(cols), self.data.shape[1], self.filename))
+                raise BrokenFormatError('Inconsistent number of columns between headers ({}) and data ({}) for file {}'.format(len(cols), self.data.shape[1], self.filename))
             df = pd.DataFrame(data=self.data,columns=cols)
 
         return df
