@@ -472,8 +472,7 @@ class ColumnPopup(wx.Menu):
                 item = wx.MenuItem(self, -1, "Rename")
                 self.Append(item)
                 self.Bind(wx.EVT_MENU, self.OnRenameColumn, item)
-            if len(self.ISel) == 1 and any(
-                    f['pos'] == self.ISel[0] for f in self.parent.tab.formulas):
+            if len(self.ISel) == 1 and any(f['pos'] == self.ISel[0] for f in self.parent.tab.formulas):
                 item = wx.MenuItem(self, -1, "Edit")
                 self.Append(item)
                 self.Bind(wx.EVT_MENU, self.OnEditColumn, item)
@@ -514,16 +513,20 @@ class ColumnPopup(wx.Menu):
         if len(self.ISel) != 1:
             raise ValueError('Only one signal can be edited!')
         ITab, STab = self.selPanel.getSelectedTables()
+        found=False
         for iTab,sTab in zip(ITab,STab):
             if sTab == self.parent.tab.active_name:
                 for f in self.selPanel.tabList[iTab].formulas:
                     if f['pos'] == self.ISel[0]:
                         sName = f['name']
                         sFormula = f['formula']
+                        found=True
                         break
                 else:
-                    raise ValueError('No formula found at {0} for table {1}!'.format(self.ISel[0], sTab))
-        self.showFormulaDialog('Edit column', sName, sFormula, edit=True)
+                    raise PyDatViewException('No formula found at {0} for table {1}!'.format(self.ISel[0], sTab))
+        if not found:
+            raise PyDatViewException('Formula not found for table at index {}. Potential implementation error. Please write down the steps to reproduce this bug and post a comment on the issue #178 on GitHub.'.format(self.ISel[0]))
+        self.showFormulaDialog(title='Edit column', name=sName, formula=sFormula, edit=True)
 
     def OnDeleteColumn(self, event):
         iX = self.parent.comboX.GetSelection()
@@ -541,7 +544,7 @@ class ColumnPopup(wx.Menu):
         self.selPanel.redraw()
 
     def OnAddColumn(self, event):
-        self.showFormulaDialog('Add a new column')
+        self.showFormulaDialog(title='Add a new column')
 
     def showFormulaDialog(self, title, name='', formula='', edit=False):
         bValid=False
