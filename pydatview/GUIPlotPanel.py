@@ -32,7 +32,8 @@ except Exception as e:
         sys.exit(1)
     else:
         raise e
-from matplotlib.figure import Figure
+# from matplotlib.figure import Figure
+from pydatview.figure import SwappyFigure as Figure
 from matplotlib.pyplot import rcParams as pyplot_rc
 from matplotlib import font_manager
 from pandas.plotting import register_matplotlib_converters
@@ -570,12 +571,13 @@ class PlotPanel(wx.Panel):
         self.cbStepPlot   = wx.CheckBox(self.ctrlPanel, -1, 'StepPlot',(10,10))
         self.cbMeasure    = wx.CheckBox(self.ctrlPanel, -1, 'Measure',(10,10))
         self.cbMarkPt     = wx.CheckBox(self.ctrlPanel, -1, 'Mark Points',(10,10))
+        self.cbSwapXY     = wx.CheckBox(self.ctrlPanel, -1, 'Swap XY',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.cbXHair.SetValue(self.data['CrossHair']) # Have cross hair by default
         self.cbAutoScale.SetValue(True)
         self.cbGrid.SetValue(self.data['Grid'])
-        # Callbacks
+        # BIND - Callbacks
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbSub    )
         self.Bind(wx.EVT_COMBOBOX, self.redraw_event     , self.cbCurveType)
         self.Bind(wx.EVT_CHECKBOX, self.log_select       , self.cbLogX   )
@@ -588,8 +590,9 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbStepPlot )
         self.Bind(wx.EVT_CHECKBOX, self.measure_event    , self.cbMeasure )
         self.Bind(wx.EVT_CHECKBOX, self.markpt_event     , self.cbMarkPt )
+        self.Bind(wx.EVT_CHECKBOX, self.swap_event       , self.cbSwapXY )
         # LAYOUT
-        cb_sizer  = wx.FlexGridSizer(rows=4, cols=3, hgap=0, vgap=0)
+        cb_sizer  = wx.FlexGridSizer(rows=5, cols=3, hgap=0, vgap=0)
         cb_sizer.Add(self.cbCurveType , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSub       , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbAutoScale , 0, flag=wx.ALL, border=1)
@@ -602,6 +605,7 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbPlotMatrix, 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbMeasure   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbMarkPt    , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbSwapXY    , 0, flag=wx.ALL, border=1)
 
         self.ctrlPanel.SetSizer(cb_sizer)
 
@@ -780,8 +784,20 @@ class PlotPanel(wx.Panel):
             return None # At Init we don't have a figure
 
     def plot_matrix_event(self, event):
+        if self.cbSwapXY.IsChecked():
+            print('[WARN] Cant have plot Matrix and Swap XY for now')
+            self.cbSwapXY.SetValue(False)
+
         if self.infoPanel is not None:
             self.infoPanel.togglePlotMatrix(self.cbPlotMatrix.GetValue())
+        self.redraw_same_data()
+
+    def swap_event(self, event):
+        if self.cbPlotMatrix.IsChecked():
+            print('[WARN] Cant have plot Matrix and Swap XY for now')
+            self.cbPlotMatrix.SetValue(False)
+            self.infoPanel.togglePlotMatrix(False)
+
         self.redraw_same_data()
 
     def measure_event(self, event):
@@ -905,10 +921,14 @@ class PlotPanel(wx.Panel):
             # Vertical stack
             if i==0:
                 ax=self.fig.add_subplot(nPlots,1,i+1)
+                # Store first axis to share with other
                 if self.sharex:
                     sharex=ax
             else:
-                ax=self.fig.add_subplot(nPlots,1,i+1,sharex=sharex)
+                if self.cbSwapXY.IsChecked():
+                    ax=self.fig.add_subplot(nPlots,1,i+1, sharey=sharex)
+                else:
+                    ax=self.fig.add_subplot(nPlots,1,i+1, sharex=sharex)
             # Horizontal stack
             #self.fig.add_subplot(1,nPlots,i+1)
 
@@ -933,6 +953,8 @@ class PlotPanel(wx.Panel):
                         # Zoom-actions disable autoscale
                         #self.cbAutoScale.SetValue(False)
                         return
+                    if self.cbSwapXY.IsChecked():
+                        x, y = y, x
                     if event.button == 1:
                         which =[1] # Left click, measure 1
                     elif event.button == 3:
@@ -948,6 +970,8 @@ class PlotPanel(wx.Panel):
                     x, y = event.xdata, event.ydata
                     if self.clickLocation != (ax, x, y):
                         return
+                    if self.cbSwapXY.IsChecked():
+                        x, y = y, x
                     if event.button == 1:
                         # We add a marker
                         from pydatview.tools.colors import fColrs, python_colors
@@ -1188,7 +1212,7 @@ class PlotPanel(wx.Panel):
                 #        delta=0
                 #    else:
                     delta = delta*pyplot_rc['axes.xmargin']
-                axis.set_xlim(xMin-delta,xMax+delta)
+                axis.set_xlim_(xMin-delta,xMax+delta)
                 axis.autoscale(False, axis='x', tight=False)
             except:
                 pass
@@ -1226,7 +1250,7 @@ class PlotPanel(wx.Panel):
 #                         delta = 1
 #                     else:
 #                         delta = delta*pyplot_rc['axes.xmargin']
-                axis.set_ylim(yMin-delta,yMax+delta)
+                axis.set_ylim_(yMin-delta,yMax+delta)
                 axis.autoscale(False, axis='y', tight=False)
             except:
                 pass
@@ -1238,6 +1262,7 @@ class PlotPanel(wx.Panel):
         # --- Plot options
         plot_options = dict()
         plot_options['step'] = self.cbStepPlot.IsChecked()
+        plot_options['swapXY'] = self.cbSwapXY.IsChecked()
         plot_options['logX'] = self.cbLogX.IsChecked()
         plot_options['logY'] = self.cbLogY.IsChecked()
         if self.cbGrid.IsChecked():
@@ -1298,6 +1323,8 @@ class PlotPanel(wx.Panel):
         # --- Loop on axes. Either use ax.iPD to chose the plot data, or rely on plotmatrix
         for axis_idx, ax_left in enumerate(axes):
             ax_right = None
+            # Swap XY
+            ax_left.setSwap(plot_options['swapXY'])
             # Checks
             vDate=[PD[i].yIsDate for i in ax_left.iPD]
             if any(vDate) and len(vDate)>1:
@@ -1342,11 +1369,11 @@ class PlotPanel(wx.Panel):
                 try:
                     xlim=float(self.spcPanel.tMaxFreq.GetLineText(0))
                     if xlim>0:
-                            ax_left.set_xlim([0,xlim])
+                            ax_left.set_xlim_([0,xlim])
                             pd=PD[ax_left.iPD[0]]
                             I=pd.x<xlim
                             ymin = np.min([np.min(PD[ipd].y[I]) for ipd in ax_left.iPD])
-                            ax_left.set_ylim(bottom=ymin/2)
+                            ax_left.set_ylim_(bottom=ymin/2)
                     if self.spcPanel.cbTypeX.GetStringSelection()=='x':
                         ax_left.invert_xaxis()
                 except:
@@ -1354,8 +1381,8 @@ class PlotPanel(wx.Panel):
 
             ax_left.grid(**plot_options['grid'])
             if ax_right is not None:
-                l = ax_left.get_ylim()
-                l2 = ax_right.get_ylim()
+                l = ax_left.get_ylim_()
+                l2 = ax_right.get_ylim_()
                 f = lambda x : l2[0]+(x-l[0])/(l[1]-l[0])*(l2[1]-l2[0])
                 ticks = f(ax_left.get_yticks())
                 ax_right.yaxis.set_major_locator(matplotlib.ticker.FixedLocator(ticks))
@@ -1367,7 +1394,7 @@ class PlotPanel(wx.Panel):
             # Special Grids
             if self.pltTypePanel.cbCompare.GetValue():
                 if self.cmpPanel.rbType.GetStringSelection()=='Y-Y':
-                    xmin,xmax=ax_left.get_xlim()
+                    xmin,xmax=ax_left.get_xlim_()
 
             # Ticks
             ax_left.tick_params(**plot_options['tick_params'])
@@ -1741,13 +1768,13 @@ class PlotPanel(wx.Panel):
         self.xlim_prev = []
         self.ylim_prev = []
         for ax in self.fig.axes:
-            self.xlim_prev.append(ax.get_xlim())
-            self.ylim_prev.append(ax.get_ylim())
+            self.xlim_prev.append(ax.get_xlim_())
+            self.ylim_prev.append(ax.get_ylim_())
 
     def _restore_limits(self):
         for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
-            ax.set_xlim(xlim)
-            ax.set_ylim(ylim)
+            ax.set_xlim_(xlim)
+            ax.set_ylim_(ylim)
 
 if __name__ == '__main__':
     import pandas as pd;

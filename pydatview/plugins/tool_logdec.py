@@ -121,7 +121,7 @@ class LogDecToolPanel(GUIToolPanel):
 
         # --- Clean plot..., but store limits first
         ax = self.parent.fig.axes[0]
-        xlim = ax.get_xlim()
+        xlim = ax.get_xlim_()
         self.onClear() # NOTE: this will create different axes..
         
 

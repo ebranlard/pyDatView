@@ -189,7 +189,7 @@ class CurveFitToolPanel(GUIToolPanel):
         PD =self.parent.plotData[0]
         ax =self.parent.fig.axes[0]
         # Restricting data to axes visible bounds on the x axis
-        xlim= ax.get_xlim()
+        xlim= ax.get_xlim_()
         b=np.logical_and(PD.x>=xlim[0], PD.x<=xlim[1])
 
         iModel = self.cbModels.GetSelection()
@@ -242,7 +242,7 @@ class CurveFitToolPanel(GUIToolPanel):
 
         # Plot
         ax=self.parent.fig.axes[0]
-        ax.plot(PD.x[b],y_fit,'o', ms=4)
+        ax.plot(PD.x[b], y_fit, 'o', ms=4)
         self.parent.canvas.draw()
 
         self.x=PD.x[b]

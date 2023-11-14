@@ -107,7 +107,7 @@ class GUIMeasure:
     def plotLine(self, ax):
         """ plot vertical line across axis"""
         try:
-            line = ax.axvline(x=self.P_target_raw[0], color=self.color, linewidth=0.5)
+            line = ax.axvline_(x=self.P_target_raw[0], color=self.color, linewidth=0.5)
             self.lines.append(line)
         except:
             print('[FAIL] GUIMeasure: cannot plot line', self.P_target_raw[0])
@@ -158,8 +158,8 @@ class GUIMeasure:
         """
         # Compute axis diagonal
         try:
-            xlim = ax.get_xlim()
-            ylim = ax.get_ylim()
+            xlim = ax.get_xlim_()
+            ylim = ax.get_ylim_()
             rdist_min = np.sqrt((xlim[1]-xlim[0])**2 + (ylim[1]-ylim[0])**2)
         except:
             print('[FAIL] GUIMeasure: Computing axis diagonal failed')

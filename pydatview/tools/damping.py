@@ -277,7 +277,7 @@ def freqDampFromPeaks(x, t, threshold=None, plot=False, refPoint='mid'):
         #ax.plot(t ,x_model,'k:')
         #ax.legend()
         dx = np.max(abs(x-m))
-        ax.set_ylim([m-dx*1.1 , m+dx*1.1])
+        ax.set_ylim_([m-dx*1.1 , m+dx*1.1])
 
     # We return a dictionary
     info['zeta'] = zeta
