@@ -674,7 +674,10 @@ class MainFrame(wx.Frame):
 
     def onSave(self, event=None):
         # using the navigation toolbar save functionality
-        self.plotPanel.navTBBottom.save_figure()
+        if hasattr(self, 'plotPanel'):
+            self.plotPanel.navTBBottom.save_figure()
+        else:
+            Error(self,'Open one or more file first.')
 
     def onAbout(self, event=None):
         io_userpath = os.path.join(weio.defaultUserDataDir(), 'pydatview_io')
