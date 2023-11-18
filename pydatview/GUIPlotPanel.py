@@ -572,6 +572,8 @@ class PlotPanel(wx.Panel):
         self.cbMeasure    = wx.CheckBox(self.ctrlPanel, -1, 'Measure',(10,10))
         self.cbMarkPt     = wx.CheckBox(self.ctrlPanel, -1, 'Mark Points',(10,10))
         self.cbSwapXY     = wx.CheckBox(self.ctrlPanel, -1, 'Swap XY',(10,10))
+        self.cbFlipX      = wx.CheckBox(self.ctrlPanel, -1, 'Flip X',(10,10))
+        self.cbFlipY      = wx.CheckBox(self.ctrlPanel, -1, 'Flip Y',(10,10))
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.cbXHair.SetValue(self.data['CrossHair']) # Have cross hair by default
@@ -591,6 +593,8 @@ class PlotPanel(wx.Panel):
         self.Bind(wx.EVT_CHECKBOX, self.measure_event    , self.cbMeasure )
         self.Bind(wx.EVT_CHECKBOX, self.markpt_event     , self.cbMarkPt )
         self.Bind(wx.EVT_CHECKBOX, self.swap_event       , self.cbSwapXY )
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbFlipX )
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event     , self.cbFlipY )
         # LAYOUT
         cb_sizer  = wx.FlexGridSizer(rows=5, cols=3, hgap=0, vgap=0)
         cb_sizer.Add(self.cbCurveType , 0, flag=wx.ALL, border=1)
@@ -606,6 +610,8 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbMeasure   , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbMarkPt    , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbSwapXY    , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbFlipX     , 0, flag=wx.ALL, border=1)
+        cb_sizer.Add(self.cbFlipY     , 0, flag=wx.ALL, border=1)
 
         self.ctrlPanel.SetSizer(cb_sizer)
 
@@ -1263,6 +1269,8 @@ class PlotPanel(wx.Panel):
         plot_options = dict()
         plot_options['step'] = self.cbStepPlot.IsChecked()
         plot_options['swapXY'] = self.cbSwapXY.IsChecked()
+        plot_options['flipX'] = self.cbFlipX.IsChecked()
+        plot_options['flipY'] = self.cbFlipY.IsChecked()
         plot_options['logX'] = self.cbLogX.IsChecked()
         plot_options['logY'] = self.cbLogY.IsChecked()
         if self.cbGrid.IsChecked():
@@ -1390,6 +1398,11 @@ class PlotPanel(wx.Panel):
                     ax_left.set_yticks(ax_right.get_yticks())
                     ax_left.yaxis.set_visible(False)
                     ax_right.grid(**plot_options['grid'])
+            # Flip
+            if plot_options['flipX']:
+                ax_left.invert_xaxis()
+            if plot_options['flipY']:
+                ax_left.invert_yaxis()
 
             # Special Grids
             if self.pltTypePanel.cbCompare.GetValue():
