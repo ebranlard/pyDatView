@@ -152,22 +152,14 @@ class GUIScripterFrame(wx.Frame):
         except:
             plotStyle=None
             print('[WARN] GUIScripter - Failed to retrieve Plot Options')
+        plotTypeData=None
         try:
             plotPanel = self.mainframe.plotPanel
             pltTypePanel = self.mainframe.plotPanel.pltTypePanel
             plotType = pltTypePanel.plotType()
-            if plotType=='Regular':
-                plotTypeData=None
-            elif plotType=='PDF':
-                plotTypeData = plotPanel.pdfPanel._GUI2Data()
-            elif plotType=='FFT':
-                plotTypeData = plotPanel.spcPanel._GUI2Data()
-                pass
-            elif plotType=='MinMax':
-                plotTypeData = plotPanel.mmxPanel._GUI2Data()
-                pass
-            elif plotType=='Compare':
-                plotTypeData = plotPanel.cmpPanel._GUI2Data()
+            PTDict   = pltTypePanel.PTDict
+            if PTDict[plotType]['opt_panel'] is not None:
+                plotTypeData = PTDict[plotType]['opt_panel']._GUI2Data()
         except:
             plotType=None
             plotTypeData=None

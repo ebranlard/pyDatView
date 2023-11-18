@@ -1,8 +1,9 @@
 import os
 import numpy as np
-from pydatview.common import no_unit, unit, inverse_unit, has_chinese_char
+from pydatview.common import no_unit, unit, inverse_unit, splitunit, has_chinese_char
 from pydatview.common import isString, isDate, getDt
 from pydatview.common import unique, pretty_num, pretty_time, pretty_date
+from pydatview.tools.stats import bin_signal
 import matplotlib.dates as mdates
 
 # --------------------------------------------------------------------------------}
@@ -315,6 +316,46 @@ class PlotData():
 
         PD.computeRange()
         return Info
+
+    def toPolar(PD, Deg=True, Bins='None', About='z', rRef=None, **data):
+        """ Convert plot data to polar data based on GUI options
+        NOTE: inPlace
+        """
+        t = PD.x
+        r = PD.y
+        if Deg:
+            t *= np.pi/180
+        if rRef is not None:
+            r = r - np.mean(r) + rRef # Mean will be rRef
+        if Bins!='None':
+            nBins = int(Bins)
+            xbins = np.linspace(0, 2*np.pi, nBins)
+            t, r =  bin_signal(t, r, xbins=xbins, stats='mean')
+            t = np.concatenate([t, [t[0]]])
+            r = np.concatenate([r, [r[0]]])
+
+        var, unt =  splitunit(PD.sy)
+        if About.startswith('x'):
+            # NOTE: OpenFAST convention
+            x =-r*np.sin(t) # TODO flip axis 
+            y = r*np.cos(t)
+            PD.sx = var.strip()+'_y [' + unt + ']'
+            PD.sy = var.strip()+'_z [' + unt + ']'
+        elif About.startswith('z'):
+            # 
+            x = r*np.cos(t)
+            y = r*np.sin(t)
+            PD.sx = var.strip()+'_x [' + unt + ']'
+            PD.sy = var.strip()+'_y [' + unt + ']'
+        else:
+            raise NotImplementedError()
+
+        PD.x = x
+        PD.y = y
+
+        PD.computeRange()
+        return None
+
 
     def computeRange(PD):
         """  Compute min max of data once and for all and store 

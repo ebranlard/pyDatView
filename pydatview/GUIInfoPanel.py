@@ -336,6 +336,10 @@ class InfoPanel(wx.Panel):
         elif plotType=='FFT':
             self.menu=self.menuFFT
             self.Cols=self.ColsFFT
+        elif plotType=='Polar':
+            # TODO potentially...
+            self.menu=self.menuReg
+            self.Cols=self.ColsReg
         else:
             raise Exception('Unsupported plotType')
         self.PD=PD
