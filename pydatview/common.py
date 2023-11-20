@@ -73,7 +73,7 @@ def find_leftstop(s):
             return s[:len(s)-i]
     return s
 
-def ellude_common(strings,minLength=2):
+def ellude_common(strings, minLength=2, sep='|'):
     """
     ellude the common parts of two strings
 
@@ -87,7 +87,7 @@ def ellude_common(strings,minLength=2):
     if len(S)==0:
         pass
     elif len(S)==1:
-        ns=S[0].rfind('|')+1
+        ns=S[0].rfind(sep)+1
         ne=0;
     else:
         ss = common_start(S)
