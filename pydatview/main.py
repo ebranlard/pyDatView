@@ -378,8 +378,10 @@ class MainFrame(wx.Frame):
         # Filenames trigger 
         fileobjects = self.tabList.unique_fileobjects
         filenames   = [fo.filename for fo in fileobjects]
+        self.nb.file_info_tab.cleanGUI()
+        self.nb.fields_2d_tab.cleanGUI()
         self.nb.file_info_tab.updateFiles(filenames, fileobjects) 
-        #self.nb.fields_2d_tab.updateFiles(filenames, fileobjects) 
+        self.nb.fields_2d_tab.updateFiles(filenames, fileobjects) 
 
         # plot trigger
         if bPlot:
@@ -404,10 +406,10 @@ class MainFrame(wx.Frame):
         self.Freeze()
         nb.file_info_tab = FileInfoPanel(nb, mainframe = self)
         nb.fields_1d_tab = Fields1DPanel(nb, mainframe = self)
-        #nb.fields_2d_tab = Fields2DPanel(nb, mainframe = self)
-        nb.AddPage(nb.file_info_tab, "File info")
+        nb.fields_2d_tab = Fields2DPanel(nb, mainframe = self)
+        nb.AddPage(nb.file_info_tab, "File info (beta)")
         nb.AddPage(nb.fields_1d_tab, "1D plot")
-        #nb.AddPage(nb.fields_2d_tab, "2D plot")
+        nb.AddPage(nb.fields_2d_tab, "2D plot (beta)")
         nb.SetSelection(1)
         #nb.fields_1d_tab.SetFocus()
 #         nb.SendSizeEvent()
@@ -647,6 +649,10 @@ class MainFrame(wx.Frame):
         #if hasattr(self,'infoPanel'):
         #    del self.infoPanel
         #self.deletePages()
+        #self.nb.fields_1d_tab.cleanGUI()
+        print('>>> cleanGUI')
+        self.nb.fields_2d_tab.cleanGUI()
+        self.nb.file_info_tab.cleanGUI()
         self.FrameSizer.Layout()
         gc.collect()
 

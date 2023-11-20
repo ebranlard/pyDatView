@@ -191,6 +191,51 @@ class FASTOutputFile(File):
         return s
 
     # --------------------------------------------------------------------------------
+    # --- 2D fields 
+    # --------------------------------------------------------------------------------
+    @property
+    def driverFile(self):
+        print('>>>> DRIVER FILE IS BEING CALLED')
+        driver, FFKind = findDriverFile(self.filename, df=None)
+        return driver
+
+    def to2DFields(self, DeltaAzi=5):
+        import pydatview.fast.postpro as fastlib # TODO TODO TODO
+        driverFile = self.driverFile
+
+        Fields=[]
+        def M2Field(name, M, sx, x):
+            FieldsRPsi = {}
+            for i,c in enumerate(C_AD):
+                #r = c.replace('_','_(r,psi)_')
+                FieldsRPsi[c] = M_AD[:,:,i].T
+
+            C_AD2=np.array([c.split('_')[0] for c in C_AD])
+            try:
+                ir   = np.where(C_AD2 == 'r')[0][0]
+            except IndexError:
+                ir  = np.where(C_AD2 == 'i/n')[0][0]
+            cr = C_AD[ir]
+            r_AD = M_AD[0,:,ir].ravel() # Contains hub radius
+            FieldsLoc = {'name':name, 'x':(sx, x),  'y':(cr, r_AD), 'Fields':FieldsRPsi}
+            return FieldsLoc
+
+        df = self.toDataFrame()
+        time = df['Time_[s]'].values
+        # --- Time wise
+        M_AD, C_AD, M_ED, C_ED, M_BD, C_BD = fastlib.spanwisePostProRows(df, driverFile)
+        FieldsRTime = M2Field('(r,t)',M_AD, 'Time_[s]', time)
+        Fields.append(FieldsRTime)
+
+        # --- Azimuthal Radial postpro
+        psi = np.arange(0, 360.1, DeltaAzi)
+        dfPsi = fastlib.azimuthal_average_DF(df, psiBin=psi) #, tStart = time[-1]-20)
+        M_AD, C_AD, M_ED, C_ED, M_BD, C_BD = fastlib.spanwisePostProRows(dfPsi, driverFile)
+        FieldsRPsi = M2Field('(r,psi)',M_AD, 'Azimuth_[deg]', dfPsi.index)
+        Fields.append(FieldsRPsi)
+        return Fields
+
+    # --------------------------------------------------------------------------------
     # --- Converters 
     # --------------------------------------------------------------------------------
     def toOUTB(self, filename=None, extension='.outb', fileID=4, noOverWrite=True, **kwargs):
@@ -638,6 +683,49 @@ def writeDataFrame(df, filename, binary=True):
         writeBinary(filename, channels, chanNames, chanUnits, fileID=FileFmtID_ChanLen_In)
     else:
         NotImplementedError()
+
+def findDriverFileFAST(base):
+    Files=[base+ext for ext in ['.fst','.FST','.Fst','.dvr','.Dvr','.DVR'] if os.path.exists(base+ext)]
+    if len(Files)>0:
+        return Files[0]
+    return None
+
+def findDriverFileFASTFarm(base):
+    Files=[base+ext for ext in ['.fstf','.FSTF','.Fstf','.fmas','.FMAS','.Fmas'] if os.path.exists(base+ext)]
+    if len(Files)>0:
+        return Files[0]
+    return None
+
+def findDriverFile(filename, df=None):
+    """ 
+    OUTPUTS:
+      - driver  : filename of driver
+      - FASTFarm: logical
+    """
+    base,out_ext = os.path.splitext(filename)
+    # HACK for AD file to find the right .fst file
+    iDotAD = base.lower().find('.ad')
+    if iDotAD>1:
+        base=base[:iDotAD]
+
+    #FASTFarmKind = None 
+    if df is not None:
+        sCols = ''.join(df.columns)
+        FASTFarmKind = sCols.find('WkDf')>1 or sCols.find('CtT')>0
+        if FASTFarmKind:
+            return findDriverFileFASTFarm(base), FASTFarmKind
+        else:
+            return findDriverFileFAST(base), FASTFarmKind
+    else:
+        driver = findDriverFileFASTFarm(base)
+        if driver: 
+            return driver, True
+        else:
+            driver = findDriverFileFAST(base)
+            return driver, False
+
+
+
 
 
 

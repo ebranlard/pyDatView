@@ -69,16 +69,22 @@ class FileInfoPanel(wx.Panel):
         sizer_text.Add(self.tb, 1, wx.EXPAND | wx.ALL, 1)
         self.text_panel.SetSizer(sizer_text)
 
+    def cleanGUI(self):
+        self.lbFiles.Clear()
+        self.lbMethods.Clear()
+        self.lbAttributes.Clear()
+        self.lbKeys.Clear()
+
     def updateFiles(self, filenames, fileobjects):
         self.fileobjects = fileobjects
         filenames = [os.path.abspath(f).replace('/','|').replace('\\','|') for f in filenames]
         filenames = ellude_common(filenames)
         self.lbFiles.Set(filenames)
-        self.lbFiles.SetSelection(0)
-        self.on_file_selected()
-
-        self.lbMethods.SetSelection(0)
-        self.on_method_selected()
+        # TODO this seem to trigger some call to @property, avoid for now.
+        #self.lbFiles.SetSelection(0)
+        #self.on_file_selected()
+        #self.lbMethods.SetSelection(0)
+        #self.on_method_selected()
 
     def on_file_selected(self, event=None):
         isel = self.lbFiles.GetSelection()
@@ -87,8 +93,6 @@ class FileInfoPanel(wx.Panel):
         # Show __repr__  in tb
         content = self.fileobjects[isel].__repr__()
         self.tb.SetValue(content)
-
-        # --- Placeholder method to simulate obtaining data for the selected object
 
         # Populate lbMethods, lbAttributes, lbKeys with data
         #methods = getattr(file_object, "__dir__", None)() 

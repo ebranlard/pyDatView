@@ -355,13 +355,14 @@ class TableList(object): # todo inherit list
 
     @property
     def unique_fileobjects(self):
-        unique_list = []
-        for x in self.fileobjects:
-            if x not in unique_list and x is not None:
-                unique_list.append(x)
-        return unique_list
-
-
+        unique_filenames = []
+        unique_fileobjects = []
+        for t in self._tabs:
+            if t.filename not in unique_filenames:
+                if t.fileobject is not None and len(t.filename)>0:
+                    unique_filenames.append(t.filename)
+                    unique_fileobjects.append(t.fileobject)
+        return unique_fileobjects
 
     @property
     def fileformats(self):
@@ -711,6 +712,8 @@ class Table(object):
         import pydatview.fast.fastfarm as fastfarm
         df = self.data
         base,out_ext = os.path.splitext(self.filename)
+
+        # TODO use fast_output_file  findDriverFile
 
         # --- Detect if it's a FAST Farm file
         sCols = ''.join(df.columns)

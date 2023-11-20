@@ -1016,21 +1016,21 @@ def spanwisePostProRows(df, FST_In=None):
 
     # --- Getting Column info
     Cols=df.columns.values
-    if r_AD is not None:
-        ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
+    #if r_AD is not None:
+    ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
     if r_ED_bld is not None:
         ColsInfoED, nrMaxED = spanwiseColED(Cols)
     if r_BD is not None:
         ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
     for i,val in enumerate(v):
-        if r_AD is not None:
-            dfRad_AD = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=df.iloc[i])
-            dfRad_AD = insert_extra_columns_AD(dfRad_AD, df.iloc[i], vr=r_AD, rho=rho, R=R, nB=3, chord=chord)
-            dfRad_AD = insert_spanwise_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
-            if i==0:
-                M_AD = np.zeros((len(v), len(dfRad_AD), len(dfRad_AD.columns)))
-                Col_AD=dfRad_AD.columns.values
-            M_AD[i, :, : ] = dfRad_AD.values
+        #if r_AD is not None:
+        dfRad_AD = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=df.iloc[i])
+        dfRad_AD = insert_extra_columns_AD(dfRad_AD, df.iloc[i], vr=r_AD, rho=rho, R=R, nB=3, chord=chord)
+        dfRad_AD = insert_spanwise_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
+        if i==0:
+            M_AD = np.zeros((len(v), len(dfRad_AD), len(dfRad_AD.columns)))
+            Col_AD=dfRad_AD.columns.values
+        M_AD[i, :, : ] = dfRad_AD.values
         if r_ED_bld is not None and len(r_ED_bld)>0:
             dfRad_ED = extract_spanwise_data(ColsInfoED, nrMaxED, df=None, ts=df.iloc[i])
             dfRad_ED = insert_spanwise_columns(dfRad_ED, r_ED_bld, R=R, IR=IR_ED)
