@@ -199,9 +199,14 @@ class FASTOutputFile(File):
         driver, FFKind = findDriverFile(self.filename, df=None)
         return driver
 
-    def to2DFields(self, DeltaAzi=5):
+    def to2DFields(self, DeltaAzi=5, **kwargs):
         import pydatview.fast.postpro as fastlib # TODO TODO TODO
         driverFile = self.driverFile
+
+        if len(kwargs.keys())>0:
+            print('[WARN] FASTOutputFile: to2DFields: ignored keys: ',kwargs.keys())
+        # Sanity check
+        DeltaAzi=float(DeltaAzi)
 
         Fields=[]
         def M2Field(name, M, sx, x):
@@ -228,10 +233,13 @@ class FASTOutputFile(File):
         Fields.append(FieldsRTime)
 
         # --- Azimuthal Radial postpro
-        psi = np.arange(0, 360.1, DeltaAzi)
+        psi = np.arange(0, 360+DeltaAzi/10, DeltaAzi)
         dfPsi = fastlib.azimuthal_average_DF(df, psiBin=psi) #, tStart = time[-1]-20)
         M_AD, C_AD, M_ED, C_ED, M_BD, C_BD = fastlib.spanwisePostProRows(dfPsi, driverFile)
-        FieldsRPsi = M2Field('(r,psi)',M_AD, 'Azimuth_[deg]', dfPsi.index)
+        psiBin = dfPsi.index
+        # Hack to ensure periodicity...
+        M_AD = np.vstack( (M_AD, M_AD[0:1,:,:]) )
+        FieldsRPsi = M2Field('(r,psi)',M_AD, 'Azimuth_[deg]', psi)
         Fields.append(FieldsRPsi)
         return Fields
 

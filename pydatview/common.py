@@ -204,7 +204,11 @@ def getDt(x):
     return dt
 
 def getTabCommonColIndices(tabs):
-    cleanedColLists = [ [cleanCol(s) for s in t.columns] for t in tabs]
+    colLists = [ [s for s in t.columns] for t in tabs]
+    return getCommonColIndices(colLists)
+
+def getCommonColIndices(colList):
+    cleanedColLists = [ [cleanCol(s) for s in columns] for columns in colList]
     nCols = np.array([len(cols) for cols in cleanedColLists])
     # Common columns between all column lists
     commonCols = cleanedColLists[0]

@@ -263,9 +263,9 @@ class TurbSimFile(File):
         """
         if iy0 is None:
             iy0,iz0 = ts.iMid
-        u = ts['u'][0,:,iy0,iz0]
-        v = ts['u'][1,:,iy0,iz0]
-        w = ts['u'][2,:,iy0,iz0]
+        u = ts['u'][0,:,iy0,iz0].copy()
+        v = ts['u'][1,:,iy0,iz0].copy()
+        w = ts['u'][2,:,iy0,iz0].copy()
         if removeMean:
             u -= np.mean(u)
             v -= np.mean(v)
@@ -279,9 +279,9 @@ class TurbSimFile(File):
         if ix0 is None:
             iy0,iz0 = ts.iMid
             ix0=int(len(ts['t'])/2)
-        u = ts['u'][0,ix0,:,iz0]
-        v = ts['u'][1,ix0,:,iz0]
-        w = ts['u'][2,ix0,:,iz0]
+        u = ts['u'][0,ix0,:,iz0].copy()
+        v = ts['u'][1,ix0,:,iz0].copy()
+        w = ts['u'][2,ix0,:,iz0].copy()
         if removeMean:
             u -= np.mean(u)
             v -= np.mean(v)
@@ -295,9 +295,9 @@ class TurbSimFile(File):
         if ix0 is None:
             iy0,iz0 = ts.iMid
             ix0=int(len(ts['t'])/2)
-        u = ts['u'][0,ix0,iy0,:]
-        v = ts['u'][1,ix0,iy0,:]
-        w = ts['u'][2,ix0,iy0,:]
+        u = ts['u'][0,ix0,iy0,:].copy()
+        v = ts['u'][1,ix0,iy0,:].copy()
+        w = ts['u'][2,ix0,iy0,:].copy()
         if removeMean:
             u -= np.mean(u)
             v -= np.mean(v)
@@ -308,7 +308,7 @@ class TurbSimFile(File):
     # --- Extracting plane data at one point
     # --------------------------------------------------------------------------------{
     def horizontalPlane(ts, z=None, iz0=None, removeMean=False):
-        """ return velocity components on a horizontal plane
+        """ return velocity components on a horizontal plane z=cst, (time x ny)
         If no z value is provided, returned at mid box 
         """
         if z is None and iz0 is None:
@@ -316,9 +316,9 @@ class TurbSimFile(File):
         elif z is not None:
             _, iz0 = ts.closestPoint(ts.y[0], z) 
 
-        u = ts['u'][0,:,:,iz0]
-        v = ts['u'][1,:,:,iz0]
-        w = ts['u'][2,:,:,iz0]
+        u = ts['u'][0,:,:,iz0].copy()
+        v = ts['u'][1,:,:,iz0].copy()
+        w = ts['u'][2,:,:,iz0].copy()
         if removeMean:
             u -= np.mean(u)
             v -= np.mean(v)
@@ -326,7 +326,7 @@ class TurbSimFile(File):
         return u, v, w
 
     def verticalPlane(ts, y=None, iy0=None, removeMean=False):
-        """ return velocity components on a vertical plane
+        """ return velocity components on a vertical plane y=cst, (time x nz)
         If no y value is provided, returned at mid box 
         """
         if y is None and iy0 is None:
@@ -334,14 +334,32 @@ class TurbSimFile(File):
         elif y is not None:
             iy0, _ = ts.closestPoint(y, ts.z[0]) 
 
-        u = ts['u'][0,:,iy0,:]
-        v = ts['u'][1,:,iy0,:]
-        w = ts['u'][2,:,iy0,:]
+        u = ts['u'][0,:,iy0,:].copy()
+        v = ts['u'][1,:,iy0,:].copy()
+        w = ts['u'][2,:,iy0,:].copy()
         if removeMean:
             u -= np.mean(u)
             v -= np.mean(v)
             w -= np.mean(w)
         return u, v, w
+
+    def normalPlane(ts, t=None, it0=None, removeMean=False):
+        """ return velocity components on a normal plane t=cst, (ny x nz)
+        """
+        if t is None and it0 is None:
+            it0 = 0
+        elif t is not None:
+            it0 = np.argmin(np.abs(self['t']-t))
+
+        u = ts['u'][0,it0,:,:].copy()
+        v = ts['u'][1,it0,:,:].copy()
+        w = ts['u'][2,it0,:,:].copy()
+        if removeMean:
+            u -= np.mean(u)
+            v -= np.mean(v)
+            w -= np.mean(w)
+        return u, v, w
+
 
     # --------------------------------------------------------------------------------}
     # --- Extracting average data
@@ -683,6 +701,52 @@ class TurbSimFile(File):
         #except:
         #    pass
         return dfs
+
+    def to2DFields(self, nTOut=10, nYOut=3, nZOut=3, **kwargs):
+        if len(kwargs.keys())>0:
+            print('[WARN] TurbSimFile: to2DFields: ignored keys: ',kwargs.keys())
+        # Sanity check
+        nTOut = int(nTOut)
+        nYOut = int(nYOut)
+        nZOut = int(nZOut)
+        # 'u': velocity field, shape (3 x nt x ny x nz)
+        IT = list(np.arange(nTOut)) +  [len(self.t)-1]
+        IT = np.unique(IT)
+
+        IY = np.unique(np.linspace(0,len(self['y'])-1, nYOut).astype(int))
+        IZ = np.unique(np.linspace(0,len(self['z'])-1, nZOut).astype(int))
+        Fields=[]
+        # --- YZ planes
+        FieldsYZ = {}
+        for it in IT:
+            FieldsYZ['u_t={:.2f}_[m/s]'.format(self.t[it])]=np.squeeze(self['u'][0,it,:,:]).T
+        for it in IT:
+            FieldsYZ['v_t={:.2f}_[m/s]'.format(self.t[it])]=np.squeeze(self['u'][1,it,:,:]).T
+        for it in IT:
+            FieldsYZ['w_t={:.2f}_[m/s]'.format(self.t[it])]=np.squeeze(self['u'][2,it,:,:]).T
+        FieldsLoc = {'name':'(y,z)', 'x':('y_[m]', self.y),  'y':('z_[m]', self.z), 'Fields':FieldsYZ}
+        Fields.append(FieldsLoc)
+        # --- TZ planes
+        FieldsTZ = {}
+        for iy in IY:
+            FieldsTZ['u_y={:.2f}_[m/s]'.format(self['y'][iy])]=np.squeeze(self['u'][0,:,iy,:]).T
+        for iy in IY:
+            FieldsTZ['v_y={:.2f}_[m/s]'.format(self['y'][iy])]=np.squeeze(self['u'][1,:,iy,:]).T
+        for iy in IY:
+            FieldsTZ['w_y={:.2f}_[m/s]'.format(self['y'][iy])]=np.squeeze(self['u'][2,:,iy,:]).T
+        FieldsLoc = {'name':'(t,z)', 'x':('t_[m]', self.t),  'y':('z_[m]', self.z), 'Fields':FieldsTZ}
+        Fields.append(FieldsLoc)
+        # --- TY planes
+        FieldsTY = {}
+        for iz in IZ:
+            FieldsTY['u_z={:.2f}_[m/s]'.format(self['z'][iz])]=np.squeeze(self['u'][0,:,:,iz]).T
+        for iz in IZ:
+            FieldsTY['v_z={:.2f}_[m/s]'.format(self['z'][iz])]=np.squeeze(self['u'][1,:,:,iz]).T
+        for iz in IZ:
+            FieldsTY['w_z={:.2f}_[m/s]'.format(self['z'][iz])]=np.squeeze(self['u'][2,:,:,iz]).T
+        FieldsLoc = {'name':'(t,y)', 'x':('t_[m]', self.t),  'y':('y_[m]', self.y), 'Fields':FieldsTY}
+        Fields.append(FieldsLoc)
+        return Fields
 
     def toDataset(self):
         """

@@ -650,7 +650,6 @@ class MainFrame(wx.Frame):
         #    del self.infoPanel
         #self.deletePages()
         #self.nb.fields_1d_tab.cleanGUI()
-        print('>>> cleanGUI')
         self.nb.fields_2d_tab.cleanGUI()
         self.nb.file_info_tab.cleanGUI()
         self.FrameSizer.Layout()

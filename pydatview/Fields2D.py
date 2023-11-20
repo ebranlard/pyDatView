@@ -3,15 +3,15 @@ TODO come up with some decent sepcs. Potentially use pandas or xarray
 
 """
 
-def extract2Dfields(fo):
-    if not hasattr(fo, 'fields2D_tmp'):
+def extract2Dfields(fo, force=False, **kwargs):
+    if not hasattr(fo, 'fields2D_tmp') or force:
         fo.fields2D_tmp = None
         print('[INFO] Attempting to extract 2D field for file {}'.format(fo.filename))
         if not hasattr(fo, 'to2DFields'):
             print('[WARN] type {} doesnt have a `to2DFields` method'.format(type(fo)))
         else:
 #                 try:
-            fields = fo.to2DFields()
+            fields = fo.to2DFields(**kwargs)
             fo.fields2D_tmp = fields
             print('[ OK ] 2D field computed successfully')
 #                 except:

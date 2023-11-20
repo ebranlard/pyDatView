@@ -8,6 +8,7 @@ from wx.lib.splitter import MultiSplitterWindow
 import wx.stc as stc
 # Local
 from pydatview.common import ellude_common
+from pydatview.GUICommon import getMonoFont
 
 class FileInfoPanel(wx.Panel):
     def __init__(self, parent, mainframe, filelist=None):
@@ -23,7 +24,7 @@ class FileInfoPanel(wx.Panel):
         self.text_panel    = wx.Panel(multi_split)
 
         self.lbFiles = wx.ListBox(self.list_panel, style=wx.LB_SINGLE)
-        self.lbFiles.Bind(wx.EVT_LISTBOX, self.on_file_selected)
+        self.lbFiles.SetFont(getMonoFont(self))
 
         sizer_list = wx.BoxSizer(wx.VERTICAL)
         sizer_list.Add(self.lbFiles, 1, wx.EXPAND | wx.ALL, 1)
@@ -33,17 +34,16 @@ class FileInfoPanel(wx.Panel):
         self.lbMethods = wx.ListBox(self.methods_panel, style=wx.LB_SINGLE)
         self.lbAttributes = wx.ListBox(self.methods_panel, style=wx.LB_EXTENDED) #, style=wx.LB_SINGLE)
         self.lbKeys = wx.ListBox(self.methods_panel, style=wx.LB_EXTENDED) #, style=wx.LB_SINGLE)
+        self.lbMethods.SetFont(getMonoFont(self))
+        self.lbAttributes.SetFont(getMonoFont(self))
+        self.lbMethods.SetFont(getMonoFont(self))
 
         # Static labels to explain the purpose of each list box
         label_methods = wx.StaticText(self.methods_panel, label="Methods:")
         label_attributes = wx.StaticText(self.methods_panel, label="Attributes:")
         label_keys = wx.StaticText(self.methods_panel, label="Keys:")
 
-        # Bind events for methods, attributes, and keys
-        self.lbMethods.Bind(wx.EVT_LISTBOX, self.on_method_selected)
-        self.lbAttributes.Bind(wx.EVT_LISTBOX, self.on_attribute_selected)
-        self.lbKeys.Bind(wx.EVT_LISTBOX, self.on_key_selected)
-
+        # Layout
         sizer_methods = wx.BoxSizer(wx.VERTICAL)
         sizer_methods.Add(label_methods,    0, wx.EXPAND | wx.ALL, 1)
         sizer_methods.Add(self.lbMethods,   1, wx.EXPAND | wx.ALL, 1)
@@ -68,6 +68,12 @@ class FileInfoPanel(wx.Panel):
         sizer_text = wx.BoxSizer(wx.HORIZONTAL)
         sizer_text.Add(self.tb, 1, wx.EXPAND | wx.ALL, 1)
         self.text_panel.SetSizer(sizer_text)
+
+        # Bind 
+        self.lbFiles.Bind(wx.EVT_LISTBOX, self.on_file_selected)
+        self.lbMethods.Bind(wx.EVT_LISTBOX, self.on_method_selected)
+        self.lbAttributes.Bind(wx.EVT_LISTBOX, self.on_attribute_selected)
+        self.lbKeys.Bind(wx.EVT_LISTBOX, self.on_key_selected)
 
     def cleanGUI(self):
         self.lbFiles.Clear()
