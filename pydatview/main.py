@@ -379,7 +379,7 @@ class MainFrame(wx.Frame):
         fileobjects = self.tabList.unique_fileobjects
         filenames   = [fo.filename for fo in fileobjects]
         self.nb.file_info_tab.updateFiles(filenames, fileobjects) 
-        self.nb.fields_2d_tab.updateFiles(filenames, fileobjects) 
+        #self.nb.fields_2d_tab.updateFiles(filenames, fileobjects) 
 
         # plot trigger
         if bPlot:
@@ -404,13 +404,13 @@ class MainFrame(wx.Frame):
         self.Freeze()
         nb.file_info_tab = FileInfoPanel(nb, mainframe = self)
         nb.fields_1d_tab = Fields1DPanel(nb, mainframe = self)
-        nb.fields_2d_tab = Fields2DPanel(nb, mainframe = self)
+        #nb.fields_2d_tab = Fields2DPanel(nb, mainframe = self)
         nb.AddPage(nb.file_info_tab, "File info")
         nb.AddPage(nb.fields_1d_tab, "1D plot")
-        nb.AddPage(nb.fields_2d_tab, "2D plot")
-        #nb.fields_1d_tab.SetFocus()
+        #nb.AddPage(nb.fields_2d_tab, "2D plot")
         nb.SetSelection(1)
-        nb.SendSizeEvent()
+        #nb.fields_1d_tab.SetFocus()
+#         nb.SendSizeEvent()
 #         self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
         try:
             self.Thaw()
