@@ -37,6 +37,9 @@ from pydatview.plugins import DATA_PLUGINS_WITH_EDITOR, DATA_PLUGINS_SIMPLE, TOO
 from pydatview.plugins import OF_DATA_PLUGINS_WITH_EDITOR, OF_DATA_PLUGINS_SIMPLE
 from pydatview.appdata import loadAppData, saveAppData, configFilePath, defaultAppData
 
+# TODO
+
+
 # --------------------------------------------------------------------------------}
 # --- GLOBAL 
 # --------------------------------------------------------------------------------{
@@ -57,6 +60,9 @@ ISTAT = 0 # Index of Status bar where main status info is provided
 
 
 
+
+
+
 # --------------------------------------------------------------------------------}
 # --- Drag and drop 
 # --------------------------------------------------------------------------------{
@@ -65,6 +71,7 @@ class FileDropTarget(wx.FileDropTarget):
    def __init__(self, parent):
       wx.FileDropTarget.__init__(self)
       self.parent = parent
+
    def OnDropFiles(self, x, y, filenames):
       filenames = [f for f in filenames if not os.path.isdir(f)]
       filenames.sort()
@@ -236,17 +243,16 @@ class MainFrame(wx.Frame):
         self.pipePanel = PipelinePanel(self, data=self.data['pipeline'], tabList=self.tabList)
 
         # --- Main Panel and Notebook
-        self.MainPanel = wx.Panel(self)
-        #self.MainPanel = wx.Panel(self, style=wx.RAISED_BORDER)
-        #self.MainPanel.SetBackgroundColour((200,0,0))
 
-        #self.nb = wx.Notebook(self.MainPanel)
-        #self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
+        self.nb = wx.Notebook(self, id=wx.ID_ANY, style=wx.BK_DEFAULT|wx.NB_LEFT)
+
+
+
 
 
         sizer = wx.BoxSizer()
         #sizer.Add(self.nb, 1, flag=wx.EXPAND)
-        self.MainPanel.SetSizer(sizer)
+#         self.MainPanel.SetSizer(sizer)
 
         # --- Drag and drop
         dd = FileDropTarget(self)
@@ -256,7 +262,7 @@ class MainFrame(wx.Frame):
         self.FrameSizer = wx.BoxSizer(wx.VERTICAL)
         slSep = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         self.FrameSizer.Add(slSep         ,0, flag=wx.EXPAND|wx.BOTTOM,border=0)
-        self.FrameSizer.Add(self.MainPanel,1, flag=wx.EXPAND,border=0)
+        self.FrameSizer.Add(self.nb,1, flag=wx.EXPAND,border=0)
         self.FrameSizer.Add(self.pipePanel,0, flag=wx.EXPAND,border=0)
         self.SetSizer(self.FrameSizer)
 
@@ -358,6 +364,14 @@ class MainFrame(wx.Frame):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
 
     def load_tabs_into_GUI(self, bReload=False, bAdd=False, bPlot=True):
+        if self.nb.GetPageCount()==0:
+            self.Freeze()
+            self.createNotebookPages()
+            try:
+                self.Thaw()
+            except:
+                pass
+
         if bAdd:
             if not hasattr(self,'selPanel'):
                 bAdd=False
@@ -373,44 +387,9 @@ class MainFrame(wx.Frame):
         if bReload or bAdd:
             self.selPanel.update_tabs(self.tabList)
         else:
-            # --- Create a selPanel, plotPanel and infoPanel
-            mode = SEL_MODES_ID[self.comboMode.GetSelection()]
-            #self.vSplitter = wx.SplitterWindow(self.nb)
-            self.vSplitter = wx.SplitterWindow(self.MainPanel)
-            self.selPanel = SelectionPanel(self.vSplitter, self.tabList, mode=mode, mainframe=self)
-            self.tSplitter = wx.SplitterWindow(self.vSplitter)
-            #self.tSplitter.SetMinimumPaneSize(20)
-            self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
-            self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeLike=self.pipePanel, data=self.data['plotPanel'])
-            self.livePlotFreezeUnfreeze() # Dont enable panels if livePlot is not allowed
-            self.tSplitter.SetSashGravity(0.9)
-            self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
-            self.tSplitter.SetMinimumPaneSize(BOT_PANL)
-            self.tSplitter.SetSashGravity(1)
-            self.tSplitter.SetSashPosition(400)
-
-            self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
-            self.vSplitter.SetMinimumPaneSize(SIDE_COL[0])
-            self.tSplitter.SetSashPosition(SIDE_COL[0])
-
-            #self.nb.AddPage(self.vSplitter, "Plot")
-            #self.nb.SendSizeEvent()
-
-            sizer = self.MainPanel.GetSizer()
-            sizer.Add(self.vSplitter, 1, flag=wx.EXPAND,border=0)
-            self.MainPanel.SetSizer(sizer)
-            self.FrameSizer.Layout()
-
-
-            # --- Bind 
-            # The selPanel does the binding, but the callback is stored here because it involves plotPanel... TODO, rethink it
-            #self.selPanel.bindColSelectionChange(self.onColSelectionChangeCallBack)
-            self.selPanel.setTabSelectionChangeCallback(self.onTabSelectionChangeTrigger)
-            self.selPanel.setRedrawCallback(self.redrawCallback)
-            self.selPanel.setUpdateLayoutCallback(self.mainFrameUpdateLayout)
-            self.plotPanel.setAddTablesCallback(self.load_dfs)
-
-            self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
+            self.selPanel.setTables(self.tabList)
+            pass
+            # self.create1DTab()
 
         # plot trigger
         if bPlot:
@@ -427,6 +406,54 @@ class MainFrame(wx.Frame):
         #self.onDataPlugin(toolName='Bin data')
         #self.onDataPlugin(toolName='Remove Outliers')
         #self.onDataPlugin(toolName='Filter')
+
+
+    def createNotebookPages(self):
+#         self.nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_tab_change)
+#         self.nb.file_info_tab = FileInfoTab(self.nb)
+#         self.nb.fields_2d_tab = Fields2DTab(self.nb)
+        self.create1DTab()
+#         self.nb.AddPage(self.nb.file_info_tab, "Tab Files")
+        #self.nb.AddPage(self.nb.fields_1d_tab, "Tab 1D")
+#         self.nb.AddPage(self.nb.fields_2d_tab, "Tab 2D")
+#     def update_file_list(self, filenames):
+#         self.file_info_tab.lb.Set(filenames)
+#         self.fields_2d_tab.lb_files.Set(filenames)
+
+
+    def create1DTab(self):
+        # --- Create a selPanel, plotPanel and infoPanel
+        mode = SEL_MODES_ID[self.comboMode.GetSelection()]
+        self.vSplitter = wx.SplitterWindow(self.nb)
+        self.selPanel = SelectionPanel(self.vSplitter, self.tabList, mode=mode, mainframe=self)
+        self.tSplitter = wx.SplitterWindow(self.vSplitter)
+        #self.tSplitter.SetMinimumPaneSize(20)
+        self.infoPanel = InfoPanel(self.tSplitter, data=self.data['infoPanel'])
+        self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeLike=self.pipePanel, data=self.data['plotPanel'])
+        self.livePlotFreezeUnfreeze() # Dont enable panels if livePlot is not allowed
+        self.tSplitter.SetSashGravity(0.9)
+        self.tSplitter.SplitHorizontally(self.plotPanel, self.infoPanel)
+        self.tSplitter.SetMinimumPaneSize(BOT_PANL)
+        self.tSplitter.SetSashGravity(1)
+        self.tSplitter.SetSashPosition(400)
+
+        self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
+        self.vSplitter.SetMinimumPaneSize(SIDE_COL[0])
+        self.tSplitter.SetSashPosition(SIDE_COL[0])
+
+        self.nb.AddPage(self.vSplitter, "1D Plot")
+        self.nb.SendSizeEvent()
+
+        # --- Bind 
+        # The selPanel does the binding, but the callback is stored here because it involves plotPanel... TODO, rethink it
+        #self.selPanel.bindColSelectionChange(self.onColSelectionChangeCallBack)
+        self.selPanel.setTabSelectionChangeCallback(self.onTabSelectionChangeTrigger)
+        self.selPanel.setRedrawCallback(self.redrawCallback)
+        self.selPanel.setUpdateLayoutCallback(self.mainFrameUpdateLayout)
+        self.plotPanel.setAddTablesCallback(self.load_dfs)
+
+        self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChangeMain, self.vSplitter)
+
 
     def setStatusBar(self, ISel=None):
         nTabs=self.tabList.len()
@@ -658,17 +685,13 @@ class MainFrame(wx.Frame):
         event.Skip()
 
     def cleanGUI(self, event=None):
-        if hasattr(self,'plotPanel'):
-            del self.plotPanel
-        if hasattr(self,'selPanel'):
-            del self.selPanel
-        if hasattr(self,'infoPanel'):
-            del self.infoPanel
+        #if hasattr(self,'plotPanel'):
+        #    del self.plotPanel
+        #if hasattr(self,'selPanel'):
+        #    del self.selPanel
+        #if hasattr(self,'infoPanel'):
+        #    del self.infoPanel
         #self.deletePages()
-        try:
-            self.MainPanel.GetSizer().Clear(delete_windows=True) # Delete Windows
-        except:
-            self.MainPanel.GetSizer().Clear()
         self.FrameSizer.Layout()
         gc.collect()
 
@@ -841,18 +864,20 @@ class MainFrame(wx.Frame):
         #self.selPanel.splitter.setEquiSash()
 
     # --- NOTEBOOK 
-    #def deletePages(self):
-    #    for index in reversed(range(self.nb.GetPageCount())):
-    #        self.nb.DeletePage(index)
-    #    self.nb.SendSizeEvent()
-    #    gc.collect()
-    #def on_tab_change(self, event=None):
-    #    page_to_select = event.GetSelection()
-    #    wx.CallAfter(self.fix_focus, page_to_select)
-    #    event.Skip(True)
-    #def fix_focus(self, page_to_select):
-    #    page = self.nb.GetPage(page_to_select)
-    #    page.SetFocus()
+#     def deletePages(self):
+#         for index in reversed(range(self.nb.GetPageCount())):
+#             self.nb.DeletePage(index)
+#         self.nb.SendSizeEvent()
+#         gc.collect()
+# 
+#     def on_tab_change(self, event=None):
+#         page_to_select = event.GetSelection()
+#         wx.CallAfter(self.fix_focus, page_to_select)
+#         event.Skip(True)
+# 
+#     def fix_focus(self, page_to_select):
+#         page = self.nb.GetPage(page_to_select)
+#         page.SetFocus()
 
 #----------------------------------------------------------------------
 def MyExceptionHook(etype, value, trace):
