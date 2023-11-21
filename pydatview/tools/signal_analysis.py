@@ -285,9 +285,16 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
 #         #nw=400
 #         #u_new = moving_average(np.floor(np.linspace(0,3,nt+nw-1))*3+3.5, nw)
 #         return np.convolve(x, np.ones(w), 'valid') / w
-#     def moving_average(x,N,mode='same'):
-#        y=np.convolve(x, np.ones((N,))/N, mode=mode)
-#        return y
+def moving_average_conv(x, n,mode='same'):
+    x = np.asarray(x)
+    #n0 = len(x)
+    xaug = np.concatenate(([x[0]]*(n-1),x, [x[-1]]*(n-1))) # repeating first and last values
+    # TODO verify this
+    y = np.convolve(xaug, np.ones((n,))/n, mode=mode)
+    y = y [n-1:-n+1]
+    #y=np.convolve(x, np.ones((n,))/n, mode=mode)
+    return y
+    
 def moving_average(a, n=3) :
     """ 
     perform moving average, return a vector of same length as input

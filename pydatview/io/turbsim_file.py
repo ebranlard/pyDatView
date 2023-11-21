@@ -703,6 +703,7 @@ class TurbSimFile(File):
         return dfs
 
     def to2DFields(self, nTOut=10, nYOut=3, nZOut=3, **kwargs):
+        import xarray as xr
         if len(kwargs.keys())>0:
             print('[WARN] TurbSimFile: to2DFields: ignored keys: ',kwargs.keys())
         # Sanity check
@@ -717,36 +718,34 @@ class TurbSimFile(File):
         IZ = np.unique(np.linspace(0,len(self['z'])-1, nZOut).astype(int))
         Fields=[]
         # --- YZ planes
-        FieldsYZ = {}
+        s1 = 'TSR'
+        s2 = 'pitch'
+        ds = xr.Dataset(coords={'t': self.t, 'y': self.y, 'z': self.z})
+        ds['t'].attrs['unit'] = 's'
+        ds['y'].attrs['unit'] = 'm'
+        ds['z'].attrs['unit'] = 'm'
+
         for it in IT:
-            FieldsYZ['u_t={:.2f}_[m/s]'.format(self.t[it])]=np.squeeze(self['u'][0,it,:,:]).T
+            ds['u_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][0,it,:,:]))
         for it in IT:
-            FieldsYZ['v_t={:.2f}_[m/s]'.format(self.t[it])]=np.squeeze(self['u'][1,it,:,:]).T
+            ds['v_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][1,it,:,:]))
         for it in IT:
-            FieldsYZ['w_t={:.2f}_[m/s]'.format(self.t[it])]=np.squeeze(self['u'][2,it,:,:]).T
-        FieldsLoc = {'name':'(y,z)', 'x':('y_[m]', self.y),  'y':('z_[m]', self.z), 'Fields':FieldsYZ}
-        Fields.append(FieldsLoc)
+            ds['w_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][2,it,:,:]))
         # --- TZ planes
-        FieldsTZ = {}
         for iy in IY:
-            FieldsTZ['u_y={:.2f}_[m/s]'.format(self['y'][iy])]=np.squeeze(self['u'][0,:,iy,:]).T
+            ds['u_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][0,:,iy,:]))
         for iy in IY:
-            FieldsTZ['v_y={:.2f}_[m/s]'.format(self['y'][iy])]=np.squeeze(self['u'][1,:,iy,:]).T
+            ds['v_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][1,:,iy,:]))
         for iy in IY:
-            FieldsTZ['w_y={:.2f}_[m/s]'.format(self['y'][iy])]=np.squeeze(self['u'][2,:,iy,:]).T
-        FieldsLoc = {'name':'(t,z)', 'x':('t_[m]', self.t),  'y':('z_[m]', self.z), 'Fields':FieldsTZ}
-        Fields.append(FieldsLoc)
+            ds['w_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][2,:,iy,:]))
         # --- TY planes
-        FieldsTY = {}
         for iz in IZ:
-            FieldsTY['u_z={:.2f}_[m/s]'.format(self['z'][iz])]=np.squeeze(self['u'][0,:,:,iz]).T
+            ds['u_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][0,:,:,iz]))
         for iz in IZ:
-            FieldsTY['v_z={:.2f}_[m/s]'.format(self['z'][iz])]=np.squeeze(self['u'][1,:,:,iz]).T
+            ds['v_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][1,:,:,iz]))
         for iz in IZ:
-            FieldsTY['w_z={:.2f}_[m/s]'.format(self['z'][iz])]=np.squeeze(self['u'][2,:,:,iz]).T
-        FieldsLoc = {'name':'(t,y)', 'x':('t_[m]', self.t),  'y':('y_[m]', self.y), 'Fields':FieldsTY}
-        Fields.append(FieldsLoc)
-        return Fields
+            ds['w_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][2,:,:,iz]))
+        return ds
 
     def toDataset(self):
         """

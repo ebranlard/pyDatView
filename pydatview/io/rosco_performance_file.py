@@ -145,20 +145,20 @@ class ROSCOPerformanceFile(File):
         return dfs
 
     def to2DFields(self, **kwargs):
+        import xarray as xr
         if len(kwargs.keys())>0:
             print('[WARN] RoscoPerformance_CpCtCq: to2DFields: ignored keys: ',kwargs.keys())
-        Fields=[]
-        # --- YZ planes
-        FieldsCX = {}
-        FieldsCX['CP'] = self['CP']
-        FieldsCX['CT'] = self['CT']
-        FieldsCX['CQ'] = self['CQ']
-        FieldsCX['CP'][FieldsCX['CP']<0]=0
-        FieldsCX['CT'][FieldsCX['CT']<0]=0
-        FieldsCX['CQ'][FieldsCX['CQ']<0]=0
-        FieldsLoc = {'name':'(lambda,pitch)', 'y':('TSR_[-]', self['TSR']),  'x':('pitch_[deg]', self['pitch']), 'Fields':FieldsCX}
-        Fields.append(FieldsLoc)
-        return Fields
+        s1 = 'TSR'
+        s2 = 'pitch'
+        ds = xr.Dataset(coords={s1: self['TSR'], s2: self['pitch']})
+        ds[s1].attrs['unit'] = '-'
+        ds[s2].attrs['unit'] = 'deg'
+        for var in ['CP','CT','CQ']:
+            M = self[var].copy()
+            M[M<0] = 0
+            ds[var] = ([s1, s2], M)
+            ds[var].attrs['unit'] = '-'
+        return ds
 
     # --- Optional functions
     def toAeroDisc(self, filename, R, csv=False, WS=None, omegaRPM=10):

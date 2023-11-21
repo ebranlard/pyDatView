@@ -224,52 +224,72 @@ class FASTOutputFile(File):
     # --------------------------------------------------------------------------------
     @property
     def driverFile(self):
-        driver, FFKind = findDriverFile(self.filename, df=None)
-        return driver
+        try:
+            driver, FFKind = findDriverFile(self.filename, df=None)
+            return driver
+        except:
+            return None
 
-    def to2DFields(self, DeltaAzi=5, **kwargs):
-        import pydatview.fast.postpro as fastlib # TODO TODO TODO
+    def to2DFields(self, DeltaAzi=5, nPeriods=3, **kwargs):
+        import pydatview.fast.postpro as fastlib 
+
+        def insertName(ds, name, dims):
+            for var in ds.variables:
+                # Create a new name, for example, add "_new" to each variable name
+                if ds[var].dims == dims:
+                    #chan = var.split('_[')[0]
+                    #unit = var.split('_[')[1]
+                    #new_var = chan+name+'_['+unit
+                    new_var = name+'_'+var
+                    ds = ds.rename({var: new_var})
+            return ds
+        
         driverFile = self.driverFile
 
         if len(kwargs.keys())>0:
             print('[WARN] FASTOutputFile: to2DFields: ignored keys: ',kwargs.keys())
         # Sanity check
         DeltaAzi=float(DeltaAzi)
-
-        Fields=[]
-        def M2Field(name, M, sx, x):
-            FieldsRPsi = {}
-            for i,c in enumerate(C_AD):
-                #r = c.replace('_','_(r,psi)_')
-                FieldsRPsi[c] = M_AD[:,:,i].T
-
-            C_AD2=np.array([c.split('_')[0] for c in C_AD])
-            try:
-                ir   = np.where(C_AD2 == 'r')[0][0]
-            except IndexError:
-                ir  = np.where(C_AD2 == 'i/n')[0][0]
-            cr = C_AD[ir]
-            r_AD = M_AD[0,:,ir].ravel() # Contains hub radius
-            FieldsLoc = {'name':name, 'x':(sx, x),  'y':(cr, r_AD), 'Fields':FieldsRPsi}
-            return FieldsLoc
-
         df = self.toDataFrame()
-        time = df['Time_[s]'].values
         # --- Time wise
-        M_AD, C_AD, M_ED, C_ED, M_BD, C_BD = fastlib.spanwisePostProRows(df, driverFile)
-        FieldsRTime = M2Field('(r,t)',M_AD, 'Time_[s]', time)
-        Fields.append(FieldsRTime)
+        ds_AD, ds_ED, ds_BD = fastlib.spanwisePostProRows(df, driverFile, si1='t', sir='r')
+        if ds_AD is None:
+            return None # No Hope
+        if 'r_[m]' in ds_AD.keys():
+            rcoords =ds_AD['r_[m]'].values
+            runit = 'm'
+        else:
+            rcoords =ds_AD['i/n_[-]'].values
+            runit = '-'
+        # Rename columns to make them unique
+        ds_AD = insertName(ds_AD, '(t,r)', ('t','r'))
+        try:
+            ds_AD.coords['t'] = ('t', df['Time_[s]'].values)
+        except:
+            pass
+        ds_AD.coords['r'] = ('r', rcoords)
 
         # --- Azimuthal Radial postpro
         psi = np.arange(0, 360+DeltaAzi/10, DeltaAzi)
-        dfPsi = fastlib.azimuthal_average_DF(df, psiBin=psi) #, tStart = time[-1]-20)
-        M_AD, C_AD, M_ED, C_ED, M_BD, C_BD = fastlib.spanwisePostProRows(dfPsi, driverFile)
-        psiBin = dfPsi.index
-        # Hack to ensure periodicity...
-        M_AD = np.vstack( (M_AD, M_AD[0:1,:,:]) )
-        FieldsRPsi = M2Field('(r,psi)',M_AD, 'Azimuth_[deg]', psi)
-        Fields.append(FieldsRPsi)
-        return Fields
+        dfPsi = fastlib.azimuthal_average_DF(df, psiBin=psi, periodic=True, nPeriods=nPeriods) #, tStart = time[-1]-20)
+        ds_AD2, ds_ED2, ds_BD2 = fastlib.spanwisePostProRows(dfPsi, driverFile, si1='psi', sir='r')
+        ds_AD2.coords['psi'] = ('psi', psi) # TODO hack from bin to bin edges...
+        ds_AD2.coords['r'] = ('r', rcoords)
+        # Rename columns to make them unique
+        ds_AD2= insertName(ds_AD2, '(psi,r)', ('psi','r'))
+
+        # --- Combine into one field (need unique variables and dimension)
+        ds_AD = ds_AD.merge(ds_AD2, compat='override')
+        ds_AD.r.attrs['unit'] = runit
+        ds_AD.t.attrs['unit'] = 's'
+        ds_AD.psi.attrs['unit'] = 'deg'
+        ds_AD.r.attrs['unit'] = runit
+# #         ds_AD = ds_AD.swap_dims(dims_dict={'it': 't'})
+# #         ds_AD = ds_AD.drop_vars('it')
+# #         ds_AD.coords['r'] = ('ir', rcoords)
+# #         ds_AD = ds_AD.swap_dims(dims_dict={'ir': 'r'})
+# #         ds_AD = ds_AD.drop_vars('ir')
+        return ds_AD
 
     # --------------------------------------------------------------------------------
     # --- Converters 
@@ -764,9 +784,9 @@ def findDriverFile(filename, df=None):
 if __name__ == "__main__":
     scriptDir = os.path.dirname(__file__)
     B=FASTOutputFile(os.path.join(scriptDir, 'tests/example_files/FASTOutBin.outb'))
+    B.to2DFields()
     df=B.toDataFrame()
     B.writeDataFrame(df, os.path.join(scriptDir, 'tests/example_files/FASTOutBin_OUT.outb'))
-    B.to2DFields()
     B.toOUTB(extension='.dat.outb')
     B.toParquet()
     B.toCSV()

@@ -50,7 +50,7 @@ class PickleFile(File):
         self.filename = filename
         if filename and not data:
             self.read(**kwargs)
-        if data:
+        if data is not None:
             self._setData(data)
             if filename:
                 self.write()

@@ -154,6 +154,10 @@ class Plot2DPanel(wx.Panel):
         except:
             return default
 
+    def clean_plot(self):
+        self.fig.clf()
+        self.canvas.draw()
+
     def update_plot(self, event=None):
         #
         data = self._GUI2Data()
@@ -181,11 +185,11 @@ class Plot2DPanel(wx.Panel):
                     x = np.deg2rad(x)
 
             if data['plotType'] == 'contourf':
-                cf = ax.contourf(x, y, M, levels=levels)
+                cf = ax.contourf(x, y, M.T, levels=levels)
             elif data['plotType'] == 'contour':
-                cf = ax.contour(x, y, M, levels=levels)
+                cf = ax.contour(x, y, M.T, levels=levels)
             elif data['plotType'] == 'pcolormesh':
-                cf = ax.pcolormesh(x, y, M, vmin=vmin, vmax=vmax)
+                cf = ax.pcolormesh(x, y, M.T, vmin=vmin, vmax=vmax)
             mappables.append(cf)
 
             ax.set_title("{}".format(fieldname.replace('_',' '))) # TODO ColorBar

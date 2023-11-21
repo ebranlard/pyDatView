@@ -77,7 +77,7 @@ def read_bladed_sensor_file(sensorfile):
                 t_line = re.search(r'(?<=AXITICK).+?(?=AXISLAB)', combined_string, flags=re.DOTALL)
                 t_line=t_line.group(0)
                 # Replace consecutive whitespace characters with a single space
-                t_line = re.sub('\s+', ' ', t_line)
+                t_line = re.sub(r'\s+', ' ', t_line)
             except:
                 pass
 

@@ -76,10 +76,15 @@ class FileInfoPanel(wx.Panel):
         self.lbKeys.Bind(wx.EVT_LISTBOX, self.on_key_selected)
 
     def cleanGUI(self):
+        self.deselect()
         self.lbFiles.Clear()
         self.lbMethods.Clear()
         self.lbAttributes.Clear()
         self.lbKeys.Clear()
+        self.tb.SetValue('')
+
+    def deselect(self, event=None):
+        [self.lbFiles.Deselect(i) for i in self.lbFiles.GetSelections()]
 
     def updateFiles(self, filenames, fileobjects):
         self.fileobjects = fileobjects
@@ -89,8 +94,6 @@ class FileInfoPanel(wx.Panel):
         # TODO this seem to trigger some call to @property, avoid for now.
         #self.lbFiles.SetSelection(0)
         #self.on_file_selected()
-        #self.lbMethods.SetSelection(0)
-        #self.on_method_selected()
 
     def on_file_selected(self, event=None):
         isel = self.lbFiles.GetSelection()
@@ -101,9 +104,12 @@ class FileInfoPanel(wx.Panel):
         self.tb.SetValue(content)
 
         # Populate lbMethods, lbAttributes, lbKeys with data
+        # NOTE: inspect.getmembers calls properties..
         #methods = getattr(file_object, "__dir__", None)() 
-        methods = [name for name, member in inspect.getmembers(file_object, inspect.ismethod) if not isinstance(member, property)]
-
+        try:
+            methods = [name for name, member in inspect.getmembers(file_object, inspect.ismethod) if not isinstance(member, property)]
+        except:
+            methods=[]
         methods = ['__repr__']+[m for m in methods if not m.startswith('_')]
         self.lbMethods.Set(methods)
 
@@ -116,6 +122,10 @@ class FileInfoPanel(wx.Panel):
             self.lbKeys.Set(keys)
         else:
             self.lbKeys.Set([])
+
+        # We select the first method 
+        self.lbMethods.SetSelection(0)
+        self.on_method_selected()
 
     def on_method_selected(self, event=None):
         [self.lbAttributes.Deselect(i) for i in self.lbAttributes.GetSelections()]

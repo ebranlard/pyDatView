@@ -298,6 +298,7 @@ class MainFrame(wx.Frame):
         if bReload:
             if hasattr(self,'selPanel'):
                 self.selPanel.saveSelection() # TODO move to tables
+            self.statusbar.SetStatusText('Reloading...', ISTAT)
         else:
             self.statusbar.SetStatusText('Loading files...', ISTAT)
 
@@ -374,14 +375,8 @@ class MainFrame(wx.Frame):
             self.selPanel.update_tabs(self.tabList)
         else:
             self.selPanel.setTables(self.tabList)
-
         # Filenames trigger 
-        fileobjects = self.tabList.unique_fileobjects
-        filenames   = [fo.filename for fo in fileobjects]
-        self.nb.file_info_tab.cleanGUI()
-        self.nb.fields_2d_tab.cleanGUI()
-        self.nb.file_info_tab.updateFiles(filenames, fileobjects) 
-        self.nb.fields_2d_tab.updateFiles(filenames, fileobjects) 
+        self.onTabListChangeLowLevel()
 
         # plot trigger
         if bPlot:
@@ -446,6 +441,15 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText(''                                                             ,ISTAT+2)
 
     # --- Table Actions - TODO consider a table handler, or doing only the triggers
+    def onTabListChangeLowLevel(self):
+        fileobjects = self.tabList.unique_fileobjects
+        filenames   = [fo.filename for fo in fileobjects]
+        if hasattr(self, 'nb'):
+            self.nb.file_info_tab.cleanGUI()
+            self.nb.fields_2d_tab.cleanGUI()
+            self.nb.file_info_tab.updateFiles(filenames, fileobjects) 
+            self.nb.fields_2d_tab.updateFiles(filenames, fileobjects) 
+
     def renameTable(self, iTab, newName):
         oldName = self.tabList.renameTable(iTab, newName)
         self.selPanel.renameTable(iTab, oldName, newName)
@@ -455,6 +459,8 @@ class MainFrame(wx.Frame):
         if len(self.tabList)==0:
             self.cleanGUI()
             return
+        
+        self.onTabListChangeLowLevel()
 
         # Invalidating selections
         self.selPanel.tabPanel.lbTab.SetSelection(-1)
@@ -687,7 +693,6 @@ class MainFrame(wx.Frame):
 
     def onReload(self, event=None):
         filenames, fileformats = self.tabList.filenames_and_formats
-        self.statusbar.SetStatusText('Reloading...', ISTAT)
         if len(filenames)>0:
             # If only one file, use the comboBox to decide which fileformat to use
             if len(filenames)==1:

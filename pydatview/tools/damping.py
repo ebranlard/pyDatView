@@ -204,6 +204,7 @@ def freqDampFromPeaks(x, t, threshold=None, plot=False, refPoint='mid'):
     x = x-m # we remove the mean once and for all
     if threshold is None:
         threshold = np.mean(abs(x))/3
+
     dt = t[1]-t[0] # todo signal with dt not uniform
 
     # Is it a decay or an exloding signal
@@ -277,7 +278,7 @@ def freqDampFromPeaks(x, t, threshold=None, plot=False, refPoint='mid'):
         #ax.plot(t ,x_model,'k:')
         #ax.legend()
         dx = np.max(abs(x-m))
-        ax.set_ylim_([m-dx*1.1 , m+dx*1.1])
+        ax.set_ylim([m-dx*1.1 , m+dx*1.1])
 
     # We return a dictionary
     info['zeta'] = zeta

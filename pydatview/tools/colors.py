@@ -10,6 +10,28 @@ import unittest
 # --------------------------------------------------------------------------------}
 # --- COLOR TOOLS 
 # --------------------------------------------------------------------------------{
+def standardize(col, rgb_int=False):
+    """ given a color return a rgb tuple between 0 and 1 """
+    if rgb_int:
+        return np.asarray(standardize(col), rgb_int=False)*255
+
+    if isinstance(col, str):
+        if len(col) in [6,7]:
+            return hex2rgb(col)
+        else:
+            raise NotImplementedError('Strings of length {}'.format(len(col)))
+    # 
+    col = np.asarray(col)
+    if len(col.shape)==1:
+        # NOTE: this is approximative...
+        if np.any(col>1):
+            col = col/255
+        return col
+    else:
+        #  TODO for loop and call standardize
+        raise NotImplementedError('Arrays of colors')
+
+
 def rgb2hex(C,g=None,b=None):
     if len(C)==3 :
         r=C[0]
@@ -21,6 +43,12 @@ def rgb2hex(C,g=None,b=None):
         b=b*255
         
     return '#%02X%02X%02X' % (r,g,b)
+
+def hex2rgb(hx):
+    """ Hex string to RGB tuple between 0 and 1 """
+    hx = hx.lstrip('#')
+    rgb = tuple(int(hx[i:i+2], 16)/255. for i in (0, 2, 4))
+    return rgb
 
 def adjust_color_lightness_scalar(r, g, b, factor):
     """
@@ -46,11 +74,13 @@ def adjust_color_lightness(rgb, factor):
 
 
 def lighten_color(rgb, factor=0.1):
+    rgb = standardize(rgb)
     if factor ==0:
         return rgb
     return adjust_color_lightness(rgb, 1 + factor)
 
 def darken_color(rgb, factor=0.1):
+    rgb = standardize(rgb)
     return adjust_color_lightness(rgb, 1 - factor)
 
 # --------------------------------------------------------------------------------}
@@ -110,11 +140,15 @@ def color_scales(n, color='blue'):
     'orange':mpl.cm.Oranges,
     'red':mpl.cm.Reds,
     'green':mpl.cm.Greens,
+    'gray':mpl.cm.Greys,
+    'grey':mpl.cm.Greys,
     }
     norm = mpl.colors.Normalize(vmin=0, vmax=n)
     cmap = mpl.cm.ScalarMappable(norm=norm, cmap=maps[color])
     cmap.set_array([])
-    return [cmap.to_rgba(i) for i in np.arange(n)]
+    colrs = [cmap.to_rgba(i) for i in np.arange(n)]
+    colrs.reverse()
+    return colrs
 
 
 
@@ -457,6 +491,26 @@ class TestColors(unittest.TestCase):
         rgb_arr       = adjust_color_lightness(rgb_in,factor)
         rgb_tuple_ref = adjust_color_lightness_scalar(rgb_in[0],rgb_in[1],rgb_in[2],factor)
         np.testing.assert_almost_equal(rgb_arr,np.asarray(rgb_tuple_ref))
+
+    def test_standardize(self):
+        # 
+        rgb_in = (255,0,0)
+        rgb_out = standardize(rgb_in)
+        np.testing.assert_almost_equal(rgb_out, [1,0,0], 5)
+
+        rgb_in = (1,0,0)
+        rgb_out = standardize(rgb_in)
+        np.testing.assert_almost_equal(rgb_out, [1,0,0], 5)
+
+        rgb_in = '#FF0000'
+        rgb_out = standardize(rgb_in)
+        np.testing.assert_almost_equal(rgb_out, [1,0,0], 5)
+
+        rgb_in = '#FF0000'
+        rgb_out = standardize(rgb_in)
+        np.testing.assert_almost_equal(rgb_out, [1,0,0], 5)
+
+
 
 if __name__ == "__main__":
 #     test_colrs()
