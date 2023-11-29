@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from pydatview.common import splitunit
 from pydatview.pipeline import IrreversibleTableAction
 
 # --------------------------------------------------------------------------------}

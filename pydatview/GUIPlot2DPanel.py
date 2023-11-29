@@ -262,7 +262,7 @@ class Plot2DPanel(wx.Panel):
         return data
 
     def add_field(self, x, y, M, sx='x', sy='y', fieldname='field'):
-        self.fields.append({'x':x, 'y':y, 'M':M, 'sx':sy, 'sy':sy, 'fieldname':fieldname})
+        self.fields.append({'x':x, 'y':y, 'M':M, 'sx':sx, 'sy':sy, 'fieldname':fieldname})
 
     @property
     def fieldsRange(self):

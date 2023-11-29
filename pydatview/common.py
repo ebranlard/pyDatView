@@ -250,14 +250,16 @@ def cleanCol(s):
     return s
 
 def no_unit(s):
+    s=s.replace('(',' [').replace(')',']')
     s=s.replace('_[',' [')
-    iu=s.rfind(' [')
+    iu=s.rfind('[')
     if iu>0:
-        return s[:iu]
+        return s[:iu].strip()
     else:
         return s
 
 def unit(s):
+    s=s.replace('(',' [').replace(')',']')
     iu=s.rfind('[')
     if iu>0:
         return s[iu+1:].replace(']','')
@@ -265,9 +267,10 @@ def unit(s):
         return ''
 
 def splitunit(s):
+    s=s.replace('(',' [').replace(')',']')
     iu=s.rfind('[')
     if iu>0:
-        return s[:iu], s[iu+1:].replace(']','')
+        return s[:iu].strip(), s[iu+1:].replace(']','')
     else:
         return s, ''
 

@@ -145,7 +145,7 @@ def changeUnits(df, flavor='SI', inPlace=True):
             bracket = s0[iu:iu+1]
             if bracket=='(':
                 brackets='()'
-        else:
+            else:
                 brackets='[]'
             if iu>1:
                 prev_char=s0[(iu-1):iu]
