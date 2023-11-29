@@ -374,7 +374,7 @@ def insert_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar='
         if i==0:
             df.insert(0, k, v)
         else:
-            df.insert(k, v)
+            df[k] = v
     return df
 
 def find_matching_columns(Cols, PatternMap):
@@ -1060,7 +1060,7 @@ def FASTSpanwiseOutputs(FST_In, OutputCols=None, verbose=False):
     IR_BD       = None
     fst=None
     if FST_In is not None:
-        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD','BDbld','SD'])
+        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD','BDbld','SD'], verbose=False)
         # NOTE: all this below should be in FASTInputDeck
         if fst.version == 'F7':
             # --- FAST7
