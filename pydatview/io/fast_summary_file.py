@@ -56,14 +56,37 @@ class FASTSummaryFile(File):
             raise OSError(2,'File not found:',self.filename)
         if os.stat(self.filename).st_size == 0:
             raise EmptyFileError('File is empty:',self.filename)
+        # Children class
+        self._read()
 
+    def _read(self):
+        def readFirstLines(fid, nLines):
+            lines=[]
+            for i, line in enumerate(fid):
+                lines.append(line.strip())
+                if i==nLines:
+                    break
+            return lines
         with open(self.filename, 'r', errors="surrogateescape") as fid:
             header= readFirstLines(fid, 4)
         if any(['subdyn' in s.lower() for s in header]):
             self['module']='SubDyn'
-            readSubDynSum(self)
+            fsum = SubDynSummaryFile(self.filename)
+            self.update_from_child(fsum, attrList=fsum.attributes())
+        elif any(['beamdyn' in s.lower() for s in header]):
+            self['module']='BeamDyn'
+            fsum = BeamDynSummaryFile(self.filename)
+            self.update_from_child(fsum, attrList=fsum.attributes())
         else:
             raise NotImplementedError('This summary file format is not yet supported')
+
+    def update_from_child(self, child, attrList=None):
+        self.update(child)
+        if attrList is None:
+            attrList = [c for c in child.__dir__() if not c.startswith('_')]
+        for attr in attrList:
+            print('FASTSummaryFile from child {}, setting `{}`'.format(type(child).__name__, attr))
+            setattr(self, attr, getattr(child, attr)) 
 
     def toDataFrame(self):
         if 'module' not in self.keys():
@@ -77,41 +100,47 @@ class FASTSummaryFile(File):
         from .fast_input_file_graph import fastToGraph
         return fastToGraph(self)
 
-
-
 # --------------------------------------------------------------------------------}
-# --- Helper functions 
+# --- SubDyn Summary File
 # --------------------------------------------------------------------------------{
-def readFirstLines(fid, nLines):
-    lines=[]
-    for i, line in enumerate(fid):
-        lines.append(line.strip())
-        if i==nLines:
-            break
-    return lines
+class SubDynSummaryFile(FASTSummaryFile):
 
-# --------------------------------------------------------------------------------}
-# --- Sub-reader/class for SubDyn summary files
-# --------------------------------------------------------------------------------{
-def readSubDynSum(self):
+    @staticmethod
+    def formatName():
+        return 'SubDyn summary file'
 
-    # Read data
-    #T=yaml.load(fid, Loader=yaml.SafeLoader)
-    yaml_read(self.filename, self)
+    @staticmethod
+    def attributes():
+        attr  = ['formatName']
+        attr += ['_read']
+        attr += ['toDataFrame']
+        attr += ['NodesDisp'  ]
+        attr += ['toDataFrame']
+        attr += ['toJSON'     ]
+        attr += ['getModes'   ]
+        return attr
 
-    # --- Treatement of useful data
-    if self['DOF2Nodes'].shape[1]==3:
-        self['DOF2Nodes']=np.column_stack((np.arange(self['DOF2Nodes'].shape[0])+1,self['DOF2Nodes']))
-    # NOTE: DOFs are reindexed to start at 0
-    self['DOF2Nodes'][:,0]-=1
-    self['DOF___L'] -=1 # internal DOFs
-    self['DOF___B'] -=1 # internal
-    self['DOF___F'] -=1 # fixed DOFs
+    def _read(self):
+        """ """
+        #T=yaml.load(fid, Loader=yaml.SafeLoader)
+        yaml_read(self.filename, self)
 
-    self['CB_frequencies']=self['CB_frequencies'].ravel()
-    self['X'] = self['Nodes'][:,1].astype(float)
-    self['Y'] = self['Nodes'][:,2].astype(float)
-    self['Z'] = self['Nodes'][:,3].astype(float)
+        # --- Treatement of useful data
+        if self['DOF2Nodes'].shape[1]==3:
+            self['DOF2Nodes']=np.column_stack((np.arange(self['DOF2Nodes'].shape[0])+1,self['DOF2Nodes']))
+        # NOTE: DOFs are reindexed to start at 0
+        self['DOF2Nodes'][:,0]-=1
+        self['DOF___L'] -=1 # internal DOFs
+        self['DOF___B'] -=1 # internal
+        self['DOF___F'] -=1 # fixed DOFs
+
+        self['CB_frequencies']=self['CB_frequencies'].ravel()
+        self['X'] = self['Nodes'][:,1].astype(float)
+        self['Y'] = self['Nodes'][:,2].astype(float)
+        self['Z'] = self['Nodes'][:,3].astype(float)
+
+    def toDataFrame(self):
+        return None
 
     # --- Useful methods that will be added to the class
     def NodesDisp(self, IDOF, UDOF, maxDisp=None, sortDim=None):
@@ -149,7 +178,7 @@ def readSubDynSum(self):
             pos    = pos[I,:]
         return disp, pos, INodes
 
-    def getModes(data, maxDisp=None, sortDim=None):
+    def getModes(self, maxDisp=None, sortDim=None):
         """ return Guyan and CB modes"""
         if maxDisp is None:
             #compute max disp such as it's 10% of maxdimension
@@ -159,38 +188,38 @@ def readSubDynSum(self):
             maxDisp = np.max([dx,dy,dz])*0.1
 
         # NOTE: DOF have been reindexed -1
-        DOF_B = data['DOF___B'].ravel()
-        DOF_F = data['DOF___F'].ravel()
-        DOF_K = (np.concatenate((DOF_B,data['DOF___L'].ravel(), DOF_F))).astype(int)
+        DOF_B = self['DOF___B'].ravel()
+        DOF_F = self['DOF___F'].ravel()
+        DOF_K = (np.concatenate((DOF_B,self['DOF___L'].ravel(), DOF_F))).astype(int)
 
         # CB modes
-        PhiM      = data['PhiM']
+        PhiM      = self['PhiM']
         Phi_CB = np.vstack((np.zeros((len(DOF_B),PhiM.shape[1])),PhiM, np.zeros((len(DOF_F),PhiM.shape[1]))))
-        dispCB, posCB, INodesCB = data.NodesDisp(DOF_K, Phi_CB, maxDisp=maxDisp, sortDim=sortDim)
+        dispCB, posCB, INodesCB = self.NodesDisp(DOF_K, Phi_CB, maxDisp=maxDisp, sortDim=sortDim)
         # Guyan modes
-        PhiR      = data['PhiR']
+        PhiR      = self['PhiR']
         Phi_Guyan = np.vstack((np.eye(len(DOF_B)),PhiR, np.zeros((len(DOF_F),PhiR.shape[1]))))
-        dispGy, posGy, INodesGy = data.NodesDisp(DOF_K, Phi_Guyan, maxDisp=maxDisp, sortDim=sortDim)
+        dispGy, posGy, INodesGy = self.NodesDisp(DOF_K, Phi_Guyan, maxDisp=maxDisp, sortDim=sortDim)
 
         return dispGy, posGy, INodesGy, dispCB, posCB, INodesCB
 
 
-    def subDynToJson(data, outfile=None):
+    def toJSON(self, outfile=None):
         """ Convert to a "JSON" format
 
         TODO: convert to graph and use graph.toJSON
 
         """
-        #return data.toGraph().toJSON(outfile)
+        #return self.toGraph().toJSON(outfile)
 
-        dispGy, posGy, _, dispCB, posCB, _ = data.getModes(sortDim=None) # Sorting mess things up
+        dispGy, posGy, _, dispCB, posCB, _ = self.getModes(sortDim=None) # Sorting mess things up
 
         Nodes    = self['Nodes'].copy()
         Elements = self['Elements'].copy()
         Elements[:,0]-=1
         Elements[:,1]-=1
         Elements[:,2]-=1
-        CB_freq   = data['CB_frequencies'].ravel()
+        CB_freq   = self['CB_frequencies'].ravel()
 
         d=dict();
         d['Connectivity']=Elements[:,[1,2]].astype(int).tolist();
@@ -210,7 +239,7 @@ def readSubDynSum(self):
                     'omega':CB_freq[iMode]*2*np.pi, #in [rad/s]
                     'Displ':dispCB[:,:,iMode].tolist()
                 }  for iMode in range(dispCB.shape[2]) ]
-        d['groundLevel']=np.min(data['Z']) # TODO
+        d['groundLevel']=np.min(self['Z']) # TODO
 
         if outfile is not None:
             import json
@@ -222,7 +251,7 @@ def readSubDynSum(self):
         return d
 
 
-    def subDynToDataFrame(data, sortDim=2, removeZero=True):
+    def toDataFrame(self, sortDim=2, removeZero=True):
         """ Convert to DataFrame containing nodal displacements """
         def toDF(pos,disp,preffix=''):
             disp[np.isnan(disp)]=0
@@ -243,7 +272,7 @@ def readSubDynSum(self):
             dfDisp.columns = [c.replace('Mode','Disp') for c in dfDisp.columns.values]
             return df, dfDisp
 
-        dispGy, posGy, _, dispCB, posCB, _ = data.getModes(sortDim=sortDim)
+        dispGy, posGy, _, dispCB, posCB, _ = self.getModes(sortDim=sortDim)
 
         columns = ['z_[m]','x_[m]','y_[m]']
         dataZXY = np.column_stack((posGy[:,2],posGy[:,0],posGy[:,1]))
@@ -253,13 +282,42 @@ def readSubDynSum(self):
         df = pd.concat((dfZXY, df1, df2, df1d, df2d), axis=1)
         return df 
     
-    # adding method to class dynamically to give it a "SubDyn Summary flavor"
-    setattr(FASTSummaryFile, 'NodesDisp'  , NodesDisp) 
-    setattr(FASTSummaryFile, 'toDataFrame', subDynToDataFrame)
-    setattr(FASTSummaryFile, 'toJSON'     , subDynToJson)
-    setattr(FASTSummaryFile, 'getModes'   , getModes)
 
-    return self
+
+
+# --------------------------------------------------------------------------------}
+# --- BeamDyn 
+# --------------------------------------------------------------------------------{
+class BeamDynSummaryFile(FASTSummaryFile):
+
+    @staticmethod
+    def formatName():
+        return 'BeamDyn summary file'
+
+    @staticmethod
+    def attributes():
+        attr  = ['formatName']
+        attr += ['_read']
+        attr += ['toDataFrame']
+        return attr
+
+    def _read(self, filename=None):
+        """ """
+        if not filename:
+            filename = self.filename
+        # Put data into self dict
+        yaml_read(filename, self)
+
+    def toDataFrame(self):
+        #self['Init_QP_E1']
+        #self['M_IEC']
+        #self['K_IEC']
+        df = pd.DataFrame(data=self['Init_Nodes_E1'])
+
+
+        return df
+
+
 
 
 if __name__=='__main__':

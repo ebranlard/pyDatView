@@ -668,22 +668,22 @@ class TurbSimFile(File):
             import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore') #, category=DeprecationWarning)
-                fc, chi_uu, chi_vv, chi_ww = self.csd_longi()
-                cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
-                data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
-                dfs['Mid_csd_longi'] = pd.DataFrame(data = data ,columns = cols)
+            fc, chi_uu, chi_vv, chi_ww = self.csd_longi()
+            cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
+            data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
+            dfs['Mid_csd_longi'] = pd.DataFrame(data = data ,columns = cols)
 
-                # Mid csd
-                fc, chi_uu, chi_vv, chi_ww = self.csd_lat()
-                cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
-                data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
-                dfs['Mid_csd_lat'] = pd.DataFrame(data = data ,columns = cols)
+            # Mid csd
+            fc, chi_uu, chi_vv, chi_ww = self.csd_lat()
+            cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
+            data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
+            dfs['Mid_csd_lat'] = pd.DataFrame(data = data ,columns = cols)
 
-                # Mid csd
-                fc, chi_uu, chi_vv, chi_ww = self.csd_vert()
-                cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
-                data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
-                dfs['Mid_csd_vert'] = pd.DataFrame(data = data ,columns = cols)
+            # Mid csd
+            fc, chi_uu, chi_vv, chi_ww = self.csd_vert()
+            cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
+            data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
+            dfs['Mid_csd_vert'] = pd.DataFrame(data = data ,columns = cols)
         except ModuleNotFoundError:
             print('Module scipy.signal not available')
         except ImportError:

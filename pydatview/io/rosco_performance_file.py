@@ -266,8 +266,7 @@ class ROSCOPerformanceFile(File):
         CP[CP<0]=0 # 
         CP_max, tsr_max, pitch_max = self.CPmax()
         # plot
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
+        fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
         surf = ax.plot_surface(LAMBDA, PITCH, np.transpose(CP), cmap=cm.coolwarm, linewidth=0, antialiased=True,alpha=0.8, label='$C_p$')
         if plotMax:
             ax.scatter(tsr_max, pitch_max, CP_max, c='k', marker='o', s=50, label=r'$C_{p,max}$')
@@ -305,8 +304,6 @@ class ROSCOPerformanceFile(File):
         s+='| - CPmax, plotCP3d, fCP, fCT, toAeroDisc'
         return s
     
-
-
 
 def load_from_txt(txt_filename):
     '''

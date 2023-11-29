@@ -266,7 +266,9 @@ class FASTInputFileBase(File):
         return self.data[i]['value']
 
     def __repr__(self):
-        s ='Fast input file base: {}\n'.format(self.filename)
+        s='<{} object - Base> with attributes:\n'.format(type(self).__name__)
+        s =' - filename: {}\n'.format(self.filename)
+        s =' - dict keys/values: \n'
         return s+'\n'.join(['{:15s}: {}'.format(d['label'],d['value']) for i,d in enumerate(self.data)])
 
     def addKeyVal(self, key, val, descr=None):
