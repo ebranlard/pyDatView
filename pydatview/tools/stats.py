@@ -102,9 +102,17 @@ def rsquare(y, f, c = True):
     y = y[tmp]
     f = f[tmp]
     if c:
-        r2 = max(0,1-np.sum((y-f)**2)/np.sum((y-np.mean(y))** 2))
+        denom = np.sum((y-np.mean(y))** 2)
+        if abs(denom)>0:
+            r2 = max(0,1-np.sum((y-f)**2)/denom)
+        else:
+            r2 = np.inf
     else:
-        r2 = 1 - np.sum((y - f) ** 2) / np.sum((y) ** 2)
+        denom = np.sum((y) ** 2)
+        if abs(denom)>0:
+            r2 = 1 - np.sum((y - f) ** 2) /denom
+        else:
+            r2 = np.inf
         if r2 < 0:
             import warnings
             warnings.warn('Consider adding a constant term to your model')
@@ -138,10 +146,16 @@ def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='meanabs', verbose=F
     if method=='mean':
         # Method 1 relative to mean
         ref_val = np.nanmean(y1)
-        meanrelerr = np.nanmean(myabs(y2-y1)/ref_val)*100 
+        if abs(ref_val)>0:
+            meanrelerr = np.nanmean(myabs(y2-y1)/ref_val)*100 
+        else:
+            meanrelerr = np.nan
     elif method=='meanabs':
         ref_val = np.nanmean(abs(y1))
-        meanrelerr = np.nanmean(myabs(y2-y1)/ref_val)*100 
+        if abs(ref_val)>0:
+            meanrelerr = np.nanmean(myabs(y2-y1)/ref_val)*100 
+        else:
+            meanrelerr = np.nan
     elif method=='loc':
         meanrelerr = np.nanmean(myabs(y2-y1)/abs(y1))*100 
     elif method=='minmax':

@@ -32,7 +32,7 @@ def standardize(col, rgb_int=False):
         raise NotImplementedError('Arrays of colors')
 
 
-def rgb2hex(C,g=None,b=None):
+def rgb2hex(C, g=None, b=None):
     if len(C)==3 :
         r=C[0]
         g=C[1]
