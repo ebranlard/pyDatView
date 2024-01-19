@@ -231,7 +231,7 @@ class FASTOutputFile(File):
         except:
             return None
 
-    def to2DFields(self, DeltaAzi=5, nPeriods=3, **kwargs):
+    def to2DFields(self, DeltaAzi=5, nPeriods=3, rcoords=None, **kwargs):
         import pydatview.fast.postpro as fastlib 
 
         def insertName(ds, name, dims):
@@ -256,12 +256,16 @@ class FASTOutputFile(File):
         ds_AD, ds_ED, ds_BD = fastlib.spanwisePostProRows(df, driverFile, si1='t', sir='r')
         if ds_AD is None:
             return None # No Hope
-        if 'r_[m]' in ds_AD.keys():
-            rcoords =ds_AD['r_[m]'].values
+        if rcoords is not None:
             runit = 'm'
+            ds_AD['r_[m]'] = rcoords
         else:
-            rcoords =ds_AD['i/n_[-]'].values
-            runit = '-'
+            if 'r_[m]' in ds_AD.keys():
+                rcoords =ds_AD['r_[m]'].values
+                runit = 'm'
+            else:
+                rcoords =ds_AD['i/n_[-]'].values
+                runit = '-'
         # Rename columns to make them unique
         ds_AD = insertName(ds_AD, '(t,r)', ('t','r'))
         try:
