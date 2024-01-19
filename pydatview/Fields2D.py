@@ -10,14 +10,19 @@ def extract2Dfields(fo, force=False, **kwargs):
         #print('[INFO] Attempting to extract 2D field for file {}'.format(fo.filename))
         if not hasattr(fo, 'to2DFields'):
             print('[WARN] type {} does not have a `to2DFields` method'.format(type(fo)))
-        else:
-#                 try:
+            return None
+        try:
             fields = fo.to2DFields(**kwargs)
-            fo.fields2D_tmp = Fields2D(fields)
-            fo.fields2D_tmp.keys()
-            print('[ OK ] 2D field computed successfully')
-#                 except:
-#                     print('[FAIL] Attempting to extract 2D field for file {}'.format(fo.filename))
+        except:
+            print('[FAIL] Attempting to extract 2D field for file {}'.format(fo.filename))
+            return None
+        if fields is None:
+            print('[WARN] type {} has a `to2DFields` method but returned None'.format(type(fo)))
+            return None
+        # Convert to pydatview datatype for 2d fields
+        fo.fields2D_tmp = Fields2D(fields)
+        fo.fields2D_tmp.keys()
+        print('[ OK ] 2D field computed successfully')
     else:
         print('[INFO] 2D field already computed for file {}'.format(fo.filename))
         if not isinstance(fo.fields2D_tmp, Fields2D):

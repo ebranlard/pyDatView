@@ -35,6 +35,13 @@ class VTKFile(File):
     - cells
     - cell_data
 
+    Main attributes for polydata:
+    ---------
+    - points
+    - point_data
+    - polygons
+    - cell_data
+
     Main methods
     ------------
     - read, write
@@ -42,8 +49,8 @@ class VTKFile(File):
     Examples
     --------
         vtk = VTKFile('DisXZ1.vtk')
-        x  = vtk.x_grid
-        z  = vtk.z_grid
+        x  = vtk.xp_grid
+        z  = vtk.zp_grid
         Ux = vtk.point_data_grid['DisXZ'][:,0,:,0]
     
     """
@@ -61,13 +68,18 @@ class VTKFile(File):
         self.xp_grid=None  # location of points
         self.yp_grid=None
         self.zp_grid=None
-        self.point_data_grid = None
+        self.point_data_grid = {}
+
 
         # Main Data
-        self.points = None  
+        self.header     = ''
+        self.points     = None
+        self.polygons   = None
+        self.cells      = None
+        self.cell_data  = None
         self.field_data = {}
-        self.point_data = {} 
-        self.dataset = {} 
+        self.point_data = {}
+        self.dataset    = {'type':None}
 
 
 
@@ -86,7 +98,7 @@ class VTKFile(File):
             self.read(filename=filename,**kwargs)
 
 
-    def read(self, filename=None):
+    def read(self, filename=None, verbose=False):
         """ read a VTK file """
         if filename:
             self.filename = filename
@@ -97,47 +109,10 @@ class VTKFile(File):
         if os.stat(self.filename).st_size == 0:
             raise EmptyFileError('File is empty:',self.filename)
 
-        with open(filename, "rb") as f:
-            # initialize output data
-            # skip header and title
-            f.readline()
-            f.readline()
-
-            data_type = f.readline().decode("utf-8").strip().upper()
-            if data_type not in ["ASCII", "BINARY"]:
-                raise ReadError('Unknown VTK data type ',data_type)
-            self.is_ascii = data_type == "ASCII"
-
-            while True:
-                line = f.readline().decode("utf-8")
-                if not line:
-                    # EOF
-                    break
-
-                line = line.strip()
-                if len(line) == 0:
-                    continue
-
-                self.split = line.split()
-                self.section = self.split[0].upper()
-
-                if self.section in vtk_sections:
-                    _read_section(f, self)
-                else:
-                    _read_subsection(f, self)
-
-        # --- Postpro
-        _check_mesh(self) # generate points if needed
-        cells, cell_data = translate_cells(self.c, self.ct, self.cell_data_raw)
-        self.cells     = cells
-        self.cell_data = cell_data
-
-        if self.dataset['type']=='STRUCTURED_POINTS':
-            self.point_data_grid = {}
-            # We provide point_data_grid, corresponds to point_data but reshaped
-            for k,PD in self.point_data.items():
-                # NOTE: tested foe len(y)=1, len(z)=1
-                self.point_data_grid[k]=PD.reshape(len(self.xp_grid), len(self.yp_grid), len(self.zp_grid),PD.shape[1], order='F')
+        # Calling wrapped function
+        read_vtk(filename, self, verbose=verbose)
+        if verbose:
+            print('Dataset',self.dataset)
 
 
     def write(self, filename=None, binary=True):
@@ -151,54 +126,7 @@ class VTKFile(File):
         if not self.filename:
             raise Exception('No filename provided')
 
-
-        def pad(array):
-            return np.pad(array, ((0, 0), (0, 1)), "constant")
-
-        if self.points.shape[1] == 2:
-            points = pad(self.points)
-        else:
-            points = self.points
-
-        if self.point_data:
-            for name, values in self.point_data.items():
-                if len(values.shape) == 2 and values.shape[1] == 2:
-                    self.point_data[name] = pad(values)
-
-        for name, data in self.cell_data.items():
-            for k, values in enumerate(data):
-                if len(values.shape) == 2 and values.shape[1] == 2:
-                    data[k] = pad(data[k])
-
-        with open(filename, "wb") as f:
-            f.write(b"# vtk DataFile Version 4.2\n")
-            f.write("written \n".encode("utf-8"))
-            f.write(("BINARY\n" if binary else "ASCII\n").encode("utf-8"))
-            f.write(b"DATASET UNSTRUCTURED_GRID\n")
-
-            # write points and cells
-            _write_points(f, points, binary)
-            _write_cells(f, self.cells, binary)
-
-            # write point data
-            if self.point_data:
-                num_points = self.points.shape[0]
-                f.write("POINT_DATA {}\n".format(num_points).encode("utf-8"))
-                _write_field_data(f, self.point_data, binary)
-
-            # write cell data
-            if self.cell_data:
-                total_num_cells = sum(len(c.data) for c in self.cells)
-                f.write("CELL_DATA {}\n".format(total_num_cells).encode("utf-8"))
-                _write_field_data(f, self.cell_data, binary)
-
-
-    def __repr__(self):
-        s='<{} object> with keys:\n'.format(type(self).__name__)
-        for k,v in self.items():
-            s+=' - {}: {}\n'.format(k,v)
-        return s
-
+        write_vtk(self.filename, self)
 
     def __repr__(self):
         """ print function """
@@ -213,255 +141,246 @@ class VTKFile(File):
                 lines.append('- {}: [{} ... {}],  dx: {}, n: {}'.format(s,v[0],v[-1],v[1]-v[0],len(v)))
 
         lines = ['<{} object> with attributes:'.format(type(self).__name__)]
-        show_grid(self.xp_grid, 'xp_grid')
-        show_grid(self.yp_grid, 'yp_grid')
-        show_grid(self.zp_grid, 'zp_grid')
 
-        if self.point_data_grid:
-            lines.append('- point_data_grid:')
-            for k,v in self.point_data_grid.items():
-                lines.append('  "{}" : {}'.format(k,v.shape))
+        try:
+            lines.append('- dataset: {}'.format(self.dataset))
+        except:
+            pass
+
+        # grid
+        try:
+            show_grid(self.xp_grid, 'xp_grid')
+            show_grid(self.yp_grid, 'yp_grid')
+            show_grid(self.zp_grid, 'zp_grid')
+        except:
+            pass
+
+        lines.append('- point_data_grid:')
+        for k,v in self.point_data_grid.items():
+            lines.append('  "{}" : {}'.format(k,v.shape))
 
         lines.append('- points {}'.format(len(self.points)))
-        if len(self.cells) > 0:
+        if self.cells is not None and len(self.cells) > 0:
             lines.append("- cells:")
             for tpe, elems in self.cells:
                 lines.append("    {}: {}".format(tpe,len(elems)))
         else:
-            lines.append("  No cells.")
+            lines.append("- cells: None")
+        if self.polygons is not None:
+            lines.append("- polygons: {}, consiting of {} points".format(len(self.polygons), len(self.polygons[0])))
+        else:
+            lines.append("- polygons: None")
 
-        if self.point_data:
-            lines.append('- point_data:')
-            for k,v in self.point_data.items():
-                lines.append('  "{}" : {}'.format(k,v.shape))
+        lines.append('- point_data:')
+        for k,v in self.point_data.items():
+            lines.append('  "{}" : {}'.format(k,v.shape))
 
-        if self.cell_data:
-            names = ", ".join(self.cell_data.keys())
-            lines.append("  Cell data: {}".format(names))
+        names = ", ".join(self.cell_data.keys())
+        lines.append("- cell_data: {}".format(names))
 
         return "\n".join(lines)
 
 
     def toDataFrame(self):
-        return None
+        if self.dataset['type'] == 'STRUCTURED_POINTS':
+            data = np.zeros((2,3))
+            data[:,0] = [np.min(self.xp_grid), np.max(self.xp_grid)]
+            data[:,1] = [np.min(self.yp_grid), np.max(self.yp_grid)]
+            data[:,2] = [np.min(self.zp_grid), np.max(self.zp_grid)]
+            return pd.DataFrame(data=data, columns=['xRange', 'yRange', 'zRange'])
+            #if self.point_data_grid is not None:
+            #    for k,v in self.point_data_grid.items():
+
+        else:
+            print('[WARN] vtk_file: toDataFrame not implemented for dataset type: {}'.format(self.dataset['type']))
+            data = np.zeros((2,2))
+            data[:,0] = [0,1]
+            return pd.DataFrame(data=data, columns=['Dummy1', 'Dummy2'])
+            return None
+
+    def to2DFields(self, **kwargs):
+        import xarray as xr
+        if len(kwargs.keys())>0:
+            print('[WARN] VTKFile: to2DFields: ignored keys: ',kwargs.keys())
+
+        ds = None
+        if self.dataset['type'] == 'STRUCTURED_POINTS':
+            I = np.where(np.asarray(self.dataset['DIMENSIONS'])==1)[0]
+            if len(I) == 1:
+                icst = I[0]
+                # --- 2D velocity fields
+                ds = xr.Dataset(coords={'x': self.xp_grid, 'y': self.yp_grid, 'z': self.zp_grid})
+                dims = {0:['y','z'], 1:['x','z'], 2:['x','y']}[icst]
+                for k,v in self.point_data_grid.items():
+                    if v.shape[-1]==3:
+                        ds[k + '_x'] = (dims, np.squeeze(v[:,:,:,0]))
+                        ds[k + '_y'] = (dims, np.squeeze(v[:,:,:,1]))
+                        ds[k + '_z'] = (dims, np.squeeze(v[:,:,:,2]))
+                    else:
+                        ds[k] = (dims, np.squeeze(v[:,:,:,0]))
+            else:
+                print('[WARN] VTKFile: field dimension not supported: {}'.format(self.dataset['DIMENSIONS']))
+                return None
+        else:
+            print('[WARN] VTKFile: datatype not implemented/suitable for 2D fields: {}'.format(self.dataset['type']))
+            return None
+        return ds
+
+# --------------------------------------------------------------------------------
+# --- Simple/dedicated reader and writers 
+# --------------------------------------------------------------------------------
+def write_dataset_unstructured_grid(filename, points, cells, point_data=None, cell_data=None, header='', binary=False):
+    def pad(array):
+        return np.pad(array, ((0, 0), (0, 1)), "constant")
+
+    if points.shape[1] == 2:
+        points = pad(points)
+    else:
+        points = points
+
+    if point_data:
+        for name, values in point_data.items():
+            if len(values.shape) == 2 and values.shape[1] == 2:
+                point_data[name] = pad(values)
+
+    for name, data in cell_data.items():
+        for k, values in enumerate(data):
+            if len(values.shape) == 2 and values.shape[1] == 2:
+                data[k] = pad(data[k])
+
+    with open(filename, "wb") as f:
+        f.write(b"# vtk DataFile Version 4.2\n")
+        f.write((header.strip()+"\n").encode("utf-8"))
+        f.write(("BINARY\n" if binary else "ASCII\n").encode("utf-8"))
+        f.write(b"DATASET UNSTRUCTURED_GRID\n")
+
+        # write points and cells
+        _write_points(f, points, binary)
+        _write_cells(f, cells, binary)
+
+        # write point data
+        if point_data is not None:
+            num_points = points.shape[0]
+            f.write("POINT_DATA {}\n".format(num_points).encode("utf-8"))
+            _write_field_data(f, point_data, binary)
+
+        # write cell data
+        if cell_data is not None:
+            total_num_cells = sum(len(c.data) for c in cells)
+            f.write("CELL_DATA {}\n".format(total_num_cells).encode("utf-8"))
+            _write_field_data(f, cell_data, binary)
         
+def write_dataset_polydata(filename, points, polygons, point_data=None, cell_data=None, uniquePoints=False, header='', binary=False):
+    if uniquePoints:
+        # NOTE: this will completed change the order
+        # Create list of points per polygon
+        polygons_points = [ [tuple(points[i,:]) for i in polygon] for polygon in polygons]
 
+        # Create a unique list of points
+        points_list = [tuple(row) for row in points]
+        points = list(set(points_list))
+        # Convert the array to a view with a structured dtype
+        #pview = np.ascontiguousarray(points).view(np.dtype((np.void, points.dtype.itemsize * points.shape[1])))
+        #points = np.unique(pview).view(points.dtype).reshape(-1, points.shape[1])
 
-#         Save FlowData Object to vtk
-#         """
-#         n_points = self.dimensions.x1 * self.dimensions.x2 * self.dimensions.x3
-#         vtk_file = Output(filename)
-          #self.file = open(self.filename, "w")
-          #self.ln = "\n"
-#         vtk_file.write_line('# vtk DataFile Version 3.0')
-#         vtk_file.write_line('array.mean0D')
-#         vtk_file.write_line('ASCII')
-#         vtk_file.write_line('DATASET STRUCTURED_POINTS')
-#         vtk_file.write_line('DIMENSIONS {}'.format(self.dimensions))
-#         vtk_file.write_line('ORIGIN {}'.format(self.origin))
-#         vtk_file.write_line('SPACING {}'.format(self.spacing))
-#         vtk_file.write_line('POINT_DATA {}'.format(n_points))
-#         vtk_file.write_line('FIELD attributes 1')
-#         vtk_file.write_line('UAvg 3 {} float'.format(n_points))
-#         for u, v, w in zip(self.u, self.v, self.w):
-#             vtk_file.write_line('{}'.format(Vec3(u, v, w)))
+        # Update indices in the connectivity table
+        polygons = [[points.index(point) for point in poly_points] for poly_points in polygons_points]
 
-# --- Paraview
-# except: from paraview.simple import *
-#    sliceFile = sliceDir + '/' + tStartStr + '/' + sliceName
-#    print '     Slice file 1a: ' + sliceFile
-#    slice_1a_vtk = LegacyVTKReader( FileNames=[sliceFile] )
-#    sliceFile = sliceDir + '/' + tEndStr + '/' + sliceName
-#    DataRepresentation3 = GetDisplayProperties(slice_1a_vtk)
-#    DataRepresentation3.Visibility = 0
-#    SetActiveSource(slice_1a_vtk)
+    with open(filename, "wb") as f:
+        f.write(b"# vtk DataFile Version 2.0\n")
+        f.write((header.strip()+"\n").encode("utf-8"))
+        f.write(("BINARY\n" if binary else "ASCII\n").encode("utf-8"))
+        f.write(b"DATASET POLYDATA\n")
+        _write_points(f, points, binary)
+        _write_polygons(f, polygons, binary)
+        if point_data:
+            num_points = points.shape[0]
+            f.write("POINT_DATA {}\n".format(num_points).encode("utf-8"))
+            _write_field_data(f, point_data, binary)
 
-# --- VTK
-# import np
-# from vtk import vtkStructuredPointsReader
-# from vtk.util import np as VN
-# 
-# reader = vtkStructuredPointsReader()
-# reader.SetFileName(filename)
-# reader.ReadAllVectorsOn()
-# reader.ReadAllScalarsOn()
-# reader.Update()
-# 
-# data = reader.GetOutput()
-# 
-# dim = data.GetDimensions()
-# vec = list(dim)
-# vec = [i-1 for i in dim]
-# vec.append(3)
-# 
-# u = VN.vtk_to_np(data.GetCellData().GetArray('velocity'))
-# b = VN.vtk_to_numpy(data.GetCellData().GetArray('cell_centered_B'))
-# 
-# u = u.reshape(vec,order='F')
-# b = b.reshape(vec,order='F')
-# 
-# x = zeros(data.GetNumberOfPoints())
-# y = zeros(data.GetNumberOfPoints())
-# z = zeros(data.GetNumberOfPoints())
-# 
-# for i in range(data.GetNumberOfPoints()):
-#         x[i],y[i],z[i] = data.GetPoint(i)
-# 
-# x = x.reshape(dim,order='F')
-# y = y.reshape(dim,order='F')
-# z = z.reshape(dim,order='F')
+        ## write cell data
+        if cell_data:
+            total_num_cells = len(polygons)
+            f.write("CELL_DATA {}\n".format(total_num_cells).encode("utf-8"))
+            _write_field_data(f, cell_data, binary)
 
-# --- vtk
-# import vtk
-# import numpy
-# import vtk_demo.version as version
-# 
-# 
-# def main():
-#     """
-#     :return: The render window interactor.
-#     """
-# 
-#     chessboard_resolution = 5
-#     n_lut_colors = 256
-#     data_max_value = 1
-# 
-#     # Provide some geometry
-#     chessboard = vtk.vtkPlaneSource()
-#     chessboard.SetXResolution(chessboard_resolution)
-#     chessboard.SetYResolution(chessboard_resolution)
-#     num_squares = chessboard_resolution * chessboard_resolution
-#     #  Force an update so we can set cell data
-#     chessboard.Update()
-# 
-#     # Make some arbitrary data to show on the chessboard geometry
-#     data = vtk.vtkFloatArray()
-#     for i in range(num_squares):
-#         if i == 4:
-#             # This square should in principle light up with color given by SetNanColor below
-#             data.InsertNextTuple1(numpy.nan)
-#         else:
-#             thing = (i * data_max_value) / (num_squares - 1)
-#             data.InsertNextTuple1(thing)
-# 
-#     # Make a LookupTable
-#     lut = vtk.vtkLookupTable()
-#     lut.SetNumberOfColors(n_lut_colors)
-#     lut.Build()
-#     lut.SetTableRange(0, data_max_value)
-#     lut.SetNanColor(.1, .5, .99, 1.0) # <------ This color gets used
-#     for i in range(n_lut_colors):
-#         # Fill it with arbitrary colors, e.g. grayscale
-#         x = data_max_value*i/(n_lut_colors-1)
-#         lut.SetTableValue(i, x, x, x, 1.0)
-#     lut.SetNanColor(.99, .99, .1, 1.0) # <----- This color gets ignored! ...except by GetNanColor
-# 
-#     print(lut.GetNanColor())  # <-- Prints the color set by the last SetNanColor call above!
-# 
-#     chessboard.GetOutput().GetCellData().SetScalars(data)
-# 
-#     mapper = vtk.vtkPolyDataMapper()
-#     mapper.SetInputConnection(chessboard.GetOutputPort())
-#     mapper.SetScalarRange(0, data_max_value)
-#     mapper.SetLookupTable(lut)
-#     mapper.Update()
-# 
-#     actor = vtk.vtkActor()
-#     actor.SetMapper(mapper)
-# 
-#     renderer = vtk.vtkRenderer()
-#     ren_win = vtk.vtkRenderWindow()
-#     ren_win.AddRenderer(renderer)
-#     renderer.SetBackground(vtk.vtkNamedColors().GetColor3d('MidnightBlue'))
-#     renderer.AddActor(actor)
-# 
-#     iren = vtk.vtkRenderWindowInteractor()
+def read_dataset_polydata(file_path):
+    """ Simple dedicated function to read a ASCII VTK file with polygons and field data"""
+    points = []
+    polygons = []
+    cell_data = {}
+    point_data = {}
 
-# --- pyvtk
-#         """Read vtk-file stored previously with tovtk."""
-#         p = pyvtk.VtkData(filename)
-#         xn = array(p.structure.points)
-#         dims = p.structure.dimensions
-#         try:
-#             N = eval(p.header.split(" ")[-1])
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
 
-    # --- Extract
-    #     # Convert the center of the turbine coordinate in m to High-Resolution domains left most corner in (i,j)
-    #     xe_index = int(origin_at_precusr[0]/10)
-    #     ye_index = int(origin_at_precusr[1]/10)
-    #     
-    #     # Read the full domain from VTK
-    #     reader = vtk.vtkStructuredPointsReader()
-    #     reader.SetFileName(in_vtk)
-    #     reader.Update()
-    #     
-    #     # Extract the High Resolution domain at same spacial spacing by specifying the (i,i+14),(j,j+14),(k,k+20) tuples
-    #     extract = vtk.vtkExtractVOI()
-    #     extract.SetInputConnection(reader.GetOutputPort())
-    #     extract.SetVOI(xe_index, xe_index+14, ye_index, ye_index+14, 0, 26)
-    #     extract.SetSampleRate(1, 1, 1)
-    #     extract.Update()
-    #     
-    #     # Write the extract as VTK
-    #     points = extract.GetOutput()
-    #     vec = points.GetPointData().GetVectors('Amb')
-    # 
-    #     with open(out_vtk, 'a') as the_file:
-    #         the_file.write('# vtk DataFile Version 3.0\n')
-    #         the_file.write('High\n')
-    #         the_file.write('ASCII\n')
-    #         the_file.write('DATASET STRUCTURED_POINTS\n')
-    #         the_file.write('DIMENSIONS %d %d %d\n' % points.GetDimensions())
-    #         the_file.write('ORIGIN %f %f %f\n' % origin_at_stitch)
-    #         the_file.write('SPACING %f %f %f\n' % points.GetSpacing())
-    #         the_file.write('POINT_DATA %d\n' % points.GetNumberOfPoints())
-    #         the_file.write('VECTORS Amb float\n')
-    #         for i in range(points.GetNumberOfPoints()):
-    #             the_file.write('%f %f %f\n' % vec.GetTuple(i) )
+        data_section = 'header'
+        header=[]
 
-    # --- Stitch
-    #     reader = vtk.vtkStructuredPointsReader()
-    #     reader.SetFileName(in_vtk)
-    #     reader.Update()
-    #     
-    #     hAppend = vtk.vtkImageAppend()
-    #     hAppend.SetAppendAxis(0)
-    #     for i in range(nx):
-    #         hAppend.AddInputData(reader.GetOutput())
-    #     hAppend.Update()
-    #     
-    #     vAppend = vtk.vtkImageAppend()
-    #     vAppend.SetAppendAxis(1)
-    #     for i in range(ny):
-    #         vAppend.AddInputData(hAppend.GetOutput())
-    #     vAppend.Update()
-    #     
-    #     points = vAppend.GetOutput()
-    #     vec = points.GetPointData().GetVectors('Amb')
-    # 
-    #     with open(out_vtk, 'a') as the_file:
-    #         the_file.write('# vtk DataFile Version 3.0\n')
-    #         the_file.write('Low\n')
-    #         the_file.write('ASCII\n')
-    #         the_file.write('DATASET STRUCTURED_POINTS\n')
-    #         the_file.write('DIMENSIONS %d %d %d\n' % points.GetDimensions())
-    #         the_file.write('ORIGIN %f %f %f\n' % points.GetOrigin())
-    #         the_file.write('SPACING %f %f %f\n' % points.GetSpacing())
-    #         the_file.write('POINT_DATA %d\n' % points.GetNumberOfPoints())
-    #         the_file.write('VECTORS Amb float\n')
-    #         for i in range(points.GetNumberOfPoints()):
-    #             the_file.write('%f %f %f\n' % vec.GetTuple(i) )
+        for line in lines:
+            if len(line.strip())==0:
+                continue
+            if line.startswith("POINTS"):
+                data_section = "points"
+                continue
+            elif line.startswith("POLYGONS"):
+                data_section = "polygons"
+                continue
+            elif line.startswith("POINT_DATA") or line.startswith("CELL_DATA"):
+                data_section = "cell_data"
+                continue
+            elif line.startswith("SCALARS") :
+                sp = line.split()
+                field_name = sp[1]
+                field_type = sp[2]
+                data_section = "cell_data_scalar"
+                cell_data[field_name] = []
+                continue
+            elif line.startswith("VECTORS"):
+                sp = line.split()
+                field_name = sp[1]
+                field_type = sp[2]
+                data_section = "cell_data_vector"
+                cell_data[field_name] = []
+                continue
+            elif line.startswith("LOOKUP_TABLE"):
+                continue
 
+            if data_section == "points":
+                # Extract points
+                point = list(map(float, line.split()[:]))
+                points.append(point)
+            elif data_section == "polygons":
+                # Extract polygons
+                polygon_data = list(map(int, line.split()[1:]))
+                polygons.append(polygon_data[:])  # Ignore the first value (number of vertices)
+            elif data_section == "cell_data_scalar":
+                field_values = list(map(float, line.split()))
+                cell_data[field_name].extend(field_values)
+            elif data_section == "cell_data_vector":
+                if line.startswith("LOOKUP_TABLE"):
+                    continue
+                field_values = list(map(float, line.split()))
+                cell_data[field_name].append(field_values)
+            elif data_section == "header":
+                header.append(line)
+            else:
+                print('>>> Unknown data_section', data_section)
+                raise NotImplementedError()
+        points   = np.asarray(points)
+        polygons = np.asarray(polygons)
+        for k,v in cell_data.items():
+            cell_data[k] = np.asarray(v)
 
-    # 
+    return header, points, polygons, point_data, cell_data
 
-
-# --------------------------------------------------------------------------------}
-# --- The code below is taken from meshio 
+# --------------------------------------------------------------------------------
+# --- The code below was taken from meshio 
 #     https://github.com/nschloe/meshio
 #     The MIT License (MIT)
 #     Copyright (c) 2015-2020 meshio developers
-# --------------------------------------------------------------------------------{
+#     Adapted by E. Branlard
+# --------------------------------------------------------------------------------
 ReadError  = BrokenFormatError
 WriteError = BrokenFormatError
 
@@ -622,6 +541,7 @@ numpy_to_vtk_dtype = {
 
 # supported vtk dataset types
 vtk_dataset_types = [
+    "POLYDATA",
     "UNSTRUCTURED_GRID",
     "STRUCTURED_POINTS",
     "STRUCTURED_GRID",
@@ -629,6 +549,7 @@ vtk_dataset_types = [
 ]
 # additional infos per dataset type
 vtk_dataset_infos = {
+    "POLYDATA": [],
     "UNSTRUCTURED_GRID": [],
     "STRUCTURED_POINTS": [
         "DIMENSIONS",
@@ -650,6 +571,7 @@ vtk_sections = [
     "METADATA",
     "DATASET",
     "POINTS",
+    "POLYGONS",
     "CELLS",
     "CELL_TYPES",
     "POINT_DATA",
@@ -659,23 +581,31 @@ vtk_sections = [
 ]
 
 
-
-
-
-def read(filename):
+def read_vtk(filename, info, **kwargs):
     """Reads a VTK vtk file."""
+    # initialize output data
+    if info is None:
+        info = VTKFile()
+
     with open(filename, "rb") as f:
-        out = read_buffer(f)
+        out = read_buffer(f, info, **kwargs)
+
+    # --- Postpro
+    _check_mesh(info) # generate points if needed
+    if info.polygons is not None:
+        info.cell_data = info.cell_data_raw
+    else:
+        cells, cell_data = translate_cells(info.c, info.ct, info.cell_data_raw)
+        info.cells     = cells
+        info.cell_data = cell_data
+
+
     return out
 
-
-def read_buffer(f):
-    # initialize output data
-    info = VTKFile()
-
+def read_buffer(f, info, verbose=False):
     # skip header and title
     f.readline()
-    f.readline()
+    info.header = f.readline().decode("utf-8").strip()
 
     data_type = f.readline().decode("utf-8").strip().upper()
     if data_type not in ["ASCII", "BINARY"]:
@@ -694,18 +624,14 @@ def read_buffer(f):
 
         info.split = line.split()
         info.section = info.split[0].upper()
-
+        if verbose:
+            print('Section', info.section, info.section in vtk_sections)
         if info.section in vtk_sections:
+            # Sections: METADATA, DATASET, POINTS, POLYGONS, CELLS, CELL_TYPES, POINT_DATA, CELL_DATA, LOOKUP_TABLE, COLOR_SCALARS
             _read_section(f, info)
         else:
+            # SubSections: POINT_DATA, CELL_DATA, DATASET, SCALARS, VECTORS, TENSORS, FIELD
             _read_subsection(f, info)
-
-    _check_mesh(info)
-    cells, cell_data = translate_cells(info.c, info.ct, info.cell_data_raw)
-
-    info.cells     = cells
-    info.cell_data = cell_data
-
     return info
 
 
@@ -715,6 +641,7 @@ def _read_section(f, info):
 
     elif info.section == "DATASET":
         info.active = "DATASET"
+        # Dataset types: POLYDATA, UNSTRUCTURED_GRID, STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID
         info.dataset["type"] = info.split[1].upper()
         if info.dataset["type"] not in vtk_dataset_types:
             raise BrokenFormatError(
@@ -770,7 +697,7 @@ def _read_section(f, info):
 
     elif info.section == "LOOKUP_TABLE":
         info.num_items = int(info.split[2])
-        numpy.fromfile(f, count=info.num_items * 4, sep=" ", dtype=float)
+        c = numpy.fromfile(f, count=info.num_items * 4, sep=" ", dtype=float)
         # rgba = data.reshape((info.num_items, 4))
 
     elif info.section == "COLOR_SCALARS":
@@ -780,7 +707,25 @@ def _read_section(f, info):
         dtype = numpy.ubyte
         if info.is_ascii:
             dtype = float
-        numpy.fromfile(f, count=num_items * nValues, dtype=dtype)
+        c = numpy.fromfile(f, count=num_items * nValues, dtype=dtype)
+
+    elif info.section == "POLYGONS":
+        info.num_items = int(info.split[1])
+        num_floats = int(info.split[2])
+        nPerLine = int(num_floats/info.num_items)
+        if np.mod(num_floats, info.num_items):
+            raise NotImplementedError('Polygons with varying number of edges')
+        if info.is_ascii:
+            dtype = int
+            poly = numpy.fromfile(f, count=num_floats, sep=" ", dtype=float)
+            poly = poly.reshape(-1,nPerLine).astype(int)
+            poly = poly[:,1:] # We remove Ns. Put it back if it's an important data
+            info.polygons = poly
+        else:
+            raise NotImplementedError('Polygons binary')
+
+    else:
+        raise NotImplementedError('Section not implemented `{}`'.format(info.section))
 
 
 def _read_subsection(f, info):
@@ -846,6 +791,13 @@ def _check_mesh(info):
 
         info.points = _generate_points(axis)
         info.c, info.ct = _generate_cells(dim=info.dataset["DIMENSIONS"])
+
+        # --- point_data_grid added for convenience, TODO, make it a property
+        info.point_data_grid = {}
+        # We provide point_data_grid, corresponds to point_data but reshaped
+        for k,PD in info.point_data.items():
+            # NOTE: tested for len(y)=1, len(z)=1 only
+            info.point_data_grid[k]=PD.reshape(len(info.xp_grid), len(info.yp_grid), len(info.zp_grid),PD.shape[1], order='F')
 
     elif info.dataset["type"] == "RECTILINEAR_GRID":
         axis = [
@@ -1159,50 +1111,16 @@ def translate_cells(data, types, cell_data_raw):
 
     return cells, cell_data
 
-
-def write(filename, mesh, binary=True):
-    def pad(array):
-        return numpy.pad(array, ((0, 0), (0, 1)), "constant")
-
-    if mesh.points.shape[1] == 2:
-        points = pad(mesh.points)
+def write_vtk(filename, info, binary=False):
+    if info.dataset['type']=='POLYDATA':
+        write_dataset_polydata(info.filename, points=info.points, polygons=info.polygons, point_data=info.point_data, cell_data=info.cell_data, binary=binary, header=info.header)
+    elif info.dataset['type']=='UNSTRUCTURED_GRID':
+        write_dataset_unstructured_grid(info.filename, points=info.points, cells=info.cells, point_data=info.point_data, cell_data=info.cell_data, binary=binary)
     else:
-        points = mesh.points
-
-    if mesh.point_data:
-        for name, values in mesh.point_data.items():
-            if len(values.shape) == 2 and values.shape[1] == 2:
-                mesh.point_data[name] = pad(values)
-
-    for name, data in mesh.cell_data.items():
-        for k, values in enumerate(data):
-            if len(values.shape) == 2 and values.shape[1] == 2:
-                data[k] = pad(data[k])
-
-    with open(filename, "wb") as f:
-        f.write(b"# vtk DataFile Version 4.2\n")
-        f.write("written \n".encode("utf-8"))
-        f.write(("BINARY\n" if binary else "ASCII\n").encode("utf-8"))
-        f.write(b"DATASET UNSTRUCTURED_GRID\n")
-
-        # write points and cells
-        _write_points(f, points, binary)
-        _write_cells(f, mesh.cells, binary)
-
-        # write point data
-        if mesh.point_data:
-            num_points = mesh.points.shape[0]
-            f.write("POINT_DATA {}\n".format(num_points).encode("utf-8"))
-            _write_field_data(f, mesh.point_data, binary)
-
-        # write cell data
-        if mesh.cell_data:
-            total_num_cells = sum(len(c.data) for c in mesh.cells)
-            f.write("CELL_DATA {}\n".format(total_num_cells).encode("utf-8"))
-            _write_field_data(f, mesh.cell_data, binary)
-
+        raise NotImplementedError('Write function for DATASET TYPE: `{}`'.format(info.dataset['type']))
 
 def _write_points(f, points, binary):
+    points = np.asarray(points)
     f.write(
         "POINTS {} {}\n".format(
             len(points), numpy_to_vtk_dtype[points.dtype.name]
@@ -1218,7 +1136,10 @@ def _write_points(f, points, binary):
         points.astype(points.dtype.newbyteorder(">")).tofile(f, sep="")
     else:
         # ascii
-        points.tofile(f, sep=" ")
+        #points.tofile(f, sep=" ")
+        for point in points:
+            np.asarray(point).tofile(f, sep=" ")
+            f.write(b"\n")
     f.write(b"\n")
 
 
@@ -1272,6 +1193,24 @@ def _write_cells(f, cells, binary):
             key_ = c.type[:7] if c.type[:7] == "polygon" else c.type
             numpy.full(len(c.data), meshio_to_vtk_type[key_]).tofile(f, sep="\n")
             f.write(b"\n")
+
+
+def _write_polygons(f, polygons, binary):
+
+    polyN = [len(p) for p in polygons]
+    nFloats = np.sum(polyN) + len(polygons)
+    f.write(("POLYGONS {} {}\n".format(len(polygons), nFloats)).encode("utf-8"))
+    poly_list = [ [pn]+ list(polygon) for pn,polygon in zip(polyN, polygons)]
+    if binary:
+        print('>>>')
+#> endian
+#         points.astype(points.dtype.newbyteorder(">")).tofile(f, sep="")
+    else:
+        # ascii
+        for poly in poly_list:
+            np.asarray(poly).tofile(f, sep=" ")
+            f.write(b"\n")
+    f.write(b"\n")
 
 
 def _write_field_data(f, data, binary):
