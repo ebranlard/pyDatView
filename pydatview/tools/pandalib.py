@@ -228,7 +228,9 @@ def changeUnits(df, flavor='SI', inPlace=True):
     elif flavor == 'SI':
         cols = []
         for i, colname in enumerate(df.columns):
-            colname_new, df.iloc[:,i] = change_units_to_SI(colname, df.iloc[:,i])
+            colname_new, col_new = change_units_to_SI(colname, df.iloc[:,i])
+            df[colname] = df[colname].astype(col_new.dtype) # Need to cast to new type if type changed..
+            df.iloc[:,i] = col_new
             cols.append(colname_new)
         df.columns = cols
     else:
