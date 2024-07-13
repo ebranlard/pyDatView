@@ -48,6 +48,7 @@ def fileFormats(userpath=None, ignoreErrors=False, verbose=False):
     from .hawcstab2_pwr_file      import HAWCStab2PwrFile
     from .hawcstab2_ind_file      import HAWCStab2IndFile
     from .hawcstab2_cmb_file      import HAWCStab2CmbFile
+    from .gnuplot_file            import GNUPlotFile 
     from .mannbox_file            import MannBoxFile 
     from .flex_blade_file         import FLEXBladeFile
     from .flex_profile_file       import FLEXProfileFile
@@ -104,6 +105,7 @@ def fileFormats(userpath=None, ignoreErrors=False, verbose=False):
     addFormat(60, FileFormat(NetCDFFile))
     addFormat(60, FileFormat(VTKFile))
     addFormat(60, FileFormat(TDMSFile))
+    addFormat(60, FileFormat(GNUPlotFile))
     addFormat(60, FileFormat(ParquetFile))
     addFormat(60, FileFormat(PickleFile))
     addFormat(70, FileFormat(CactusFile))

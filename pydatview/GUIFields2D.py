@@ -32,7 +32,7 @@ class Fields2DPanel(wx.Panel):
         self.textArgs   = wx.TextCtrl(self.filesPanel, wx.ID_ANY, '', style = wx.TE_PROCESS_ENTER)
         self.lbFiles = wx.ListBox(self.filesPanel, style=wx.LB_EXTENDED)
         self.lbFields = wx.ListBox(self.fieldsPanel, style=wx.LB_EXTENDED)
-        self.textArgs.SetValue('DeltaAzi=10')
+        self.textArgs.SetValue('DeltaAzi=10') # TODO
         self.lbFiles.SetFont(getMonoFont(self))
         self.lbFields.SetFont(getMonoFont(self))
         self.textArgs.SetFont(getMonoFont(self))
@@ -99,7 +99,7 @@ class Fields2DPanel(wx.Panel):
 
         ISelF = self.lbFiles.GetSelections()
         kwargs = self.getArgs()
-        # --- Compute if not done yet
+        # --- Compute 2d field if not done yet
         for iself in ISelF:
             file_object = self.fileobjects[iself]
             if not hasattr(file_object, 'fields2D_tmp'):
@@ -126,6 +126,11 @@ class Fields2DPanel(wx.Panel):
             commonCols = [c for c in fieldListByFile[0] if c in commonCols]
             #commonCols.sort()
             self.lbFields.Set(commonCols)
+
+            # Trigger, we select the first field...
+            if len(commonCols)>0:
+                self.lbFields.SetSelection(0)
+                self.on_2d_field_selected()
         else:
             print('[WARN] No 2D fields')
 
