@@ -324,7 +324,7 @@ class Plot2DPanel(wx.Panel):
     def update_plot(self, event=None):
         #
         data = self._GUI2Data()
-
+        # NOTE: clear and set_subplots will create a flashing
         self.fig.clear()
         self.set_subplots()
         axes = self.fig.axes
@@ -399,14 +399,14 @@ class Plot2DPanel(wx.Panel):
         if data['commonCB']:
             for mappable in mappables:
                 mappable.set_clim([vmin, vmax])
-            self.add_colorbar(axes[-1], mappables[-1], vmin, vmax, polar=data['polar'], pmin=pmin, pmax=pmax, orientation=data['orientation'], title=all_fieldnames[0])
+            self.add_colorbar(axes[-1], mappables[-1], vmin, vmax, polar=data['polar'], pmin=pmin, pmax=pmax, orientation=data['orientation'], title=all_fieldnames[0], plotType=data['plotType'])
         else:
             for ax, mappable in zip(axes, mappables):
-                self.add_colorbar(ax, mappable, vmin, vmax, polar=data['polar'], orientation=data['orientation'])
+                self.add_colorbar(ax, mappable, vmin, vmax, polar=data['polar'], orientation=data['orientation'], plotType=data['plotType'])
 
         self.canvas.draw()
 
-    def add_colorbar(self, ax, mappable, vmin, vmax, polar=False, orientation='vertical', cax=None, pmin=None, pmax=None, title=None):
+    def add_colorbar(self, ax, mappable, vmin, vmax, polar=False, orientation='vertical', cax=None, pmin=None, pmax=None, title=None, plotType='contourf'):
         ax = mappable.axes
         fig = ax.figure
 
@@ -435,7 +435,9 @@ class Plot2DPanel(wx.Panel):
                 mappable.set_clim([vmin, vmax])
             if cax is None:
                 divider = make_axes_locatable(ax)
-                if orientation=='vertical':
+                if plotType=='surface':
+                    cax=None # TODO
+                elif orientation=='vertical':
                     cax = divider.append_axes("right", size="6%", pad="2%")
                 else:
                     cax = divider.append_axes("bottom", size="2%", pad="6%")
