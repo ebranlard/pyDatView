@@ -371,8 +371,9 @@ class TurbSimFile(File):
                    if 'mid', average the vertical profile at the middle y value
         """
         if y_span=='full':
+            # Compute statistics with respect to time first, then average over "y"
             m = np.mean(np.mean(self['u'][:,:,:,:], axis=1), axis=1)
-            s = np.std( np.std( self['u'][:,:,:,:], axis=1), axis=1)
+            s = np.mean(np.std( self['u'][:,:,:,:], axis=1), axis=1)
         elif y_span=='mid':
             iy, iz = self.iMid
             m = np.mean(self['u'][:,:,iy,:], axis=1)
