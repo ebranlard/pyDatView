@@ -126,6 +126,16 @@ class GUIScripterFrame(wx.Frame):
         scripterOptions = self._GUI2Data()
 
         # --- Mainframe GUI 2 data
+        inb = self.mainframe.nb.GetSelection()
+        if inb==0:
+            s = '# Scripter not yet implemented for FileInfo. Select 1D plot.'
+            self.text_ctrl.SetValue(s)
+            return
+        elif inb==2:
+            s = '# Scripter not yet implemented for 2D plot. Select 1D plot.'
+            self.text_ctrl.SetValue(s)
+            return
+
         try:
             ID,SameCol,selMode=self.mainframe.selPanel.getPlotDataSelection()
         except:
