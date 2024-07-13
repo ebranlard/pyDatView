@@ -29,7 +29,7 @@ Requirements:
   You need to install ONE of the following python library:
     - library= welib,     repository= https://github.com/ebranlard/welib
     - library= pydatview, repository= https://github.com/ebranlard/pyDatView
-    - library= pyFAST,    repository= https://github.com/openfast/python-toolbox 
+    - library= openfast_toolbox,    repository= https://github.com/openfast/openfast_toolbox 
   You can install a given library as follows:
       git clone repository    # Replace repository with the address above
       cd library              # Replace library with the folder generated after cloning
@@ -66,7 +66,7 @@ class GUIScripterFrame(wx.Frame):
         self.btSave = wx.Button(self.panel, label=CHAR['save']+' '+"Save", style=wx.BU_EXACTFIT)
 
         txtLib = wx.StaticText(self.panel, -1, 'Library:')
-        libflavors = ["welib", "pydatview", "pyFAST"]
+        libflavors = ["welib", "pydatview", "openfast_toolbox"]
         self.cbLib = wx.Choice(self.panel, choices=libflavors)
         self.cbLib.SetSelection(1)
 

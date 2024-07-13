@@ -8,14 +8,14 @@ _WELIB={
     'pydatview.fast.postpro':'welib.fast.postpro',
         }
 _PYFAST={
-    'pydatview.io'          :'pyFAST.input_output',
-    'pydatview.tools'       :'pyFAST.tools',
-    'pydatview.fast.postpro':'pyFAST.postpro', # I think...
+    'pydatview.io'          :'openfast_toolbox.io',
+    'pydatview.tools'       :'openfast_toolbox.tools',
+    'pydatview.fast.postpro':'openfast_toolbox.postpro', # I think...
         }
 
 _flavorReplaceDict={
         'welib':_WELIB,
-        'pyFAST':_PYFAST,
+        'openfast_toolbox':_PYFAST,
         'pydatview':{},
         }
 
