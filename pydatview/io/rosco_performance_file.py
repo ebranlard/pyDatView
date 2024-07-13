@@ -19,7 +19,7 @@ class ROSCOPerformanceFile(File):
     
     Main methods
     ------------
-    - read, write, toDataFrame, keys
+    - read, write, toDataFrame, to2DFields, keys
     
     Examples
     --------

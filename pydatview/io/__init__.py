@@ -245,6 +245,7 @@ def detectFormat(filename, **kwargs):
             else:
                 extMatch = False
         if extMatch: # we have a match on the extension
+            #print('Trying format: ',myformat)
             valid, F = isRightFormat(myformat, filename, **kwargs)
             if valid:
                 #print('File detected as :',myformat)

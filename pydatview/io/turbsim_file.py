@@ -726,26 +726,38 @@ class TurbSimFile(File):
         ds['y'].attrs['unit'] = 'm'
         ds['z'].attrs['unit'] = 'm'
 
+        ds['(y,z)_u_avg_[m/s]']= (['y','z'], np.squeeze(np.mean(self['u'][0,:,:,:], axis=0)))
+        ds['(y,z)_v_avg_[m/s]']= (['y','z'], np.squeeze(np.mean(self['u'][1,:,:,:], axis=0)))
+        ds['(y,z)_w_avg_[m/s]']= (['y','z'], np.squeeze(np.mean(self['u'][2,:,:,:], axis=0)))
+
+        ds['(t,y)_u_avg_[m/s]']= (['t','y'], np.squeeze(np.mean(self['u'][0,:,:,:], axis=2)))
+        ds['(t,y)_v_avg_[m/s]']= (['t','y'], np.squeeze(np.mean(self['u'][1,:,:,:], axis=2)))
+        ds['(t,y)_w_avg_[m/s]']= (['t','y'], np.squeeze(np.mean(self['u'][2,:,:,:], axis=2)))
+
+        ds['(t,z)_u_avg_[m/s]']= (['t','z'], np.squeeze(np.mean(self['u'][0,:,:,:], axis=1)))
+        ds['(t,z)_v_avg_[m/s]']= (['t','z'], np.squeeze(np.mean(self['u'][1,:,:,:], axis=1)))
+        ds['(t,z)_w_avg_[m/s]']= (['t','z'], np.squeeze(np.mean(self['u'][2,:,:,:], axis=1)))
+
         for it in IT:
-            ds['u_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][0,it,:,:]))
+            ds['(y,z)_u_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][0,it,:,:]))
         for it in IT:
-            ds['v_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][1,it,:,:]))
+            ds['(y,z)_v_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][1,it,:,:]))
         for it in IT:
-            ds['w_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][2,it,:,:]))
+            ds['(y,z)_w_t={:.2f}_[m/s]'.format(self.t[it])] = (['y','z'], np.squeeze(self['u'][2,it,:,:]))
         # --- TZ planes
         for iy in IY:
-            ds['u_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][0,:,iy,:]))
+            ds['(t,z)_u_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][0,:,iy,:]))
         for iy in IY:
-            ds['v_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][1,:,iy,:]))
+            ds['(t,z)_v_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][1,:,iy,:]))
         for iy in IY:
-            ds['w_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][2,:,iy,:]))
+            ds['(t,z)_w_y={:.2f}_[m/s]'.format(self['y'][iy])] = (['t','z'], np.squeeze(self['u'][2,:,iy,:]))
         # --- TY planes
         for iz in IZ:
-            ds['u_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][0,:,:,iz]))
+            ds['(t,y)_u_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][0,:,:,iz]))
         for iz in IZ:
-            ds['v_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][1,:,:,iz]))
+            ds['(t,y)_v_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][1,:,:,iz]))
         for iz in IZ:
-            ds['w_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][2,:,:,iz]))
+            ds['(t,y)_w_z={:.2f}_[m/s]'.format(self['z'][iz])] = (['t','y'], np.squeeze(self['u'][2,:,:,iz]))
         return ds
 
     def toDataset(self):

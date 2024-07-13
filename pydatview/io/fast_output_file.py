@@ -214,7 +214,7 @@ class FASTOutputFile(File):
 
     def __repr__(self):
         s='<{} object> with attributes:\n'.format(type(self).__name__)
-        s+=' - filename:    {}\n'.format(filename)
+        s+=' - filename:    {}\n'.format(self.filename)
         s+=' - data ({})\n'.format(type(self.data))
         s+=' - description: {}\n'.format(self.description)
         s+='and keys: {}\n'.format(self.keys())

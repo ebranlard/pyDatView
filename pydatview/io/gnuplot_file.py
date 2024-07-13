@@ -20,11 +20,11 @@ class GNUPlotFile(File):
     
     Main methods
     ------------
-    - read, write, toDataFrame, keys
+    - read, write, toDataFrame, to2DFields, keys
     
     Examples
     --------
-        f = GNUPlotFile('file.xxx')
+        f = GNUPlotFile('file.dat')
         print(f.keys())
         print(f.toDataFrame().columns)  
     
@@ -175,7 +175,7 @@ class GNUPlotFile(File):
     @property
     def x_values(self):
         if len(self['data'])==1:
-            x= self['data'][:,0]
+            x = self['data'][0][:,0]
         else:
             x = check_first_column_same(self['data'])
             if x is None:
@@ -186,7 +186,9 @@ class GNUPlotFile(File):
     @property
     def y_values(self):
         if len(self['data'])==1:
-            y= self['data'][:,1]
+            if self['data'][0].shape[1]<2:
+                return None
+            y= self['data'][0][:,1]
         else:
             y = check_second_column_unique(self['data'])
             if y is None:
@@ -236,13 +238,24 @@ class GNUPlotFile(File):
         if self['column_names'] is None:
             colNames = default_colnames(self['data'][0].shape[1])
 
-        if not self.is_meshgrid:
-            return None
-         
-
         if len(kwargs.keys())>0:
             print('[WARN] GNUPlotFile: to2DFields: ignored keys: ',kwargs.keys())
 
+        if not self.is_meshgrid:
+            if len(self['data'])>1:
+                # Probably hard to do, or have to provide different sets
+                return None
+            # --- Single table..., likely dubious results
+            M = self['data'][0]
+            if M.shape[1]<2:
+                return None
+            s1 = 'rows'
+            s2 = 'columns'
+            ds = xr.Dataset(coords={s1: range(M.shape[0]), s2: range(M.shape[1])})
+            ds['data'] = ([s1, s2], M)
+            return ds
+
+        # --- Mesh grid
         ds = xr.Dataset()
         ds = xr.Dataset(coords={colNames[0]: x, colNames[1]: y})
         data = np.array(self['data'])
@@ -323,7 +336,11 @@ def check_second_column_unique(arrays):
     if not arrays:
         return None
     unique_values = []
+    if len(arrays[0].shape)!=2:
+        return None
     for array in arrays:
+        if array.shape[1]<2:
+            return None
         second_column = array[:, 1]
         unique_value = np.unique(second_column)
         if len(unique_value) != 1:
@@ -341,12 +358,14 @@ def find_string_with_n_splits(strings, n):
 def default_colnames(n):
     colNames=['C{}'.format(i) for i in range(n)]
     colNames[0] = 'x'
-    colNames[1] = 'y'
+    if len(colNames)>1:
+        colNames[1] = 'y'
     return colNames
 
 if __name__ == '__main__':
     from welib.essentials import *
-    plt = GNUPlotFile('diff.000000.dat')
+    #plt = GNUPlotFile('diff.000000.dat')
+    plt = GNUPlotFile('C:/Work/Courses/440/project_solution/data/CFD_x.dat')
     print(plt)
     df =plt.toDataFrame()
     print(df)
