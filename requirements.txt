@@ -1,5 +1,5 @@
 openpyxl
-numpy
+numpy<2.0
 pandas
 xarray
 pyarrow # for parquet files
