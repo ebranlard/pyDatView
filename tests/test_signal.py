@@ -89,6 +89,7 @@ class TestSignal(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    TestSignal().test_interpDF()
-    TestSignal().test_interp()
-#     unittest.main()
+#    TestSignal().test_interpDF()
+#    TestSignal().test_interp()
+#    TestSignal().test_up_down_sample()
+    unittest.main()

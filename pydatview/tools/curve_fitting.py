@@ -1429,7 +1429,7 @@ def extract_key_miscnum(text):
 
     if text is None:
         return {}
-    sp=re.compile('([\w]+)=').split(text.replace(' ',''))
+    sp=re.compile(r'([\w]+)=').split(text.replace(' ',''))
     if len(sp)<3:
         return {}
     sp=sp[1:]

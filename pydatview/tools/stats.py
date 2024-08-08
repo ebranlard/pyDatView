@@ -46,7 +46,7 @@ def comparison_stats(t1, y1, t2, y2, stats='sigRatio,eps,R2', method='mean', abs
             # Mean relative error
             eps     = float(mean_rel_err(t1, y1, t2, y2, method=method, absVal=absVal))
             stats['eps'] = eps
-            sStats+=['$\epsilon=$'+r'{:.1f}%'.format(eps)]
+            sStats+=[r'$\epsilon=$'+r'{:.1f}%'.format(eps)]
 
         elif s=='r2':
             # Rsquare
@@ -211,7 +211,10 @@ def pdf_histogram(y,nBins=50, norm=True, count=False):
     else:
         yh  = yh / (nBins*dx) 
     if norm:
-        yh=yh/np.trapz(yh,xh)
+        try:
+            yh=yh/np.trapezoid(yh,xh)
+        except:
+            yh=yh/np.trapz(yh,xh)
     return xh,yh
 
 def pdf_gaussian_kde(data, bw='scott', nOut=100, cut=3, clip=(-np.inf,np.inf)):

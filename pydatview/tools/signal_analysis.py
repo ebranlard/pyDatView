@@ -259,16 +259,21 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
         sample_time = float(param[0])
         if sample_time <= 0:
             raise Exception('Error: sample time must be positive')
+        # --- Version dependency...
+        pdVer = [int(s) for s in pd.__version__.split('.')]
+        sSample = "{:f}s".format(sample_time)
+        if pdVer[0]<=1 or (pdVer[0]<=2 and pdVer[1]<2):
+            sSample = "{:f}S".format(sample_time)
 
-        time_index = pd.TimedeltaIndex(x_old, unit="S")
-        x_new = pd.Series(x_old, index=time_index).resample("{:f}S".format(sample_time)).mean().interpolate().values
+        time_index = pd.to_timedelta(x_old, unit="s")
+        x_new = pd.Series(x_old, index=time_index).resample(sSample).mean().interpolate().values
 
         if df_old is not None:
-            df_new = df_old.set_index(time_index, inplace=False).resample("{:f}S".format(sample_time)).mean()
+            df_new = df_old.set_index(time_index, inplace=False).resample(sSample).mean()
             df_new = df_new.interpolate().reset_index(drop=True)
             return x_new, df_new
         if y_old is not None:
-            y_new = pd.Series(y_old, index=time_index).resample("{:f}S".format(sample_time)).mean()
+            y_new = pd.Series(y_old, index=time_index).resample(sSample).mean()
             y_new = y_new.interpolate().values
             return x_new, y_new
 

@@ -689,6 +689,52 @@ def spanwiseColEDTwr(Cols):
 def spanwiseColAD(Cols):
     """ Return column info, available columns and indices that contain AD spanwise data"""
     ADSpanMap=dict()
+# From AeroDyn_AllBldNd: TODO Use it directly..
+#                                "ALPHA    ","AXIND    ","AXIND_QS ","BEM_CT_QS","BEM_F_QS ","BEM_KP_QS","BEM_K_QS ","CD       ", &
+#                                "CD_QS    ","CHI      ","CL       ","CLRNC    ","CL_QS    ","CM       ","CMA      ","CM_QS    ", &
+#                                "CN       ","CPMIN    ","CT       ","CURVE    ","CX       ","CXA      ","CY       ","DEBUG1   ", &
+#                                "DEBUG2   ","DEBUG3   ","DYNP     ","FBN      ","FBS      ","FBT      ","FBXA     ","FBXI     ", &
+#                                "FBXL     ","FBXP     ","FBYA     ","FBYI     ","FBYL     ","FBYP     ","FBZA     ","FBZI     ", &
+#                                "FBZL     ","FBZP     ","FD       ","FL       ","FN       ","FT       ","FX       ","FXA      ", &
+#                                "FXI      ","FXL      ","FXP      ","FY       ","FYI      ","FYL      ","FYP      ","FZI      ", &
+#                                "FZL      ","FZP      ","GAM      ","GEOMPHI  ","M        ","MBN      ","MBS      ","MBT      ", &
+#                                "MBXA     ","MBXI     ","MBXL     ","MBXP     ","MBYA     ","MBYI     ","MBYL     ","MBYP     ", &
+#                                "MBZA     ","MBZI     ","MBZL     ","MBZP     ","MM       ","MXI      ","MXL      ","MXP      ", &
+#                                "MYI      ","MYL      ","MYP      ","MZA      ","MZI      ","MZL      ","MZP      ","PHI      ", &
+#                                "RE       ","SGCAV    ","SIGCR    ","STVX     ","STVXA    ","STVXI    ","STVXL    ","STVXP    ", &
+#                                "STVY     ","STVYA    ","STVYI    ","STVYL    ","STVYP    ","STVZ     ","STVZA    ","STVZI    ", &
+#                                "STVZL    ","STVZP    ","THETA    ","TNIND    ","TNIND_QS ","TOE      ","UA_FLAG  ","UA_X1    ", &
+#                                "UA_X2    ","UA_X3    ","UA_X4    ","UA_X5    ","UIN      ","UIR      ","UIT      ","VDISX    ", &
+#                                "VDISXA   ","VDISXI   ","VDISXL   ","VDISXP   ","VDISY    ","VDISYA   ","VDISYI   ","VDISYL   ", &
+#                                "VDISYP   ","VDISZ    ","VDISZA   ","VDISZI   ","VDISZL   ","VDISZP   ","VINDX    ","VINDXA   ", &
+#                                "VINDXI   ","VINDXL   ","VINDXP   ","VINDY    ","VINDYA   ","VINDYI   ","VINDYL   ","VINDYP   ", &
+#                                "VINDZA   ","VINDZI   ","VINDZL   ","VINDZP   ","VREL     ","VUNDX    ","VUNDXA   ","VUNDXI   ", &
+#                                "VUNDXL   ","VUNDXP   ","VUNDY    ","VUNDYA   ","VUNDYI   ","VUNDYL   ","VUNDYP   ","VUNDZ    ", &
+#                                "VUNDZA   ","VUNDZI   ","VUNDZL   ","VUNDZP   ","VX       ","VY       "/)
+#    CHARACTER(ChanLen), PARAMETER :: ParamUnitsAry(166) =  (/ character(ChanLen) :: &  ! This lists the units corresponding to the allowed parameters
+#                                "(deg)  ","(-)    ","(-)    ","(-)    ","(-)    ","(-)    ","(-)    ","(-)    ", &
+#                                "(-)    ","(deg)  ","(-)    ","(m)    ","(-)    ","(-)    ","(-)    ","(-)    ", &
+#                                "(-)    ","(-)    ","(-)    ","(deg)  ","(-)    ","(-)    ","(-)    ","(-)    ", &
+#                                "(-)    ","(-)    ","(Pa)   ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ", &
+#                                "(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ", &
+#                                "(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ", &
+#                                "(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ", &
+#                                "(N/m)  ","(N/m)  ","(m^2/s)","(1/0)  ","(-)    ","(N-m/m)","(N-m/m)","(N-m/m)", &
+#                                "(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)", &
+#                                "(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)", &
+#                                "(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(deg)  ", &
+#                                "(-)    ","(-)    ","(-)    ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(deg)  ","(-)    ","(-)    ","(deg)  ","(-)    ","(rad)  ", &
+#                                "(rad)  ","(-)    ","(-)    ","(-)    ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  "/)
+
+
     for sB in ['B1','B2','B3']:
         ADSpanMap['^[A]*'+sB+r'N(\d*)Alpha_\[deg\]']   =sB+'Alpha_[deg]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_\[-\]'  ]   =sB+'AxInd_[-]'  
@@ -698,6 +744,7 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_qs\[-\]'  ]=sB+'BEM_kp_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_qs\[-\]'   ]=sB+'BEM_F_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_CT_qs_\[-\]' ]=sB+'BEM_CT_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Chi_\[deg\]'     ]=sB+'Chi_[deg]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Cl_\[-\]'     ]   =sB+'Cl_[-]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Cd_\[-\]'     ]   =sB+'Cd_[-]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Cm_\[-\]'     ]   =sB+'Cm_[-]'   
@@ -848,7 +895,10 @@ def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, ch
             Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * vr)
             Ct[vr<0.01*R] = 0
             dfRad[sB+'Ctloc_[-]'] = Ct
-            CT=2*np.trapz(vr_bar*Ct,vr_bar)
+            try:
+                CT=2*np.trapezoid(vr_bar*Ct,vr_bar)
+            except:
+                CT=2*np.trapz(vr_bar*Ct,vr_bar)
             dfRad[sB+'CtAvg_[-]']= CT*np.ones(vr.shape)
         except:
             pass
@@ -1571,10 +1621,10 @@ def bin_mean_DF(df, xbins, colBin ):
         raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
     xmid      = (xbins[:-1]+xbins[1:])/2
     df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
-    df2       = df.groupby('Bin').mean()                     # Average by bin
+    df2       = df.groupby('Bin', observed=False).mean()                     # Average by bin
     # also counting
     df['Counts'] = 1
-    dfCount=df[['Counts','Bin']].groupby('Bin').sum()
+    dfCount=df[['Counts','Bin']].groupby('Bin', observed=False).sum()
     df2['Counts'] = dfCount['Counts']
     # Just in case some bins are missing (will be nan)
     df2       = df2.reindex(xmid)
@@ -1829,7 +1879,10 @@ def integrateMoment(r, F):
     """
     M = np.zeros(len(r)-1)
     for ir,_ in enumerate(r[:-1]):
-        M[ir] = np.trapz(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
+        try:
+            M[ir] = np.trapezoid(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
+        except:
+            M[ir] = np.trapz(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
     return M
 
 def integrateMomentTS(r, F):

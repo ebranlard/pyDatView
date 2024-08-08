@@ -33,7 +33,7 @@ class GNUPlotFile(File):
     @staticmethod
     def defaultExtensions():
         """ List of file extensions expected for this fileformat"""
-        return ['.dat']
+        return ['.dat','.raw']
 
     @staticmethod
     def formatName():

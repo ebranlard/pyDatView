@@ -5,6 +5,11 @@ from pydatview.common import isString, isDate, getDt
 from pydatview.common import unique, pretty_num, pretty_time, pretty_date
 from pydatview.tools.stats import bin_signal
 import matplotlib.dates as mdates
+try:
+    trapz = np.trapezoid
+except AttributeError:
+    trapz = np.trapz
+
 
 # --------------------------------------------------------------------------------}
 # --- PlotDataList functions
@@ -605,7 +610,7 @@ class PlotData():
             return None,'NA'
         else:
             try:
-                v=np.trapz(y=PD.y,x=PD.x)
+                v=trapz(y=PD.y,x=PD.x)
                 s=pretty_num(v)
                 return v,s
             except:
@@ -616,7 +621,7 @@ class PlotData():
             return None,'NA'
         else:
             try:
-                v=np.trapz(y=PD.y,x=PD.x)/np.trapz(y=PD.x*0+1,x=PD.x)
+                v=trapz(y=PD.y,x=PD.x)/trapz(y=PD.x*0+1,x=PD.x)
                 s=pretty_num(v)
                 return v,s
             except:
@@ -627,7 +632,7 @@ class PlotData():
             return None,'NA'
         else:
             try:
-                v=np.trapz(y=PD.y*PD.x,x=PD.x)
+                v=trapz(y=PD.y*PD.x,x=PD.x)
                 s=pretty_num(v)
                 return v,s
             except:
@@ -639,8 +644,8 @@ class PlotData():
             return None,'NA'
         else:
             try:
-                v=np.trapz(y=PD.y*PD.x,x=PD.x)
-                v=v/np.trapz(y=PD.y,x=PD.x)
+                v=trapz(y=PD.y*PD.x,x=PD.x)
+                v=v/trapz(y=PD.y,x=PD.x)
                 s=pretty_num(v)
                 return v,s
             except:
@@ -651,7 +656,7 @@ class PlotData():
             return None,'NA'
         else:
             try:
-                v=np.trapz(y=PD.y*PD.x**2,x=PD.x)
+                v=trapz(y=PD.y*PD.x**2,x=PD.x)
                 s=pretty_num(v)
                 return v,s
             except:

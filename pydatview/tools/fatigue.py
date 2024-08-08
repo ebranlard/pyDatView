@@ -213,9 +213,9 @@ def bin_count(x, bins, meanBin=True):
         df = pd.DataFrame(data=x, columns=['x'])
         xmid = (bins[:-1]+bins[1:])/2
         df['x_mid']= pd.cut(df['x'], bins= bins, labels = xmid ) # Adding a column that has bin attribute
-        df2        = df.groupby('x_mid').mean()   # Average by bin
+        df2        = df.groupby('x_mid', observed=False).mean()   # Average by bin
         df['N']  = 1
-        dfCount       = df[['N','x_mid']].groupby('x_mid').sum()
+        dfCount       = df[['N','x_mid']].groupby('x_mid', observed=False).sum()
         df2['N'] = dfCount['N']
         # Just in case some bins are missing (will be nan)
         df2       = df2.reindex(xmid)
