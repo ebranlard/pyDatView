@@ -104,7 +104,7 @@ class ROSCOPerformanceFile(File):
         # Write
         write_rotor_performance(self.filename, self['pitch'], self['TSR'], self['CP'],self['CT'], self['CQ'], self['WS'], TurbineName=self.name)
 
-    def checkConsistency(self):
+    def checkConsistency(self, verbose=False):
         """ 
         Check that data makes sense.
          in particular, check if CP=lambda CQ
@@ -119,10 +119,12 @@ class ROSCOPerformanceFile(File):
         TSR = np.tile(tsr.flatten(), (len(self['pitch']),1)).T
         if CQ is None and CP is not None:
             CQ = CP/TSR
-            print('[INFO] Computing CQ from CP')
+            if verbose:
+                print('[INFO] Computing CQ from CP')
         elif CQ is not None and CP is None:
             CP = CQ*TSR
-            print('[INFO] Computing CP from CQ')
+            if verbose:
+                print('[INFO] Computing CP from CQ')
         elif CQ is not None and CP is not None:
             pass
         else:
@@ -419,7 +421,7 @@ def write_rotor_performance(txt_filename, pitch, TSR, CP, CT, CQ, WS=None, Turbi
     file.close()
 
 
-def interp2d_pairs(*args,**kwargs):
+def interp2d_pairs(X,Y,Z,**kwargs):
     """ Same interface as interp2d but the returned interpolant will evaluate its inputs as pairs of values.
     Inputs can therefore be arrays
 
@@ -435,12 +437,20 @@ def interp2d_pairs(*args,**kwargs):
     author: E. Branlard
     """
     import scipy.interpolate as si
-    # Internal function, that evaluates pairs of values, output has the same shape as input
-    def interpolant(x,y,f):
-        x,y = np.asarray(x), np.asarray(y)
-        return (si.dfitpack.bispeu(f.tck[0], f.tck[1], f.tck[2], f.tck[3], f.tck[4], x.ravel(), y.ravel())[0]).reshape(x.shape)
     # Wrapping the scipy interp2 function to call out interpolant instead
-    return lambda x,y: interpolant(x,y,si.interp2d(*args,**kwargs))
+    # --- OLD
+    # Internal function, that evaluates pairs of values, output has the same shape as input
+    #def interpolant(x,y,f):
+    #    x,y = np.asarray(x), np.asarray(y)
+    #    return (si.dfitpack.bispeu(f.tck[0], f.tck[1], f.tck[2], f.tck[3], f.tck[4], x.ravel(), y.ravel())[0]).reshape(x.shape)
+    #return lambda x,y: interpolant(x,y,si.interp2d(*args,**kwargs))
+    # --- NEW
+    Finterp = si.RegularGridInterpolator((X,Y), Z.T, **kwargs)
+    #r = si.RectBivariateSpline(X, Y, Z.T)
+    def interpolant(x,y):
+        x,y = np.asarray(x), np.asarray(y)
+        return Finterp((x,y))
+    return interpolant
 
 
 if __name__ == '__main__':

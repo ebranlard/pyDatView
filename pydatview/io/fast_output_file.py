@@ -150,7 +150,8 @@ class FASTOutputFile(File):
                 cols=[n+'_['+u.replace('sec','s')+']' for n,u in zip(info['attribute_names'], info['attribute_units'])]
         else:
             cols=info['attribute_names']
-
+        self.description = info.get('description', '')
+        self.description = ''.join(self.description) if isinstance(self.description,list) else self.description
         if isinstance(self.data, pd.DataFrame):
             self.data.columns = cols
         else:
@@ -174,10 +175,15 @@ class FASTOutputFile(File):
         else:
             # ascii output
             with open(self.filename,'w') as f:
+                f.write(self.description) # add description to the begining of the file
                 f.write('\t'.join(['{:>10s}'.format(c)         for c in self.channels])+'\n')
                 f.write('\t'.join(['{:>10s}'.format('('+u+')') for u in self.units])+'\n')
                 # TODO better..
-                f.write('\n'.join(['\t'.join(['{:10.4f}'.format(y[0])]+['{:10.3e}'.format(x) for x in y[1:]]) for y in self.data]))
+                if self.data is not None:
+                    if isinstance(self.data, pd.DataFrame) and not self.data.empty:
+                        f.write('\n'.join(['\t'.join(['{:10.4f}'.format(y.iloc[0])]+['{: .5e}'.format(x) for x in y.iloc[1:]]) for _, y in self.data.iterrows()]))
+                    else: # in case data beeing array or list of list.
+                        f.write('\n'.join(['\t'.join(['{:10.4f}'.format(y)]+['{: .5e}'.format(x) for x in y]) for y in self.data]))
 
     @property
     def channels(self):
@@ -231,7 +237,7 @@ class FASTOutputFile(File):
         except:
             return None
 
-    def to2DFields(self, DeltaAzi=5, nPeriods=3, rcoords=None, **kwargs):
+    def to2DFields(self, DeltaAzi=5, nPeriods=3, rcoords=None, kinds=['(t,r)','(psi,r)'], **kwargs):
         import pydatview.fast.postpro as fastlib 
 
         def insertName(ds, name, dims):
@@ -252,43 +258,61 @@ class FASTOutputFile(File):
         # Sanity check
         DeltaAzi=float(DeltaAzi)
         df = self.toDataFrame()
-        # --- Time wise
-        ds_AD, ds_ED, ds_BD = fastlib.spanwisePostProRows(df, driverFile, si1='t', sir='r')
-        if ds_AD is None:
-            return None # No Hope
-        if rcoords is not None:
-            runit = 'm'
-            ds_AD['r_[m]'] = rcoords
-        else:
-            if 'r_[m]' in ds_AD.keys():
-                rcoords =ds_AD['r_[m]'].values
+        ds_AD1 = None
+        ds_AD2 = None
+        # --- Radial coordinate
+        def get_rvals(ds, rcoords):
+            n = len(ds['i/n_[-]'].values)
+            if rcoords is not None: # priority to user input
+                runit = 'm'
+                rvals = rcoords
+                if len(rcoords)!=n:
+                    raise Exception('Length of rcoords should be: {}'.format(n))
+            elif 'r_[m]' in ds.keys():
+                rvals = ds['r_[m]'].values
                 runit = 'm'
             else:
-                rcoords =ds_AD['i/n_[-]'].values
+                rvals = ds['i/n_[-]'].values
                 runit = '-'
-        # Rename columns to make them unique
-        ds_AD = insertName(ds_AD, '(t,r)', ('t','r'))
-        try:
-            ds_AD.coords['t'] = ('t', df['Time_[s]'].values)
-        except:
-            pass
-        ds_AD.coords['r'] = ('r', rcoords)
+            return rvals, runit
+        # --- Time wise
+        if '(t,r)' in kinds:
+            ds_AD1, ds_ED, ds_BD = fastlib.spanwisePostProRows(df, driverFile, si1='t', sir='r')
+            if ds_AD1 is None:
+                return None # No Hope
+            rvals, runit = get_rvals(ds_AD1, rcoords)
+            # Rename columns to make them unique
+            ds_AD1 = insertName(ds_AD1, '(t,r)', ('t','r'))
+            try:
+                ds_AD1.coords['t'] = ('t', df['Time_[s]'].values)
+            except:
+                pass
+            ds_AD1.coords['r'] = ('r', rvals)
+            ds_AD1.r.attrs['unit'] = runit
+            ds_AD1.t.attrs['unit'] = 's'
 
         # --- Azimuthal Radial postpro
-        psi = np.arange(0, 360+DeltaAzi/10, DeltaAzi)
-        dfPsi = fastlib.azimuthal_average_DF(df, psiBin=psi, periodic=True, nPeriods=nPeriods) #, tStart = time[-1]-20)
-        ds_AD2, ds_ED2, ds_BD2 = fastlib.spanwisePostProRows(dfPsi, driverFile, si1='psi', sir='r')
-        ds_AD2.coords['psi'] = ('psi', psi) # TODO hack from bin to bin edges...
-        ds_AD2.coords['r'] = ('r', rcoords)
-        # Rename columns to make them unique
-        ds_AD2= insertName(ds_AD2, '(psi,r)', ('psi','r'))
+        if '(psi,r)' in kinds:
+            psi = np.arange(0, 360+DeltaAzi/10, DeltaAzi)
+            dfPsi = fastlib.azimuthal_average_DF(df, psiBin=psi, periodic=True, nPeriods=nPeriods) #, tStart = time[-1]-20)
+            ds_AD2, ds_ED2, ds_BD2 = fastlib.spanwisePostProRows(dfPsi, driverFile, si1='psi', sir='r')
+            rvals, runit = get_rvals(ds_AD2, rcoords)
+            ds_AD2.coords['psi'] = ('psi', psi) # TODO hack from bin to bin edges...
+            ds_AD2.coords['r'] = ('r', rvals)
+            # Rename columns to make them unique
+            ds_AD2= insertName(ds_AD2, '(psi,r)', ('psi','r'))
+            ds_AD2.psi.attrs['unit'] = 'deg'
+            ds_AD2.r.attrs['unit'] = runit
 
         # --- Combine into one field (need unique variables and dimension)
-        ds_AD = ds_AD.merge(ds_AD2, compat='override')
-        ds_AD.r.attrs['unit'] = runit
-        ds_AD.t.attrs['unit'] = 's'
-        ds_AD.psi.attrs['unit'] = 'deg'
-        ds_AD.r.attrs['unit'] = runit
+        if ds_AD1 is not None and ds_AD2 is not None:
+            ds_AD = ds_AD1.merge(ds_AD2, compat='override')
+        elif ds_AD1 is not None:
+            ds_AD = ds_AD1
+        else:
+            ds_AD = ds_AD2
+
+        # ---
 # #         ds_AD = ds_AD.swap_dims(dims_dict={'it': 't'})
 # #         ds_AD = ds_AD.drop_vars('it')
 # #         ds_AD.coords['r'] = ('ir', rcoords)
@@ -654,7 +678,7 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
     ranges[ranges==0]=1  # range set to 1 for constant channel. In OpenFAST: /sqrt(epsilon(1.0_SiKi))
     ColScl  = np.single(int16Rng/ranges)
     ColOff  = np.single(int16Min - np.single(mins)*ColScl)
-    
+
     #Just available for fileID 
     if fileID not in [2,4]:
         print("current version just works with fileID = 2 or 4")

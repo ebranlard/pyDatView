@@ -103,7 +103,7 @@ class HAWC2DatFile(File):
         nChannels = self.data.shape[1]
         SimTime   = self.data[-1,0] #-self.data[0,0]
         # --- dat file
-        np.savetxt(datfilename, self.data, fmt=b'%16.8e')
+        np.savetxt(datfilename, self.data, fmt='%16.8e')
         # --- Sel file
         with open(selfilename, 'w') as f:
             if self.bHawc:

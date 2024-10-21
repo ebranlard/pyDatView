@@ -567,7 +567,7 @@ class FunctionFitter():
             s=s+'   - {:15s}: {}\n'.format(k,v)
         return s
 
-
+    
     def set_default_dict(self, varnames, p0, bounds):
         D = {'varnames':varnames, 'p0':p0, 'bounds':bounds}
         if all([d is None for dname,d in D.items()]):

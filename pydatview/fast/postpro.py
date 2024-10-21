@@ -3,6 +3,10 @@ import os
 import pandas as pd
 import numpy as np
 import re
+try:
+    from scipy.integrate import cumulative_trapezoid 
+except:
+    from scipy.integrate import cumtrapz as cumulative_trapezoid
 
 import pydatview.io as weio
 from pydatview.common import PyDatViewException as WELIBException
@@ -175,7 +179,6 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
         return r_gag
 
 def BD_BldStations(BD, BDBld):
- 
     """ Returns BeamDyn Blade Quadrature Points positions:
         - Defines where BeamDyn outputs are provided.
         - Used by BeamDyn for the Input Mesh  u%DistrLoad
@@ -1621,7 +1624,7 @@ def bin_mean_DF(df, xbins, colBin ):
         raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
     xmid      = (xbins[:-1]+xbins[1:])/2
     df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
-    df2       = df.groupby('Bin', observed=False).mean()                     # Average by bin
+    df2       = df.groupby('Bin', observed=False).mean()     # Average by bin
     # also counting
     df['Counts'] = 1
     dfCount=df[['Counts','Bin']].groupby('Bin', observed=False).sum()
@@ -1787,7 +1790,48 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
         raise NotImplementedError()
     return MeanValues
 
+def FAIL(msg):
+    HEADER = '\033[95m'
+    RED = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    print(RED+'[FAIL] ' + msg + ENDC)
 
+def WARN(msg):
+    ORAN = '\033[93m'
+    ENDC = '\033[0m'
+    print(ORAN+'[WARN] ' + msg + ENDC)
+
+def INFO(msg):
+    ENDC = '\033[0m'
+    print('[INFO] ' + msg + ENDC)
+
+def OK(msg):
+    GREEN = '\033[92m'
+    ENDC = '\033[0m'
+    print(GREEN+'[ OK ] ' + msg + ENDC)
+
+class FileErrorLogger():
+    def __init__(self):
+        self.firstWarn=True
+        self.firstErr=True
+
+    def WARN(self, filename, msg):
+        if self.firstWarn:
+            baseDir = os.path.dirname(filename)
+            INFO('[INFO] In directory: {}'.format(baseDir))
+            self.firstWarn = False
+        basename = os.path.basename(filename)
+        WARN('File {} {}'.format(basename, msg))
+
+    def FAIL(self, filename, msg):
+        if self.firstErr:
+            baseDir = os.path.dirname(filename)
+            INFO('[INFO] In directory: {}'.format(baseDir))
+            self.firstErr = False
+        basename = os.path.basename(filename)
+        FAIL('File {} {}'.format(basename, msg))
 
 def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
         ColMap=None,ColKeep=None,ColSort=None,stats=['mean'],
@@ -1822,6 +1866,7 @@ def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
         raise Exception('No outFiles or DFs provided')
 
     invalidFiles =[]
+    log = FileErrorLogger()
     # Loop trough files and populate result
     for i,f in enumerate(outFiles_or_DFs):
         if isinstance(f, pd.DataFrame):
@@ -1833,26 +1878,35 @@ def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
             except:
                 invalidFiles.append(f)
                 continue
-        postpro=averageDF(df, avgMethod=avgMethod, avgParam=avgParam, ColMap=ColMap, ColKeep=ColKeep,ColSort=ColSort,stats=stats, filename=f)
-        MeanValues=postpro # todo
+        df_avg = averageDF(df, avgMethod=avgMethod, avgParam=avgParam, ColMap=ColMap, ColKeep=ColKeep,ColSort=ColSort,stats=stats, filename=f)
+        MeanValues= df_avg.copy() # todo
         if result is None:
             # We create a dataframe here, now that we know the colums
             columns = MeanValues.columns
             result = pd.DataFrame(np.nan, index=np.arange(len(outFiles_or_DFs)), columns=columns)
         if MeanValues.shape[1]!=result.shape[1]:
-            columns_ref = result.columns
-            columns_loc = MeanValues.columns
+            columns_ref = set(result.columns)
+            columns_loc = set(MeanValues.columns)
             if skipIfWrongCol:
-                print('[WARN] File {} has {} columns and not {}. Skipping.'.format(f, MeanValues.shape[1], result.shape[1]))
+                log.WARN(f, 'has {} columns and not {}. Skipping.'.format(MeanValues.shape[1], result.shape[1]))
             else:
+                columns_com = list(columns_ref.intersection(columns_loc))
+                n_ref = len(columns_ref)
+                n_loc = len(columns_loc)
+                n_com = len(columns_com)
+                if n_com == 0:
+                    log.FAIL(f, 'has no columns in common with first file. Skipping.')
+                    continue
                 try:
-                    MeanValues=MeanValues[columns_ref]
-                    result.iloc[i,:] = MeanValues.copy().values
-                    print('[WARN] File {} has more columns than other files. Truncating.'.format(f, MeanValues.shape[1], result.shape[1]))
+                    result.iloc[i][columns_com] = MeanValues[columns_com].iloc[0]
+                    log.WARN(f, 'has {} columns, first file has {} columns, with {} in common. Truncating.'.format(n_loc, n_loc, n_com))
                 except:
-                    print('[WARN] File {} is missing some columns compared to other files. Skipping.'.format(f))
+                    log.FAIL(f, 'has {} columns, first file has {} columns, with {} in common. Failed to assign common columns.'.format(n_loc, n_loc, n_com))
         else:
-            result.iloc[i,:] = MeanValues.copy().values
+            try:
+                result.iloc[i] = MeanValues.iloc[0]
+            except:
+                import pdb; pdb.set_trace()
 
 
     if len(invalidFiles)==len(outFiles_or_DFs):
@@ -1904,12 +1958,11 @@ def integrateMomentTS(r, F):
       - M: array nt x nr of integrated moment at each radial station
 
     """
-    import scipy.integrate as si
     # Compute \int_{r_j}^{r_n} f(r) dr, with "j" each column 
-    IF = np.fliplr(-si.cumtrapz(np.fliplr(F), r[-1::-1]))
+    IF = np.fliplr(-cumulative_trapezoid(np.fliplr(F), r[-1::-1]))
     # Compute \int_{r_j}^{r_n} f(r)*r dr, with "j" each column 
     FR  = F * r 
-    IFR = np.fliplr(-si.cumtrapz(np.fliplr(FR), r[-1::-1]))
+    IFR = np.fliplr(-cumulative_trapezoid(np.fliplr(FR), r[-1::-1]))
     # Compute x_j * \int_{r_j}^(r_n) f(r) * r dr
     R_IF = IF * r[:-1]
     # \int_{r_j}^(r_n) f(r) * (r-r_j) dr  = IF + IFR

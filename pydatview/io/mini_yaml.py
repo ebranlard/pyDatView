@@ -54,13 +54,49 @@ def yaml_read(filename=None, dictIn=None, lines=None, text=None):
                         d[key]=float(val)
                     except:
                         d[key]=val.strip() # string
+        elif len(sp)>=2 and sp[1].strip()[0]=='{':
+            key = sp[0]
+            i1=l.find('{')
+            i2=l.find('}')
+            LL = l[i1:i2+1]
+            D=_str2dict(LL)
+            d[key] = D
+        elif len(sp)>=2:
+            key = sp[0]
+            value = ':'.join(sp[1:])
+            d[key] = value
+            print('mini_yaml: Setting {}={}'.format(key, value))
+
         else:
-            raise Exception('Line {:d} has colon, number of splits is {}, which is not supported'.format(len(sp)))
+            raise Exception('Line {:d} has colon, number of splits is {}, which is not supported'.format(i,len(sp)))
     return d
 
 def _cleanComment(l):
     """ remove comments from a line"""
     return l.split('#')[0].strip()
+
+   
+def _str2dict(string):
+    string = string.strip('{}')
+    pairs = string.split(', ')
+    d={}
+    for pair in pairs:
+        print(pair)
+        sp = pair.split(':')
+        key = sp[0].strip()
+        value = sp[1].strip()
+        try:
+            d[key] = int(value)
+            continue
+        except ValueError:
+            pass
+        try:
+            d[key] = float(value)
+            continue
+        except ValueError:
+            pass
+        d[key] = value
+    return d
 
 def _readDashList(iStart, lines):
     """ """

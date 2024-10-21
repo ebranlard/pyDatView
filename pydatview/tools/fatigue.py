@@ -98,6 +98,8 @@ def equivalent_load(time, signal, m=3, Teq=1, bins=100, method='rainflow_windap'
         DELi = S**m * N / neq
         Leq = DELi.sum() ** (1/m)     # See e.g. eq. (30) of [1]
 
+    except ImportError:
+        raise
     except:
         if outputMore:
             return np.nan, np.nan, np.nan, np.nan, np.nan
