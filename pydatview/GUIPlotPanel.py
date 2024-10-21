@@ -139,7 +139,7 @@ class PolarPanel(wx.Panel):
         self.parent = parent
         self.rRef = None
         self.cbPolarDeg      = wx.CheckBox(self, -1, 'Theta [deg]',(10,10))
-        self.cbPolarBins = wx.ComboBox(self, choices=['None', '60', '180', '360'], style=wx.CB_READONLY)
+        self.cbPolarBins = wx.ComboBox(self, choices=['None', '12', '36', '60', '180', '360'], style=wx.CB_READONLY)
         self.cbPolarAbout = wx.ComboBox(self, choices=['x (from z, y hori flip, z vert)', 'z (from x, x hori, y vert)'], style=wx.CB_READONLY)
         self.cbPolarSameMean = wx.CheckBox(self, -1, 'Same Mean',(10,10))
 #         self.cbPolarCenter   = wx.CheckBox(self, -1, 'Center',(10,10))
@@ -166,9 +166,9 @@ class PolarPanel(wx.Panel):
     def onParamChange(self, event=None):
         self.setRRef(None)
         if self.cbPolarAbout.GetValue().startswith('x'): # TODO
-            self.parent.pltTypePanel.cbFlipX.SetValue(True)
+            self.parent.cbFlipX.SetValue(True)
         else:
-            self.parent.pltTypePanel.cbFlipX.SetValue(False)
+            self.parent.cbFlipX.SetValue(False)
         self.parent.load_and_draw(); # DATA HAS CHANGED
 
     def setRRef(self, rRef=None):
@@ -206,8 +206,7 @@ class CompCtrlPanel(wx.Panel):
         self.parent.load_and_draw(); # DATA HAS CHANGED
 
     def _GUI2Data(self):
-        data = {'nBins':  self.scBins.GetValue(),
-                'bSmooth':self.cbSmooth.GetValue()}
+        data = {'type':  self.rbType.GetString(self.rbType.GetSelection())}
         return data
 
 class SpectralCtrlPanel(wx.Panel):
