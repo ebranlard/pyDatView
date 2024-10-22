@@ -669,11 +669,18 @@ class MainFrame(wx.Frame):
             Error(self,'Open one or more file first.')
 
     def onAbout(self, event=None):
+        import matplotlib
         io_userpath = os.path.join(weio.defaultUserDataDir(), 'pydatview_io')
-        About(self,PROG_NAME+' '+PROG_VERSION+'\n\n'
-                'pyDatView config file:\n     {}\n'.format(configFilePath())+
-                'pyDatView io data directory:\n     {}\n'.format(io_userpath)+
-                '\n\nVisit http://github.com/ebranlard/pyDatView for documentation.')
+        matplotlibrc = matplotlib.matplotlib_fname()
+        startedpath= os.getcwd()
+        aboutMsg = ' - Version:\n     {}\n'.format(PROG_NAME+' '+PROG_VERSION)
+        aboutMsg += '- Started in:\n     {}\n'.format(startedpath)
+        aboutMsg += '- Config file:\n     {}\n'.format(configFilePath())
+        aboutMsg += '- IO data directory:\n     {}\n'.format(io_userpath)
+        aboutMsg += '- matplolibrc file:\n     {}\n'.format(matplotlibrc)
+        aboutMsg += '\nVisit http://github.com/ebranlard/pyDatView for documentation.'
+
+        About(self, aboutMsg)
 
     def onReset (self, event=None):
         configFile = configFilePath()
