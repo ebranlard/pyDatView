@@ -21,8 +21,8 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(unit   ('i [-]'),'-')
 
     def test_splitunit(self):
-        self.assertEqual(splitunit   ('speed [m/s]'),('speed ','m/s'  ))
-        self.assertEqual(splitunit   ('speed [m/s' ),('speed ','m/s'  )) 
+        self.assertEqual(splitunit   ('speed [m/s]'),('speed','m/s'  ))
+        self.assertEqual(splitunit   ('speed [m/s' ),('speed','m/s'  )) 
         self.assertEqual(splitunit   ('speed_[m/s]'),('speed_','m/s'  )) 
         self.assertEqual(splitunit   ('speed'),('speed','' )) 
 

@@ -19,6 +19,7 @@ TABTYPE_NUM_BEAMDYN        = 5
 TABTYPE_NUM_SUBDYNOUT      = 7
 TABTYPE_MIX_WITH_HEADER    = 6
 TABTYPE_FIL                = 3
+TABTYPE_OUTLIST            = 33
 TABTYPE_FMT                = 9999 # TODO
 
 
@@ -140,16 +141,66 @@ class FASTInputFile(File):
     def __next__(self): 
         return self.fixedfile.__next__()
 
-    def __setitem__(self,key,item):
-        return self.fixedfile.__setitem__(key,item)
+    def __setitem__(self, key, item):
+        return self.fixedfile.__setitem__(key, item)
 
-    def __getitem__(self,key):
+    def __getitem__(self, key):
         return self.fixedfile.__getitem__(key)
 
     def __repr__(self):
         return self.fixedfile.__repr__()
         #s ='Fast input file: {}\n'.format(self.filename)
         #return s+'\n'.join(['{:15s}: {}'.format(d['label'],d['value']) for i,d in enumerate(self.data)])
+
+    def delete(self, key, error=False):
+        self.pop(key, error=error)
+
+    def pop(self, key, error=False):
+        if isinstance(key, int):
+            i = key
+        else:
+            i = self.fixedfile.getIDSafe(key)
+        if i>=0:
+            d = self.data[i]
+            del self.data[i]
+            return d
+        else:
+            if error:
+                raise Exception('Key `{}` not found in file:{}'.format(key, self.filename))
+            else:
+                print('[WARN] Key `{}` not found in file:{}'.format(key, self.filename))
+                return None
+
+    def insertComment(self, i, comment='', error=False):
+        d = getDict()
+        d['value']     = comment
+        d['label']     = ''
+        d['descr']     = ''
+        d['isComment'] = True
+        try:
+            self.data.insert(i, d)
+        except:
+            import pdb; pdb.set_trace()
+
+    def insertKeyVal(self, i, key, value, description='', error=False):
+        d = getDict()
+        d['value']     = value
+        d['label']     = key
+        d['descr']     = description
+        d['isComment'] = False
+        self.data.insert(i, d)
+
+    def insertKeyValAfter(self, key_prev, key, value, description, error=False):
+        i = self.fixedfile.getIDSafe(key_prev)
+        if i<0:
+            if error:
+                raise Exception('Key `{}` not found in file:{}'.format(key_prev, self.filename))
+            else:
+                print('[WARN] Key `{}` not found in file:{}'.format(key_prev, self.filename))
+        self.insertKeyVal(i+1, key, value, description, error=error)
+
+
+
 
 
 # --------------------------------------------------------------------------------}
@@ -185,12 +236,12 @@ class FASTInputFileBase(File):
     def formatName():
         return 'FAST input file Base'
 
-    def __init__(self, filename=None, **kwargs):
+    def __init__(self, filename=None, IComment=None, **kwargs):
         self._size=None
         self.setData() # Init data
         if filename:
             self.filename = filename
-            self.read()
+            self.read(IComment=IComment)
 
     def setData(self, filename=None, data=None, hasNodal=False, module=None):
         """ Set the data of this object. This object shouldn't store anything else. """
@@ -261,12 +312,14 @@ class FASTInputFileBase(File):
                     pass
             self.data[i]['value'] = item
 
-    def __getitem__(self,key):
+    def __getitem__(self, key):
         i = self.getID(key)
         return self.data[i]['value']
 
     def __repr__(self):
-        s ='Fast input file base: {}\n'.format(self.filename)
+        s='<{} object - Base> with attributes:\n'.format(type(self).__name__)
+        s =' - filename: {}\n'.format(self.filename)
+        s =' - dict keys/values: \n'
         return s+'\n'.join(['{:15s}: {}'.format(d['label'],d['value']) for i,d in enumerate(self.data)])
 
     def addKeyVal(self, key, val, descr=None):
@@ -320,7 +373,7 @@ class FASTInputFileBase(File):
         return [1] # Typical OpenFAST files have comment on second line [1]
 
 
-    def read(self, filename=None):
+    def read(self, filename=None, IComment=None):
         if filename:
             self.filename = filename
         if self.filename:
@@ -328,11 +381,13 @@ class FASTInputFileBase(File):
                 raise OSError(2,'File not found:',self.filename)
             if os.stat(self.filename).st_size == 0:
                 raise EmptyFileError('File is empty:',self.filename)
-            self._read()
+            self._read(IComment=IComment)
         else:  
             raise Exception('No filename provided')
 
-    def _read(self):
+    def _read(self, IComment=None):
+        if IComment is None:
+            IComment=[]
 
         # --- Tables that can be detected based on the "Value" (first entry on line)
         # TODO members for  BeamDyn with mutliple key point                                                                                                                                                                                                                                                                                                        ####### TODO PropSetID is Duplicate SubDyn and used in HydroDyn
@@ -423,6 +478,11 @@ class FASTInputFileBase(File):
         labOffset=''
         while i<len(lines):
             line = lines[i]
+            if i in IComment:
+                self.addComment(line)
+                i +=1
+                continue
+
 
             # --- Read special sections
             if line.upper().find('ADDITIONAL OUTPUTS')>0 \
@@ -443,19 +503,19 @@ class FASTInputFileBase(File):
                 else:
                     d['label']   = firstword
                 d['descr']   = remainer
-                d['tabType'] = TABTYPE_FIL # TODO
+                d['tabType'] = TABTYPE_OUTLIST # TODO
                 d['value']   = ['']+OutList
                 self.data.append(d)
                 if i>=len(lines):
+                    self.addComment('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
+                    self.addComment('---------------------------------------------------------------------------------------')
                     break
                 # --- Here we cheat and force an exit of the input file
                 # The reason for this is that some files have a lot of things after the END, which will result in the file being intepreted as a wrong format due to too many comments
                 if i+2<len(lines) and (lines[i+2].lower().find('bldnd_bladesout')>0 or lines[i+2].lower().find('bldnd_bloutnd')>0):
                     self.hasNodal=True
                 else:
-                    self.data.append(parseFASTInputLine('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)',i+1))
-                    self.data.append(parseFASTInputLine('---------------------------------------------------------------------------------------',i+2))
-                    break
+                    pass
             elif line.upper().find('SSOUTLIST'   )>0 or line.upper().find('SDOUTLIST'   )>0:
                 # SUBDYN Outlist doesn not follow regular format
                 self.data.append(parseFASTInputLine(line,i))
@@ -468,8 +528,8 @@ class FASTInputFileBase(File):
                     d['value']=o
                     self.data.append(d)
                 # --- Here we cheat and force an exit of the input file
-                self.data.append(parseFASTInputLine('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)',i+1))
-                self.data.append(parseFASTInputLine('---------------------------------------------------------------------------------------',i+2))
+                self.addComment('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
+                self.addComment('---------------------------------------------------------------------------------------')
                 break
             elif line.upper().find('ADDITIONAL STIFFNESS')>0:
                 # TODO, lazy implementation so far, MAKE SUB FUNCTION
@@ -491,18 +551,33 @@ class FASTInputFileBase(File):
                 i+=1;
                 self.readBeamDynProps(lines,i)
                 return
+            elif line.upper().find('GLBDCM')>0:
+                # BeamDyn DCM has no label.....
+                self.addComment(lines[i]); i+=1
+                self.addComment(lines[i]); i+=1
+                d = getDict()
+                d['label'] = 'GlbDCM'
+                d['tabType'] = TABTYPE_NUM_NO_HEADER
+                nTabLines = 3
+                nHeaders = 0
+                d['value'], d['tabColumnNames'], d['tabUnits'] = parseFASTNumTable(self.filename, lines[i:i+nTabLines],nTabLines, i, nHeaders, tableType='num', nOffset=0)
+                i=i+3
+                self.data.append(d)
+                continue
+
+                #---The following 3 by 3 matrix is the direction cosine matirx ,GlbDCM(3,3),
             elif line.upper().find('OUTPUTS')>0:
                 if 'Points' in self.keys() and 'dtM' in self.keys():
                     OutList,i = parseFASTOutList(lines,i+1) 
                     d = getDict()
                     d['label']   = 'Outlist'
                     d['descr']   = ''
-                    d['tabType'] = TABTYPE_FIL # TODO
+                    d['tabType'] = TABTYPE_OUTLIST
                     d['value']   = OutList
                     self.addComment('------------------------ OUTPUTS --------------------------------------------')
                     self.data.append(d)
-                    self.addComment('END')
-                    self.addComment('------------------------- need this line --------------------------------------')
+                    self.addComment('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
+                    self.addComment('---------------------------------------------------------------------------------------')
                     return
 
             # --- Parsing of standard lines: value(s) key comment
@@ -553,6 +628,7 @@ class FASTInputFileBase(File):
                         d['tabType']   = TABTYPE_NUM_WITH_HEADERCOM
                         nTabLines = self[d['tabDimVar']]-1  # SOMEHOW ONE DATA POINT LESS
                         d['value'], d['tabColumnNames'],_  = parseFASTNumTable(self.filename,lines[i:i+nTabLines+1],nTabLines,i,1)
+                        d['descr'] = '' #
                         d['tabUnits'] = ['(-)','(-)']
                         self.data.append(d)
                         break
@@ -595,6 +671,7 @@ class FASTInputFileBase(File):
                     nTabLines = self[d['tabDimVar']]
                 #print('Reading table {} Dimension {} (based on {})'.format(d['label'],nTabLines,d['tabDimVar']));
                 d['value'], d['tabColumnNames'], d['tabUnits'] = parseFASTNumTable(self.filename,lines[i:i+nTabLines+nHeaders], nTabLines, i, nHeaders, tableType=tab_type, varNumLines=d['tabDimVar'])
+                _, d['descr'] = splitAfterChar(lines[i], '!')
                 i += nTabLines+nHeaders-1
 
                 # --- Temporary hack for e.g. SubDyn, that has duplicate table, impossible to detect in the current way...
@@ -661,6 +738,7 @@ class FASTInputFileBase(File):
                 d['label']  += labOffset
                 #print('Reading table {} Dimension {} (based on {})'.format(d['label'],nTabLines,d['tabDimVar']));
                 d['value'], d['tabColumnNames'], d['tabUnits'] = parseFASTNumTable(self.filename,lines[i:i+nTabLines+nHeaders+nOffset],nTabLines,i, nHeaders, tableType=tab_type, nOffset=nOffset, varNumLines=d['tabDimVar'])
+                d['descr'] = '' #
                 i += nTabLines+1-nOffset
 
                 # --- Temporary hack for e.g. SubDyn, that has duplicate table, impossible to detect in the current way...
@@ -732,10 +810,11 @@ class FASTInputFileBase(File):
         def toStringVLD(val,lab,descr):
             val='{}'.format(val)
             lab='{}'.format(lab)
-            if len(val)<13:
-                val='{:13s}'.format(val)
-            if len(lab)<13:
-                lab='{:13s}'.format(lab)
+            # Trying to reproduce WISDEM format
+            if len(val)<22:
+                val='{:22s}'.format(val)
+            if len(lab)<11:
+                lab='{:11s}'.format(lab)
             return val+' '+lab+' - '+descr.strip().lstrip('-').lstrip()
 
         def toStringIntFloatStr(x):
@@ -762,8 +841,6 @@ class FASTInputFileBase(File):
             s+='\n'
             s+='\n'
             return s
-
-
         for i in range(len(self.data)):
             d=self.data[i]
             if d['isComment']:
@@ -775,32 +852,42 @@ class FASTInputFileBase(File):
                 else:
                     s+=toStringVLD(d['value'],d['label'],d['descr'])
             elif d['tabType']==TABTYPE_NUM_WITH_HEADER:
+                PrettyCols= d['label']!='TowProp' # Temporary hack for AeroDyn tower table
                 if d['tabColumnNames'] is not None:
-                    s+='{}'.format(' '.join(['{:15s}'.format(s) for s in d['tabColumnNames']]))
-                #s+=d['descr'] # Not ready for that
+                    if PrettyCols:
+                        s+='{}'.format(' '.join(['{:^15s}'.format(s) for s in d['tabColumnNames']]))
+                    else:
+                        s+='{}'.format(' '.join(['{:14s}'.format(s) for s in d['tabColumnNames']]))
+                    if len(d['descr'])>0 and d['descr'][0]=='!':
+                        s+=d['descr'] 
                     if d['tabUnits'] is not None:
                         s+='\n'
-                        s+='{}'.format(' '.join(['{:15s}'.format(s) for s in d['tabUnits']]))
+                        if PrettyCols:
+                            s+='{}'.format(' '.join(['{:^15s}'.format(s) for s in d['tabUnits']]))
+                        else:
+                            s+='{}'.format(' '.join(['{:14s}'.format(s) for s in d['tabUnits']]))
                     newline='\n'
                 else:
                     newline=''
                 if np.size(d['value'],0) > 0 :
                     s+=newline
-                    s+='\n'.join('\t'.join( ('{:15.0f}'.format(x) if int(x)==x else '{:15.8e}'.format(x) )  for x in y) for y in d['value'])
+                    if PrettyCols:
+                        s+='\n'.join('\t'.join( ('{:^15.0f}'.format(x) if int(x)==x else '{:15.8e}'.format(x) )  for x in y) for y in d['value'])
+                    else:
+                        s+='\n'.join('  '.join( ('{:13.7E}'.format(x) )  for x in y) for y in d['value'])
             elif d['tabType']==TABTYPE_MIX_WITH_HEADER:
                 s+='{}'.format(' '.join(['{:15s}'.format(s) for s in d['tabColumnNames']]))
                 if d['tabUnits'] is not None:
                     s+='\n'
-                    s+='{}'.format(' '.join(['{:15s}'.format(s) for s in d['tabUnits']]))
+                    s+='{}'.format(' '.join(['{:^15s}'.format(s) for s in d['tabUnits']]))
                 if np.size(d['value'],0) > 0 :
                     s+='\n'
                     s+='\n'.join('\t'.join(toStringIntFloatStr(x) for x in y) for y in d['value'])
             elif d['tabType']==TABTYPE_NUM_WITH_HEADERCOM:
-                s+='! {}\n'.format(' '.join(['{:15s}'.format(s) for s in d['tabColumnNames']]))
-                s+='! {}\n'.format(' '.join(['{:15s}'.format(s) for s in d['tabUnits']]))
+                s+='! {}\n'.format(' '.join(['{:^15s}'.format(s) for s in d['tabColumnNames']]))
+                s+='! {}\n'.format(' '.join(['{:^15s}'.format(s) for s in d['tabUnits']]))
                 s+='\n'.join('\t'.join('{:15.8e}'.format(x) for x in y) for y in d['value'])
             elif d['tabType']==TABTYPE_FIL:
-                #f.write('{} {} {}\n'.format(d['value'][0],d['tabDetect'],d['descr']))
                 label = d['label']
                 if 'kbot' in self.keys(): # Moordyn has no 'OutList' label..
                     label=''
@@ -809,6 +896,10 @@ class FASTInputFileBase(File):
                 else:
                     s+='{} {} {}\n'.format(d['value'][0], label, d['descr']) # TODO?
                     s+='\n'.join(fil for fil in d['value'][1:])
+            elif d['tabType']==TABTYPE_OUTLIST:
+                label = d['label']
+                s+='{:22s} {:11s} - {}\n'.format('', label, d['descr'])
+                s+='\n'.join(fil for fil in d['value'][1:])
             elif d['tabType']==TABTYPE_NUM_BEAMDYN:
                 # TODO use dedicated sub-class
                 data = d['value']
@@ -822,11 +913,14 @@ class FASTInputFileBase(File):
                     s += beamdyn_section_mat_tostring(x,K,M)
             elif d['tabType']==TABTYPE_NUM_SUBDYNOUT:
                 data = d['value']
-                s+='{}\n'.format(' '.join(['{:15s}'.format(s) for s in d['tabColumnNames']]))
-                s+='{}'.format(' '.join(['{:15s}'.format(s) for s in d['tabUnits']]))
+                s+='{}\n'.format(' '.join(['{:^15s}'.format(s) for s in d['tabColumnNames']]))
+                s+='{}'.format(' '.join(['{:^15s}'.format(s) for s in d['tabUnits']]))
                 if np.size(d['value'],0) > 0 :
                     s+='\n'
                     s+='\n'.join('\t'.join('{:15.0f}'.format(x) for x in y) for y in data)
+            elif d['tabType']==TABTYPE_NUM_NO_HEADER:
+                data = d['value']
+                s+='\n'.join('\t'.join( ('{:15.0f}'.format(x) if int(x)==x else '{:15.8e}'.format(x) )  for x in y) for y in d['value'])
             else:
                 raise Exception('Unknown table type for variable {}'.format(d))
             if i<len(self.data)-1:
@@ -1051,12 +1145,18 @@ def cleanLine(l):
     return l
 
 def cleanAfterChar(l,c):
-    # remove whats after a character
+    # remove what's after a character
     n = l.find(c);
     if n>0:
         return l[:n]
     else:
         return l
+def splitAfterChar(l, c):
+    n = l.find(c);
+    if n>0:
+        return l[:n], l[n:]
+    else:
+        return l, ''
 
 def getDict():
     return {'value':None, 'label':'', 'isComment':False, 'descr':'', 'tabType':TABTYPE_NOT_A_TAB}
@@ -1074,6 +1174,12 @@ def _merge_value(splits):
 
 def parseFASTInputLine(line_raw,i,allowSpaceSeparatedList=False):
     d = getDict()
+    line_low = line_raw.lower()
+    if line_low=='end' or line_low.startswith('end of') or line_low.startswith('end ('):
+        d['isComment'] = True
+        d['value'] = line_raw
+        d['label'] = 'END'
+        return d
     #print(line_raw)
     try:
         # preliminary cleaning (Note: loss of formatting)
@@ -1186,7 +1292,7 @@ def parseFASTOutList(lines,iStart):
         if i>=len(lines):
             print('[WARN] End of file reached while reading Outlist')
     #i=min(i+1,len(lines))
-    return OutList,iStart+len(OutList)
+    return OutList, iStart+len(OutList)
 
 
 def extractWithinParenthesis(s):
@@ -1239,6 +1345,7 @@ def parseFASTNumTable(filename,lines,n,iStart,nHeaders=2,tableType='num',nOffset
     Units = None
     
 
+    i = 0
     if len(lines)!=n+nHeaders+nOffset:
         raise BrokenFormatError('Not enough lines in table: {} lines instead of {}\nFile:{}'.format(len(lines)-nHeaders,n,filename))
     try:
@@ -2027,7 +2134,7 @@ class ExtPtfmFile(FASTInputFileBase):
         self.module='ExtPtfm'
 
 
-    def _read(self):
+    def _read(self, IComment=None):
         with open(self.filename, 'r', errors="surrogateescape") as f:
             lines=f.read().splitlines()
         detectAndReadExtPtfmSE(self, lines)

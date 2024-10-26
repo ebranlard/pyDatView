@@ -19,7 +19,7 @@ class ROSCOPerformanceFile(File):
     
     Main methods
     ------------
-    - read, write, toDataFrame, keys
+    - read, write, toDataFrame, to2DFields, keys
     
     Examples
     --------
@@ -104,7 +104,7 @@ class ROSCOPerformanceFile(File):
         # Write
         write_rotor_performance(self.filename, self['pitch'], self['TSR'], self['CP'],self['CT'], self['CQ'], self['WS'], TurbineName=self.name)
 
-    def checkConsistency(self):
+    def checkConsistency(self, verbose=False):
         """ 
         Check that data makes sense.
          in particular, check if CP=lambda CQ
@@ -119,10 +119,12 @@ class ROSCOPerformanceFile(File):
         TSR = np.tile(tsr.flatten(), (len(self['pitch']),1)).T
         if CQ is None and CP is not None:
             CQ = CP/TSR
-            print('[INFO] Computing CQ from CP')
+            if verbose:
+                print('[INFO] Computing CQ from CP')
         elif CQ is not None and CP is None:
             CP = CQ*TSR
-            print('[INFO] Computing CP from CQ')
+            if verbose:
+                print('[INFO] Computing CP from CQ')
         elif CQ is not None and CP is not None:
             pass
         else:
@@ -143,6 +145,22 @@ class ROSCOPerformanceFile(File):
         dfs['CT'] = pd.DataFrame(np.column_stack((self['TSR'], self['CT'])), columns=columns)
         dfs['CQ'] = pd.DataFrame(np.column_stack((self['TSR'], self['CQ'])), columns=columns)
         return dfs
+
+    def to2DFields(self, **kwargs):
+        import xarray as xr
+        if len(kwargs.keys())>0:
+            print('[WARN] RoscoPerformance_CpCtCq: to2DFields: ignored keys: ',kwargs.keys())
+        s1 = 'TSR'
+        s2 = 'pitch'
+        ds = xr.Dataset(coords={s1: self['TSR'], s2: self['pitch']})
+        ds[s1].attrs['unit'] = '-'
+        ds[s2].attrs['unit'] = 'deg'
+        for var in ['CP','CT','CQ']:
+            M = self[var].copy()
+            M[M<0] = 0
+            ds[var] = ([s1, s2], M)
+            ds[var].attrs['unit'] = '-'
+        return ds
 
     # --- Optional functions
     def toAeroDisc(self, filename, R, csv=False, WS=None, omegaRPM=10):
@@ -250,8 +268,7 @@ class ROSCOPerformanceFile(File):
         CP[CP<0]=0 # 
         CP_max, tsr_max, pitch_max = self.CPmax()
         # plot
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
+        fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
         surf = ax.plot_surface(LAMBDA, PITCH, np.transpose(CP), cmap=cm.coolwarm, linewidth=0, antialiased=True,alpha=0.8, label='$C_p$')
         if plotMax:
             ax.scatter(tsr_max, pitch_max, CP_max, c='k', marker='o', s=50, label=r'$C_{p,max}$')
@@ -289,8 +306,6 @@ class ROSCOPerformanceFile(File):
         s+='| - CPmax, plotCP3d, fCP, fCT, toAeroDisc'
         return s
     
-
-
 
 def load_from_txt(txt_filename):
     '''
@@ -406,7 +421,7 @@ def write_rotor_performance(txt_filename, pitch, TSR, CP, CT, CQ, WS=None, Turbi
     file.close()
 
 
-def interp2d_pairs(*args,**kwargs):
+def interp2d_pairs(X,Y,Z,**kwargs):
     """ Same interface as interp2d but the returned interpolant will evaluate its inputs as pairs of values.
     Inputs can therefore be arrays
 
@@ -422,12 +437,20 @@ def interp2d_pairs(*args,**kwargs):
     author: E. Branlard
     """
     import scipy.interpolate as si
-    # Internal function, that evaluates pairs of values, output has the same shape as input
-    def interpolant(x,y,f):
-        x,y = np.asarray(x), np.asarray(y)
-        return (si.dfitpack.bispeu(f.tck[0], f.tck[1], f.tck[2], f.tck[3], f.tck[4], x.ravel(), y.ravel())[0]).reshape(x.shape)
     # Wrapping the scipy interp2 function to call out interpolant instead
-    return lambda x,y: interpolant(x,y,si.interp2d(*args,**kwargs))
+    # --- OLD
+    # Internal function, that evaluates pairs of values, output has the same shape as input
+    #def interpolant(x,y,f):
+    #    x,y = np.asarray(x), np.asarray(y)
+    #    return (si.dfitpack.bispeu(f.tck[0], f.tck[1], f.tck[2], f.tck[3], f.tck[4], x.ravel(), y.ravel())[0]).reshape(x.shape)
+    #return lambda x,y: interpolant(x,y,si.interp2d(*args,**kwargs))
+    # --- NEW
+    Finterp = si.RegularGridInterpolator((X,Y), Z.T, **kwargs)
+    #r = si.RectBivariateSpline(X, Y, Z.T)
+    def interpolant(x,y):
+        x,y = np.asarray(x), np.asarray(y)
+        return Finterp((x,y))
+    return interpolant
 
 
 if __name__ == '__main__':

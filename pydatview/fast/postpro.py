@@ -3,6 +3,10 @@ import os
 import pandas as pd
 import numpy as np
 import re
+try:
+    from scipy.integrate import cumulative_trapezoid 
+except:
+    from scipy.integrate import cumtrapz as cumulative_trapezoid
 
 import pydatview.io as weio
 from pydatview.common import PyDatViewException as WELIBException
@@ -175,7 +179,6 @@ def AD_BldGag(AD,AD_bld,chordOut=False):
         return r_gag
 
 def BD_BldStations(BD, BDBld):
- 
     """ Returns BeamDyn Blade Quadrature Points positions:
         - Defines where BeamDyn outputs are provided.
         - Used by BeamDyn for the Input Mesh  u%DistrLoad
@@ -333,34 +336,48 @@ def _HarmonizeSpanwiseData(Name, Columns, vr, R, IR=None) :
 
     return dfRad,  nrMax, ValidRow
 
-def insert_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar='r/R'):
-    """
-    Add some columns to the radial data
-    df: dataframe
-    """
+
+def compute_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar='r/R'):
     if df is None:
         return df
     if df.shape[1]==0:
         return None
-    nrMax=len(df)
-    ids=np.arange(nrMax)
+    nrMax = len(df)
+    ids   = np.arange(nrMax)
+
+    Columns={}
     if vr is None or R is None:
         # Radial position unknown
         vr_bar = ids/(nrMax-1)
-        df.insert(0, 'i/n_[-]', vr_bar)
+        Columns['i/n_[-]'] = vr_bar
     else:
         vr_bar=vr/R
         if (nrMax)<=len(vr_bar):
             vr_bar=vr_bar[:nrMax]
         elif (nrMax)>len(vr_bar):
             raise Exception('Inconsistent length between radial stations ({:d}) and max index present in output chanels ({:d})'.format(len(vr_bar),nrMax))
-        df.insert(0, sspan_bar+'_[-]', vr_bar)
+        Columns[sspan_bar+'_[-]'] = vr_bar
 
     if IR is not None:
-        df['Node_[#]']=IR[:nrMax]
-    df['i_[#]']=ids+1
+        Columns['Node_[#]']=IR[:nrMax]
+    Columns['i_[#]']=ids+1
     if vr is not None:
-        df[sspan+'_[m]'] = vr[:nrMax]
+        Columns[sspan+'_[m]'] = vr[:nrMax]
+    return Columns
+
+def insert_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar='r/R'):
+    """
+    Add some columns to the radial data
+    df: dataframe
+    """
+    Columns = compute_spanwise_columns(df=df, vr=vr, R=R, IR=IR, sspan=sspan, sspan_bar=sspan_bar)
+    if Columns is None:
+        return None
+    for i, (k,v) in enumerate(Columns.items()):
+        if i==0:
+            df.insert(0, k, v)
+        else:
+            df[k] = v
     return df
 
 def find_matching_columns(Cols, PatternMap):
@@ -381,36 +398,74 @@ def find_matching_columns(Cols, PatternMap):
             ColsInfo.append(col)
     return ColsInfo,nrMax
 
-def extract_spanwise_data(ColsInfo, nrMax, df=None,ts=None):
+def extract_spanwise_data(ColsInfo, nrMax, df=None, ts=None):
     """ 
     Extract spanwise data based on some column info
     ColsInfo: see find_matching_columns
     """
     nCols = len(ColsInfo)
-    if nCols==0:
+    if nCols == 0:
         return None
     if ts is not None:
-        Values = np.zeros((nrMax,nCols))
-        Values[:] = np.nan
+        Values = np.full((nrMax, nCols), np.nan)
     elif df is not None:
         raise NotImplementedError()
 
-    ColNames =[c['name'] for c in ColsInfo]
+    ColNames = [c['name'] for c in ColsInfo]
 
-    for ic,c in enumerate(ColsInfo):
+    for ic, c in enumerate(ColsInfo):
         Idx, cols, colname = c['Idx'], c['cols'], c['name']
-        for idx,col in zip(Idx,cols):
-            Values[idx-1,ic]=ts[col]
-        nMissing = np.sum(np.isnan(Values[:,ic]))
-        if len(cols)<nrMax:
-            #print(Values)
-            print('[WARN] Not all values found for {}, missing {}/{}'.format(colname,nMissing,nrMax))
-        if len(cols)>nrMax:
-            print('[WARN] More values found for {}, found {}/{}'.format(colname,len(cols),nrMax))
+        Values[Idx - 1, ic] = ts[cols].values
+
+        nMissing = np.sum(np.isnan(Values[:, ic]))
+        if len(cols) < nrMax:
+            print('[WARN] Not all values found for {}, missing {}/{}'.format(colname, nMissing, nrMax))
+        if len(cols) > nrMax:
+            print('[WARN] More values found for {}, found {}/{}'.format(colname, len(cols), nrMax))
+
     df = pd.DataFrame(data=Values, columns=ColNames)
     df = df.reindex(sorted(df.columns), axis=1)
     return df
 
+def extract_spanwise_data_timeSeries(ColsInfo, nrMax, df, vr=None, R=None, IR=None, si1='i1', sir='ir'):
+    """ 
+    Extract spanwise variables for a DataFrame, returns them in an xarray Dataset
+    Spanwise variables are then of the form:
+        (nFirstDim x nSpan)
+    Return an xarray
+
+    ColsInfo: see find_matching_columns
+    """
+    import xarray as xr
+    nCols = len(ColsInfo)
+    if nCols == 0:
+        return None
+    n1 = len(df)
+
+    # --- Lazy implementation to figure out the radial positions
+    dfRad = extract_spanwise_data(ColsInfo, nrMax, ts=df.iloc[0])
+    spanColumns = compute_spanwise_columns(dfRad, vr=vr, R=R, IR=IR)
+    k0 = list(spanColumns.keys())[0]
+    # --- Populate a xarray
+    # Create xarray dataset
+    i1 = np.arange(0, n1)
+    ir = np.arange(0, len(spanColumns[k0]))
+    ds = xr.Dataset(coords={si1: i1, sir: ir})
+    ColNames = [c['name'] for c in ColsInfo]
+    for ic, c in enumerate(ColsInfo):
+        Idx, cols, colname = c['Idx'], c['cols'], c['name']
+        Values           = np.full((n1, nrMax), np.nan)
+        Values[:, Idx-1] = df[cols].values
+        # Store in Dataset
+        ds[colname] = ([si1, sir], Values[:, :])
+        if len(cols) < nrMax:
+            print('[WARN] Not all values found for {}, found {}/{}'.format(colname, len(cols), nrMax))
+        if len(cols) > nrMax:
+            print('[WARN] More values found for {}, found {}/{}'.format(colname, len(cols), nrMax))
+    # --- Add spanColumns to Dataset
+    for ic, (c,v) in enumerate(spanColumns.items()):
+        ds[c] = ([sir], v)
+    return ds
 
 def _BDSpanMap():
     BDSpanMap=dict()
@@ -637,16 +692,62 @@ def spanwiseColEDTwr(Cols):
 def spanwiseColAD(Cols):
     """ Return column info, available columns and indices that contain AD spanwise data"""
     ADSpanMap=dict()
+# From AeroDyn_AllBldNd: TODO Use it directly..
+#                                "ALPHA    ","AXIND    ","AXIND_QS ","BEM_CT_QS","BEM_F_QS ","BEM_KP_QS","BEM_K_QS ","CD       ", &
+#                                "CD_QS    ","CHI      ","CL       ","CLRNC    ","CL_QS    ","CM       ","CMA      ","CM_QS    ", &
+#                                "CN       ","CPMIN    ","CT       ","CURVE    ","CX       ","CXA      ","CY       ","DEBUG1   ", &
+#                                "DEBUG2   ","DEBUG3   ","DYNP     ","FBN      ","FBS      ","FBT      ","FBXA     ","FBXI     ", &
+#                                "FBXL     ","FBXP     ","FBYA     ","FBYI     ","FBYL     ","FBYP     ","FBZA     ","FBZI     ", &
+#                                "FBZL     ","FBZP     ","FD       ","FL       ","FN       ","FT       ","FX       ","FXA      ", &
+#                                "FXI      ","FXL      ","FXP      ","FY       ","FYI      ","FYL      ","FYP      ","FZI      ", &
+#                                "FZL      ","FZP      ","GAM      ","GEOMPHI  ","M        ","MBN      ","MBS      ","MBT      ", &
+#                                "MBXA     ","MBXI     ","MBXL     ","MBXP     ","MBYA     ","MBYI     ","MBYL     ","MBYP     ", &
+#                                "MBZA     ","MBZI     ","MBZL     ","MBZP     ","MM       ","MXI      ","MXL      ","MXP      ", &
+#                                "MYI      ","MYL      ","MYP      ","MZA      ","MZI      ","MZL      ","MZP      ","PHI      ", &
+#                                "RE       ","SGCAV    ","SIGCR    ","STVX     ","STVXA    ","STVXI    ","STVXL    ","STVXP    ", &
+#                                "STVY     ","STVYA    ","STVYI    ","STVYL    ","STVYP    ","STVZ     ","STVZA    ","STVZI    ", &
+#                                "STVZL    ","STVZP    ","THETA    ","TNIND    ","TNIND_QS ","TOE      ","UA_FLAG  ","UA_X1    ", &
+#                                "UA_X2    ","UA_X3    ","UA_X4    ","UA_X5    ","UIN      ","UIR      ","UIT      ","VDISX    ", &
+#                                "VDISXA   ","VDISXI   ","VDISXL   ","VDISXP   ","VDISY    ","VDISYA   ","VDISYI   ","VDISYL   ", &
+#                                "VDISYP   ","VDISZ    ","VDISZA   ","VDISZI   ","VDISZL   ","VDISZP   ","VINDX    ","VINDXA   ", &
+#                                "VINDXI   ","VINDXL   ","VINDXP   ","VINDY    ","VINDYA   ","VINDYI   ","VINDYL   ","VINDYP   ", &
+#                                "VINDZA   ","VINDZI   ","VINDZL   ","VINDZP   ","VREL     ","VUNDX    ","VUNDXA   ","VUNDXI   ", &
+#                                "VUNDXL   ","VUNDXP   ","VUNDY    ","VUNDYA   ","VUNDYI   ","VUNDYL   ","VUNDYP   ","VUNDZ    ", &
+#                                "VUNDZA   ","VUNDZI   ","VUNDZL   ","VUNDZP   ","VX       ","VY       "/)
+#    CHARACTER(ChanLen), PARAMETER :: ParamUnitsAry(166) =  (/ character(ChanLen) :: &  ! This lists the units corresponding to the allowed parameters
+#                                "(deg)  ","(-)    ","(-)    ","(-)    ","(-)    ","(-)    ","(-)    ","(-)    ", &
+#                                "(-)    ","(deg)  ","(-)    ","(m)    ","(-)    ","(-)    ","(-)    ","(-)    ", &
+#                                "(-)    ","(-)    ","(-)    ","(deg)  ","(-)    ","(-)    ","(-)    ","(-)    ", &
+#                                "(-)    ","(-)    ","(Pa)   ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ", &
+#                                "(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ", &
+#                                "(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ", &
+#                                "(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ","(N/m)  ", &
+#                                "(N/m)  ","(N/m)  ","(m^2/s)","(1/0)  ","(-)    ","(N-m/m)","(N-m/m)","(N-m/m)", &
+#                                "(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)", &
+#                                "(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)", &
+#                                "(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(N-m/m)","(deg)  ", &
+#                                "(-)    ","(-)    ","(-)    ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(deg)  ","(-)    ","(-)    ","(deg)  ","(-)    ","(rad)  ", &
+#                                "(rad)  ","(-)    ","(-)    ","(-)    ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ", &
+#                                "(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  ","(m/s)  "/)
+
+
     for sB in ['B1','B2','B3']:
         ADSpanMap['^[A]*'+sB+r'N(\d*)Alpha_\[deg\]']   =sB+'Alpha_[deg]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_\[-\]'  ]   =sB+'AxInd_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_\[-\]'  ]   =sB+'TnInd_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_qs_\[-\]'  ]=sB+'AxInd_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_qs_\[-\]'  ]=sB+'TnInd_qs_[-]'  
-        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_k_\[-\]'     ]=sB+'BEM_k_[-]'  
-        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_\[-\]'    ]=sB+'BEM_kp_[-]'  
-        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_\[-\]'     ]=sB+'BEM_F_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_qs\[-\]'  ]=sB+'BEM_kp_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_qs\[-\]'   ]=sB+'BEM_F_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_CT_qs_\[-\]' ]=sB+'BEM_CT_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Chi_\[deg\]'     ]=sB+'Chi_[deg]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Cl_\[-\]'     ]   =sB+'Cl_[-]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Cd_\[-\]'     ]   =sB+'Cd_[-]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Cm_\[-\]'     ]   =sB+'Cm_[-]'   
@@ -670,14 +771,23 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxp_\[m/s\]']  =sB+'Vindxp_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyp_\[m/s\]']  =sB+'Vindyp_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzp_\[m/s\]']  =sB+'Vindzp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxa_\[m/s\]']  =sB+'Vindxa_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindya_\[m/s\]']  =sB+'Vindya_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindza_\[m/s\]']  =sB+'Vindza_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fx_\[N/m\]'   ]   =sB+'Fx_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fy_\[N/m\]'   ]   =sB+'Fy_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fxi_\[N/m\]'   ]  =sB+'Fxi_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fyi_\[N/m\]'   ]  =sB+'Fyi_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fzi_\[N/m\]'   ]  =sB+'Fzi_[N/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Mxi_\[N-m/m\]'   ]  =sB+'Mxi_[N-m/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Myi_\[N-m/m\]'   ]  =sB+'Myi_[N-m/m]'   
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Mzi_\[N-m/m\]'   ]  =sB+'Mzi_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mxi_\[N-m/m\]' ]  =sB+'Mxi_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Myi_\[N-m/m\]' ]  =sB+'Myi_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mzi_\[N-m/m\]' ]  =sB+'Mzi_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fxp_\[N/m\]'   ]  =sB+'Fxp_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fyp_\[N/m\]'   ]  =sB+'Fyp_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fzp_\[N/m\]'   ]  =sB+'Fzp_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mxp_\[N-m/m\]' ]  =sB+'Mxp_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Myp_\[N-m/m\]' ]  =sB+'Myp_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mzp_\[N-m/m\]' ]  =sB+'Mzp_[N-m/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fl_\[N/m\]'   ]   =sB+'Fl_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fd_\[N/m\]'   ]   =sB+'Fd_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fn_\[N/m\]'   ]   =sB+'Fn_[N/m]'   
@@ -720,6 +830,10 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)Mm_\[N-m/m\]' ]   =sB+'Mm_[N-m/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Gam_\['       ]   =sB+'Gam_[m^2/s]' #DBGOuts
         # DEPRECIATED
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_k_\[-\]'  ]   =sB+'BEM_k_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_\[-\]' ]   =sB+'BEM_kp_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_\[-\]'  ]   =sB+'BEM_F_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_k_qs\[-\]']   =sB+'BEM_k_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)AOA_\[deg\]'  ]   =sB+'Alpha_[deg]' # DBGOuts
         ADSpanMap['^[A]*'+sB+r'N(\d*)AIn_\[deg\]'  ]   =sB+'AxInd_[-]'   # DBGOuts NOTE BUG Unit
         ADSpanMap['^[A]*'+sB+r'N(\d*)ApI_\[deg\]'  ]   =sB+'TnInd_[-]'   # DBGOuts NOTE BUG Unit
@@ -784,7 +898,10 @@ def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, ch
             Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * vr)
             Ct[vr<0.01*R] = 0
             dfRad[sB+'Ctloc_[-]'] = Ct
-            CT=2*np.trapz(vr_bar*Ct,vr_bar)
+            try:
+                CT=2*np.trapezoid(vr_bar*Ct,vr_bar)
+            except:
+                CT=2*np.trapz(vr_bar*Ct,vr_bar)
             dfRad[sB+'CtAvg_[-]']= CT*np.ones(vr.shape)
         except:
             pass
@@ -961,88 +1078,27 @@ def radialAvg(filename, avgMethod, avgParam, raw_name='', df=None, raiseExceptio
                 names_new=['']
     return dfs_new, names_new
 
-def spanwisePostProRows(df, FST_In=None):
+def spanwisePostProRows(df, FST_In=None, si1='i1', sir='ir'):
     """ 
     Returns a 3D matrix: n x nSpan x nColumn where df is of size n x mColumn
 
     NOTE: this is really not optimal. Spanwise columns should be extracted only once..
     """
-    # --- Extract info (e.g. radial positions) from Fast input file
-    # We don't have a .fst input file, so we'll rely on some default values for "r"
-    rho         = 1.225
-    chord       = None
     # --- Extract radial positions of output channels
     d = FASTSpanwiseOutputs(FST_In, OutputCols=df.columns.values)
-    r_AD      = d['r_AD']
-    r_ED_bld  = d['r_ED_bld']
-    r_ED_twr  = d['r_ED_twr']
-    r_BD      = d['r_BD']
-    IR_AD     = d['IR_AD']
-    IR_ED_bld = d['IR_ED_bld']
-    IR_ED_twr = d['IR_ED_twr']
-    IR_BD     = d['IR_BD']
-    TwrLen    = d['TwrLen']
-    R         = d['R']
-    r_hub     = d['r_hub']
-    fst       = d['fst']
-    #print('r_AD:', r_AD)
-    #print('r_ED:', r_ED)
-    #print('r_BD:', r_BD)
-    if R is None: 
-        R=1
-    try:
-        chord  = fst.AD.Bld1['BldAeroNodes'][:,5] # Full span
-    except:
-        pass
-    try:
-        rho = fst.AD['Rho']
-    except:
-        try:
-            rho = fst.AD['AirDens']
-        except:
-            print('[WARN] Using default air density (1.225)')
-            pass
-    # --- Extract radial data for each azimuthal average
-    M_AD=None
-    M_ED=None
-    M_BD=None
-    Col_AD=None
-    Col_ED=None
-    Col_BD=None
-    v = df.index.values
-
+    R  = d['R'] if d['R'] is not None else 1
     # --- Getting Column info
     Cols=df.columns.values
-    if r_AD is not None:
-        ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
-    if r_ED_bld is not None:
-        ColsInfoED, nrMaxED = spanwiseColED(Cols)
-    if r_BD is not None:
-        ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
-    for i,val in enumerate(v):
-        if r_AD is not None:
-            dfRad_AD = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=df.iloc[i])
-            dfRad_AD = insert_extra_columns_AD(dfRad_AD, df.iloc[i], vr=r_AD, rho=rho, R=R, nB=3, chord=chord)
-            dfRad_AD = insert_spanwise_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
-            if i==0:
-                M_AD = np.zeros((len(v), len(dfRad_AD), len(dfRad_AD.columns)))
-                Col_AD=dfRad_AD.columns.values
-            M_AD[i, :, : ] = dfRad_AD.values
-        if r_ED_bld is not None and len(r_ED_bld)>0:
-            dfRad_ED = extract_spanwise_data(ColsInfoED, nrMaxED, df=None, ts=df.iloc[i])
-            dfRad_ED = insert_spanwise_columns(dfRad_ED, r_ED_bld, R=R, IR=IR_ED)
-            if i==0:
-                M_ED = np.zeros((len(v), len(dfRad_ED), len(dfRad_ED.columns)))
-                Col_ED=dfRad_ED.columns.values
-            M_ED[i, :, : ] = dfRad_ED.values
-        if r_BD is not None and len(r_BD)>0:
-            dfRad_BD = extract_spanwise_data(ColsInfoBD, nrMaxBD, df=None, ts=df.iloc[i])
-            dfRad_BD = insert_spanwise_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
-            if i==0:
-                M_BD = np.zeros((len(v), len(dfRad_BD), len(dfRad_BD.columns)))
-                Col_BD=dfRad_BD.columns.values
-            M_BD[i, :, : ] = dfRad_BD.values
-    return M_AD, Col_AD, M_ED, Col_ED, M_BD, Col_BD
+    ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
+    ColsInfoED, nrMaxED = spanwiseColED(Cols)
+    ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
+
+    # --- Extract data (nt x nSpan) for each variables
+    ds_AD = extract_spanwise_data_timeSeries(ColsInfoAD, nrMaxAD, df, vr=d['r_AD']    , R=R, IR=d['IR_AD']    , si1=si1, sir=sir)
+    ds_ED = extract_spanwise_data_timeSeries(ColsInfoED, nrMaxED, df, vr=d['r_ED_bld'], R=R, IR=d['IR_ED_bld'], si1=si1, sir=sir)
+    ds_BD = extract_spanwise_data_timeSeries(ColsInfoBD, nrMaxBD, df, vr=d['r_BD']    , R=R, IR=d['IR_BD']    , si1=si1, sir=sir)
+
+    return ds_AD, ds_ED, ds_BD
 
 
 def FASTSpanwiseOutputs(FST_In, OutputCols=None, verbose=False):
@@ -1066,7 +1122,7 @@ def FASTSpanwiseOutputs(FST_In, OutputCols=None, verbose=False):
     IR_BD       = None
     fst=None
     if FST_In is not None:
-        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD','BDbld','SD'])
+        fst = FASTInputDeck(FST_In, readlist=['AD','ADbld','ED','BD','BDbld','SD'], verbose=False)
         # NOTE: all this below should be in FASTInputDeck
         if fst.version == 'F7':
             # --- FAST7
@@ -1568,16 +1624,16 @@ def bin_mean_DF(df, xbins, colBin ):
         raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
     xmid      = (xbins[:-1]+xbins[1:])/2
     df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
-    df2       = df.groupby('Bin').mean()                     # Average by bin
+    df2       = df.groupby('Bin', observed=False).mean()     # Average by bin
     # also counting
     df['Counts'] = 1
-    dfCount=df[['Counts','Bin']].groupby('Bin').sum()
+    dfCount=df[['Counts','Bin']].groupby('Bin', observed=False).sum()
     df2['Counts'] = dfCount['Counts']
     # Just in case some bins are missing (will be nan)
     df2       = df2.reindex(xmid)
     return df2
 
-def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]'):
+def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]', periodic=False, nPeriods=None):
     """ 
     Average a dataframe based on azimuthal value
     Returns a dataframe with same amount of columns as input, and azimuthal values as index
@@ -1585,17 +1641,74 @@ def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, c
     if psiBin is None: 
         psiBin = np.arange(0,360+1,10)
 
-    if tStart is not None:
-        if colTime not in df.columns.values:
-            raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
-        df=df[ df[colTime]>tStart].copy()
+    if nPeriods is not None:
+         tStart, tEnd = findPeriodTimeRange(df, nPeriods=nPeriods, filename='', colPsi=colPsi, colTime=colTime)
+         df=df[ np.logical_and( df[colTime]>tStart, df[colTime]<=tEnd) ].copy()
+    else:
+        if tStart is not None:
+            if colTime not in df.columns.values:
+                raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
+            df=df[ df[colTime]>tStart].copy()
 
     dfPsi= bin_mean_DF(df, psiBin, colPsi)
     if np.any(dfPsi['Counts']<1):
         print('[WARN] some bins have no data! Increase the bin size.')
 
+    if periodic:
+        # TODO, I should probably figure out a better way to do that 
+        I = dfPsi.index.values
+        DI = I[1]-I[0]
+        dfEnd = pd.DataFrame(data=dfPsi.loc[I[0:1]].values, columns=dfPsi.columns, index=[I[-1]+DI])
+        dfPsi = pd.concat([dfPsi, dfEnd], axis=0)
+
     return dfPsi
 
+
+def findPeriodTimeRange(df, nPeriods=3, filename='', colPsi=None, colTime=None):
+
+    if colTime is None:
+        sTAllowed = ['Time_[s]','Time [s]', 'Time']
+        sT = [s for s in sTAllowed if s in df.columns]
+        if len(sT)==0:
+            raise WELIBException('The dataframe must contain one of the following column: {}\n{}'.format(','.join(sTAllowed)),filename)
+        colTime = sT[0]
+
+    if colPsi is None:
+        sAAllowed = ['Azimuth_[deg]','Azimuth [deg]', 'Azimuth', 'Psi']
+        sA = [s for s in sAAllowed if s in df.columns]
+        if len(sA)==0:
+            raise WELIBException('The dataframe must contain one of the following columns: {}\n{}.'.format(','.join(sAAllowed),filename))
+        colPsi = sA[0]
+
+
+    time = df[colTime].values
+    timenoNA = time[~np.isnan(time)]
+
+    # NOTE: potentially we could average over each period and then average
+    psi=df[colPsi].values
+    _,iBef = _zero_crossings(psi-psi[-2],direction='up')
+    if len(iBef)==0:
+        _,iBef = _zero_crossings(psi-180,direction='up')
+    if len(iBef)==0:
+        print('[WARN] Not able to find a zero crossing!{}'.format(filename))
+        tEnd = time[-1]
+        iBef=[0]
+    else:
+        tEnd = time[iBef[-1]]
+
+    if nPeriods is None:
+        tStart=time[iBef[0]]
+    else:
+        nPeriods=int(nPeriods) 
+        if len(iBef)-1<nPeriods:
+            print('[WARN] Not enough periods found ({}) compared to number requested to average ({})!{}'.format(len(iBef)-1,nPeriods, filename))
+            nPeriods=len(iBef)-1
+        if nPeriods==0:
+            tStart = time[0]
+            tEnd   = time[-1]
+        else:
+            tStart=time[iBef[-1-nPeriods]]
+    return tStart, tEnd
 
 def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColSort=None,stats=['mean'], filename=''):
     """
@@ -1633,34 +1746,8 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
             tStart =tEnd-avgParam
     elif avgMethod.lower()=='periods':
         # --- Using azimuth to find periods
-        sAAllowed = ['Azimuth_[deg]','Azimuth [deg]']
-        sA = [s for s in sAAllowed if s in df.columns]
-        if len(sA)==0:
-            raise WELIBException('The dataframe must contain one of the following columns: {}.\nYou cannot use the averaging method by `periods`, use `constantwindow` instead.\n{}'.format(','.join(sAAllowed),filename))
-        # NOTE: potentially we could average over each period and then average
-        psi=df[sA[0]].values
-        _,iBef = _zero_crossings(psi-psi[-2],direction='up')
-        if len(iBef)==0:
-            _,iBef = _zero_crossings(psi-180,direction='up')
-        if len(iBef)==0:
-            print('[WARN] Not able to find a zero crossing!{}'.format(filename))
-            tEnd = time[-1]
-            iBef=[0]
-        else:
-            tEnd = time[iBef[-1]]
+        tStart, tEnd = findPeriodTimeRange(df, nPeriods=avgParam, filename=filename, colPsi=None, colTime=sT[0])
 
-        if avgParam is None:
-            tStart=time[iBef[0]]
-        else:
-            avgParam=int(avgParam) 
-            if len(iBef)-1<avgParam:
-                print('[WARN] Not enough periods found ({}) compared to number requested to average ({})!{}'.format(len(iBef)-1,avgParam, filename))
-                avgParam=len(iBef)-1
-            if avgParam==0:
-                tStart = time[0]
-                tEnd   = time[-1]
-            else:
-                tStart=time[iBef[-1-avgParam]]
     elif avgMethod.lower()=='periods_omega':
         # --- Using average omega to find periods
         if 'RotSpeed_[rpm]' not in df.columns:
@@ -1703,7 +1790,48 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
         raise NotImplementedError()
     return MeanValues
 
+def FAIL(msg):
+    HEADER = '\033[95m'
+    RED = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    print(RED+'[FAIL] ' + msg + ENDC)
 
+def WARN(msg):
+    ORAN = '\033[93m'
+    ENDC = '\033[0m'
+    print(ORAN+'[WARN] ' + msg + ENDC)
+
+def INFO(msg):
+    ENDC = '\033[0m'
+    print('[INFO] ' + msg + ENDC)
+
+def OK(msg):
+    GREEN = '\033[92m'
+    ENDC = '\033[0m'
+    print(GREEN+'[ OK ] ' + msg + ENDC)
+
+class FileErrorLogger():
+    def __init__(self):
+        self.firstWarn=True
+        self.firstErr=True
+
+    def WARN(self, filename, msg):
+        if self.firstWarn:
+            baseDir = os.path.dirname(filename)
+            INFO('[INFO] In directory: {}'.format(baseDir))
+            self.firstWarn = False
+        basename = os.path.basename(filename)
+        WARN('File {} {}'.format(basename, msg))
+
+    def FAIL(self, filename, msg):
+        if self.firstErr:
+            baseDir = os.path.dirname(filename)
+            INFO('[INFO] In directory: {}'.format(baseDir))
+            self.firstErr = False
+        basename = os.path.basename(filename)
+        FAIL('File {} {}'.format(basename, msg))
 
 def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
         ColMap=None,ColKeep=None,ColSort=None,stats=['mean'],
@@ -1738,6 +1866,7 @@ def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
         raise Exception('No outFiles or DFs provided')
 
     invalidFiles =[]
+    log = FileErrorLogger()
     # Loop trough files and populate result
     for i,f in enumerate(outFiles_or_DFs):
         if isinstance(f, pd.DataFrame):
@@ -1749,26 +1878,35 @@ def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
             except:
                 invalidFiles.append(f)
                 continue
-        postpro=averageDF(df, avgMethod=avgMethod, avgParam=avgParam, ColMap=ColMap, ColKeep=ColKeep,ColSort=ColSort,stats=stats, filename=f)
-        MeanValues=postpro # todo
+        df_avg = averageDF(df, avgMethod=avgMethod, avgParam=avgParam, ColMap=ColMap, ColKeep=ColKeep,ColSort=ColSort,stats=stats, filename=f)
+        MeanValues= df_avg.copy() # todo
         if result is None:
             # We create a dataframe here, now that we know the colums
             columns = MeanValues.columns
             result = pd.DataFrame(np.nan, index=np.arange(len(outFiles_or_DFs)), columns=columns)
         if MeanValues.shape[1]!=result.shape[1]:
-            columns_ref = result.columns
-            columns_loc = MeanValues.columns
+            columns_ref = set(result.columns)
+            columns_loc = set(MeanValues.columns)
             if skipIfWrongCol:
-                print('[WARN] File {} has {} columns and not {}. Skipping.'.format(f, MeanValues.shape[1], result.shape[1]))
+                log.WARN(f, 'has {} columns and not {}. Skipping.'.format(MeanValues.shape[1], result.shape[1]))
             else:
+                columns_com = list(columns_ref.intersection(columns_loc))
+                n_ref = len(columns_ref)
+                n_loc = len(columns_loc)
+                n_com = len(columns_com)
+                if n_com == 0:
+                    log.FAIL(f, 'has no columns in common with first file. Skipping.')
+                    continue
                 try:
-                    MeanValues=MeanValues[columns_ref]
-                    result.iloc[i,:] = MeanValues.copy().values
-                    print('[WARN] File {} has more columns than other files. Truncating.'.format(f, MeanValues.shape[1], result.shape[1]))
+                    result.iloc[i][columns_com] = MeanValues[columns_com].iloc[0]
+                    log.WARN(f, 'has {} columns, first file has {} columns, with {} in common. Truncating.'.format(n_loc, n_loc, n_com))
                 except:
-                    print('[WARN] File {} is missing some columns compared to other files. Skipping.'.format(f))
+                    log.FAIL(f, 'has {} columns, first file has {} columns, with {} in common. Failed to assign common columns.'.format(n_loc, n_loc, n_com))
         else:
-            result.iloc[i,:] = MeanValues.copy().values
+            try:
+                result.iloc[i] = MeanValues.iloc[0]
+            except:
+                import pdb; pdb.set_trace()
 
 
     if len(invalidFiles)==len(outFiles_or_DFs):
@@ -1795,7 +1933,10 @@ def integrateMoment(r, F):
     """
     M = np.zeros(len(r)-1)
     for ir,_ in enumerate(r[:-1]):
-        M[ir] = np.trapz(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
+        try:
+            M[ir] = np.trapezoid(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
+        except:
+            M[ir] = np.trapz(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
     return M
 
 def integrateMomentTS(r, F):
@@ -1817,12 +1958,11 @@ def integrateMomentTS(r, F):
       - M: array nt x nr of integrated moment at each radial station
 
     """
-    import scipy.integrate as si
     # Compute \int_{r_j}^{r_n} f(r) dr, with "j" each column 
-    IF = np.fliplr(-si.cumtrapz(np.fliplr(F), r[-1::-1]))
+    IF = np.fliplr(-cumulative_trapezoid(np.fliplr(F), r[-1::-1]))
     # Compute \int_{r_j}^{r_n} f(r)*r dr, with "j" each column 
     FR  = F * r 
-    IFR = np.fliplr(-si.cumtrapz(np.fliplr(FR), r[-1::-1]))
+    IFR = np.fliplr(-cumulative_trapezoid(np.fliplr(FR), r[-1::-1]))
     # Compute x_j * \int_{r_j}^(r_n) f(r) * r dr
     R_IF = IF * r[:-1]
     # \int_{r_j}^(r_n) f(r) * (r-r_j) dr  = IF + IFR

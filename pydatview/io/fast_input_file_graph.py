@@ -134,7 +134,7 @@ def subdynToGraph(sd, propToNodes=False, propToElem=False):
 # --------------------------------------------------------------------------------}
 # --- HydroDyn
 # --------------------------------------------------------------------------------{
-def hydrodynToGraph(hd, propToNodes=False, propToElem=False):
+def hydrodynToGraph(hd, propToNodes=False, propToElem=False, verbose=False):
     """
      hd: dict-like object as returned by weio
 
@@ -195,7 +195,8 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False):
     if 'FillGroups' in hd.keys():
         # Filled members
         Graph.addMiscPropertySet('FillGroups')
-        print('>>> TODO Filled Groups')
+        if verbose:
+            print('>>> TODO Filled Groups')
         #for ip,P in enumerate(hd['FillGroups']):
         #    #                       FillNumM FillMList             FillFSLoc     FillDens
         #    raise NotImplementedError('hydroDynToGraph, Fill List might not be properly set, verify below')

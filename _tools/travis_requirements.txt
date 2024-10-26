@@ -1,6 +1,7 @@
 openpyxl
 numpy
 pandas
+xarray
 pyarrow # for parquet files
 matplotlib 
 chardet

@@ -4,6 +4,13 @@ Set of tools to fit a model to data.
 The quality of a fit is usually a strong function of the initial guess. 
 Because of this this package contains different kind of "helpers" and "wrapper" tools.
 
+INTERFACE FOR MODEL FUNCTIONS:
+    def func(x, p, **const_kwargs): 
+        # p a list, p[0] is the first coefficient
+        return y
+
+
+
 FUNCTIONS
 ---------
 
@@ -364,7 +371,6 @@ def gentorque(x, p):
     return GenTrq
 
 
-# TODO TODO TODO WHY DID I GO FOR STRINGS AND NOT DICTIONARIES FOR CONSTS AND BOUNDS????
 MODELS =[
 #     {'label':'User defined model',
 #          'name':'eval:',
@@ -484,7 +490,7 @@ def model_fit(func, x, y, p0=None, bounds=None, **fun_kwargs):
         consts     = FITTERS[i]['consts']
         args, missing = set_common_keys(consts, fun_kwargs)
         if len(missing)>0:
-            raise Exception('Curve fitting with `{}` requires the following arguments {}. Missing: {}'.format(func, list(consts.keys()), missing))
+            raise Exception('Curve fitting with `{}` requires the following arguments {}. Missing: {}'.format(func,consts.keys(),missing))
         # Calling the class
         fitter = FitterDict['handle'](x=x, y=y, p0=p0, bounds=bounds, **fun_kwargs)
     else:
@@ -495,101 +501,135 @@ def model_fit(func, x, y, p0=None, bounds=None, **fun_kwargs):
 
 
 # --------------------------------------------------------------------------------}
+# --- Model Info Class to store a Model, not its data
+# --------------------------------------------------------------------------------{
+class ModelInfo(dict):
+    def __init__(self):
+        # model signature
+        self['name']            = None
+        self['model_function']  = None
+        self['consts']          = None
+        self['formula']         = 'unavailable' 
+        # Model fitting
+        self['coeffs']          = None
+        self['formula_num']     = 'unavailable'
+        self['fitted_function'] = None
+        self['coeffs_init']     = None
+        self['bounds']          = None
+        self['R2']              = None
+
+# --------------------------------------------------------------------------------}
 # --- Main Class 
 # --------------------------------------------------------------------------------{
-class ModelFitter():
-    def __init__(self,func=None, x=None, y=None, p0=None, bounds=None, **fun_kwargs):
+class FunctionFitter():
+    """ """
+    def __init__(self, func=None, coeffs=None, p0=None, bounds=None, x=None, y=None, name='', verbose=False, **consts):
 
-        self.model={
-            'name':None, 'model_function':None, 'consts':fun_kwargs, 'formula': 'unavailable', # model signature
-            'coeffs':None, 'formula_num':'unavailable', 'fitted_function':None,  'coeffs_init':p0, 'bounds':bounds,  # model fitting
-            'R2':None,
-        }
-        self.data={'x':x,'y':y,'y_fit':None}
+        self.verbose = verbose
+        # We defer the validation of these variables to the fitting
+        self._p0     = p0     
+        self._bounds = bounds
+        self._varnames = coeffs
 
-        if func is None:
+        self.model = ModelInfo()
+        self.model['name'] = name
+        self.model['model_function'] = func
+        self.model['consts'] = consts
+        #self.model['coeffs'] = None #  deferred
+
+        self.data = {'x':x, 'y':y, 'y_fit':None}
+
+        D = {'varnames':coeffs, 'p0':p0, 'bounds':bounds}
+        if all([d is None for dname,d in D.items()]):
+            # We do not affect enough information to perform a fit
             return
-        self.set_model(func, **fun_kwargs)
+        #self.set_default_dict(varnames, p0, bounds)
+        #assert(self.model['coeffs'] is not None)
 
         # Initialize function if present
         # Perform fit if data and function is present
         if x is not None and y is not None:
-            self.fit_data(x,y,p0,bounds)
+            self.fit_data(x, y, p0, bounds)
 
-    def set_model(self,func, **fun_kwargs):
-        if callable(func):
-            # We don't have much additional info
-            self.model['model_function'] = func
-            self.model['name']           = func.__name__
-            pass
 
-        elif isinstance(func,six.string_types):
-            if func.find('predef:')==0:
-                # --- Minimization from a predefined function
-                predef_models=[m['id'] for m in MODELS]
-                if func not in predef_models:
-                    raise Exception('Predefined function `{}` not defined in curve_fitting module\n Available functions: {}'.format(func,predef_models))
-                i = predef_models.index(func)
-                ModelDict = MODELS[i]
-                self.model['model_function'] = ModelDict['handle']
-                self.model['name']           = ModelDict['label']
-                self.model['formula']        = ModelDict['formula']
-                self.model['coeffs']         = extract_key_num(ModelDict['coeffs'])
-                self.model['coeffs_init']    = self.model['coeffs'].copy()
-                self.model['consts']         = extract_key_num(ModelDict['consts'])
-                self.model['bounds']         = extract_key_tuples(ModelDict['bounds'])
+    @property
+    def nParams(self):
+        return len(self.model['coeffs'])
 
-            elif func.find('eval:')==0:
-                # --- Minimization from a eval string 
-                formula=func[5:]
-                # Extract coeffs {a} {b} {c}, replace by p[0]
-                variables, formula_eval = extract_variables(formula)
-                nParams=len(variables)
-                if nParams==0:
-                    raise Exception('Formula should contains parameters in curly brackets, e.g.: {a}, {b}, {u_1}. No parameters found in {}'.format(formula))
+    def __repr__(self):
+        s='<{} object> with fields:\n'.format(type(self).__name__)
+        s+=' - data, dictionary with keys: \n'
+        if self.data['x'] is not None:
+            s+='   - x: [{} ... {}], n: {} \n'.format(self.data['x'][0],self.data['x'][-1],len(self.data['x']))
+            s+='   - y: [{} ... {}], n: {} \n'.format(self.data['y'][0],self.data['y'][-1],len(self.data['y']))
+        s+=' - model, dictionary with keys: \n'
+        for k,v in self.model.items():
+            s=s+'   - {:15s}: {}\n'.format(k,v)
+        return s
 
-                # Check that the formula evaluates
-                x=np.array([1,2,5])*np.sqrt(2) # some random evaluation vector..
-                p=[np.sqrt(2)/4]*nParams         # some random initial conditions
-                try:
-                    y=eval(formula_eval)
-                    y=np.asarray(y)
-                    if y.shape!=x.shape:
-                        raise Exception('The formula does not return an array of same size as the input variable x. The formula must include `x`: {}'.format(formula_eval))
-                except SyntaxError:
-                    raise Exception('The formula does not evaluate, syntax error raised: {}'.format(formula_eval))
-                except ZeroDivisionError:
-                    pass
-
-                # Creating the actual function
-                def func(x, p):
-                    return eval(formula_eval)
-
-                self.model['model_function'] = func
-                self.model['name']           = 'user function'
-                self.model['formula']        = formula
-                self.model['coeffs']         = OrderedDict([(k,v) for k,v in zip(variables,p)])
-                self.model['coeffs_init']    = self.model['coeffs'].copy()
-                self.model['consts']         = {}
-                self.model['bounds']         = None
-
-            else:
-                raise Exception('func string needs to start with `eval:` of `predef:`, func: {}'.format(func))
+    
+    def set_default_dict(self, varnames, p0, bounds):
+        D = {'varnames':varnames, 'p0':p0, 'bounds':bounds}
+        if all([d is None for dname,d in D.items()]):
+            raise Exception('Provide at least one of the following arguments: p0, bounds, or varnames')
+        # --- Infer key names if inputs are dictionaries
+        D = {'p0':p0, 'bounds':bounds}
+        D = {k: v for k,v in D.items() if v is not None} 
+        if varnames is not None:
+            if isinstance(varnames, dict):
+                print('[WARN] varnames is a dictionary, it should be a list. Legacy warning.')
+                varnames = list(varnames.keys())
+            if not isinstance(varnames, list):
+                raise Exception('varnames should be a list')
+            keys = varnames
         else:
-            raise Exception('func should be string or callable')
+            keys = None
+        for dn, d in D.items():
+            if isinstance(d, dict):
+                if keys is None:
+                    if len(d.keys())>0:
+                        keys = list(d.keys())
+                        dn_key = dn
+                else:
+                    new_keys = list(d.keys())
+                    if set(d.keys())!=set(keys) and len(new_keys)>0:
+                        raise Exception(f'Argument `{dn}` has keys: `{new_keys}` but argument `{dn_key}` has keys: `{keys}`')
+        # --- Allow for bounds to be a tuple of just two falues
+        if bounds is not None:
+            bounds2 = np.asarray(bounds).flatten()
+            if len(bounds2)==2:
+                del D['bounds'] # Do not test on the size of bounds
+        # --- Infer dimensions (Number of variables) 
+        nDim = None
+        for dn, d in D.items():
+            if nDim is None:
+                if len(d)>0:
+                    nDim = len(d)
+                    dn_dim = dn
+            else:
+                nDim_new = len(d)
+                if nDim != nDim_new and nDim_new>0:
+                    raise Exception(f'Argument `{dn}` has {nDim_new} values but Input `{dn_dim}` has {keys} values.')
+        assert(nDim is not None) # Programming error
+        # --- Set keys
+        if keys is None:
+            keys=['p{}'.format(i) for i in range(nDim)]
+        self.model['coeffs'] = OrderedDict([(k,np.nan) for k in keys])
 
-        if fun_kwargs is None:
-            return
-        if len(fun_kwargs)==0:
-            return
-        if self.model['consts'] is None:
-            raise Exception('Fun_kwargs provided, but no function constants were defined')
 
-        self.model['consts'], missing = set_common_keys(self.model['consts'],  fun_kwargs )
-        if len(missing)>0:
-            raise Exception('Curve fitting with function `{}` requires the following arguments {}. Missing: {}'.format(self.model['name'],list(self.model['consts'].keys()),missing))
-
-    def setup_bounds(self, bounds, nParams):
+    def setup_bounds(self, bounds=None):
+        """ 
+        Bounds can be provided in various format:
+         - string: e.g. ' key=(mi,mx) , key2=(mi2,mx2) '
+         - dictionary:    {'key':(mi,mx), 'key2' :(mi2,mx2)}
+         - 2-array:   
+              -   (mi, mx)                      ->  ([mi, mi , mi ], [mx, mx,   mx])
+              - [(mi, mi2, m3), (mx, mx2, mx3)] ->  ([mi, mi2, mi3], [mx, mx2, mx3])
+         - None:  will be -np.inf, np.inf
+        OUTPUTS:
+         - bounds: ([mi, mi2, mi3], [mx, mx2, mx3])
+        """
+        nParams = self.nParams
         if bounds is not None:
             self.model['bounds']=bounds # store in model
         bounds=self.model['bounds'] # usemodel bounds as default
@@ -600,7 +640,7 @@ class ModelFitter():
             if isinstance(bounds ,dict): 
                 if len(bounds)==0 or 'all' in bounds.keys():
                     bounds=([-np.inf]*nParams,[np.inf]*nParams)
-                elif self.model['coeffs'] is not None:
+                else:
                     b1=[]
                     b2=[]
                     for k in self.model['coeffs'].keys():
@@ -611,8 +651,6 @@ class ModelFitter():
                             # TODO merge default bounds
                             raise Exception('Bounds dictionary is missing the key: `{}`'.format(k))
                     bounds=(b1,b2)
-                else:
-                    raise NotImplementedError('Bounds dictionary with no known model coeffs.')
             else:
                 # so.curve_fit needs a 2-tuple 
                 b1,b2=bounds[0],bounds[1]
@@ -624,9 +662,11 @@ class ModelFitter():
         else:
             bounds=([-np.inf]*nParams,[np.inf]*nParams)
 
-        self.model['bounds']=bounds # store in model
+        self.model['bounds'] = bounds # store in model
+        if self.verbose:
+            print('Setting bounds to:',bounds)
 
-    def setup_guess(self, p0, bounds, nParams):
+    def setup_guess(self, p0, bounds):
         """ 
         Setup initial parameter values for the fit, based on what the user provided, and potentially the bounds
 
@@ -641,10 +681,11 @@ class ModelFitter():
 
         We can assume that the bounds are set
         """
+        nParams = self.nParams
         def middleOfBounds(i):
             """ return middle of bounds for parameter `i`"""
             bLow  = bounds[0][i]
-            bHigh = bounds[0][2]
+            bHigh = bounds[1][i]
             if (bLow,bHigh)==(-np.inf,np.inf):
                 p_i=0
             elif bLow==-np.inf:
@@ -662,10 +703,10 @@ class ModelFitter():
 
         if p0 is None:
             # There is some tricky logic here between the priority of bounds and coeffs
-            if self.model['coeffs'] is not None:
+            if self.model['coeffs_init'] is not None:
                 # We rely on function to give us decent init coefficients
-                p0 = ([v for _,v in self.model['coeffs'].items()])
-            elif bounds is None:
+                p0 = ([v for _,v in self.model['coeffs_init'].items()])
+            if bounds is None:
                 p0 = ([0]*nParams)
             else:
                 # use middle of bounds
@@ -678,7 +719,7 @@ class ModelFitter():
             p0_dict=p0.copy()
             if self.model['coeffs'] is not None:
                 p0=[]
-                for k in self.model['coeffs'].keys():
+                for k in self.model['coeffs']:
                     if k in p0_dict.keys():
                         p0.append(p0_dict[k])
                     else:
@@ -692,30 +733,28 @@ class ModelFitter():
 
         # --- Last check that p0 is within bounds
         if bounds is not None:
-            for p,k,lb,ub in zip(p0, self.model['coeffs'].keys(), bounds[0], bounds[1]):
-                if p<lb:
-                    raise Exception('Parameter `{}` has the guess value {}, which is smaller than the lower bound ({})'.format(k,p,lb))
-                if p>ub:
-                    raise Exception('Parameter `{}` has the guess value {}, which is larger than the upper bound ({})'.format(k,p,ub))
-                # TODO potentially set it as middle of bounds
+            if self.model['coeffs'] is not None:
+                for p,k,lb,ub in zip(p0, self.model['coeffs'], bounds[0], bounds[1]):
+                    if p<lb:
+                        raise Exception('Parameter `{}` has the guess value {}, which is smaller than the lower bound ({})'.format(k,p,lb))
+                    if p>ub:
+                        raise Exception('Parameter `{}` has the guess value {}, which is larger than the upper bound ({})'.format(k,p,ub))
+                    # TODO potentially set it as middle of bounds
 
         # --- Finally, store the initial guesses in the model
         self.model['coeffs_init'] = p0
-
-    def fit(self, func, x, y, p0=None, bounds=None, **fun_kwargs):
-        """ Fit model defined by a function to data (x,y) """
-        # Setup function
-        self.set_model(func, **fun_kwargs)
-        # Fit data to model
-        self.fit_data(x, y, p0, bounds)
 
     def clean_data(self,x,y):
         x=np.asarray(x)
         y=np.asarray(y)
         bNaN=~np.isnan(y)
+        if np.sum(bNaN)<len(x):
+            print('NaN founds in y before fit')
         y=y[bNaN]
         x=x[bNaN]
         bNaN=~np.isnan(x)
+        if np.sum(bNaN)<len(x):
+            print('NaN founds in x before fit')
         y=y[bNaN]
         x=x[bNaN]
         self.data['x']=x
@@ -726,36 +765,34 @@ class ModelFitter():
         """ fit data, assuming a model is already setup"""
         if self.model['model_function'] is None:
             raise Exception('Call set_function first')
+        if p0 is None:
+            p0 = self._p0
+        if bounds is None:
+            bounds = self._bounds
+
+        self.set_default_dict(self._varnames, p0, bounds)
+
 
         # Cleaning data, and store it in object
         x,y=self.clean_data(x,y)
 
-        # nParams
-        if isinstance(p0 ,six.string_types): 
-            p0=extract_key_num(p0)
-            if len(p0)==0:
-                p0=None
-        if p0 is not None:
-            if hasattr(p0,'__len__'):
-                nParams=len(p0)
-            else:
-                nParams=1
-        elif self.model['coeffs'] is not None:
-            nParams=len(self.model['coeffs'])
-        else:
-            raise Exception('Initial guess `p0` needs to be provided since we cant infer the size of the model coefficients.')
-        if self.model['coeffs'] is not None:
-            if len(self.model['coeffs'])!=nParams:
-                raise Exception('Inconsistent dimension between model guess (size {}) and the model parameters (size {})'.format(nParams,len(self.model['coeffs'])))
-
         # Bounds
-        self.setup_bounds(bounds,nParams)
+        self.setup_bounds(bounds)
 
         # Initial conditions
-        self.setup_guess(p0,self.model['bounds'],nParams)
+        self.setup_guess(p0,self.model['bounds'])
 
         # Fitting
         minimize_me = lambda x, *p : self.model['model_function'](x, p, **self.model['consts'])
+        # Try to call with guess
+        try:
+            pguess = self.model['coeffs_init']
+            y_guess = minimize_me(x, *pguess) 
+        except Exception as e:
+            print('[FAIL] Unable to call minimizing function with guess value')
+            raise e
+
+        assert(x.shape == y.shape)
         pfit, pcov = so.curve_fit(minimize_me, x, y, p0=self.model['coeffs_init'], bounds=self.model['bounds']) 
 
         # --- Reporting information about the fit (after the fit)
@@ -769,11 +806,8 @@ class ModelFitter():
         # --- Reporting information about the fit (after the fit)
         self.data['y_fit']=y_fit
         self.model['R2'] = rsquare(self.data['y'], y_fit)
-        if self.model['coeffs'] is not None:
-            if not isinstance(self.model['coeffs'], OrderedDict):
-                raise Exception('Coeffs need to be of type OrderedDict')
-            for k,v in zip(self.model['coeffs'].keys(), pfit):
-                self.model['coeffs'][k]=v
+        for k,v in zip(self.model['coeffs'].keys(), pfit):
+            self.model['coeffs'][k]=v
 
         # Replace numerical values in formula
         if self.model['formula'] is not None:
@@ -836,22 +870,117 @@ class ModelFitter():
         s=''
         p0     = self.model['coeffs_init']
         bounds = self.model['bounds']
-        for i,(k,v) in enumerate(self.model['coeffs'].items()):
+        for i,(k,v) in enumerate(self.model['coeffs_init'].items()):
             print( (pretty_num(bounds[0][i]),pretty_num(p0[i]), pretty_num(bounds[1][i])) )
             s+='{:15s}: {:10s} < {:10s} < {:10s}\n'.format(k, pretty_num(bounds[0][i]),pretty_num(p0[i]), pretty_num(bounds[1][i]))
         print(s)
             
+    def coeffsToString(self, sep=', '):
+        #formatter = lambda x: pretty_num_short(x, digits=3)
+        #', '.join(['{}={:s}'.format(k,formatter(v)) for k,v in fitter.model['coeffs'].items()]))
+        labels=[]
+        for k,v in self.model['coeffs'].items():
+            labels.append(r'${:s}$ = {}'.format(pretty_param(k),pretty_num_short(v)))
+        return sep.join(labels)
 
-    def __repr__(self):
-        s='<{} object> with fields:\n'.format(type(self).__name__)
-        s+=' - data, dictionary with keys: \n'
-        s+='   - x: [{} ... {}], n: {} \n'.format(self.data['x'][0],self.data['x'][-1],len(self.data['x']))
-        s+='   - y: [{} ... {}], n: {} \n'.format(self.data['y'][0],self.data['y'][-1],len(self.data['y']))
-        s+=' - model, dictionary with keys: \n'
-        for k,v in self.model.items():
-            s=s+'   - {:15s}: {}\n'.format(k,v)
-        return s
 
+class ModelFitter(FunctionFitter):
+    def __init__(self, func=None, x=None, y=None, p0=None, bounds=None, **fun_kwargs):
+
+        self.model = ModelInfo()
+        self.model['consts']          = fun_kwargs 
+        self.model['coeffs_init']     = p0         
+        self.model['bounds']          = bounds 
+        self.data = {'x':x, 'y':y, 'y_fit':None}
+
+        if func is None:
+            FunctionFitter.__init__(self)
+            return
+        self.set_model(func, **fun_kwargs)
+
+        # --- New Method
+        # TODO
+        m = self.model.copy()
+        if m['coeffs'] is not None:
+            coeffs = list(m['coeffs'].keys())
+        else:
+            coeffs= None
+        FunctionFitter.__init__(self, func = m['model_function'], name=m['name'], coeffs=coeffs, p0=m['coeffs_init'], bounds=m['bounds'], x=x, y=y, **m['consts'] )
+
+    def set_model(self,func, **fun_kwargs):
+        if callable(func):
+            # We don't have much additional info
+            self.model['model_function'] = func
+            self.model['name']           = func.__name__
+            pass
+
+        elif isinstance(func,six.string_types):
+            if func.find('predef:')==0:
+                # --- Minimization from a predefined function
+                predef_models=[m['id'] for m in MODELS]
+                if func not in predef_models:
+                    raise Exception('Predefined function `{}` not defined in curve_fitting module\n Available functions: {}'.format(func,predef_models))
+                i = predef_models.index(func)
+                ModelDict = MODELS[i]
+                self.model['model_function'] = ModelDict['handle']
+                self.model['name']           = ModelDict['label']
+                self.model['formula']        = ModelDict['formula']
+                self.model['coeffs']         = extract_key_num(ModelDict['coeffs'])
+                self.model['coeffs_init']    = self.model['coeffs'].copy()
+                self.model['consts']         = extract_key_num(ModelDict['consts'])
+                self.model['bounds']         = extract_key_tuples(ModelDict['bounds'])
+
+            elif func.find('eval:')==0:
+                # --- Minimization from a eval string 
+                formula=func[5:]
+                # Extract coeffs {a} {b} {c}, replace by p[0]
+                variables, formula_eval = extract_variables(formula)
+                nParams=len(variables)
+                if nParams==0:
+                    raise Exception('Formula should contains parameters in curly brackets, e.g.: {a}, {b}, {u_1}. No parameters found in {}'.format(formula))
+
+                # Check that the formula evaluates
+                x=np.array([1,2,5])*np.sqrt(2) # some random evaluation vector..
+                p=[np.sqrt(2)/4]*nParams         # some random initial conditions
+                try:
+                    y=eval(formula_eval)
+                    y=np.asarray(y)
+                    if y.shape!=x.shape:
+                        raise Exception('The formula does not return an array of same size as the input variable x. The formula must include `x`: {}'.format(formula_eval))
+                except SyntaxError:
+                    raise Exception('The formula does not evaluate, syntax error raised: {}'.format(formula_eval))
+                except ZeroDivisionError:
+                    pass
+
+                # Creating the actual function
+                def func(x, p):
+                    return eval(formula_eval)
+
+                self.model['model_function'] = func
+                self.model['name']           = 'user function'
+                self.model['formula']        = formula
+                self.model['coeffs']         = OrderedDict([(k,v) for k,v in zip(variables,p)])
+                self.model['consts']         = {}
+                if self.model['coeffs_init'] is None:
+                    self.model['coeffs_init']    = self.model['coeffs'].copy()
+                if self.model['bounds'] is None:
+                    pass
+
+            else:
+                raise Exception('func string needs to start with `eval:` of `predef:`, func: {}'.format(func))
+        else:
+            raise Exception('func should be string or callable')
+
+        if fun_kwargs is None:
+            return
+        if len(fun_kwargs)==0:
+            return
+        if self.model['consts'] is None:
+            raise Exception('Fun_kwargs provided, but no function constants were defined')
+
+        self.model['consts'], missing = set_common_keys(self.model['consts'],  fun_kwargs )
+        if len(missing)>0:
+            raise Exception('Curve fitting with function `{}` requires the following arguments {}. Missing: {}'.format(func.__name__,consts.keys(),missing))
 
 # --------------------------------------------------------------------------------}
 # --- Wrapper for predefined fitters 
@@ -1017,11 +1146,12 @@ class ContinuousPolynomialFitter(ModelFitter):
         # Cleaning data
         x,y=self.clean_data(x,y)
 
-        nParams=self.order+1
+        #nParams=self.order+1
+        #self.setup_coeffs(nParams) # TODO
         # Bounds
-        self.setup_bounds(bounds, nParams) # TODO
+        self.setup_bounds(bounds) # TODO
         # Initial conditions
-        self.setup_guess(p0, bounds, nParams) # TODO
+        self.setup_guess(p0, bounds) # TODO
 
         # Fitting
         pfit  = np.polyfit(x,y,self.order)
@@ -1057,11 +1187,11 @@ class DiscretePolynomialFitter(ModelFitter):
         # Cleaning data, and store it in object
         x,y=self.clean_data(x,y)
 
-        nParams=len(self.exponents)
+        #nParams=len(self.exponents)
         # Bounds
-        self.setup_bounds(bounds, nParams) # TODO
+        self.setup_bounds(bounds)
         # Initial conditions
-        self.setup_guess(p0, bounds, nParams) # TODO
+        self.setup_guess(p0, bounds)
 
         X_poly=np.array([])
         for i,e in enumerate(self.exponents):
@@ -1299,7 +1429,7 @@ def extract_key_miscnum(text):
 
     if text is None:
         return {}
-    sp=re.compile('([\w]+)=').split(text.replace(' ',''))
+    sp=re.compile(r'([\w]+)=').split(text.replace(' ',''))
     if len(sp)<3:
         return {}
     sp=sp[1:]

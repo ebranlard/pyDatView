@@ -31,7 +31,7 @@ __all__ += ['TestSpectral']
 # --------------------------------------------------------------------------------}
 # --- FFT wrap
 # --------------------------------------------------------------------------------{
-def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_window='hamming',detrend=False,nExp=None, nPerDecade=None):
+def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_window='hamming',detrend=False,nExp=None, nPerDecade=None, verbose=False):
     """ 
     Wrapper to compute FFT amplitude or power spectra, with averaging.
     INPUTS:
@@ -51,9 +51,14 @@ def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_win
     t = np.asarray(t)
     y = np.asarray(y)
     n0 = len(y) 
-    nt = len(t) 
     if len(t)!=len(y):
         raise Exception('t and y should have the same length')
+    # Removing times that are NaN
+    t_NaN = np.isnan(t)
+    t = t[~t_NaN]
+    y = y[~t_NaN]
+    nt = len(t) 
+    # Removing signal that is NaN
     y = y[~np.isnan(y)]
     n = len(y) 
 
@@ -61,10 +66,10 @@ def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_win
         dtDelta0 = t[1]-t[0]
         # Hack to use a constant dt
         #dt = (np.max(t)-np.min(t))/(n0-1)
-        dt = (t[-1]-t[0])/(n0-1)
+        dt = (t[-1]-t[0])/(nt-1)
         relDiff = abs(dtDelta0-dt)/dt*100
-        #if dtDelta0 !=dt:
         if relDiff>0.01:
+            #if verbose:
             print('[WARN] dt from tmax-tmin different from dt from t2-t1 {} {}'.format(dt, dtDelta0) )
     Fs = 1/dt
     if averaging =='none':
@@ -80,7 +85,8 @@ def fft_wrap(t,y,dt=None, output_type='amplitude',averaging='None',averaging_win
             nExp=int(np.log(nFFTAll)/np.log(2))-1
         nPerSeg=2**nExp
         if nPerSeg>n:
-            print('[WARN] Power of 2 value was too high and was reduced. Disable averaging to use the full spectrum.');
+            if verbose:
+                print('[WARN] Power of 2 value was too high and was reduced. Disable averaging to use the full spectrum.');
             nExp=int(np.log(nFFTAll)/np.log(2))-1
             nPerSeg=2**nExp
         if averaging_window=='hamming':
@@ -129,6 +135,8 @@ def psd_binned(y, fs=1.0, nPerDecade=10, detrend ='constant', return_onesided=Tr
     """ 
     Return PSD binned with nPoints per decade
     """
+    if np.isnan(fs):
+        raise Exception('Sampling frequecny is NaN')
     # --- First  return regular PSD
     frq, PSD, Info = psd(y, fs=fs, detrend=detrend, return_onesided=return_onesided)
 

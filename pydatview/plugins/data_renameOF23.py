@@ -1,6 +1,5 @@
 import unittest
 import numpy as np
-from pydatview.common import splitunit
 from pydatview.pipeline import ReversibleTableAction
 
 # --------------------------------------------------------------------------------}

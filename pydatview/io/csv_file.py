@@ -1,7 +1,11 @@
 import os
-
-from .file import File, WrongFormatError
 import pandas as pd
+
+try:
+    from .file import File, WrongFormatError
+except:
+    File=dict
+    WrongFormatError  = type('WrongFormatError', (Exception,),{})
 
 class CSVFile(File):
     """ 
@@ -51,7 +55,23 @@ class CSVFile(File):
             raise Exception('Provide either `commentChar` or `commentLines` for CSV file types')
         if (len(self.colNames)>0) and (self.colNamesLine is not None):
             raise Exception('Provide either `colNames` or `colNamesLine` for CSV file types')
-        super(CSVFile, self).__init__(filename=filename,**kwargs)
+        if filename:
+            self.read(filename, **kwargs)
+        else:
+            self.filename = None
+
+    def read(self, filename=None, **kwargs):
+        if filename:
+            self.filename = filename
+        if not self.filename:
+            raise Exception('No filename provided')
+        if not os.path.isfile(self.filename):
+            raise OSError(2,'File not found:',self.filename)
+        if os.stat(self.filename).st_size == 0:
+            raise EmptyFileError('File is empty:',self.filename)
+        # Calling children function
+        self._read(**kwargs)
+
 
     def _read(self):
         COMMENT_CHAR=['#','!',';']
@@ -282,4 +302,48 @@ class CSVFile(File):
 
     def _toDataFrame(self):
         return self.data
+
+    def to2DFields(self, **kwargs):
+        import xarray as xr
+        if len(kwargs.keys())>0:
+            print('[WARN] CSVFile: to2DFields: ignored keys: ',kwargs.keys())
+        if len(self.data)==0:
+            return None
+        M = self.data.values
+        if self.data.columns[0].lower()=='index':
+            M = M[:,1:]
+        s1 = 'rows'
+        s2 = 'columns'
+        ds = xr.Dataset(coords={s1: range(M.shape[0]), s2: range(M.shape[1])})
+        ds['data'] = ([s1, s2], M)
+        return ds
+
+    # --------------------------------------------------------------------------------
+    # --- Properties NOTE: copy pasted from file.py to make this file standalone..
+    # --------------------------------------------------------------------------------
+    @property
+    def size(self):
+        return os.path.getsize(self.filename)
+    @property
+    def encoding(self):	
+        import codecs
+        import chardet 
+        """  Detects encoding"""
+        try:
+            byts = min(32, self.size)
+        except TypeError:
+            return None
+        with open(self.filename, 'rb') as f:
+            raw = f.read(byts)
+        if raw.startswith(codecs.BOM_UTF8):
+            return 'utf-8-sig'
+        else:
+            result = chardet.detect(raw)
+            return result['encoding']
+
+if __name__ == '__main__':
+    f = CSVFile('C:/Work/Courses/440/project_solution/data/CFD_u.dat')
+    print(f)
+    ds = f.to2DFields()
+    print(ds)
 

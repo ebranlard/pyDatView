@@ -46,7 +46,7 @@ def comparison_stats(t1, y1, t2, y2, stats='sigRatio,eps,R2', method='mean', abs
             # Mean relative error
             eps     = float(mean_rel_err(t1, y1, t2, y2, method=method, absVal=absVal))
             stats['eps'] = eps
-            sStats+=['$\epsilon=$'+r'{:.1f}%'.format(eps)]
+            sStats+=[r'$\epsilon=$'+r'{:.1f}%'.format(eps)]
 
         elif s=='r2':
             # Rsquare
@@ -102,9 +102,17 @@ def rsquare(y, f, c = True):
     y = y[tmp]
     f = f[tmp]
     if c:
-        r2 = max(0,1-np.sum((y-f)**2)/np.sum((y-np.mean(y))** 2))
+        denom = np.sum((y-np.mean(y))** 2)
+        if abs(denom)>0:
+            r2 = max(0,1-np.sum((y-f)**2)/denom)
+        else:
+            r2 = np.inf
     else:
-        r2 = 1 - np.sum((y - f) ** 2) / np.sum((y) ** 2)
+        denom = np.sum((y) ** 2)
+        if abs(denom)>0:
+            r2 = 1 - np.sum((y - f) ** 2) /denom
+        else:
+            r2 = np.inf
         if r2 < 0:
             import warnings
             warnings.warn('Consider adding a constant term to your model')
@@ -138,10 +146,16 @@ def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='meanabs', verbose=F
     if method=='mean':
         # Method 1 relative to mean
         ref_val = np.nanmean(y1)
-        meanrelerr = np.nanmean(myabs(y2-y1)/ref_val)*100 
+        if abs(ref_val)>0:
+            meanrelerr = np.nanmean(myabs(y2-y1)/ref_val)*100 
+        else:
+            meanrelerr = np.nan
     elif method=='meanabs':
         ref_val = np.nanmean(abs(y1))
-        meanrelerr = np.nanmean(myabs(y2-y1)/ref_val)*100 
+        if abs(ref_val)>0:
+            meanrelerr = np.nanmean(myabs(y2-y1)/ref_val)*100 
+        else:
+            meanrelerr = np.nan
     elif method=='loc':
         meanrelerr = np.nanmean(myabs(y2-y1)/abs(y1))*100 
     elif method=='minmax':
@@ -197,7 +211,10 @@ def pdf_histogram(y,nBins=50, norm=True, count=False):
     else:
         yh  = yh / (nBins*dx) 
     if norm:
-        yh=yh/np.trapz(yh,xh)
+        try:
+            yh=yh/np.trapezoid(yh,xh)
+        except:
+            yh=yh/np.trapz(yh,xh)
     return xh,yh
 
 def pdf_gaussian_kde(data, bw='scott', nOut=100, cut=3, clip=(-np.inf,np.inf)):

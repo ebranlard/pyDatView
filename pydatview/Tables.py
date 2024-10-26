@@ -167,11 +167,11 @@ class TableList(object): # todo inherit list
             pass
         elif not isinstance(dfs,dict):
             if len(dfs)>0:
-                tabs=[Table(data=dfs, filename=filename, fileformat=fileformat, dayfirst=self.options['dayfirst'])]
+                tabs=[Table(data=dfs, filename=filename, fileformat=fileformat, dayfirst=self.options['dayfirst'], fileobject=F)]
         else:
             for k in list(dfs.keys()):
                 if len(dfs[k])>0:
-                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=fileformat, dayfirst=self.options['dayfirst']))
+                    tabs.append(Table(data=dfs[k], name=str(k), filename=filename, fileformat=fileformat, dayfirst=self.options['dayfirst'], fileobject=F))
         if len(tabs)<=0:
             warn='Warn: No dataframe found in file: '+filename+'\n'
         return tabs, warn
@@ -350,6 +350,21 @@ class TableList(object): # todo inherit list
         return [t.filename for t in self._tabs]
 
     @property
+    def fileobjects(self):
+        return [t.fileobject for t in self._tabs]
+
+    @property
+    def unique_fileobjects(self):
+        unique_filenames = []
+        unique_fileobjects = []
+        for t in self._tabs:
+            if t.filename not in unique_filenames:
+                if t.fileobject is not None and len(t.filename)>0:
+                    unique_filenames.append(t.filename)
+                    unique_fileobjects.append(t.fileobject)
+        return unique_fileobjects
+
+    @property
     def fileformats(self):
         return [t.fileformat for t in self._tabs]
 
@@ -517,9 +532,10 @@ class Table(object):
     #    active_name : 
     #    raw_name    : 
     #    filename    : 
-    def __init__(self, data=None, name='', filename='', fileformat=None, dayfirst=False):
+    def __init__(self, data=None, name='', filename='', fileformat=None, dayfirst=False, fileobject=None):
         # Default init
         self.maskString=''
+        self.fileobject = fileobject
         self.mask=None
         self.columns_pre_transpose = None
 
@@ -696,6 +712,8 @@ class Table(object):
         import pydatview.fast.fastfarm as fastfarm
         df = self.data
         base,out_ext = os.path.splitext(self.filename)
+
+        # TODO use fast_output_file  findDriverFile
 
         # --- Detect if it's a FAST Farm file
         sCols = ''.join(df.columns)

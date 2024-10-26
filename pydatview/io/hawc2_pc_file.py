@@ -77,7 +77,7 @@ class HAWC2PCFile(File):
 
     @property
     def sets(self):
-        return self.pc_sets
+        return self.data.pc_sets
 
     def __repr__(self):
         cols=['Alpha_[deg]','Cl_[-]','Cd_[-]','Cm_[-]']

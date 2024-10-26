@@ -204,6 +204,7 @@ def freqDampFromPeaks(x, t, threshold=None, plot=False, refPoint='mid'):
     x = x-m # we remove the mean once and for all
     if threshold is None:
         threshold = np.mean(abs(x))/3
+    
     dt = t[1]-t[0] # todo signal with dt not uniform
 
     # Is it a decay or an exloding signal

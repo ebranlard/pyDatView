@@ -18,10 +18,7 @@ class ExcelFile(File):
     def _read(self):
         self.data=dict()
         # Reading all sheets
-        try:
-            xls = pd.ExcelFile(self.filename,  engine='openpyxl')
-        except:
-            xls = pd.ExcelFile(self.filename)
+        xls = pd.ExcelFile(self.filename,  engine='openpyxl')
         dfs = {}
         for sheet_name in xls.sheet_names:
             # Reading sheet
@@ -70,7 +67,7 @@ class ExcelFile(File):
         writer.save()
 
     def __repr__(self):
-        s ='Class XXXX (attributes: data)\n'
+        s ='Class ExcelFile (attributes: data)\n'
         return s
 
 

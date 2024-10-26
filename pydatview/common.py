@@ -73,7 +73,7 @@ def find_leftstop(s):
             return s[:len(s)-i]
     return s
 
-def ellude_common(strings,minLength=2):
+def ellude_common(strings, minLength=2, sep='|'):
     """
     ellude the common parts of two strings
 
@@ -87,7 +87,7 @@ def ellude_common(strings,minLength=2):
     if len(S)==0:
         pass
     elif len(S)==1:
-        ns=S[0].rfind('|')+1
+        ns=S[0].rfind(sep)+1
         ne=0;
     else:
         ss = common_start(S)
@@ -181,7 +181,10 @@ def getDt(x):
 
 
     if len(x)<=1:
-        return np.NaN
+        try:
+            return np.nan
+        except:
+            return np.NaN # Numpy<2.0
     if isinstance(x[0],float):
         return x[1]-x[0]
     if isinstance(x[0],int) or isinstance(x[0],np.int32) or isinstance(x[0],np.int64):
@@ -204,7 +207,11 @@ def getDt(x):
     return dt
 
 def getTabCommonColIndices(tabs):
-    cleanedColLists = [ [cleanCol(s) for s in t.columns] for t in tabs]
+    colLists = [ [s for s in t.columns] for t in tabs]
+    return getCommonColIndices(colLists)
+
+def getCommonColIndices(colList):
+    cleanedColLists = [ [cleanCol(s) for s in columns] for columns in colList]
     nCols = np.array([len(cols) for cols in cleanedColLists])
     # Common columns between all column lists
     commonCols = cleanedColLists[0]
@@ -246,14 +253,16 @@ def cleanCol(s):
     return s
 
 def no_unit(s):
+    s=s.replace('(',' [').replace(')',']')
     s=s.replace('_[',' [')
-    iu=s.rfind(' [')
+    iu=s.rfind('[')
     if iu>0:
-        return s[:iu]
+        return s[:iu].strip()
     else:
         return s
 
 def unit(s):
+    s=s.replace('(',' [').replace(')',']')
     iu=s.rfind('[')
     if iu>0:
         return s[iu+1:].replace(']','')
@@ -261,9 +270,10 @@ def unit(s):
         return ''
 
 def splitunit(s):
+    s=s.replace('(',' [').replace(')',']')
     iu=s.rfind('[')
     if iu>0:
-        return s[:iu], s[iu+1:].replace(']','')
+        return s[:iu].strip(), s[iu+1:].replace(']','')
     else:
         return s, ''
 

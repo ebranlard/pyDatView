@@ -63,7 +63,7 @@ class SubDyn:
     # --------------------------------------------------------------------------------}
     # --- Functions for general FEM model (jacket, flexible floaters)
     # --------------------------------------------------------------------------------{
-    def init(self, TP=(0,0,0), gravity = 9.81):
+    def init(self, TP=(0,0,0), gravity = 9.81, verbose=False):
         """
         Initialize SubDyn FEM model 
 
@@ -89,22 +89,22 @@ class SubDyn:
         #print('>>> graph\n',graph)
         #graph.toJSON('_GRAPH.json')
         # Convert to FEM model
-        with Timer('From graph'):
+        with Timer('From graph', silent=not verbose):
             FEM = femm.FEMModel.from_graph(self.graph, mainElementType=mainElementType, refPoint=TP, gravity=gravity)
         #model.toJSON('_MODEL.json')
-        with Timer('Assembly'):
+        with Timer('Assembly', silent=not verbose):
             FEM.assembly()
-        with Timer('Internal constraints'):
+        with Timer('Internal constraints', silent=not verbose):
             FEM.applyInternalConstraints()
             FEM.partition()
-        with Timer('BC'):
+        with Timer('BC', silent=not verbose):
             FEM.applyFixedBC()
-        with Timer('EIG'):
+        with Timer('EIG', silent=not verbose):
             Q, freq = FEM.eig(normQ='byMax')
-        with Timer('CB'):
+        with Timer('CB', silent=not verbose):
             FEM.CraigBampton(nModesCB = self.File['Nmodes'])
 
-        with Timer('Modes'):
+        with Timer('Modes', silent=not verbose):
             FEM.setModes(nModesFEM=30, nModesCB=self.File['Nmodes'])
 #             FEM.nodesDisp(Q)
 

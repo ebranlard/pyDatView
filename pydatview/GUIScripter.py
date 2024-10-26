@@ -29,7 +29,7 @@ Requirements:
   You need to install ONE of the following python library:
     - library= welib,     repository= https://github.com/ebranlard/welib
     - library= pydatview, repository= https://github.com/ebranlard/pyDatView
-    - library= pyFAST,    repository= https://github.com/openfast/python-toolbox 
+    - library= openfast_toolbox,    repository= https://github.com/openfast/openfast_toolbox 
   You can install a given library as follows:
       git clone repository    # Replace repository with the address above
       cd library              # Replace library with the folder generated after cloning
@@ -66,7 +66,7 @@ class GUIScripterFrame(wx.Frame):
         self.btSave = wx.Button(self.panel, label=CHAR['save']+' '+"Save", style=wx.BU_EXACTFIT)
 
         txtLib = wx.StaticText(self.panel, -1, 'Library:')
-        libflavors = ["welib", "pydatview", "pyFAST"]
+        libflavors = ["welib", "pydatview", "openfast_toolbox"]
         self.cbLib = wx.Choice(self.panel, choices=libflavors)
         self.cbLib.SetSelection(1)
 
@@ -126,6 +126,16 @@ class GUIScripterFrame(wx.Frame):
         scripterOptions = self._GUI2Data()
 
         # --- Mainframe GUI 2 data
+        inb = self.mainframe.nb.GetSelection()
+        if inb==0:
+            s = '# Scripter not yet implemented for FileInfo. Select 1D plot.'
+            self.text_ctrl.SetValue(s)
+            return
+        elif inb==2:
+            s = '# Scripter not yet implemented for 2D plot. Select 1D plot.'
+            self.text_ctrl.SetValue(s)
+            return
+
         try:
             ID,SameCol,selMode=self.mainframe.selPanel.getPlotDataSelection()
         except:
@@ -152,22 +162,14 @@ class GUIScripterFrame(wx.Frame):
         except:
             plotStyle=None
             print('[WARN] GUIScripter - Failed to retrieve Plot Options')
+        plotTypeData=None
         try:
             plotPanel = self.mainframe.plotPanel
             pltTypePanel = self.mainframe.plotPanel.pltTypePanel
             plotType = pltTypePanel.plotType()
-            if plotType=='Regular':
-                plotTypeData=None
-            elif plotType=='PDF':
-                plotTypeData = plotPanel.pdfPanel._GUI2Data()
-            elif plotType=='FFT':
-                plotTypeData = plotPanel.spcPanel._GUI2Data()
-                pass
-            elif plotType=='MinMax':
-                plotTypeData = plotPanel.mmxPanel._GUI2Data()
-                pass
-            elif plotType=='Compare':
-                plotTypeData = plotPanel.cmpPanel._GUI2Data()
+            PTDict   = pltTypePanel.PTDict
+            if PTDict[plotType]['opt_panel'] is not None:
+                plotTypeData = PTDict[plotType]['opt_panel']._GUI2Data()
         except:
             plotType=None
             plotTypeData=None

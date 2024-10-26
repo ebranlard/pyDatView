@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -10,7 +11,35 @@ import unittest
 # --------------------------------------------------------------------------------}
 # --- COLOR TOOLS 
 # --------------------------------------------------------------------------------{
-def rgb2hex(C,g=None,b=None):
+def rgb(r,g,b):
+    if (r+b+g)<=3:
+        return np.array([r,g,b])
+    else:
+        return np.array([r/255.,g/255.,b/255.])
+
+def standardize(col, rgb_int=False):
+    """ given a color return a rgb tuple between 0 and 1 """
+    if rgb_int:
+        return np.asarray(standardize(col), rgb_int=False)*255
+
+    if isinstance(col, str):
+        if len(col) in [6,7]:
+            return hex2rgb(col)
+        else:
+            raise NotImplementedError('Strings of length {}'.format(len(col)))
+    # 
+    col = np.asarray(col)
+    if len(col.shape)==1:
+        # NOTE: this is approximative...
+        if np.any(col>1):
+            col = col/255
+        return col
+    else:
+        #  TODO for loop and call standardize
+        raise NotImplementedError('Arrays of colors')
+
+
+def rgb2hex(C, g=None, b=None):
     if len(C)==3 :
         r=C[0]
         g=C[1]
@@ -21,6 +50,12 @@ def rgb2hex(C,g=None,b=None):
         b=b*255
         
     return '#%02X%02X%02X' % (r,g,b)
+
+def hex2rgb(hx):
+    """ Hex string to RGB tuple between 0 and 1 """
+    hx = hx.lstrip('#')
+    rgb = tuple(int(hx[i:i+2], 16)/255. for i in (0, 2, 4))
+    return rgb
 
 def adjust_color_lightness_scalar(r, g, b, factor):
     """
@@ -46,11 +81,13 @@ def adjust_color_lightness(rgb, factor):
 
 
 def lighten_color(rgb, factor=0.1):
+    rgb = standardize(rgb)
     if factor ==0:
         return rgb
     return adjust_color_lightness(rgb, 1 + factor)
 
 def darken_color(rgb, factor=0.1):
+    rgb = standardize(rgb)
     return adjust_color_lightness(rgb, 1 - factor)
 
 # --------------------------------------------------------------------------------}
@@ -102,6 +139,19 @@ def make_colormap(seq,values=None,name='CustomMap'):
     print(cdict)
     return mcolors.LinearSegmentedColormap(name, cdict)
 
+def cmap_colors(n, name='viridis'):
+    try:
+        cmap = matplotlib.colormaps[name]
+        COLRS = [(cmap(v)[0],cmap(v)[1],cmap(v)[2]) for v in np.linspace(0,1,n)]
+    except:
+#         try:
+#             import matplotlib.cm
+#             cmap = matplotlib.cm.get_cmap('viridis')
+#             COLRS = [(cmap(v)[0],cmap(v)[1],cmap(v)[2]) for v in np.linspace(0,1,n)]
+#     except:
+        print('[WARN] colors.py: cmap_colors failed.')
+        COLRS = color_scales(n, color='blue')
+    return COLRS
 
 def color_scales(n, color='blue'):
     maps={
@@ -110,55 +160,59 @@ def color_scales(n, color='blue'):
     'orange':mpl.cm.Oranges,
     'red':mpl.cm.Reds,
     'green':mpl.cm.Greens,
+    'gray':mpl.cm.Greys,
+    'grey':mpl.cm.Greys,
     }
     norm = mpl.colors.Normalize(vmin=0, vmax=n)
     cmap = mpl.cm.ScalarMappable(norm=norm, cmap=maps[color])
     cmap.set_array([])
-    return [cmap.to_rgba(i) for i in np.arange(n)]
+    colrs = [cmap.to_rgba(i) for i in np.arange(n)]
+    colrs.reverse()
+    return colrs
 
 
 
 # --- Diverging Brown Green
-DV_BG=[np.array([140,81,10])/255., np.array([191,129,4])/255., np.array([223,194,1])/255., np.array([246,232,1])/255., np.array([245,245,2])/255., np.array([199,234,2])/255., np.array([128,205,1])/255., np.array([53,151,14])/255., np.array([1,102,94 ])/255.]
+DV_BG=[rgb(140,81,10), rgb(191,129,4), rgb(223,194,1), rgb(246,232,1), rgb(245,245,2), rgb(199,234,2), rgb(128,205,1), rgb(53,151,14), rgb(1,102,94)]
 
 # --- Diverging Red Blue
-DV_RB=[ np.array([215,48,39])/255., np.array([244,109,67])/255., np.array([253,174,97])/255., np.array([254,224,144])/255., np.array([255,255,191])/255., np.array([224,243,248])/255., np.array([171,217,233])/255., np.array([116,173,209])/255., np.array([69,117,180])/255.] 
-
+DV_RB=[ rgb(215,48,39), rgb(244,109,67), rgb(253,174,97), rgb(254,224,144), rgb(255,255,191), rgb(224,243,248), rgb(171,217,233), rgb(116,173,209), rgb(69,117,180) ]
+ 
 # --- Diverging Purple Green
-DV_PG=[np.array([118,42,131])/255., np.array([153,112,171])/255., np.array([194,165,207])/255., np.array([231,212,232])/255., np.array([247,247,247])/255., np.array([217,240,211])/255., np.array([166,219,160])/255., np.array([90,174,97])/255., np.array([27,120,55])/255.]
+DV_PG=[rgb(118,42,131), rgb(153,112,171), rgb(194,165,207), rgb(231,212,232), rgb(247,247,247), rgb(217,240,211), rgb(166,219,160), rgb(90,174,97), rgb(27,120,55) ]
 
 # Maureen Stone, for line plots
-MW_Light_Blue    = np.array([114,147,203])/255.
-MW_Light_Orange  = np.array([225,151,76])/255.
-MW_Light_Green   = np.array([132,186,91])/255.
-MW_Light_Red     = np.array([211,94,96])/255.
-MW_Light_Gray    = np.array([128,133,133])/255.
-MW_Light_Purple  = np.array([144,103,167])/255.
-MW_Light_DarkRed = np.array([171,104,87])/255.
-MW_Light_Kaki    = np.array([204,194,16])/255.
+MW_Light_Blue    = rgb(114,147,203)
+MW_Light_Orange  = rgb(225,151,76)
+MW_Light_Green   = rgb(132,186,91)
+MW_Light_Red     = rgb(211,94,96)
+MW_Light_Gray    = rgb(128,133,133)
+MW_Light_Purple  = rgb(144,103,167)
+MW_Light_DarkRed = rgb(171,104,87)
+MW_Light_Kaki    = rgb(204,194,16)
 
-MW_Blue     =     np.array([57,106,177])/255.
-MW_Orange   =     np.array([218,124,48])/255.
-MW_Green    =     np.array([62,150,81])/255.
-MW_Red      =     np.array([204,37,41])/255.
-MW_Gray     =     np.array([83,81,84])/255.
-MW_Purple   =     np.array([107,76,154])/255.
-MW_DarkRed  =     np.array([146,36,40])/255.
-MW_Kaki     =     np.array([148,139,61])/255.
+MW_Blue     =     rgb(57,106,177)
+MW_Orange   =     rgb(218,124,48)
+MW_Green    =     rgb(62,150,81)
+MW_Red      =     rgb(204,37,41)
+MW_Gray     =     rgb(83,81,84)
+MW_Purple   =     rgb(107,76,154)
+MW_DarkRed  =     rgb(146,36,40)
+MW_Kaki     =     rgb(148,139,61)
 
-MathematicaBlue       = np.array([63 ,63 ,153 ])/255.;
-MathematicaRed        = np.array([153,61 ,113 ])/255.;
-MathematicaGreen      = np.array([61 ,153,86  ])/255.;
-MathematicaYellow     = np.array([152,140,61  ])/255.;
-MathematicaLightBlue  = np.array([159,159,204 ])/255.;
-MathematicaLightRed   = np.array([204,158,184 ])/255.;
-MathematicaLightGreen = np.array([158,204,170 ])/255.;
+MathematicaBlue       = rgb(63 ,63 ,153 );
+MathematicaRed        = rgb(153,61 ,113 );
+MathematicaGreen      = rgb(61 ,153,86  );
+MathematicaYellow     = rgb(152,140,61  );
+MathematicaLightBlue  = rgb(159,159,204 );
+MathematicaLightRed   = rgb(204,158,184 );
+MathematicaLightGreen = rgb(158,204,170 );
 # 
 ManuDarkBlue    = np.array([0   ,0  ,0.7 ])     ;
-ManuDarkRed     = np.array([138 ,42 ,93  ])/255.;
-# ManuDarkOrange  = np.array([245 ,131,1   ])/255.;
-ManuDarkOrange  = np.array([198 ,106,1   ])/255.;
-ManuLightOrange = np.array([255.,212,96  ])/255.;
+ManuDarkRed     = rgb(138 ,42 ,93  );
+# ManuDarkOrange  = rgb(245 ,131,1   );
+ManuDarkOrange  = rgb(198 ,106,1   );
+ManuLightOrange = rgb(255.,212,96  );
 # 
 Red    = np.array([1  ,0  ,0]);
 Blue   = np.array([0  ,0  ,1]);
@@ -170,6 +224,22 @@ MatlabCyan    = np.array([0.0e+0    ,750.0e-03,750.0e-03]);
 MatlabMagenta = np.array([ 750.0e-03,0.0e+0   ,750.0e-03]);
 MatlabYellow  = np.array([750.0e-03 ,750.0e-03,0.0e+0   ]);
 MatlabGrey    = np.array([250.0e-03 ,250.0e-03,250.0e-03]);
+
+
+# --- Pastel
+
+Pastel_Beige     = rgb(250, 240, 215) # #FAF0D7
+Pastel_Peach     = rgb(255, 217, 192) # #FFD9C0
+Pastel_LigtRed   = rgb(246, 214, 214) # #F6D6D6
+Pastel_Red       = rgb(223, 110, 110) # #df6e6e
+Pastel_Yellow    = rgb(246, 247, 196) # #F6F7C4
+Pastel_Bleue1    = rgb(140, 192, 222) # #8CC0DE
+Pastel_Green1    = rgb(204, 238, 188) # #CCEEBC
+Pastel_Green2    = rgb(158, 210, 190) # #9ED2BE
+Pastel_Green3    = rgb(126, 170, 146) # #7EAA92
+Pastel_Green4    = rgb( 27, 156, 133) # #1B9C85
+Pastel_Green5    = rgb( 62, 142, 126) # #3E8E7E
+
 
 # cRed=plt.cm.Reds(np.linspace(0.9,1,2))
 # cGreen=plt.cm.Greens(np.linspace(0.9,1,2))
@@ -300,7 +370,10 @@ def rgb_to_hls(rgb):
 
     maxc  = rgb.max(-1) #  maxc = max(r, g, b)
     minc  = rgb.min(-1) #  minc = min(r, g, b)
-    delta = rgb.ptp(-1) # max-min
+    try:
+        delta = np.ptp(rgb, -1) # max-min
+    except:
+        delta = rbg.ptp(-1) # max-min
 
     # --- Lightness
     hls[...,1] = (minc+maxc)/2.0
@@ -406,6 +479,18 @@ def hls_to_rgb(hls):
     return rgb
 
 
+def PRINT_COLORS(msg):
+    # See welib.tools.strings
+    HEADER = '\033[95m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    ORAN = '\033[93m'
+    GREEN = '\033[92m'
+    ENDC = '\033[0m'
+
+
+
 class TestColors(unittest.TestCase):
     def test_rgb_hsv(self):
         # --- Test Data 
@@ -457,6 +542,26 @@ class TestColors(unittest.TestCase):
         rgb_arr       = adjust_color_lightness(rgb_in,factor)
         rgb_tuple_ref = adjust_color_lightness_scalar(rgb_in[0],rgb_in[1],rgb_in[2],factor)
         np.testing.assert_almost_equal(rgb_arr,np.asarray(rgb_tuple_ref))
+
+    def test_standardize(self):
+        # 
+        rgb_in = (255,0,0)
+        rgb_out = standardize(rgb_in)
+        np.testing.assert_almost_equal(rgb_out, [1,0,0], 5)
+
+        rgb_in = (1,0,0)
+        rgb_out = standardize(rgb_in)
+        np.testing.assert_almost_equal(rgb_out, [1,0,0], 5)
+
+        rgb_in = '#FF0000'
+        rgb_out = standardize(rgb_in)
+        np.testing.assert_almost_equal(rgb_out, [1,0,0], 5)
+
+        rgb_in = '#FF0000'
+        rgb_out = standardize(rgb_in)
+        np.testing.assert_almost_equal(rgb_out, [1,0,0], 5)
+
+
 
 if __name__ == "__main__":
 #     test_colrs()

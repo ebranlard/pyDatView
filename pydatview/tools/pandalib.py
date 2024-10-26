@@ -7,7 +7,7 @@ def pd_interp1(x_new, xLabel, df):
     """ Interpolate a panda dataframe based on a set of new value
     This function assumes that the dataframe is a simple 2d-table
     """
-    from pyFAST.tools.signal_analysis import multiInterp
+    from .signal_analysis import multiInterp
     x_old = df[xLabel].values
     data_new=multiInterp(x_new, x_old, df.values.T)
     return pd.DataFrame(data=data_new.T, columns=df.columns.values)
@@ -134,32 +134,54 @@ def changeUnits(df, flavor='SI', inPlace=True):
 
     # TODO harmonize with dfToSIunits in welib.fast.tools.lin.py !
     """
-    def splitunit(s):
+    def splitunit(s0):
+        """ 
+        return (variable, unit, previous character, brackets)
+        e.g.   ( 'Time' ,  's',   '_'             , '[]')
+        """
+        s=s0.replace('(',' [').replace(')',']')
         iu=s.rfind('[')
-        if iu>0:
-            return s[:iu], s[iu+1:].replace(']','')
+        if iu>1:
+            bracket = s0[iu:iu+1]
+            if bracket=='(':
+                brackets='()'
+            else:
+                brackets='[]'
+            if iu>1:
+                prev_char=s0[(iu-1):iu]
+                if prev_char not in [' ', '_']:
+                    prev_char=''
+                    svar=s[:iu]
+                else:
+                    svar=s[:iu-1]
+            return svar, s[iu+1:].replace(']',''), prev_char, brackets
         else:
-            return s, ''
+            return s, '', '', ''
     def change_units_to_WE(s, c):
         """ 
         Change units to wind energy units
         s: channel name (string) containing units, typically 'speed_[rad/s]'
         c: channel (array)
         """
-        svar, u = splitunit(s)
+        svar, u, prev, brackets = splitunit(s)
         u=u.lower()
         scalings = {}
         #        OLD      =     NEW
         scalings['rad/s'] =  (30/np.pi,'rpm') # TODO decide
         scalings['rad' ]  =   (180/np.pi,'deg')
         scalings['n']     =   (1e-3, 'kN')
+        scalings['mn']    =   (1e+3, 'kN')
         scalings['nm']    =   (1e-3, 'kNm')
         scalings['n-m']   =   (1e-3, 'kNm')
         scalings['n*m']   =   (1e-3, 'kNm')
+        scalings['mnm']   =   (1e+3, 'kNm')
+        scalings['mn-m']  =   (1e+3, 'kNm')
+        scalings['mn*m']  =   (1e+3, 'kNm')
         scalings['w']     =   (1e-3, 'kW')
+        scalings['mw']    =   (1e+3, 'kW')
         if u in scalings.keys():
             scale, new_unit = scalings[u]
-            s = svar+'['+new_unit+']'
+            s = svar+prev+brackets[0]+new_unit+brackets[1]
             c *= scale
         return s, c
 
@@ -170,21 +192,27 @@ def changeUnits(df, flavor='SI', inPlace=True):
         s: channel name (string) containing units, typically 'speed_[rad/s]'
         c: channel (array)
         """
-        svar, u = splitunit(s)
+        svar, u, prev, brackets = splitunit(s)
         u=u.lower()
         scalings = {}
         #        OLD      =     NEW
         scalings['rpm']   =  (np.pi/30,'rad/s') 
         scalings['rad' ]  =   (180/np.pi,'deg')
         scalings['deg/s' ] =   (np.pi/180,'rad/s')
+        scalings['mn']     =   (1e6, 'N')
         scalings['kn']     =   (1e3, 'N')
+        scalings['mnm']    =   (1e6, 'Nm')
+        scalings['mnm']    =   (1e6, 'Nm')
+        scalings['mn-m']   =   (1e6, 'Nm')
+        scalings['mn*m']   =   (1e6, 'Nm')
         scalings['knm']    =   (1e3, 'Nm')
         scalings['kn-m']   =   (1e3, 'Nm')
         scalings['kn*m']   =   (1e3, 'Nm')
         scalings['kw']     =   (1e3, 'W')
+        scalings['mw']     =   (1e6 ,'W')
         if u in scalings.keys():
             scale, new_unit = scalings[u]
-            s = svar+'['+new_unit+']'
+            s = svar+prev+brackets[0]+new_unit+brackets[1]
             c *= scale
         return s, c
 
@@ -200,7 +228,9 @@ def changeUnits(df, flavor='SI', inPlace=True):
     elif flavor == 'SI':
         cols = []
         for i, colname in enumerate(df.columns):
-            colname_new, df.iloc[:,i] = change_units_to_SI(colname, df.iloc[:,i])
+            colname_new, col_new = change_units_to_SI(colname, df.iloc[:,i])
+            df[colname] = df[colname].astype(col_new.dtype) # Need to cast to new type if type changed..
+            df.iloc[:,i] = col_new
             cols.append(colname_new)
         df.columns = cols
     else:

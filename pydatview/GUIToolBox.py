@@ -236,6 +236,38 @@ class MyMultiCursor(Widget):
                 canvas.draw_idle()
 
 
+class NavigationToolbar2WxSubTools(NavigationToolbar2Wx): 
+    """
+    Wrapped version of the Navigation toolbar from WX with the following features:
+      - Tools can be removed, if not in `keep_tools`
+      - Zoom is set by default, and the toggling between zoom and pan is handled internally
+    """
+    def __init__(self, canvas, keep_tools):
+        # Taken from matplotlib/backend_wx.py but added style:
+        self.VERSION = matplotlib.__version__
+        print('MPL VERSION:',self.VERSION)
+        if self.VERSION[0]=='2' or self.VERSION[0]=='1': 
+            wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
+            NavigationToolbar2.__init__(self, canvas)
+
+            self.canvas = canvas
+            self._idle = True
+            try: # Old matplotlib
+                self.statbar = None 
+            except:
+                pass
+            self.prevZoomRect = None
+            self.retinaFix = 'wxMac' in wx.PlatformInfo
+        else:
+            NavigationToolbar2Wx.__init__(self, canvas)
+
+        self.pan_on=False
+
+        # Remove unnecessary tools
+        tools = [self.GetToolByPos(i) for i in range(self.GetToolsCount())]
+        for i, t in reversed(list(enumerate(tools))):
+            if t.GetLabel() not in keep_tools:
+                self.DeleteToolByPos(i)
 
 class MyNavigationToolbar2Wx(NavigationToolbar2Wx): 
     """
