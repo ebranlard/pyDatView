@@ -46,7 +46,7 @@ from pydatview.appdata import loadAppData, saveAppData, configFilePath, defaultA
 # --- GLOBAL 
 # --------------------------------------------------------------------------------{
 PROG_NAME='pyDatView'
-PROG_VERSION='v0.4-local'
+PROG_VERSION='v0.5-local'
 ISTAT = 0 # Index of Status bar where main status info is provided
 
 #matplotlib.rcParams['text.usetex'] = False
