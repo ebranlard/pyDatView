@@ -47,7 +47,13 @@ jobs:
           elif [[ $GITHUB_REF == *"main"* ]]; then 
               echo ">>> This is not a tagged version, but on the main branch"
               export VERSION_TAG=$CURRENT_TAG 
-              export VERSION_NAME="$CURRENT_TAG-`git rev-list $CURRENT_TAG.. --count`"
+              export VERSION_COUNT="`git rev-list $CURRENT_TAG.. --count`"
+              echo "VERSION_COUNT     >$VERSION_COUNT<"
+              if [[ $VERSION_COUNT == "" ]]; then 
+                export VERSION_NAME="$CURRENT_TAG-0"
+              else
+                export VERSION_NAME="$CURRENT_TAG-$VERSION_COUNT"
+              fi
               export FULL_VERSION_NAME="version $VERSION_NAME"
               #elif [[ $BRANCH == "dev" ]]; then 
               #    echo ">>> This is not a tagged version, but on the dev branch"
