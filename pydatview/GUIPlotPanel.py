@@ -34,6 +34,10 @@ except Exception as e:
         raise e
 # from matplotlib.figure import Figure
 from pydatview.figure import SwappyFigure as Figure
+try:
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 - registers 3d projection
+except ImportError:
+    pass
 from matplotlib.pyplot import rcParams as pyplot_rc
 from matplotlib import font_manager
 from pandas.plotting import register_matplotlib_converters
@@ -208,6 +212,45 @@ class CompCtrlPanel(wx.Panel):
     def _GUI2Data(self):
         data = {'type':  self.rbType.GetString(self.rbType.GetSelection())}
         return data
+
+class ColorCtrlPanel(wx.Panel):
+    """Control panel shown when a Z/color variable is selected."""
+    COLORMAPS = ['viridis','plasma','inferno','magma','cividis','coolwarm','RdYlBu','jet','rainbow','turbo','hot','bone']
+
+    def __init__(self, parent):
+        super(ColorCtrlPanel, self).__init__(parent)
+        self.parent = parent
+        lbCmap = wx.StaticText(self, -1, 'Colormap:')
+        self.cbCmap = wx.ComboBox(self, choices=self.COLORMAPS, style=wx.CB_READONLY)
+        self.cbCmap.SetSelection(0)
+        self.cbColorBar = wx.CheckBox(self, -1, 'Colorbar')
+        self.cbColorBar.SetValue(True)
+        self.cb3D = wx.CheckBox(self, -1, '3D view')
+        self.cb3D.SetValue(False)
+        dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        dummy_sizer.Add(lbCmap          , 0, flag=wx.CENTER|wx.LEFT, border=2)
+        dummy_sizer.Add(self.cbCmap     , 0, flag=wx.CENTER|wx.LEFT, border=2)
+        dummy_sizer.Add(self.cbColorBar , 0, flag=wx.CENTER|wx.LEFT, border=8)
+        dummy_sizer.Add(self.cb3D       , 0, flag=wx.CENTER|wx.LEFT, border=8)
+        self.SetSizer(dummy_sizer)
+        self.Bind(wx.EVT_COMBOBOX, self.onOptionChange, self.cbCmap)
+        self.Bind(wx.EVT_CHECKBOX, self.onOptionChange, self.cbColorBar)
+        self.Bind(wx.EVT_CHECKBOX, self.on3DChange,     self.cb3D)
+        self.Hide()
+
+    def onOptionChange(self, event=None):
+        self.parent.redraw_same_data()
+
+    def on3DChange(self, event=None):
+        self.parent.load_and_draw()
+
+    def _GUI2Data(self):
+        return {
+            'colormap':  self.cbCmap.GetStringSelection(),
+            'colorbar':  self.cbColorBar.IsChecked(),
+            'view3D':    self.cb3D.IsChecked(),
+        }
+
 
 class SpectralCtrlPanel(wx.Panel):
     def __init__(self, parent):
@@ -593,11 +636,12 @@ class PlotPanel(wx.Panel):
         # --- Tool Panel
         self.toolSizer= wx.BoxSizer(wx.VERTICAL)
         # --- Plot type specific options
-        self.spcPanel = SpectralCtrlPanel(self)
-        self.pdfPanel = PDFCtrlPanel(self)
-        self.cmpPanel = CompCtrlPanel(self)
-        self.mmxPanel = MinMaxPanel(self)
-        self.polPanel = PolarPanel(self)
+        self.spcPanel   = SpectralCtrlPanel(self)
+        self.pdfPanel   = PDFCtrlPanel(self)
+        self.cmpPanel   = CompCtrlPanel(self)
+        self.mmxPanel   = MinMaxPanel(self)
+        self.polPanel   = PolarPanel(self)
+        self.colorPanel = ColorCtrlPanel(self)
         # --- PlotType Panel (Needs the different pansel above)
         self.pltTypePanel= PlotTypePanel(self);
 
@@ -702,18 +746,19 @@ class PlotPanel(wx.Panel):
         self.slEsth = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         self.slEsth.Hide()
         sl1 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
-        plotsizer.Add(self.toolSizer,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.canvas   ,1,flag = wx.EXPAND,border = 5 )
-        plotsizer.Add(sl1           ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(self.spcPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.pdfPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.cmpPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.mmxPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.polPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.slEsth   ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(self.esthPanel,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.slCtrl   ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(row_sizer     ,0,flag = wx.EXPAND|wx.NORTH ,border = 2)
+        plotsizer.Add(self.toolSizer  ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.canvas     ,1,flag = wx.EXPAND,border = 5 )
+        plotsizer.Add(sl1             ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(self.spcPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.pdfPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.cmpPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.mmxPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.polPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.colorPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.slEsth     ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(self.esthPanel  ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.slCtrl     ,0,flag = wx.EXPAND,border = 0)
+        plotsizer.Add(row_sizer       ,0,flag = wx.EXPAND|wx.NORTH ,border = 2)
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
@@ -957,13 +1002,18 @@ class PlotPanel(wx.Panel):
         return self.cbSync.IsChecked() and (not self.pltTypePanel.cbPDF.GetValue())
 
     def set_subplots(self,nPlots):
+        # Determine if 3D view is requested
+        hasZ = any(pd.z is not None for pd in self.plotData)
+        use3D = hasZ and self.colorPanel.cb3D.IsChecked()
         # Creating subplots
         for ax in self.fig.axes:
             self.fig.delaxes(ax)
         sharex=None
         for i in range(nPlots):
             # Vertical stack
-            if i==0:
+            if use3D:
+                ax = self.fig.add_subplot(nPlots, 1, i+1, projection='3d')
+            elif i==0:
                 ax=self.fig.add_subplot(nPlots,1,i+1)
                 # Store first axis to share with other
                 if self.sharex:
@@ -1178,12 +1228,20 @@ class PlotPanel(wx.Panel):
             for i,idx in enumerate(ID):
                 # Initialize each plotdata based on selected table and selected id channels
                 PD = PlotData();
-                PD.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike) 
+                PD.fromIDs(tabs, i, idx, SameCol, pipeline=self.pipeLike)
                 self.transformPlotData(PD, firstCall=i==0)
                 self.plotData.append(PD)
         except Exception as e:
             self.plotData=[]
             raise e
+
+        # Show/hide colorPanel based on whether any plot has a Z/color variable
+        hasZ = any(pd.z is not None for pd in self.plotData)
+        if hasZ:
+            self.colorPanel.Show()
+        else:
+            self.colorPanel.Hide()
+        self.plotsizer.Layout()
 
     def PD_Compare(self,mode):
         """ Perform comparison of the selected PlotData, returns new plotData with the comparison. """
@@ -1528,6 +1586,11 @@ class PlotPanel(wx.Panel):
                 ax_right.set_ylabel(' and '.join(yright_labels), **font_options)
             elif ax_right is not None:
                 ax_right.set_ylabel('')
+            # Z label for 3D plots
+            if hasattr(ax_left, 'set_zlabel'):
+                z_labels = unique([PD[i].sz for i in ax_left.iPD if PD[i].z is not None])
+                if len(z_labels) > 0 and len(z_labels) <= 3:
+                    ax_left.set_zlabel(' and '.join(z_labels), **font_options)
 
             # Legends
             lgdLoc = plotStyle['LegendPosition'].lower()
@@ -1562,9 +1625,15 @@ class PlotPanel(wx.Panel):
         # NOTE: cursors needs to be stored in the object!
         #for ax_left in self.fig.axes:
         #    self.cursors.append(MyCursor(ax_left,horizOn=True, vertOn=False, useblit=True, color='gray', linewidth=0.5, linestyle=':'))
-        # Vertical cusor for all, commonly
+        # Vertical cusor for all, commonly (not supported for 3D axes)
         bXHair = self.cbXHair.GetValue()
-        self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn=bXHair, vertOn=bXHair, color='gray', linewidth=0.5, linestyle=':')
+        hasZ = any(pd.z is not None for pd in PD)
+        use3D = hasZ and self.colorPanel.cb3D.IsChecked()
+        if not use3D:
+            try:
+                self.multiCursors = MyMultiCursor(self.canvas, tuple(self.fig.axes), useblit=True, horizOn=bXHair, vertOn=bXHair, color='gray', linewidth=0.5, linestyle=':')
+            except Exception:
+                pass
 
     def plotSignals(self, ax, axis_idx, PD, pm, left_right, opts):
         axis = None
@@ -1573,6 +1642,12 @@ class PlotPanel(wx.Panel):
             loop_range = ax.iPD
         else:
             loop_range = range(len(PD))
+
+        # Gather color-panel options once
+        colorOpts = self.colorPanel._GUI2Data()
+        colormap  = colorOpts['colormap']
+        showColorBar = colorOpts['colorbar']
+        use3D = colorOpts['view3D']
 
         iPlot=-1
         for signal_idx in loop_range:
@@ -1589,23 +1664,51 @@ class PlotPanel(wx.Panel):
                     axis._get_lines.prop_cycler = ax._get_lines.prop_cycler
             pd=PD[signal_idx]
             if do_plot:
-                iPlot+=1 
-                # --- styling per plot 
-                if len(pd.x)==1:
-                    marker='o'; ls=''
+                iPlot+=1
+                hasZ = pd.z is not None and not pd.zIsString
+                if hasZ and use3D:
+                    # 3D scatter: x, y, z as spatial axes
+                    try:
+                        sc = axis.scatter(pd.x, pd.y, pd.z, label=pd.syl, s=opts['ms']**2,
+                                          cmap=colormap, c=pd.z)
+                        if showColorBar:
+                            cb = self.fig.colorbar(sc, ax=axis, label=pd.sz, shrink=0.7, pad=0.1)
+                    except Exception:
+                        axis.scatter(pd.x, pd.y, pd.z, label=pd.syl, s=opts['ms']**2)
+                    try:
+                        bAllNeg = bAllNeg and all(pd.y<=0)
+                    except Exception:
+                        pass
+                elif hasZ:
+                    # 2D scatter colored by Z variable
+                    try:
+                        sc = axis.scatter(pd.x, pd.y, c=pd.z, cmap=colormap,
+                                          label=pd.syl, s=opts['ms']**2)
+                        if showColorBar:
+                            cb = self.fig.colorbar(sc, ax=axis, label=pd.sz)
+                    except Exception:
+                        axis.scatter(pd.x, pd.y, label=pd.syl, s=opts['ms']**2)
+                    try:
+                        bAllNeg = bAllNeg and all(pd.y<=0)
+                    except Exception:
+                        pass
                 else:
-                    # TODO allow PlotData to override for "per plot" options in the future
-                    marker = opts['Markers'][np.mod(iPlot,len(opts['Markers']))]
-                    ls     = opts['LineStyles'][np.mod(iPlot,len(opts['LineStyles']))]
-                if opts['step']:
-                    plot = axis.step
-                else:
-                    plot = axis.plot
-                plot(pd.x,pd.y,label=pd.syl,ms=opts['ms'], lw=opts['lw'], marker=marker, ls=ls)
-                try:
-                    bAllNeg = bAllNeg and all(pd.y<=0)
-                except:
-                    pass # Dates or strings
+                    # --- styling per plot
+                    if len(pd.x)==1:
+                        marker='o'; ls=''
+                    else:
+                        # TODO allow PlotData to override for "per plot" options in the future
+                        marker = opts['Markers'][np.mod(iPlot,len(opts['Markers']))]
+                        ls     = opts['LineStyles'][np.mod(iPlot,len(opts['LineStyles']))]
+                    if opts['step']:
+                        plot = axis.step
+                    else:
+                        plot = axis.plot
+                    plot(pd.x,pd.y,label=pd.syl,ms=opts['ms'], lw=opts['lw'], marker=marker, ls=ls)
+                    try:
+                        bAllNeg = bAllNeg and all(pd.y<=0)
+                    except:
+                        pass # Dates or strings
         return axis, bAllNeg
             
     def findPlotMode(self,PD):
@@ -1865,13 +1968,20 @@ class PlotPanel(wx.Panel):
         self.xlim_prev = []
         self.ylim_prev = []
         for ax in self.fig.axes:
-            self.xlim_prev.append(ax.get_xlim_())
-            self.ylim_prev.append(ax.get_ylim_())
+            try:
+                self.xlim_prev.append(ax.get_xlim_())
+                self.ylim_prev.append(ax.get_ylim_())
+            except AttributeError:
+                self.xlim_prev.append((0, 1))
+                self.ylim_prev.append((0, 1))
 
     def _restore_limits(self):
         for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
-            ax.set_xlim_(xlim)
-            ax.set_ylim_(ylim)
+            try:
+                ax.set_xlim_(xlim)
+                ax.set_ylim_(ylim)
+            except AttributeError:
+                pass
 
 if __name__ == '__main__':
     import pandas as pd;
