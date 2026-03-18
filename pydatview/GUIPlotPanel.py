@@ -57,6 +57,36 @@ matplotlib_rc('font', **font)
 pyplot_rc['agg.path.chunksize'] = 20000
 
 
+def _patch_3d_ctrl_rotate(ax, canvas):
+    """Require Ctrl+left-click to rotate a 3D axis; plain left-click is left free for zoom/pan."""
+    try:
+        cids = getattr(ax, '_cids', [])
+        if not cids:
+            return
+        # Save references to the original bound methods before disconnecting
+        press_fn   = getattr(ax, '_button_press',   None)
+        release_fn = getattr(ax, '_button_release', None)
+        move_fn    = getattr(ax, '_on_move',        None)
+        if press_fn is None:
+            return
+        for cid in list(cids):
+            canvas.mpl_disconnect(cid)
+
+        def ctrl_press(event):
+            if event.button == 1 and event.key not in ('control', 'ctrl'):
+                return
+            press_fn(event)
+
+        new_cids = [canvas.mpl_connect('button_press_event', ctrl_press)]
+        if release_fn:
+            new_cids.append(canvas.mpl_connect('button_release_event', release_fn))
+        if move_fn:
+            new_cids.append(canvas.mpl_connect('motion_notify_event', move_fn))
+        ax._cids = new_cids
+    except Exception:
+        pass  # Silently skip if matplotlib version doesn't support this
+
+
 class PDFCtrlPanel(wx.Panel):
     def __init__(self, parent):
         super(PDFCtrlPanel,self).__init__(parent)
@@ -215,39 +245,59 @@ class CompCtrlPanel(wx.Panel):
 
 class ColorCtrlPanel(wx.Panel):
     """Control panel shown when a Z/color variable is selected."""
-    COLORMAPS = ['viridis','plasma','inferno','magma','cividis','coolwarm','RdYlBu','jet','rainbow','turbo','hot','bone']
+    COLORMAP = 'viridis'
 
     def __init__(self, parent):
         super(ColorCtrlPanel, self).__init__(parent)
         self.parent = parent
-        lbCmap = wx.StaticText(self, -1, 'Colormap:')
-        self.cbCmap = wx.ComboBox(self, choices=self.COLORMAPS, style=wx.CB_READONLY)
-        self.cbCmap.SetSelection(0)
-        self.cbColorBar = wx.CheckBox(self, -1, 'Colorbar')
-        self.cbColorBar.SetValue(True)
         self.cb3D = wx.CheckBox(self, -1, '3D view')
         self.cb3D.SetValue(False)
+        # View buttons (shown only in 3D mode)
+        self.btXY = wx.Button(self, -1, 'x-y plane', style=wx.BU_EXACTFIT)
+        self.btYZ = wx.Button(self, -1, 'y-z plane', style=wx.BU_EXACTFIT)
+        self.btXZ = wx.Button(self, -1, 'x-z plane', style=wx.BU_EXACTFIT)
+        self.btXY.Hide()
+        self.btYZ.Hide()
+        self.btXZ.Hide()
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        dummy_sizer.Add(lbCmap          , 0, flag=wx.CENTER|wx.LEFT, border=2)
-        dummy_sizer.Add(self.cbCmap     , 0, flag=wx.CENTER|wx.LEFT, border=2)
-        dummy_sizer.Add(self.cbColorBar , 0, flag=wx.CENTER|wx.LEFT, border=8)
-        dummy_sizer.Add(self.cb3D       , 0, flag=wx.CENTER|wx.LEFT, border=8)
+        dummy_sizer.Add(self.cb3D , 0, flag=wx.CENTER|wx.LEFT, border=8)
+        dummy_sizer.Add(self.btXY , 0, flag=wx.CENTER|wx.LEFT, border=8)
+        dummy_sizer.Add(self.btYZ , 0, flag=wx.CENTER|wx.LEFT, border=4)
+        dummy_sizer.Add(self.btXZ , 0, flag=wx.CENTER|wx.LEFT, border=4)
         self.SetSizer(dummy_sizer)
-        self.Bind(wx.EVT_COMBOBOX, self.onOptionChange, self.cbCmap)
-        self.Bind(wx.EVT_CHECKBOX, self.onOptionChange, self.cbColorBar)
-        self.Bind(wx.EVT_CHECKBOX, self.on3DChange,     self.cb3D)
+        self.Bind(wx.EVT_CHECKBOX, self.on3DChange, self.cb3D)
+        self.Bind(wx.EVT_BUTTON,   self.onViewXY,  self.btXY)
+        self.Bind(wx.EVT_BUTTON,   self.onViewYZ,  self.btYZ)
+        self.Bind(wx.EVT_BUTTON,   self.onViewXZ,  self.btXZ)
         self.Hide()
 
-    def onOptionChange(self, event=None):
-        self.parent.redraw_same_data()
-
     def on3DChange(self, event=None):
+        is3D = self.cb3D.IsChecked()
+        self.btXY.Show(is3D)
+        self.btYZ.Show(is3D)
+        self.btXZ.Show(is3D)
+        self.GetSizer().Layout()
         self.parent.load_and_draw()
+
+    def _setView(self, elev, azim):
+        for ax in self.parent.fig.axes:
+            if hasattr(ax, 'view_init'):
+                ax.view_init(elev=elev, azim=azim)
+        self.parent.canvas.draw()
+
+    def onViewXY(self, event=None):
+        self._setView(elev=90, azim=-90)
+
+    def onViewYZ(self, event=None):
+        self._setView(elev=0, azim=0)
+
+    def onViewXZ(self, event=None):
+        self._setView(elev=0, azim=-90)
 
     def _GUI2Data(self):
         return {
-            'colormap':  self.cbCmap.GetStringSelection(),
-            'colorbar':  self.cbColorBar.IsChecked(),
+            'colormap':  self.COLORMAP,
+            'colorbar':  True,
             'view3D':    self.cb3D.IsChecked(),
         }
 
@@ -1013,6 +1063,7 @@ class PlotPanel(wx.Panel):
             # Vertical stack
             if use3D:
                 ax = self.fig.add_subplot(nPlots, 1, i+1, projection='3d')
+                _patch_3d_ctrl_rotate(ax, self.canvas)
             elif i==0:
                 ax=self.fig.add_subplot(nPlots,1,i+1)
                 # Store first axis to share with other

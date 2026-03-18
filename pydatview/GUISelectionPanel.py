@@ -745,7 +745,7 @@ class ColumnPanel(wx.Panel):
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont(self))
         # Z/Color variable selector
-        self.lbZ = wx.StaticText(self, -1, 'Z/C:')
+        self.lbZ = wx.StaticText(self, -1, 'z-axis:')
         self.comboZ = wx.ComboBox(self, choices=['None'], style=wx.CB_READONLY)
         self.comboZ.SetFont(getMonoFont(self))
         self.comboZ.SetSelection(0)
