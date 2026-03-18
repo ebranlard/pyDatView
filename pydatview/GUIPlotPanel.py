@@ -58,33 +58,31 @@ pyplot_rc['agg.path.chunksize'] = 20000
 
 
 def _patch_3d_ctrl_rotate(ax, canvas):
-    """Require Ctrl+left-click to rotate a 3D axis; plain left-click is left free for zoom/pan."""
+    """Require Ctrl+left-click to rotate a 3D axis; plain left-click is free for zoom/pan.
+
+    Strategy: use ax.mouse_init(rotate_btn=[]) to disable the built-in left-click rotation,
+    then connect custom handlers that re-enable rotation only while Ctrl is held.
+    wx.GetKeyState is used for reliable Ctrl detection independent of matplotlib's key tracking.
+    """
     try:
-        cids = getattr(ax, '_cids', [])
-        if not cids:
+        if not hasattr(ax, 'mouse_init') or not hasattr(ax, '_rotate_btn'):
             return
-        # Save references to the original bound methods before disconnecting
-        press_fn   = getattr(ax, '_button_press',   None)
-        release_fn = getattr(ax, '_button_release', None)
-        move_fn    = getattr(ax, '_on_move',        None)
-        if press_fn is None:
-            return
-        for cid in list(cids):
-            canvas.mpl_disconnect(cid)
+        # Disable built-in rotation; keep pan (button 2) and zoom (button 3) intact
+        ax.mouse_init(rotate_btn=[])
 
-        def ctrl_press(event):
-            if event.button == 1 and event.key not in ('control', 'ctrl'):
+        def _on_3d_press(event):
+            if event.inaxes != ax or event.button != 1:
                 return
-            press_fn(event)
+            ax._rotate_btn = np.atleast_1d(1 if wx.GetKeyState(wx.WXK_CONTROL) else [])
 
-        new_cids = [canvas.mpl_connect('button_press_event', ctrl_press)]
-        if release_fn:
-            new_cids.append(canvas.mpl_connect('button_release_event', release_fn))
-        if move_fn:
-            new_cids.append(canvas.mpl_connect('motion_notify_event', move_fn))
-        ax._cids = new_cids
+        def _on_3d_release(event):
+            if event.button == 1:
+                ax._rotate_btn = np.atleast_1d([])
+
+        canvas.mpl_connect('button_press_event',   _on_3d_press)
+        canvas.mpl_connect('button_release_event', _on_3d_release)
     except Exception:
-        pass  # Silently skip if matplotlib version doesn't support this
+        pass
 
 
 class PDFCtrlPanel(wx.Panel):
