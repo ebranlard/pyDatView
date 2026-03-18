@@ -60,29 +60,21 @@ pyplot_rc['agg.path.chunksize'] = 20000
 def _patch_3d_ctrl_rotate(ax, canvas):
     """Require Ctrl+left-click to rotate a 3D axis; plain left-click is free for zoom/pan.
 
-    Strategy: use ax.mouse_init(rotate_btn=[]) to disable the built-in left-click rotation,
-    then connect custom handlers that re-enable rotation only while Ctrl is held.
-    wx.GetKeyState is used for reliable Ctrl detection independent of matplotlib's key tracking.
+    Strategy: matplotlib's built-in _button_press sets ax.button_pressed = event.button.
+    Our handler fires afterwards (registered later = called later) and resets
+    ax.button_pressed to None when Ctrl is not held, so _on_move skips rotation.
+    wx.GetKeyState gives reliable Ctrl detection in the wx backend.
     """
-    try:
-        if not hasattr(ax, 'mouse_init') or not hasattr(ax, '_rotate_btn'):
+    def _on_3d_press(event):
+        if event.inaxes != ax or event.button != 1:
             return
-        # Disable built-in rotation; keep pan (button 2) and zoom (button 3) intact
-        ax.mouse_init(rotate_btn=[])
+        if not wx.GetKeyState(wx.WXK_CONTROL):
+            try:
+                ax.button_pressed = None
+            except Exception:
+                pass
 
-        def _on_3d_press(event):
-            if event.inaxes != ax or event.button != 1:
-                return
-            ax._rotate_btn = np.atleast_1d(1 if wx.GetKeyState(wx.WXK_CONTROL) else [])
-
-        def _on_3d_release(event):
-            if event.button == 1:
-                ax._rotate_btn = np.atleast_1d([])
-
-        canvas.mpl_connect('button_press_event',   _on_3d_press)
-        canvas.mpl_connect('button_release_event', _on_3d_release)
-    except Exception:
-        pass
+    canvas.mpl_connect('button_press_event', _on_3d_press)
 
 
 class PDFCtrlPanel(wx.Panel):
