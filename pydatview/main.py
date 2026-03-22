@@ -379,14 +379,8 @@ class MainFrame(wx.Frame):
             Warn(self,warn)
         # Track recent files (only for fresh loads, not reloads)
         if not bReload and filenames:
-            recent = self.data.get('recentFiles', [])
             for p in reversed(filenames):
-                p = os.path.abspath(p)
-                if p in recent:
-                    recent.remove(p)
-                recent.insert(0, p)
-            self.data['recentFiles'] = recent[:10]
-            self._populateRecentFilesMenu()
+                self._track_recent(p)
         # Load tables into the GUI
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=bPlot)
@@ -559,6 +553,7 @@ class MainFrame(wx.Frame):
             path = dlg.GetPath()
             fformat = fformat[dlg.GetFilterIndex()]
             tab.export(path=path, fformat=fformat)
+            self._track_recent(path)
 
     def onShowTool(self, event=None, toolName=''):
         """ 
@@ -885,6 +880,16 @@ class MainFrame(wx.Frame):
             self.Bind(wx.EVT_MENU, lambda e, n=v['name']: self.onRestoreViewCurrentTable(n), applyTabItem)
             self.Bind(wx.EVT_MENU, lambda e, n=v['name']: self.onDeleteView(n),               deleteItem)
 
+    def _track_recent(self, path):
+        """Insert *path* at the top of recentFiles (capped at 30) and refresh the menu."""
+        recent = self.data.get('recentFiles', [])
+        abs_path = os.path.abspath(path)
+        if abs_path in recent:
+            recent.remove(abs_path)
+        recent.insert(0, abs_path)
+        self.data['recentFiles'] = recent[:30]
+        self._populateRecentFilesMenu()
+
     def _populateRecentFilesMenu(self):
         """Rebuild the Recent Files submenu from saved recentFiles list."""
         while self.recentFilesMenu.GetMenuItemCount() > 0:
@@ -897,7 +902,10 @@ class MainFrame(wx.Frame):
         else:
             for path in recent:
                 item = self.recentFilesMenu.Append(wx.ID_ANY, path)
-                self.Bind(wx.EVT_MENU, lambda e, p=path: self.load_files([p]), item)
+                if path.endswith(VIEW_FILE_EXT):
+                    self.Bind(wx.EVT_MENU, lambda e, p=path: self.load_view_file(p), item)
+                else:
+                    self.Bind(wx.EVT_MENU, lambda e, p=path: self.load_files([p]), item)
 
     def _capturePipelineState(self):
         """Return {action_name: data_dict} for every action currently in the pipeline."""
@@ -1168,6 +1176,7 @@ class MainFrame(wx.Frame):
             with open(path, 'w') as f:
                 json.dump(view_data, f, indent=2)
             self.statusbar.SetStatusText('View exported to: {}'.format(path), ISTAT)
+            self._track_recent(path)
         except Exception as e:
             Error(self, 'Failed to export view:\n{}'.format(str(e)))
 
@@ -1233,6 +1242,7 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('View "{}" partially restored.'.format(view_name), ISTAT)
         else:
             self.statusbar.SetStatusText('View "{}" loaded from file.'.format(view_name), ISTAT)
+        self._track_recent(path)
 
     def mainFrameUpdateLayout(self, event=None):
         if hasattr(self.nb,'fields_1d_tab'):

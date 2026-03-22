@@ -134,7 +134,7 @@ def defaultAppData(mainframe):
     data['infoPanel']=InfoPanel.defaultData()
     # Saved views
     data['views'] = []
-    # Recent files (up to 10 paths)
+    # Recent files/views (up to 30 paths)
     data['recentFiles'] = []
     return data
 
