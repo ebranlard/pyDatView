@@ -1351,9 +1351,9 @@ class SelectionPanel(wx.Panel):
         self.currentMode = 'simColumnsMode'
         self.splitter.removeAll()
         self.splitter.AppendWindow(self.tabPanel) 
-        self.splitter.AppendWindow(self.colPanel2) 
-        self.splitter.AppendWindow(self.colPanel1) 
-        self.splitter.setEquiSash()
+        self.splitter.AppendWindow(self.colPanel2)
+        self.splitter.AppendWindow(self.colPanel1)
+        self.splitter._restorePanelWidths()
         if self.nSplits<2:
             self.parentUpdateLayout()
         self.nSplits=2
@@ -1363,10 +1363,10 @@ class SelectionPanel(wx.Panel):
         if self.nSplits==2:
             return
         self.splitter.removeAll()
-        self.splitter.AppendWindow(self.tabPanel) 
-        self.splitter.AppendWindow(self.colPanel2) 
-        self.splitter.AppendWindow(self.colPanel1) 
-        self.splitter.setEquiSash()
+        self.splitter.AppendWindow(self.tabPanel)
+        self.splitter.AppendWindow(self.colPanel2)
+        self.splitter.AppendWindow(self.colPanel1)
+        self.splitter._restorePanelWidths()
         if self.nSplits<2:
             self.parentUpdateLayout()
         self.nSplits=2
@@ -1376,11 +1376,11 @@ class SelectionPanel(wx.Panel):
         if self.nSplits==3:
             return
         self.splitter.removeAll()
-        self.splitter.AppendWindow(self.tabPanel) 
-        self.splitter.AppendWindow(self.colPanel3) 
-        self.splitter.AppendWindow(self.colPanel2) 
-        self.splitter.AppendWindow(self.colPanel1) 
-        self.splitter.setEquiSash()
+        self.splitter.AppendWindow(self.tabPanel)
+        self.splitter.AppendWindow(self.colPanel3)
+        self.splitter.AppendWindow(self.colPanel2)
+        self.splitter.AppendWindow(self.colPanel1)
+        self.splitter._restorePanelWidths()
         self.parentUpdateLayout()
         self.nSplits=3
 
@@ -1686,6 +1686,18 @@ class SelectionPanel(wx.Panel):
         state['simTabSelection']  = simSel
         state['filterSelection']  = list(self.filterSelection)
         state['mode']             = self.currentMode
+        # Save sash widths keyed by stable panel name (id() is not portable across sessions)
+        _panel_name_map = {
+            id(self.tabPanel):  'tabPanel',
+            id(self.colPanel1): 'colPanel1',
+            id(self.colPanel2): 'colPanel2',
+            id(self.colPanel3): 'colPanel3',
+        }
+        state['sashWidths'] = {
+            _panel_name_map[k]: v
+            for k, v in self.splitter._panelWidths.items()
+            if k in _panel_name_map
+        }
         # Save per-table formulas so added columns can be recreated on restore
         formulas_state = {}
         for tab in self.tabList:
@@ -1788,6 +1800,19 @@ class SelectionPanel(wx.Panel):
         # Update columns based on selection; skip saveSelection so the restored
         # tabSelections are not overwritten by the current (stale) GUI state.
         self.tabSelectionChanged(save=False)
+        # Restore sash widths saved in the view
+        sash_widths = state.get('sashWidths', {})
+        if sash_widths:
+            _name_panel_map = {
+                'tabPanel':  self.tabPanel,
+                'colPanel1': self.colPanel1,
+                'colPanel2': self.colPanel2,
+                'colPanel3': self.colPanel3,
+            }
+            for name, w in sash_widths.items():
+                if name in _name_panel_map:
+                    self.splitter._panelWidths[id(_name_panel_map[name])] = w
+            self.splitter._restorePanelWidths()
         return warnings
 
     def saveSelection(self):

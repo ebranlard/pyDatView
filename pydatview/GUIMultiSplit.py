@@ -3,58 +3,104 @@ from wx.lib.splitter import MultiSplitterWindow
 
 
 class MultiSplit(MultiSplitterWindow):
-    def __init__(self,parent,*args,**kwargs):
-        super(MultiSplit,self).__init__(parent,*args,**kwargs)
+    def __init__(self, parent, *args, **kwargs):
+        super(MultiSplit, self).__init__(parent, *args, **kwargs)
         self.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.onSashChange)
         self.Bind(wx.EVT_SIZE, self.onParentChangeSize, self)
-#         self.nWindow=0
+        self._panelWidths = {}  # {id(window): pixel_width} — absolute pixel width per panel
 
-    def SetMinimumPaneSize(self,size):
-        super(MultiSplit,self).SetMinimumPaneSize(size)
-        self.MinSashSize=size
+    def SetMinimumPaneSize(self, size):
+        super(MultiSplit, self).SetMinimumPaneSize(size)
+        self.MinSashSize = size
 
     def AppendWindow(self, window, **kwargs):
-        super(MultiSplit,self).AppendWindow(window,**kwargs)
+        super(MultiSplit, self).AppendWindow(window, **kwargs)
         window.Show()
 
     def DetachWindow(self, window):
-        super(MultiSplit,self).DetachWindow(window)
+        super(MultiSplit, self).DetachWindow(window)
         window.Hide()
 
     def InsertWindow(self, idx, window, *args, **kwargs):
-        super(MultiSplit,self).InsertWindow(idx, window, *args, **kwargs)
+        super(MultiSplit, self).InsertWindow(idx, window, *args, **kwargs)
         window.Show()
 
     @property
     def nWindows(self):
         return len(self._windows)
 
+    def _savePanelWidths(self):
+        """Record each non-last pane's current pixel width."""
+        for i in range(self.nWindows - 1):
+            win = self._windows[i]
+            self._panelWidths[id(win)] = self.GetSashPosition(i)
+
+    def _restorePanelWidths(self):
+        """Apply stored absolute pixel widths to sash positions.
+
+        Panels with no stored width receive an equal share of unclaimed space.
+        Falls back to setEquiSash() when no history exists at all.
+        The last panel always absorbs whatever space remains.
+        """
+        if self.nWindows <= 1:
+            return
+        total = self.GetClientSize()[0]
+        if total <= 0:
+            return
+        has_history = any(id(w) in self._panelWidths for w in self._windows[:-1])
+        if not has_history:
+            self.setEquiSash()
+            return
+        known_sum = sum(
+            self._panelWidths[id(w)]
+            for w in self._windows[:-1]
+            if id(w) in self._panelWidths
+        )
+        n_unknown = sum(1 for w in self._windows[:-1] if id(w) not in self._panelWidths)
+        unk_w = (
+            max(self.MinSashSize, (total - known_sum) // n_unknown)
+            if n_unknown else self.MinSashSize
+        )
+        for i, win in enumerate(self._windows[:-1]):
+            w = self._panelWidths.get(id(win), unk_w)
+            self.SetSashPosition(i, max(self.MinSashSize, w))
+
     def removeAll(self):
-        for i in reversed(range(self.nWindows)): 
+        self._savePanelWidths()  # remember widths before detaching
+        for i in reversed(range(self.nWindows)):
             w = self.GetWindow(i)
             self.DetachWindow(w)
             w.Hide()
 
-    def onParentChangeSize(self,Event=None):
-        #print('here',self.GetClientSize())
-        self.setEquiSash()
+    def onParentChangeSize(self, Event=None):
+        # Re-apply stored absolute widths; the last panel absorbs any slack.
+        self._restorePanelWidths()
 
-    def setEquiSash(self,event=None):
-        if self.nWindows>0:
-            if self.nWindows==1:
+    def setEquiSash(self, event=None):
+        if self.nWindows > 0:
+            if self.nWindows == 1:
                 self.SetSashPosition(0, 0)
             else:
-                S=self.GetClientSize()
-                borders=5*self.nWindows-1
-                equi=int((S[0]-borders)/self.nWindows)
-                for i in range(self.nWindows-1):
+                S = self.GetClientSize()
+                borders = 5 * self.nWindows - 1
+                equi = int((S[0] - borders) / self.nWindows)
+                for i in range(self.nWindows - 1):
                     self.SetSashPosition(i, equi)
 
-    def onSashChange(self,event=None):
-        # Not really pretty but will ensure the size don't go out of screen
-        pos=[self.GetSashPosition(i) for i in range(self.nWindows)]
-        if any([p<self.MinSashSize for p in pos]):
-            self.setEquiSash() # TODO
+    def onSashChange(self, event=None):
+        """Persist only the pane to the LEFT of the dragged sash.
+
+        All other stored widths are untouched so only the last pane absorbs the
+        change in total width.  GetSashIdx() is provided by MultiSplitterEvent
+        and returns the 0-based index of the moved sash.
+        """
+        if event is not None and hasattr(event, 'GetSashIdx'):
+            idx = event.GetSashIdx()
+            if 0 <= idx < self.nWindows - 1:
+                self._panelWidths[id(self._windows[idx])] = self.GetSashPosition(idx)
+        else:
+            # Fallback (called manually without an event): save all non-last panes
+            self._savePanelWidths()
 
 
 
@@ -101,12 +147,12 @@ if __name__=='__main__':
 
         def mode1(self):
             if self.splitter.nWindows==2:
-                self.splitter.InsertWindow(1,self.colPanel1) 
+                self.splitter.InsertWindow(1,self.colPanel1)
                 self.colPanel1.Show()
 
         def mode2(self):
             if self.splitter.nWindows==3:
-                self.splitter.DetachWindow(self.colPanel1) 
+                self.splitter.DetachWindow(self.colPanel1)
                 self.colPanel1.Hide()
 
     class MainFrame(wx.Frame):
@@ -115,7 +161,7 @@ if __name__=='__main__':
             wx.Frame.__init__(self, None, -1)
             # --- ToolBar
             tb = self.CreateToolBar(wx.TB_HORIZONTAL)
-            self.toolBar = tb 
+            self.toolBar = tb
             tb.AddSeparator()
             btDEBUG  = wx.Button( tb, wx.ID_ANY, "REMOVE", wx.DefaultPosition, wx.DefaultSize )
             btDEBUG2 = wx.Button( tb, wx.ID_ANY, "ADD", wx.DefaultPosition, wx.DefaultSize )
@@ -130,7 +176,7 @@ if __name__=='__main__':
             tb.Bind(wx.EVT_BUTTON,self.onDEBUG,btDEBUG)
             tb.Bind(wx.EVT_BUTTON,self.onDEBUG2,btDEBUG2)
             tb.Bind(wx.EVT_BUTTON,self.onDEBUG3,btDEBUG3)
-            tb.Realize() 
+            tb.Realize()
 
             # --- Main Panel and Notebook
             self.MainPanel = SelectionPanel(self)
