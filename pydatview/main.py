@@ -31,6 +31,7 @@ from pydatview.GUIFields2D import Fields2DPanel
 
 from pydatview.GUISelectionPanel import SEL_MODES,SEL_MODES_ID
 from pydatview.GUISelectionPanel import ColumnPopup,TablePopup
+from pydatview.GUISelectionPanel import _tab_shortname
 from pydatview.GUIPipelinePanel import PipelinePanel
 from pydatview.GUIToolBox import GetKeyString, TBAddTool
 from pydatview.Tables import TableList, Table
@@ -145,17 +146,24 @@ class MainFrame(wx.Frame):
         menuBar = wx.MenuBar()
 
         fileMenu = wx.Menu()
-        loadMenuItem  = fileMenu.Append(wx.ID_NEW,"Open file" ,"Open file"           )
+        loadMenuItem  = fileMenu.Append(wx.ID_NEW,"&Open file\tCtrl+O" ,"Open file"           )
+        reloadMenuItem= fileMenu.Append(wx.ID_ANY,"&Reload\tCtrl+R"    ,"Reload current files" )
+        addMenuItem   = fileMenu.Append(wx.ID_ANY,"&Add file\tCtrl+A"  ,"Add file to current data" )
+        self.recentFilesMenu = wx.Menu()
+        fileMenu.AppendSubMenu(self.recentFilesMenu, 'Recent Files')
+        fileMenu.AppendSeparator()
         scrpMenuItem  = fileMenu.Append(-1        ,"Export script" ,"Export script"           )
         exptMenuItem  = fileMenu.Append(-1        ,"Export table" ,"Export table"           )
         saveMenuItem  = fileMenu.Append(wx.ID_SAVE,"Save figure" ,"Save figure"           )
         exitMenuItem  = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
         menuBar.Append(fileMenu, "&File")
-        self.Bind(wx.EVT_MENU,self.onExit  ,exitMenuItem)
-        self.Bind(wx.EVT_MENU,self.onLoad  ,loadMenuItem)
-        self.Bind(wx.EVT_MENU,self.onScript,scrpMenuItem)
-        self.Bind(wx.EVT_MENU,self.onExport,exptMenuItem)
-        self.Bind(wx.EVT_MENU,self.onSave  ,saveMenuItem)
+        self.Bind(wx.EVT_MENU,self.onExit   ,exitMenuItem)
+        self.Bind(wx.EVT_MENU,self.onLoad   ,loadMenuItem)
+        self.Bind(wx.EVT_MENU,self.onReload ,reloadMenuItem)
+        self.Bind(wx.EVT_MENU,self.onAdd    ,addMenuItem)
+        self.Bind(wx.EVT_MENU,self.onScript ,scrpMenuItem)
+        self.Bind(wx.EVT_MENU,self.onExport ,exptMenuItem)
+        self.Bind(wx.EVT_MENU,self.onSave   ,saveMenuItem)
 
         # --- Data Plugins
         # NOTE: very important, need "s_loc" otherwise the lambda function take the last toolName
@@ -175,7 +183,7 @@ class MainFrame(wx.Frame):
 
         # --- Views Menu
         self.viewsMenu = wx.Menu()
-        saveViewMenuItem   = self.viewsMenu.Append(wx.ID_ANY, 'Save current view...',   'Save the current selection and plot settings as a named view')
+        saveViewMenuItem   = self.viewsMenu.Append(wx.ID_ANY, '&Save current view...\tCtrl+S',   'Save the current selection and plot settings as a named view')
         exportViewMenuItem = self.viewsMenu.Append(wx.ID_ANY, 'Export view to file...', 'Export the current view to a .pdvview file (includes file list and settings)')
         importViewMenuItem = self.viewsMenu.Append(wx.ID_ANY, 'Import view from file...', 'Load a .pdvview file, open its data files, and restore the view')
         self.viewsMenu.AppendSeparator()
@@ -219,8 +227,9 @@ class MainFrame(wx.Frame):
         # --- ToolBar
         tb = self.CreateToolBar(wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT)
         tb.AddSeparator()
-        self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)  
+        self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)
         self.comboMode.SetSelection(0)
+        self.comboMode.SetToolTip("How to handle column matching when multiple tables are selected")
         #tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Mode: ' ) )
         tb.AddControl( self.comboMode ) 
@@ -240,16 +249,23 @@ class MainFrame(wx.Frame):
         TBAddTool(tb, "Open"  , 'ART_FILE_OPEN', self.onLoad)
         TBAddTool(tb, "Reload", 'ART_REDO'     , self.onReload)
         TBAddTool(tb, "Add"   , 'ART_PLUS'     , self.onAdd)
-        # Views combobox
-        tb.AddSeparator()
-        tb.AddControl( wx.StaticText(tb, -1, 'View: ' ) )
-        self.comboViews = wx.ComboBox(tb, choices=[], style=wx.CB_READONLY, size=(120,-1))
-        self.comboViews.SetToolTip('Select a saved view to restore it')
-        tb.AddControl(self.comboViews)
-        self.Bind(wx.EVT_COMBOBOX, self.onRestoreViewFromCombo, self.comboViews)
         tb.AddStretchableSpace()
         tb.Realize()
         self.toolBar = tb
+        # Set short-help tooltips on named toolbar tools
+        try:
+            _tb_tooltips = {
+                'Open':   'Open file (Ctrl+O)',
+                'Reload': 'Reload current files (Ctrl+R)',
+                'Add':    'Add file to current data set (Ctrl+A)',
+            }
+            for i in range(tb.GetToolsCount()):
+                t = tb.GetToolByPos(i)
+                lbl = t.GetLabel()
+                if lbl in _tb_tooltips:
+                    tb.SetToolShortHelp(t.GetId(), _tb_tooltips[lbl])
+        except Exception:
+            pass
         # Bind Toolbox Events
         self.Bind(wx.EVT_COMBOBOX, self.onModeChange, self.comboMode )
         self.Bind(wx.EVT_COMBOBOX, self.onFormatChange, self.comboFormats )
@@ -257,6 +273,7 @@ class MainFrame(wx.Frame):
         tb.Bind(wx.EVT_CHECKBOX, self.onLivePlotChange, self.cbLivePlot)
         # Populate the views combobox and menu from saved data
         self._populateViewsUI()
+        self._populateRecentFilesMenu()
 
         # --- Status bar
         self.statusbar=self.CreateStatusBar(3, style=0)
@@ -289,12 +306,11 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.onClose)
 
         # Shortcuts
-        idFilter=wx.NewId()
+        idFilter = wx.NewId()
         self.Bind(wx.EVT_MENU, self.onFilter, id=idFilter)
-
-        accel_tbl = wx.AcceleratorTable(
-                [(wx.ACCEL_CTRL,  ord('F'), idFilter )]
-                )
+        accel_tbl = wx.AcceleratorTable([
+            (wx.ACCEL_CTRL, ord('F'), idFilter),
+        ])
         self.SetAcceleratorTable(accel_tbl)
 
     def onFilter(self,event):
@@ -361,6 +377,16 @@ class MainFrame(wx.Frame):
         # Display warnings
         for warn in warnList: 
             Warn(self,warn)
+        # Track recent files (only for fresh loads, not reloads)
+        if not bReload and filenames:
+            recent = self.data.get('recentFiles', [])
+            for p in reversed(filenames):
+                p = os.path.abspath(p)
+                if p in recent:
+                    recent.remove(p)
+                recent.insert(0, p)
+            self.data['recentFiles'] = recent[:10]
+            self._populateRecentFilesMenu()
         # Load tables into the GUI
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=bPlot)
@@ -460,9 +486,23 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText(self.tabList[ISel[0]].filename        , ISTAT+1)
             self.statusbar.SetStatusText(self.tabList[ISel[0]].shapestring     , ISTAT+2)
         else:
-            self.statusbar.SetStatusText('{} tables loaded'.format(nTabs)                                                     ,ISTAT+0) 
+            self.statusbar.SetStatusText('{} tables loaded'.format(nTabs)                                                     ,ISTAT+0)
             self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),ISTAT+1)
             self.statusbar.SetStatusText(''                                                             ,ISTAT+2)
+        # Update window title to show loaded file names
+        base = PROG_NAME + ' ' + PROG_VERSION
+        try:
+            unique_files = list(dict.fromkeys(
+                os.path.basename(self.tabList.filenames[i]) for i in range(nTabs)
+                if self.tabList.filenames[i]))
+            if len(unique_files) == 0:
+                self.SetTitle(base)
+            elif len(unique_files) <= 3:
+                self.SetTitle('{} \u2014 {}'.format(base, ', '.join(unique_files)))
+            else:
+                self.SetTitle('{} \u2014 {} \u2026 ({} files)'.format(base, unique_files[0], len(unique_files)))
+        except Exception:
+            self.SetTitle(base)
 
     # --- Table Actions - TODO consider a table handler, or doing only the triggers
     def onTabListChangeLowLevel(self):
@@ -639,18 +679,14 @@ class MainFrame(wx.Frame):
     def onLivePlotChange(self, event=None):
         if self.cbLivePlot.IsChecked():
             if hasattr(self,'plotPanel'):
-                #print('[INFO] Reenabling live plot')
-                #self.plotPanel.Enable(True)
-                #self.infoPanel.Enable(True)
+                self.statusbar.SetStatusText('', ISTAT)
                 self.redrawCallback()
         else:
+            self.statusbar.SetStatusText('Live plot OFF \u2014 press Ctrl+R to update', ISTAT)
             if hasattr(self,'plotPanel'):
-                #print('[INFO] Disabling live plot')
                 for ax in self.plotPanel.fig.axes:
                     ax.annotate('Live Plot Disabled', xy=(0.5, 0.5), size=20, xycoords='axes fraction', ha='center', va='center',)
                     self.plotPanel.canvas.draw()
-                #self.plotPanel.Enable(False)
-                #self.infoPanel.Enable(False)
 
 
     def redrawCallback(self):
@@ -833,19 +869,35 @@ class MainFrame(wx.Frame):
 
     # --- Views: save / restore
     def _populateViewsUI(self):
-        """Rebuild the Views menu items and toolbar combobox from saved views list"""
+        """Rebuild the Views menu items from saved views list"""
         views = self.data.get('views', [])
-        # Update combobox
-        names = [v['name'] for v in views]
-        self.comboViews.Set(names)
-        # Rebuild dynamic menu items (keep 'Save...' and separator at top)
-        # Remove all items after the separator (index 2+)
-        while self.viewsMenu.GetMenuItemCount() > 2:
-            item = self.viewsMenu.FindItemByPosition(2)
+        # Rebuild dynamic menu items (keep Save/Export/Import + separator at top, positions 0-3)
+        while self.viewsMenu.GetMenuItemCount() > 4:
+            item = self.viewsMenu.FindItemByPosition(4)
             self.viewsMenu.Delete(item)
         for v in views:
-            item = self.viewsMenu.Append(wx.ID_ANY, v['name'], 'Restore view: ' + v['name'])
-            self.Bind(wx.EVT_MENU, lambda e, name=v['name']: self.onRestoreView(name), item)
+            subMenu = wx.Menu()
+            applyItem    = subMenu.Append(wx.ID_ANY, 'Apply view')
+            applyTabItem = subMenu.Append(wx.ID_ANY, 'Apply view to current table')
+            deleteItem   = subMenu.Append(wx.ID_ANY, 'Delete view')
+            self.viewsMenu.AppendSubMenu(subMenu, v['name'])
+            self.Bind(wx.EVT_MENU, lambda e, n=v['name']: self.onRestoreView(n),               applyItem)
+            self.Bind(wx.EVT_MENU, lambda e, n=v['name']: self.onRestoreViewCurrentTable(n), applyTabItem)
+            self.Bind(wx.EVT_MENU, lambda e, n=v['name']: self.onDeleteView(n),               deleteItem)
+
+    def _populateRecentFilesMenu(self):
+        """Rebuild the Recent Files submenu from saved recentFiles list."""
+        while self.recentFilesMenu.GetMenuItemCount() > 0:
+            item = self.recentFilesMenu.FindItemByPosition(0)
+            self.recentFilesMenu.Delete(item)
+        recent = self.data.get('recentFiles', [])
+        if not recent:
+            emptyItem = self.recentFilesMenu.Append(wx.ID_ANY, '(empty)')
+            emptyItem.Enable(False)
+        else:
+            for path in recent:
+                item = self.recentFilesMenu.Append(wx.ID_ANY, path)
+                self.Bind(wx.EVT_MENU, lambda e, p=path: self.load_files([p]), item)
 
     def _capturePipelineState(self):
         """Return {action_name: data_dict} for every action currently in the pipeline."""
@@ -970,6 +1022,111 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText('View "{}" partially restored.'.format(name), ISTAT)
         else:
             self.statusbar.SetStatusText('View "{}" restored.'.format(name), ISTAT)
+
+    def onRestoreViewCurrentTable(self, name):
+        """Restore view's column selections + plot settings on the currently selected table(s).
+
+        Keeps the current table selection but resolves the view's saved column
+        names (x, y, z) against each currently selected table.  If a table's
+        shortname matches a saved entry that is used directly; otherwise the
+        first saved selection is tried.
+        """
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            return
+        views = self.data.get('views', [])
+        view = next((v for v in views if v['name'] == name), None)
+        if view is None:
+            return
+
+        selection = view.get('selection', {})
+        saved_tabs = selection.get('tabSelections', {})
+
+        # Apply formulas from the view so added columns exist before name lookup
+        saved_formulas = selection.get('formulas', {})
+        if saved_formulas:
+            from pydatview.GUISelectionPanel import _find_tab_by_key
+            full_formulas = {}
+            for short_k, flist in saved_formulas.items():
+                matched = _find_tab_by_key(self.tabList, short_k)
+                full_formulas[matched.raw_name if matched else short_k] = flist
+            self.tabList.applyFormulas(full_formulas)
+
+        # Restore plot settings (3D mode, style, etc.)
+        self.plotPanel.restoreViewData(view.get('plotPanel', {}))
+
+        warnings = []
+        ISel = self.selPanel.tabPanel.lbTab.GetSelections()
+        if len(ISel) == 0 or not saved_tabs:
+            self.plotPanel.load_and_draw()
+            self.statusbar.SetStatusText('View "{}" settings applied.'.format(name), ISTAT)
+            return
+
+        # Collect a fallback selection (first saved entry)
+        fallback_sel = next(iter(saved_tabs.values()))
+
+        for iTab in ISel:
+            if iTab >= self.tabList.len():
+                continue
+            tab = self.tabList[iTab]
+            cols = list(tab.columns)
+            full_k = tab.name
+            short = _tab_shortname(tab)
+
+            # Match by shortname first, then fall back to first saved entry
+            matched_sel = saved_tabs.get(short, fallback_sel)
+
+            # Resolve X column by name
+            xName = matched_sel.get('xName')
+            xSel = matched_sel.get('xSel', -1)
+            if xName is not None:
+                xSel = cols.index(xName) if xName in cols else -1
+                if xName not in cols:
+                    warnings.append('Table "{}": x-column "{}" not found'.format(short, xName))
+            elif xSel >= len(cols):
+                xSel = -1
+
+            # Resolve Y columns by name
+            yNames = matched_sel.get('yNames', [])
+            if yNames:
+                ySel = [cols.index(yn) for yn in yNames if yn in cols]
+                missing = [yn for yn in yNames if yn not in cols]
+                if missing:
+                    warnings.append('Table "{}": column(s) not found: {}'.format(
+                        short, ', '.join('"{}"'.format(n) for n in missing)))
+            else:
+                ySel_raw = matched_sel.get('ySel', [])
+                ySel = [iy for iy in ySel_raw if 0 <= iy < len(cols)]
+
+            # Resolve Z column by name (comboZ: 0=None, 1+=col)
+            zName = matched_sel.get('zName')
+            zSel = matched_sel.get('zSel', 0)
+            if zName is not None:
+                zSel = (cols.index(zName) + 1) if zName in cols else 0
+                if zName not in cols:
+                    warnings.append('Table "{}": z-column "{}" not found'.format(short, zName))
+            elif zSel > len(cols):
+                zSel = 0
+
+            if full_k in self.selPanel.tabSelections:
+                self.selPanel.tabSelections[full_k] = {
+                    'xSel': xSel, 'ySel': tuple(ySel), 'zSel': zSel,
+                }
+
+        # Refresh column panels from the updated selections (without overwriting)
+        self.selPanel.tabSelectionChanged(save=False)
+        self.plotPanel.load_and_draw()
+        if warnings:
+            Warn(self, 'View "{}" partially applied:\n\n{}'.format(name, '\n'.join(warnings)))
+            self.statusbar.SetStatusText('View "{}" partially applied.'.format(name), ISTAT)
+        else:
+            self.statusbar.SetStatusText('View "{}" applied to current table.'.format(name), ISTAT)
+
+    def onDeleteView(self, name):
+        """Delete the named view from the saved views list"""
+        views = self.data.get('views', [])
+        self.data['views'] = [v for v in views if v['name'] != name]
+        self._populateViewsUI()
+        self.statusbar.SetStatusText('View "{}" deleted.'.format(name), ISTAT)
 
     def onExportView(self, event=None):
         """Export the current view (files + selection + plot settings) to a .pdvview file"""

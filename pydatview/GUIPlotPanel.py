@@ -57,24 +57,154 @@ matplotlib_rc('font', **font)
 pyplot_rc['agg.path.chunksize'] = 20000
 
 
-def _patch_3d_ctrl_rotate(ax, canvas):
-    """Require Ctrl+left-click to rotate a 3D axis; plain left-click is free for zoom/pan.
+def _patch_3d_ctrl_rotate(ax, canvas, toolbar=None):
+    """Control 3D rotation/pan via the toolbar Rotate and Pan buttons.
 
-    Strategy: matplotlib's built-in _button_press sets ax.button_pressed = event.button.
-    Our handler fires afterwards (registered later = called later) and resets
-    ax.button_pressed to None when Ctrl is not held, so _on_move skips rotation.
-    wx.GetKeyState gives reliable Ctrl detection in the wx backend.
+    Rotate mode (toolbar.rotate_on):
+        Left-drag rotates the 3D view (default Axes3D behaviour).
+
+    Pan mode (toolbar.pan_on):
+        Left-drag pans the 3D view — matching the 2D toolbar behaviour.
+        Right-drag zooms (Axes3D built-in button=3 behaviour).
+        Hold 'x', 'y', or 'z' while dragging to constrain pan to that axis.
+
+    Neither active:
+        All mouse-drag suppressed (no accidental rotation/pan).
+
+    Two-layer approach for robustness across matplotlib versions:
+
+    Layer 0 – Axes3D._button_press wrapper:
+        When pan mode is active and user presses left button, we override
+        ax.button_pressed from 1 (rotate) to 2 (pan) so that the existing
+        Axes3D._on_move handler produces a pan rather than a rotation.
+
+    Layer 1 – ax.drag_pan instance-level patch:
+        NavigationToolbar2 calls ax.drag_pan(button, key, x, y) during
+        toolbar-active drag.  Our wrapper allows rotation only when rotate
+        mode is ON, and suppresses it in all other cases.
+
+    Layer 2 – Axes3D._on_move canvas-callback wrapper:
+        Wraps the motion handler so that:
+          • rotate mode  → call original (rotation happens normally)
+          • pan mode     → call original with axis-constraint support
+          • neither mode → suppress
     """
-    def _on_3d_press(event):
-        if event.inaxes != ax or event.button != 1:
-            return
-        if not wx.GetKeyState(wx.WXK_CONTROL):
-            try:
-                ax.button_pressed = None
-            except Exception:
-                pass
+    def _rotate_active():
+        return getattr(toolbar, 'rotate_on', False)
 
-    canvas.mpl_connect('button_press_event', _on_3d_press)
+    def _pan_active():
+        return getattr(toolbar, 'pan_on', False)
+
+    # --- Layer 0: wrap Axes3D._button_press ---
+    # Redirect left-click to pan (button_pressed=2) when pan mode is active.
+    press_cbs = getattr(canvas.callbacks, 'callbacks', {}).get('button_press_event', {})
+    for cid, val in list(press_cbs.items()):
+        try:
+            func = val()
+        except TypeError:
+            func = val
+        if func is None:
+            continue
+        if getattr(func, '__self__', None) is ax:
+            canvas.mpl_disconnect(cid)
+            def _wrapped_press(event, _orig=func):
+                _orig(event)  # Axes3D sets ax.button_pressed = event.button
+                if event.inaxes == ax and event.button == 1 and _pan_active():
+                    try:
+                        ax.button_pressed = 2  # left-click → pan in Axes3D
+                    except Exception:
+                        pass
+            canvas.mpl_connect('button_press_event', _wrapped_press)
+            break
+
+    # --- Layer 2: wrap Axes3D._on_move in the callback registry ---
+    wrapped = [False]
+    motion_cbs = getattr(canvas.callbacks, 'callbacks', {}).get('motion_notify_event', {})
+    for cid, val in list(motion_cbs.items()):
+        try:
+            func = val()   # WeakMethod / weakref.ref
+        except TypeError:
+            func = val     # direct callable
+        if func is None:
+            continue
+        if getattr(func, '__self__', None) is ax:
+            canvas.mpl_disconnect(cid)
+            def _wrapped_move(event, _orig=func):
+                if event.inaxes != ax:
+                    _orig(event)
+                    return
+                if _rotate_active():
+                    # Rotate mode: allow normal Axes3D rotation
+                    _orig(event)
+                elif _pan_active():
+                    # Pan mode: Axes3D pans because button_pressed was set to 2
+                    # in _wrapped_press.  Support x/y/z key axis constraints.
+                    key = getattr(event, 'key', None)
+                    if key in ('x', 'y', 'z'):
+                        try:
+                            xlim = ax.get_xlim3d()
+                            ylim = ax.get_ylim3d()
+                            zlim = ax.get_zlim3d()
+                            _orig(event)
+                            if key == 'x':
+                                ax.set_ylim3d(ylim); ax.set_zlim3d(zlim)
+                            elif key == 'y':
+                                ax.set_xlim3d(xlim); ax.set_zlim3d(zlim)
+                            elif key == 'z':
+                                ax.set_xlim3d(xlim); ax.set_ylim3d(ylim)
+                        except Exception:
+                            _orig(event)
+                    else:
+                        _orig(event)
+                # else: neither rotate nor pan — suppress all drag
+            canvas.mpl_connect('motion_notify_event', _wrapped_move)
+            wrapped[0] = True
+            break
+
+    if not wrapped[0]:
+        # Fallback for versions where _on_move isn't in canvas callbacks.
+        # In pan mode redirect left-click to button=2; otherwise clear button.
+        def _on_press(event):
+            if event.inaxes != ax or event.button != 1:
+                return
+            if _pan_active():
+                try:
+                    ax.button_pressed = 2
+                except Exception:
+                    pass
+            elif not _rotate_active():
+                for attr in ('button_pressed', '_button_pressed'):
+                    try:
+                        setattr(ax, attr, None)
+                    except Exception:
+                        pass
+        canvas.mpl_connect('button_press_event', _on_press)
+
+    # --- Layer 1: patch ax.drag_pan at instance level ---
+    # ax.__class__.drag_pan is the unbound function (Python 3).
+    # Setting ax.drag_pan = our_func makes Python call our_func(button,key,x,y)
+    # when the toolbar does a.drag_pan(...), bypassing the class method.
+    try:
+        _orig_drag_pan = ax.__class__.drag_pan
+    except AttributeError:
+        _orig_drag_pan = None
+
+    if _orig_drag_pan is not None:
+        def _patched_drag_pan(button, key, x, y,
+                              _orig=_orig_drag_pan, _w=wrapped):
+            if button == 1:
+                # Left-click: rotate only when rotate mode ON and _on_move absent
+                if _rotate_active() and not _w[0]:
+                    _orig(ax, button, key, x, y)
+                # Pan mode: pan driven by _on_move with button_pressed=2
+            elif button == 3:
+                # Right-click zoom via drag_pan: only when no mode is active
+                # (in pan mode, zoom is driven by Axes3D._on_move with button=3)
+                if not _rotate_active() and not _pan_active():
+                    _orig(ax, button, key, x, y)
+            else:
+                _orig(ax, button, key, x, y)
+        ax.drag_pan = _patched_drag_pan
 
 
 class PDFCtrlPanel(wx.Panel):
@@ -243,52 +373,131 @@ class ColorCtrlPanel(wx.Panel):
         self.cb3D = wx.CheckBox(self, -1, '3D view')
         self.cb3D.SetValue(False)
         # View buttons (shown only in 3D mode)
-        self.btXY = wx.Button(self, -1, 'x-y plane', style=wx.BU_EXACTFIT)
-        self.btYZ = wx.Button(self, -1, 'y-z plane', style=wx.BU_EXACTFIT)
-        self.btXZ = wx.Button(self, -1, 'x-z plane', style=wx.BU_EXACTFIT)
+        self.btXY     = wx.Button(self, -1, 'x-y plane', style=wx.BU_EXACTFIT)
+        self.btYZ     = wx.Button(self, -1, 'y-z plane', style=wx.BU_EXACTFIT)
+        self.btXZ     = wx.Button(self, -1, 'x-z plane', style=wx.BU_EXACTFIT)
+        self.btFree   = wx.Button(self, -1, 'Free',      style=wx.BU_EXACTFIT)
+        self.cbPlot3D = wx.ComboBox(self, choices=['Scatter', 'Surf'], style=wx.CB_READONLY, size=(75, -1))
+        self.cbPlot3D.SetSelection(0)
+        self.cb3D.SetToolTip("Enable 3D scatter/surface plot (requires a Z variable)")
+        self.btXY.SetToolTip("View from above: x-y plane (z hidden)")
+        self.btYZ.SetToolTip("View from the side: y-z plane (x hidden)")
+        self.btXZ.SetToolTip("View from the front: x-z plane (y hidden)")
+        self.btFree.SetToolTip("Reset to free perspective 3D view")
+        self.cbPlot3D.SetToolTip("3D plot type: Scatter = point cloud; Surf = surface")
         self.btXY.Hide()
         self.btYZ.Hide()
         self.btXZ.Hide()
+        self.btFree.Hide()
+        self.cbPlot3D.Hide()
         dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        dummy_sizer.Add(self.cb3D , 0, flag=wx.CENTER|wx.LEFT, border=8)
-        dummy_sizer.Add(self.btXY , 0, flag=wx.CENTER|wx.LEFT, border=8)
-        dummy_sizer.Add(self.btYZ , 0, flag=wx.CENTER|wx.LEFT, border=4)
-        dummy_sizer.Add(self.btXZ , 0, flag=wx.CENTER|wx.LEFT, border=4)
+        dummy_sizer.Add(self.cb3D    , 0, flag=wx.CENTER|wx.LEFT, border=8)
+        dummy_sizer.Add(self.btXY   , 0, flag=wx.CENTER|wx.LEFT, border=8)
+        dummy_sizer.Add(self.btYZ   , 0, flag=wx.CENTER|wx.LEFT, border=4)
+        dummy_sizer.Add(self.btXZ   , 0, flag=wx.CENTER|wx.LEFT, border=4)
+        dummy_sizer.Add(self.btFree , 0, flag=wx.CENTER|wx.LEFT, border=4)
+        dummy_sizer.Add(self.cbPlot3D, 0, flag=wx.CENTER|wx.LEFT, border=8)
         self.SetSizer(dummy_sizer)
-        self.Bind(wx.EVT_CHECKBOX, self.on3DChange, self.cb3D)
-        self.Bind(wx.EVT_BUTTON,   self.onViewXY,  self.btXY)
-        self.Bind(wx.EVT_BUTTON,   self.onViewYZ,  self.btYZ)
-        self.Bind(wx.EVT_BUTTON,   self.onViewXZ,  self.btXZ)
+        self.Bind(wx.EVT_CHECKBOX, self.on3DChange,      self.cb3D)
+        self.Bind(wx.EVT_BUTTON,   self.onViewXY,        self.btXY)
+        self.Bind(wx.EVT_BUTTON,   self.onViewYZ,        self.btYZ)
+        self.Bind(wx.EVT_BUTTON,   self.onViewXZ,        self.btXZ)
+        self.Bind(wx.EVT_BUTTON,   self.onViewFree,      self.btFree)
+        self.Bind(wx.EVT_COMBOBOX, self.on3DTypeChange,  self.cbPlot3D)
+        # Pending camera state applied after set_subplots recreates 3D axes
+        self._pending_elev = None
+        self._pending_azim = None
+        self._pending_hide = None   # 'x', 'y', 'z', or None
         self.Hide()
 
-    def on3DChange(self, event=None):
+    def _update3DButtons(self):
+        """Show/hide plane buttons – does NOT redraw. cbPlot3D replaced by cbCurveType."""
         is3D = self.cb3D.IsChecked()
         self.btXY.Show(is3D)
         self.btYZ.Show(is3D)
         self.btXZ.Show(is3D)
+        self.btFree.Show(is3D)
+        self.cbPlot3D.Hide()  # cbCurveType (in ctrlPanel) now serves this role
         self.GetSizer().Layout()
-        self.parent.load_and_draw()
 
-    def _setView(self, elev, azim):
+    def on3DChange(self, event=None):
+        self.parent.set3DMode(self.cb3D.IsChecked())
+
+    @staticmethod
+    def _apply_3d_plane(ax, elev, azim, hide_axis):
+        """Set camera, projection type and axis visibility on one 3D axes."""
+        ax.view_init(elev=elev, azim=azim)
+        if hide_axis:
+            try:
+                ax.set_proj_type('ortho')
+            except Exception:
+                pass
+            for name in ('x', 'y', 'z'):
+                axis_obj = getattr(ax, '{}axis'.format(name), None)
+                if axis_obj is None:
+                    continue
+                visible = (name != hide_axis)
+                axis_obj.set_visible(visible)
+                try:
+                    axis_obj.pane.set_visible(visible)
+                    axis_obj.pane.fill = visible
+                except Exception:
+                    pass
+        else:
+            try:
+                ax.set_proj_type('persp')
+            except Exception:
+                pass
+            for name in ('x', 'y', 'z'):
+                axis_obj = getattr(ax, '{}axis'.format(name), None)
+                if axis_obj is None:
+                    continue
+                axis_obj.set_visible(True)
+                try:
+                    axis_obj.pane.set_visible(True)
+                    axis_obj.pane.fill = True
+                except Exception:
+                    pass
+
+    def _setView(self, elev, azim, hide_axis=None):
+        self._pending_elev = elev
+        self._pending_azim = azim
+        self._pending_hide = hide_axis
         for ax in self.parent.fig.axes:
             if hasattr(ax, 'view_init'):
-                ax.view_init(elev=elev, azim=azim)
+                self._apply_3d_plane(ax, elev, azim, hide_axis)
         self.parent.canvas.draw()
 
     def onViewXY(self, event=None):
-        self._setView(elev=90, azim=-90)
+        self._setView(elev=90, azim=-90, hide_axis='z')
 
     def onViewYZ(self, event=None):
-        self._setView(elev=0, azim=0)
+        self._setView(elev=0, azim=0, hide_axis='x')
 
     def onViewXZ(self, event=None):
-        self._setView(elev=0, azim=-90)
+        self._setView(elev=0, azim=-90, hide_axis='y')
+
+    def on3DTypeChange(self, event=None):
+        """Redraw when 3D plot type (Scatter/Surf) changes."""
+        self.parent.load_and_draw()
+
+    def onViewFree(self, event=None):
+        """Reset camera angles to free perspective without rescaling axis ranges."""
+        self._setView(elev=30, azim=-60, hide_axis=None)
 
     def _GUI2Data(self):
+        # plot3DType is now driven by the unified cbCurveType in the parent PlotPanel
+        try:
+            plot3D_type = self.parent.cbCurveType.GetValue()
+            if plot3D_type not in ('Scatter', 'Surf'):
+                plot3D_type = 'Scatter'
+        except Exception:
+            plot3D_type = self.cbPlot3D.GetValue()
         return {
-            'colormap':  self.COLORMAP,
-            'colorbar':  True,
-            'view3D':    self.cb3D.IsChecked(),
+            'colormap':    self.COLORMAP,
+            'colorbar':    True,
+            'view3D':      self.cb3D.IsChecked(),
+            'plot3DType':  plot3D_type,
         }
 
 
@@ -516,6 +725,7 @@ class EstheticsPanel(wx.Panel):
         except ValueError:
             i = 2
         self.cbFont.SetSelection(i)
+        self.cbFont.SetToolTip("Axis tick and label font size")
         # Legend
         # NOTE: we don't offer "best" since best is slow
         lbLegend = wx.StaticText( self, -1, 'Legend:')
@@ -526,6 +736,7 @@ class EstheticsPanel(wx.Panel):
         except ValueError:
             i=1
         self.cbLegend.SetSelection(i)
+        self.cbLegend.SetToolTip("Position of the plot legend")
         # Legend Font
         lbLgdFont = wx.StaticText( self, -1, 'Legend font:')
         self.cbLgdFont = wx.ComboBox(self, choices=fontChoices, style=wx.CB_READONLY)
@@ -534,6 +745,7 @@ class EstheticsPanel(wx.Panel):
         except ValueError:
             i = 2
         self.cbLgdFont.SetSelection(i)
+        self.cbLgdFont.SetToolTip("Font size for legend text")
         # Line Width Font
         lbLW = wx.StaticText( self, -1, 'Line width:')
         LWChoices = ['0.5','1.0','1.25','1.5','1.75','2.0','2.5','3.0']
@@ -543,6 +755,7 @@ class EstheticsPanel(wx.Panel):
         except ValueError:
             i = 3
         self.cbLW.SetSelection(i)
+        self.cbLW.SetToolTip("Width of plot lines in points")
         #  Marker Size
         lbMS = wx.StaticText( self, -1, 'Marker size:')
         MSChoices = ['0.5','1','2','3','4','5','6','7','8']
@@ -552,6 +765,7 @@ class EstheticsPanel(wx.Panel):
         except ValueError:
             i = 2
         self.cbMS.SetSelection(i)
+        self.cbMS.SetToolTip("Size of data point markers")
 
         # Layout
         #dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -709,6 +923,25 @@ class PlotPanel(wx.Panel):
         self.cbSwapXY     = wx.CheckBox(self.ctrlPanel, -1, 'Swap XY',(10,10))
         self.cbFlipX      = wx.CheckBox(self.ctrlPanel, -1, 'Flip X',(10,10))
         self.cbFlipY      = wx.CheckBox(self.ctrlPanel, -1, 'Flip Y',(10,10))
+        # Save default combo selections for 2D/3D switching
+        self._2d_curve_type_sel = 1  # 'LS'
+        self._3d_curve_type_sel = 0  # 'Scatter'
+        # Tooltips
+        self.cbCurveType.SetToolTip("Line style: Plain = solid lines; LS = varied dashes; Markers = symbols; Mix = both")
+        self.cbSub.SetToolTip("Split each y-variable into its own subplot")
+        self.cbLogX.SetToolTip("Use logarithmic scale on x-axis")
+        self.cbLogY.SetToolTip("Use logarithmic scale on y-axis")
+        self.cbSync.SetToolTip("Synchronise x-axis limits across all subplots")
+        self.cbXHair.SetToolTip("Show a crosshair cursor on the plot")
+        self.cbPlotMatrix.SetToolTip("Show a scatter-plot matrix of all selected columns")
+        self.cbAutoScale.SetToolTip("Rescale axes on every redraw")
+        self.cbGrid.SetToolTip("Show grid lines on the plot")
+        self.cbStepPlot.SetToolTip("Draw data as a step/staircase plot")
+        self.cbMeasure.SetToolTip("Enable measurement mode: click two points to measure distance")
+        self.cbMarkPt.SetToolTip("Mark individual data points with markers")
+        self.cbSwapXY.SetToolTip("Swap the x and y axes")
+        self.cbFlipX.SetToolTip("Flip (reverse) the x-axis direction")
+        self.cbFlipY.SetToolTip("Flip (reverse) the y-axis direction")
         #self.cbSub.SetValue(True) # DEFAULT TO SUB?
         self.cbSync.SetValue(True)
         self.cbXHair.SetValue(self.data['CrossHair']) # Have cross hair by default
@@ -748,21 +981,42 @@ class PlotPanel(wx.Panel):
         cb_sizer.Add(self.cbFlipX     , 0, flag=wx.ALL, border=1)
         cb_sizer.Add(self.cbFlipY     , 0, flag=wx.ALL, border=1)
 
-        self.ctrlPanel.SetSizer(cb_sizer)
+        # --- 3D-specific ctrl panel (shown only in 3D mode, RIGHT NEXT to the other checkboxes)
+        self.ctrl3DPanel = wx.Panel(self.ctrlPanel)
+        self.cbLogZ  = wx.CheckBox(self.ctrl3DPanel, -1, 'Log-z',  (10, 10))
+        self.cbFlipZ = wx.CheckBox(self.ctrl3DPanel, -1, 'Flip Z', (10, 10))
+        self.cbLogZ.SetToolTip("Use logarithmic scale on z-axis")
+        self.cbFlipZ.SetToolTip("Flip (reverse) the z-axis direction")
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event, self.cbLogZ)
+        self.Bind(wx.EVT_CHECKBOX, self.redraw_event, self.cbFlipZ)
+        sizer3D = wx.FlexGridSizer(rows=5, cols=1, hgap=0, vgap=0)
+        sizer3D.Add(self.cbLogZ,  0, flag=wx.ALL, border=1)
+        sizer3D.Add(self.cbFlipZ, 0, flag=wx.ALL, border=1)
+        self.ctrl3DPanel.SetSizer(sizer3D)
+        self.ctrl3DPanel.Hide()
+        # Wrap cb_sizer and ctrl3DPanel in a horizontal sizer inside ctrlPanel
+        ctrlHSizer = wx.BoxSizer(wx.HORIZONTAL)
+        ctrlHSizer.Add(cb_sizer, 0, flag=wx.ALL, border=0)
+        ctrlHSizer.Add(self.ctrl3DPanel, 0, flag=wx.LEFT|wx.EXPAND, border=4)
+        self.ctrlPanel.SetSizer(ctrlHSizer)
 
         # --- Crosshair Panel
         crossHairPanel= wx.Panel(self)
         self.lbCrossHairX = wx.StaticText(crossHairPanel, -1, 'x = ...       ')
         self.lbCrossHairY = wx.StaticText(crossHairPanel, -1, 'y = ...       ')
+        self.lbCrossHairZ = wx.StaticText(crossHairPanel, -1, 'z = ...       ')
         self.lbDeltaX = wx.StaticText(crossHairPanel,     -1, '              ')
         self.lbDeltaY = wx.StaticText(crossHairPanel,     -1, '              ')
         self.lbCrossHairX.SetFont(getMonoFont(self))
         self.lbCrossHairY.SetFont(getMonoFont(self))
+        self.lbCrossHairZ.SetFont(getMonoFont(self))
         self.lbDeltaX.SetFont(getMonoFont(self))
         self.lbDeltaY.SetFont(getMonoFont(self))
-        cbCH  = wx.FlexGridSizer(rows=4, cols=1, hgap=0, vgap=0)
+        self.lbCrossHairZ.Hide()  # shown only in 3D mode
+        cbCH  = wx.FlexGridSizer(rows=5, cols=1, hgap=0, vgap=0)
         cbCH.Add(self.lbCrossHairX   , 0, flag=wx.ALL, border=1)
         cbCH.Add(self.lbCrossHairY   , 0, flag=wx.ALL, border=1)
+        cbCH.Add(self.lbCrossHairZ   , 0, flag=wx.ALL, border=1)
         cbCH.Add(self.lbDeltaX       , 0, flag=wx.ALL, border=1)
         cbCH.Add(self.lbDeltaY       , 0, flag=wx.ALL, border=1)
         crossHairPanel.SetSizer(cbCH)
@@ -815,6 +1069,37 @@ class PlotPanel(wx.Panel):
             print('[WARN] callback to add tables to parent was not set. (call setAddTablesCallback)')
 
 
+    def set3DMode(self, is3D, redraw=True):
+        """Switch cbCurveType between 2D/3D choices, show/hide 3D-only controls."""
+        # Temporarily unbind EVT_COMBOBOX to prevent spurious redraw on Windows
+        # (ComboBox.Set() can fire selection-change events on some platforms)
+        self.Unbind(wx.EVT_COMBOBOX, source=self.cbCurveType)
+        try:
+            if is3D:
+                self._2d_curve_type_sel = self.cbCurveType.GetSelection()
+                self.cbCurveType.Set(['Scatter', 'Surf'])
+                self.cbCurveType.SetSelection(max(0, min(self._3d_curve_type_sel, 1)))
+                self.cbCurveType.SetToolTip("3D plot type: Scatter = point cloud; Surf = triangulated surface")
+            else:
+                self._3d_curve_type_sel = self.cbCurveType.GetSelection()
+                self.cbCurveType.Set(['Plain', 'LS', 'Markers', 'Mix'])
+                self.cbCurveType.SetSelection(self._2d_curve_type_sel)
+                self.cbCurveType.SetToolTip("Line style: Plain = solid lines; LS = varied dashes; Markers = symbols; Mix = both")
+        finally:
+            self.Bind(wx.EVT_COMBOBOX, self.redraw_event, self.cbCurveType)
+        self.ctrl3DPanel.Show(is3D)
+        self.lbCrossHairZ.Show(is3D)
+        self.colorPanel._update3DButtons()
+        if hasattr(self, 'navTBTop'):
+            try:
+                self.navTBTop.set3DMode(is3D)
+            except Exception:
+                pass
+        self.ctrlPanel.Layout()
+        self.plotsizer.Layout()
+        if redraw:
+            self.load_and_draw()
+
     # --- GUI DATA
     def saveData(self, data):
         data['Grid']      = self.cbGrid.IsChecked()
@@ -834,7 +1119,9 @@ class PlotPanel(wx.Panel):
         data['sync']      = self.cbSync.IsChecked()
         data['autoScale'] = self.cbAutoScale.IsChecked()
         data['stepPlot']  = self.cbStepPlot.IsChecked()
-        data['curveType'] = self.cbCurveType.GetSelection()
+        data['curveType'] = self.cbCurveType.GetValue()   # string e.g. 'LS' or 'Scatter'
+        data['logZ']      = self.cbLogZ.IsChecked()  if hasattr(self, 'cbLogZ')  else False
+        data['flipZ']     = self.cbFlipZ.IsChecked() if hasattr(self, 'cbFlipZ') else False
         data['plotStyle'] = {
             'Font':           self.esthPanel.cbFont.GetValue(),
             'LegendFont':     self.esthPanel.cbLgdFont.GetValue(),
@@ -842,7 +1129,18 @@ class PlotPanel(wx.Panel):
             'LineWidth':      self.esthPanel.cbLW.GetValue(),
             'MarkerSize':     self.esthPanel.cbMS.GetValue(),
         }
-        data['view3D']     = self.colorPanel.cb3D.IsChecked()
+        data['view3D']      = self.colorPanel.cb3D.IsChecked()
+        data['plot3D_type'] = self.colorPanel.cbPlot3D.GetValue()
+        # Camera angle for 3D view
+        elev, azim = None, None
+        for ax in self.fig.axes:
+            if hasattr(ax, 'elev'):
+                elev = ax.elev
+                azim = ax.azim
+                break
+        data['view3D_elev'] = elev
+        data['view3D_azim'] = azim
+        data['view3D_hide'] = self.colorPanel._pending_hide
         # R1 – Spectral / FFT panel
         spc = self.spcPanel._GUI2Data()
         spc['xlim'] = self.spcPanel.tMaxFreq.GetValue()
@@ -884,7 +1182,6 @@ class PlotPanel(wx.Panel):
         self.cbSync.SetValue(data.get('sync', True))
         self.cbAutoScale.SetValue(data.get('autoScale', True))
         self.cbStepPlot.SetValue(data.get('stepPlot', False))
-        self.cbCurveType.SetSelection(data.get('curveType', 1))
         # R6-R8 – axis toggles and matrix
         self.cbSwapXY.SetValue(data.get('swapXY', False))
         self.cbFlipX.SetValue(data.get('flipX', False))
@@ -921,7 +1218,37 @@ class PlotPanel(wx.Panel):
                 matplotlib_rc('font', **{'size': int(plotStyle.get('Font', '11'))})
             except Exception:
                 pass
-        self.colorPanel.cb3D.SetValue(data.get('view3D', False))
+        # Restore 3D mode first (switches cbCurveType items, shows/hides ctrl3DPanel)
+        view3D = data.get('view3D', False)
+        self.colorPanel.cb3D.SetValue(view3D)
+        self.set3DMode(view3D, redraw=False)
+        # Restore cbCurveType value (handles both old integer index and new string format)
+        curveType = data.get('curveType', None)
+        if view3D:
+            _choices = ['Scatter', 'Surf']
+            if isinstance(curveType, str) and curveType in _choices:
+                self.cbCurveType.SetSelection(_choices.index(curveType))
+            elif data.get('plot3D_type') in _choices:
+                self.cbCurveType.SetSelection(_choices.index(data['plot3D_type']))
+            else:
+                self.cbCurveType.SetSelection(0)
+        else:
+            _choices = ['Plain', 'LS', 'Markers', 'Mix']
+            if isinstance(curveType, str) and curveType in _choices:
+                self.cbCurveType.SetSelection(_choices.index(curveType))
+            elif isinstance(curveType, int):
+                self.cbCurveType.SetSelection(min(curveType, len(_choices) - 1))
+            else:
+                self.cbCurveType.SetSelection(1)  # default LS
+        # Restore 3D extra options
+        if hasattr(self, 'cbLogZ'):
+            self.cbLogZ.SetValue(data.get('logZ', False))
+        if hasattr(self, 'cbFlipZ'):
+            self.cbFlipZ.SetValue(data.get('flipZ', False))
+        # Store pending camera state so set_subplots applies it after redraw
+        self.colorPanel._pending_elev = data.get('view3D_elev')
+        self.colorPanel._pending_azim = data.get('view3D_azim')
+        self.colorPanel._pending_hide = data.get('view3D_hide')
         # R1 – Spectral / FFT panel
         spc = data.get('spectral', {})
         if spc:
@@ -1218,7 +1545,19 @@ class PlotPanel(wx.Panel):
             # Vertical stack
             if use3D:
                 ax = self.fig.add_subplot(nPlots, 1, i+1, projection='3d')
-                _patch_3d_ctrl_rotate(ax, self.canvas)
+                _patch_3d_ctrl_rotate(ax, self.canvas, toolbar=self.navTBTop)
+                # Restore pending camera angle (set by plane buttons or view restore)
+                cp = self.colorPanel
+                elev = cp._pending_elev
+                azim = cp._pending_azim
+                hide = cp._pending_hide
+                if elev is not None or azim is not None or hide is not None:
+                    ColorCtrlPanel._apply_3d_plane(
+                        ax,
+                        elev if elev is not None else ax.elev,
+                        azim if azim is not None else ax.azim,
+                        hide,
+                    )
             elif i==0:
                 ax=self.fig.add_subplot(nPlots,1,i+1)
                 # Store first axis to share with other
@@ -1235,6 +1574,22 @@ class PlotPanel(wx.Panel):
     def onMouseMove(self, event):
         if event.inaxes and len(self.plotData)>0:
             x, y = event.xdata, event.ydata
+            ax = event.inaxes
+            if hasattr(ax, 'view_init'):  # 3D axes
+                try:
+                    coord_str = ax.format_coord(x, y)
+                    # format_coord returns e.g. "x=1.23, y=4.56, z=7.89"
+                    parts = {}
+                    for part in coord_str.replace(', ', ',').split(','):
+                        if '=' in part:
+                            k, v = part.split('=', 1)
+                            parts[k.strip()] = v.strip()
+                    self.lbCrossHairX.SetLabel('x = ' + parts.get('x', '...'))
+                    self.lbCrossHairY.SetLabel('y = ' + parts.get('y', '...'))
+                    self.lbCrossHairZ.SetLabel('z = ' + parts.get('z', '...'))
+                except Exception:
+                    pass
+                return
             self.lbCrossHairX.SetLabel('x =' + self.formatLabelValue(x,self.plotData[0].xIsDate))
             self.lbCrossHairY.SetLabel('y =' + self.formatLabelValue(y,self.plotData[0].yIsDate))
 
@@ -1610,6 +1965,8 @@ class PlotPanel(wx.Panel):
         plot_options['flipY'] = self.cbFlipY.IsChecked()
         plot_options['logX'] = self.cbLogX.IsChecked()
         plot_options['logY'] = self.cbLogY.IsChecked()
+        plot_options['logZ']  = self.cbLogZ.IsChecked()  if hasattr(self, 'cbLogZ')  else False
+        plot_options['flipZ'] = self.cbFlipZ.IsChecked() if hasattr(self, 'cbFlipZ') else False
         if self.cbGrid.IsChecked():
             plot_options['grid'] = {'visible': self.cbGrid.IsChecked(), 'linestyle':'-', 'linewidth':0.5, 'color':'#b0b0b0'}
         else:
@@ -1632,9 +1989,9 @@ class PlotPanel(wx.Panel):
             plot_options['LineStyles'] = ['-','--', '-','-','-']
             plot_options['Markers']    = ['' ,''   ,'o','^','s']
         else:
-            # Combination of linestyles markers, colors, etc.
-            # But at that stage, if the user really want this, then we can implement an option to set styles per plot. Not high priority.
-            raise Exception('Not implemented')
+            # 3D mode ('Scatter'/'Surf') or unknown – use plain defaults
+            plot_options['LineStyles'] = ['-']
+            plot_options['Markers']    = ['']
 
         # --- Font options
         font_options      = dict()
@@ -1689,23 +2046,32 @@ class PlotPanel(wx.Panel):
             ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, plot_options)
 
             # Log Axes
-            if plot_options['logX']:
+            if plot_options['logX'] and not hasattr(ax_left, 'set_zlim'):
                 try:
                     ax_left.set_xscale("log", nonpositive='clip') # latest
-                except:
-                    ax_left.set_xscale("log", nonposx='clip') # legacy
+                except Exception:
+                    try:
+                        ax_left.set_xscale("log", nonposx='clip') # legacy
+                    except Exception:
+                        pass
 
-            if plot_options['logY']:
+            if plot_options['logY'] and not hasattr(ax_left, 'set_zlim'):
                 if bAllNegLeft is False:
                     try:
                         ax_left.set_yscale("log", nonpositive='clip') # latest
-                    except:
-                        ax_left.set_yscale("log", nonposy='clip')
+                    except Exception:
+                        try:
+                            ax_left.set_yscale("log", nonposy='clip')
+                        except Exception:
+                            pass
                 if bAllNegRight is False and ax_right is not None:
                     try:
                         ax_right.set_yscale("log", nonpositive='clip') # latest
-                    except:
-                        ax_left.set_yscale("log", nonposy='clip') # legacy
+                    except Exception:
+                        try:
+                            ax_left.set_yscale("log", nonposy='clip') # legacy
+                        except Exception:
+                            pass
 
             if not autoscale:
                 # We force the limits to be the same as before
@@ -1854,11 +2220,50 @@ class PlotPanel(wx.Panel):
 
         # Gather color-panel options once
         colorOpts = self.colorPanel._GUI2Data()
-        colormap  = colorOpts['colormap']
+        colormap     = colorOpts['colormap']
         showColorBar = colorOpts['colorbar']
-        use3D = colorOpts['view3D']
+        use3D        = colorOpts['view3D']
+        plot3DType   = colorOpts.get('plot3DType', 'Scatter')
+        logZ         = opts.get('logZ', False)
+        flipZ        = opts.get('flipZ', False)
 
-        iPlot=-1
+        # --- Pre-compute shared Z normalisation across all Z-coloured signals on this axis
+        # This ensures consistent colours and a single correct colorbar for all signals.
+        z_norm = None
+        z_label_combined = ''
+        _z_signals_pd = []   # PlotData objects that will be plotted with Z coloring
+        for signal_idx in loop_range:
+            will_plot = (
+                (left_right == 1 and (pm is None or pm[signal_idx][axis_idx] == left_right)) or
+                (left_right == 2 and pm is not None and pm[signal_idx][axis_idx] == left_right)
+            )
+            if will_plot:
+                pd_i = PD[signal_idx]
+                if pd_i.z is not None and not pd_i.zIsString:
+                    _z_signals_pd.append(pd_i)
+
+        if _z_signals_pd and showColorBar:
+            import matplotlib.colors as mcolors
+            import matplotlib.cm as mcm
+            all_z_parts = []
+            z_label_parts = []
+            for pd_i in _z_signals_pd:
+                z_vals = np.asarray(pd_i.z, dtype=float)
+                if logZ and use3D:
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        z_vals = np.log10(z_vals)
+                all_z_parts.append(z_vals)
+                z_label_parts.append(pd_i.sz)
+            all_z = np.concatenate(all_z_parts)
+            finite_z = all_z[np.isfinite(all_z)]
+            if len(finite_z) > 0:
+                z_norm = mcolors.Normalize(vmin=np.min(finite_z), vmax=np.max(finite_z))
+            z_label_combined = ' / '.join(unique(z_label_parts))
+            if logZ and use3D:
+                z_label_combined = 'log\u2081\u2080(' + z_label_combined + ')'
+
+        iPlot = -1
+        _colorbar_added = False  # show colorbar at most once per axis
         for signal_idx in loop_range:
             do_plot = False
             if left_right == 1 and (pm is None or pm[signal_idx][axis_idx] == left_right):
@@ -1876,27 +2281,43 @@ class PlotPanel(wx.Panel):
                 iPlot+=1
                 hasZ = pd.z is not None and not pd.zIsString
                 if hasZ and use3D:
-                    # 3D scatter: x, y, z as spatial axes
+                    # 3D plot: x, y, z as spatial axes
+                    # Apply log-z via data transformation (Axes3D does not support set_zscale)
+                    z_plot = np.asarray(pd.z, dtype=float)
+                    if logZ:
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            z_plot = np.log10(z_plot)
+                    if flipZ:
+                        try:
+                            axis.invert_zaxis()
+                        except Exception:
+                            pass
                     try:
-                        sc = axis.scatter(pd.x, pd.y, pd.z, label=pd.syl, s=opts['ms']**2,
-                                          cmap=colormap, c=pd.z)
-                        if showColorBar:
-                            cb = self.fig.colorbar(sc, ax=axis, label=pd.sz, shrink=0.7, pad=0.1)
+                        if plot3DType == 'Surf':
+                            sc = axis.plot_trisurf(pd.x, pd.y, z_plot, cmap=colormap, alpha=0.85,
+                                                   norm=z_norm)
+                        else:
+                            sc = axis.scatter(pd.x, pd.y, z_plot, label=pd.syl,
+                                              s=opts['ms']**2, cmap=colormap, c=z_plot, norm=z_norm)
                     except Exception:
-                        axis.scatter(pd.x, pd.y, pd.z, label=pd.syl, s=opts['ms']**2)
+                        try:
+                            axis.scatter(pd.x, pd.y, z_plot, label=pd.syl, s=opts['ms']**2)
+                        except Exception:
+                            pass
                     try:
                         bAllNeg = bAllNeg and all(pd.y<=0)
                     except Exception:
                         pass
                 elif hasZ:
-                    # 2D scatter colored by Z variable
+                    # 2D scatter coloured by Z variable – use shared norm for consistent colours
                     try:
                         sc = axis.scatter(pd.x, pd.y, c=pd.z, cmap=colormap,
-                                          label=pd.syl, s=opts['ms']**2)
-                        if showColorBar:
-                            cb = self.fig.colorbar(sc, ax=axis, label=pd.sz)
+                                          label=pd.syl, s=opts['ms']**2, norm=z_norm)
                     except Exception:
-                        axis.scatter(pd.x, pd.y, label=pd.syl, s=opts['ms']**2)
+                        try:
+                            axis.scatter(pd.x, pd.y, label=pd.syl, s=opts['ms']**2)
+                        except Exception:
+                            pass
                     try:
                         bAllNeg = bAllNeg and all(pd.y<=0)
                     except Exception:
@@ -1918,6 +2339,21 @@ class PlotPanel(wx.Panel):
                         bAllNeg = bAllNeg and all(pd.y<=0)
                     except:
                         pass # Dates or strings
+
+        # --- Single colorbar for all Z-coloured signals on this axis
+        if showColorBar and _z_signals_pd and not _colorbar_added:
+            try:
+                import matplotlib.cm as mcm, matplotlib.colors as mcolors
+                sm = mcm.ScalarMappable(norm=z_norm, cmap=colormap)
+                sm.set_array([])
+                if use3D:
+                    self.fig.colorbar(sm, ax=axis, label=z_label_combined, shrink=0.7, pad=0.1)
+                else:
+                    self.fig.colorbar(sm, ax=axis, label=z_label_combined)
+                _colorbar_added = True
+            except Exception:
+                pass
+
         return axis, bAllNeg
             
     def findPlotMode(self,PD):
