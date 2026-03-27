@@ -923,9 +923,11 @@ class PlotPanel(wx.Panel):
         self.cbSwapXY     = wx.CheckBox(self.ctrlPanel, -1, 'Swap XY',(10,10))
         self.cbFlipX      = wx.CheckBox(self.ctrlPanel, -1, 'Flip X',(10,10))
         self.cbFlipY      = wx.CheckBox(self.ctrlPanel, -1, 'Flip Y',(10,10))
-        # Save default combo selections for 2D/3D switching
-        self._2d_curve_type_sel = 1  # 'LS'
-        self._3d_curve_type_sel = 0  # 'Scatter'
+        # Save default combo selections for 2D/3D/2DZ switching
+        self._2d_curve_type_sel  = 1  # 'LS'
+        self._2dZ_curve_type_sel = 0  # 'Scatter'
+        self._3d_curve_type_sel  = 0  # 'Scatter'
+        self._combo_mode = '2D'  # '2D' | '2DZ' | '3D'
         # Tooltips
         self.cbCurveType.SetToolTip("Line style: Plain = solid lines; LS = varied dashes; Markers = symbols; Mix = both")
         self.cbSub.SetToolTip("Split each y-variable into its own subplot")
@@ -1076,15 +1078,22 @@ class PlotPanel(wx.Panel):
         self.Unbind(wx.EVT_COMBOBOX, source=self.cbCurveType)
         try:
             if is3D:
-                self._2d_curve_type_sel = self.cbCurveType.GetSelection()
+                # Save current selection before switching to 3D
+                if self._combo_mode == '2D':
+                    self._2d_curve_type_sel = self.cbCurveType.GetSelection()
+                elif self._combo_mode == '2DZ':
+                    self._2dZ_curve_type_sel = self.cbCurveType.GetSelection()
                 self.cbCurveType.Set(['Scatter', 'Surf'])
                 self.cbCurveType.SetSelection(max(0, min(self._3d_curve_type_sel, 1)))
                 self.cbCurveType.SetToolTip("3D plot type: Scatter = point cloud; Surf = triangulated surface")
+                self._combo_mode = '3D'
             else:
                 self._3d_curve_type_sel = self.cbCurveType.GetSelection()
+                # Return to plain 2D – setZMode will upgrade to '2DZ' if Z is present
                 self.cbCurveType.Set(['Plain', 'LS', 'Markers', 'Mix'])
                 self.cbCurveType.SetSelection(self._2d_curve_type_sel)
                 self.cbCurveType.SetToolTip("Line style: Plain = solid lines; LS = varied dashes; Markers = symbols; Mix = both")
+                self._combo_mode = '2D'
         finally:
             self.Bind(wx.EVT_COMBOBOX, self.redraw_event, self.cbCurveType)
         self.ctrl3DPanel.Show(is3D)
@@ -1099,6 +1108,37 @@ class PlotPanel(wx.Panel):
         self.plotsizer.Layout()
         if redraw:
             self.load_and_draw()
+
+    def setZMode(self, hasZ):
+        """Switch cbCurveType between plain-2D and 2D+Z choices.
+
+        Called after getPlotData determines whether any series has a Z variable
+        and 3D mode is NOT active. Does nothing if already in the correct mode.
+        """
+        if self.colorPanel.cb3D.IsChecked():
+            return  # 3D is handled exclusively by set3DMode
+        target = '2DZ' if hasZ else '2D'
+        if target == self._combo_mode:
+            return
+        self.Unbind(wx.EVT_COMBOBOX, source=self.cbCurveType)
+        try:
+            if hasZ:
+                # Switching from plain 2D → 2DZ
+                self._2d_curve_type_sel = self.cbCurveType.GetSelection()
+                self.cbCurveType.Set(['Scatter', 'Scatter+Line'])
+                self.cbCurveType.SetSelection(max(0, min(self._2dZ_curve_type_sel, 1)))
+                self.cbCurveType.SetToolTip(
+                    "2D scatter coloured by Z: Scatter = dots only; Scatter+Line = dots with connecting lines")
+            else:
+                # Switching from 2DZ → plain 2D
+                self._2dZ_curve_type_sel = self.cbCurveType.GetSelection()
+                self.cbCurveType.Set(['Plain', 'LS', 'Markers', 'Mix'])
+                self.cbCurveType.SetSelection(self._2d_curve_type_sel)
+                self.cbCurveType.SetToolTip(
+                    "Line style: Plain = solid lines; LS = varied dashes; Markers = symbols; Mix = both")
+        finally:
+            self.Bind(wx.EVT_COMBOBOX, self.redraw_event, self.cbCurveType)
+        self._combo_mode = target
 
     # --- GUI DATA
     def saveData(self, data):
@@ -1233,11 +1273,17 @@ class PlotPanel(wx.Panel):
             else:
                 self.cbCurveType.SetSelection(0)
         else:
-            _choices = ['Plain', 'LS', 'Markers', 'Mix']
-            if isinstance(curveType, str) and curveType in _choices:
-                self.cbCurveType.SetSelection(_choices.index(curveType))
+            _2d_choices  = ['Plain', 'LS', 'Markers', 'Mix']
+            _2dZ_choices = ['Scatter', 'Scatter+Line']
+            if isinstance(curveType, str) and curveType in _2dZ_choices:
+                # Saved while in 2DZ mode – store for when setZMode activates it
+                self._2dZ_curve_type_sel = _2dZ_choices.index(curveType)
+                # Leave combo in plain-2D for now; setZMode will switch if Z data present
+                self.cbCurveType.SetSelection(self._2d_curve_type_sel)
+            elif isinstance(curveType, str) and curveType in _2d_choices:
+                self.cbCurveType.SetSelection(_2d_choices.index(curveType))
             elif isinstance(curveType, int):
-                self.cbCurveType.SetSelection(min(curveType, len(_choices) - 1))
+                self.cbCurveType.SetSelection(min(curveType, len(_2d_choices) - 1))
             else:
                 self.cbCurveType.SetSelection(1)  # default LS
         # Restore 3D extra options
@@ -1802,6 +1848,8 @@ class PlotPanel(wx.Panel):
             self.colorPanel.Show()
         else:
             self.colorPanel.Hide()
+        # Adapt the curve-type combo for 2D+Z (only when not already in 3D mode)
+        self.setZMode(hasZ and not self.colorPanel.cb3D.IsChecked())
         self.plotsizer.Layout()
 
     def PD_Compare(self,mode):
@@ -1988,10 +2036,16 @@ class PlotPanel(wx.Panel):
         elif self.cbCurveType.Value=='Mix': # NOTE, can be improved
             plot_options['LineStyles'] = ['-','--', '-','-','-']
             plot_options['Markers']    = ['' ,''   ,'o','^','s']
+        elif self.cbCurveType.Value in ('Scatter', 'Scatter+Line'):
+            # 2DZ mode – line style choices are not used for scatter; keep defaults
+            plot_options['LineStyles'] = ['-']
+            plot_options['Markers']    = ['']
         else:
             # 3D mode ('Scatter'/'Surf') or unknown – use plain defaults
             plot_options['LineStyles'] = ['-']
             plot_options['Markers']    = ['']
+        # 2D+Z scatter style (only meaningful when Z present and not 3D)
+        plot_options['plot2DZType'] = self.cbCurveType.Value if self.cbCurveType.Value in ('Scatter', 'Scatter+Line') else 'Scatter'
 
         # --- Font options
         font_options      = dict()
@@ -2311,8 +2365,11 @@ class PlotPanel(wx.Panel):
                 elif hasZ:
                     # 2D scatter coloured by Z variable – use shared norm for consistent colours
                     try:
+                        if opts.get('plot2DZType') == 'Scatter+Line':
+                            axis.plot(pd.x, pd.y, color='#808080', alpha=0.4,
+                                      lw=opts['lw'], zorder=1)
                         sc = axis.scatter(pd.x, pd.y, c=pd.z, cmap=colormap,
-                                          label=pd.syl, s=opts['ms']**2, norm=z_norm)
+                                          label=pd.syl, s=opts['ms']**2, norm=z_norm, zorder=2)
                     except Exception:
                         try:
                             axis.scatter(pd.x, pd.y, label=pd.syl, s=opts['ms']**2)
@@ -2542,11 +2599,11 @@ class PlotPanel(wx.Panel):
         gc.collect()
 
     def load_and_draw(self):
-        """ Full draw event: 
+        """ Full draw event:
           - Get plot data based on selection
           - Plot them
           - Trigger changes to infoPanel
-            
+
         """
         if self.plotDone:
             self.subplotsPar = self.getSubplotSpacing()

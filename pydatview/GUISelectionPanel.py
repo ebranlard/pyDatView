@@ -753,7 +753,7 @@ class ColumnPanel(wx.Panel):
         self.selPanel = selPanel;
         # Data
         self.tab=None
-        self.columns=[] # All the columns available (may be different from the displayed ones)
+        self.columns=np.array([]) # All the columns available (may be different from the displayed ones)
         self.Filt2Full=None # Index of GUI columns in self.columns
         self.bShowID=False
         self.bReadOnly=False
@@ -990,7 +990,8 @@ class ColumnPanel(wx.Panel):
 
         else:
             self.Filt2Full = list(np.arange(len(self.columns)))
-        columns=self.columns[self.Filt2Full] 
+        # Guard: ensure columns is always a numpy array so fancy list indexing works
+        columns=np.array(self.columns)[self.Filt2Full]
 
         # GUI update
         self.Freeze()
@@ -1061,6 +1062,15 @@ class ColumnPanel(wx.Panel):
         self.lbColumns.SetSelection(-1)
 
     def empty(self):
+        # Cancel any pending filter debounce timer to prevent it from firing
+        # after columns have been cleared (which would cause a TypeError when
+        # setGUIColumns tries self.columns[self.Filt2Full] on a plain Python list).
+        if self._filterDebounceTimer is not None:
+            try:
+                self._filterDebounceTimer.Stop()
+            except Exception:
+                pass
+            self._filterDebounceTimer = None
         self.lbColumns.Clear()
         self.comboX.Clear()
         self.comboZ.Clear()
@@ -1073,7 +1083,7 @@ class ColumnPanel(wx.Panel):
         self.comboZ.Enable(False)
         self.bt.Enable(False)
         self.tab=None
-        self.columns=[]
+        self.columns=np.array([])
         self.Filt2Full=None
         self.btClear.Enable(False)
         self.btFilter.Enable(False)
