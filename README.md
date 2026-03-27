@@ -111,6 +111,7 @@ Documentation is scarce for now, but here are some tips for using the program:
  - The modes and fileformat drop down menus at the top can usually be kept on `auto`. If a file cannot be read, pay attention to the file extension used, and possibly select a specific file format in the dropdown menu instead of `auto`. 
  - Above the taskbar is the "Pipeline" which lists the different actions (e.g. binning, filtering, mask) that are applied to the different tables before being plotted. The pipeline actions will be reapplied on reload, and python code for them will be generated when exporting a script.
  - Different plot styling options can be found below the plot area. The button next to the "Save" icon can be used to customize the esthetics of the plot (e.g. fontsize, linewidth, legend location).
+ - **Third variable / Color scale**: in the column selection panel, a `Z/C:` dropdown is shown below the X-axis selector. Select any column to use it as a color variable — the plot automatically switches to a scatter plot colored by that column. A control bar appears below the canvas with options for the colormap, a colorbar toggle, and a "3D view" checkbox for a 3D scatter visualization.
  - Live plotting can be disabled using the check box "Live plot". This is useful when manipulating large datasets, and potentially wanting to delete some columns without plotting them.
  
  
@@ -130,6 +131,8 @@ Different kind of plots:
 - Multiple plots using sub-figures or a different colors
 - Probability density function (PDF) plot
 - Fast Fourier Transform (FFT) plot
+- **Scatter plot with color scale**: select a third variable (Z/C) to color scatter points by that variable, with a choice of colormap and optional colorbar
+- **3D scatter plot**: when a Z/C variable is selected, enable "3D view" to visualize data as a 3D scatter plot with the Z variable as the height axis
 
 Plot options:
 - Logarithmic scales on x and y axis
@@ -137,6 +140,8 @@ Plot options:
 - Synchronization of the x-axis of the sub-figures while zooming
 - Markers annotations and Measurements
 - Plot styling options
+- **Z/color variable** (third variable): select a Z/C column in the column panel to color scatter points; choose from a range of colormaps (viridis, coolwarm, jet, etc.) and optionally display a colorbar
+- **3D view**: when a Z/C variable is selected, enable the "3D view" checkbox to switch to an interactive 3D scatter plot
 
 Data manipulation options:
  - Remove columns in a table, add columns using a given formula, and export the table to csv

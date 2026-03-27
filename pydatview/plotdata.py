@@ -47,6 +47,11 @@ class PlotData():
         PD.xIsDate  =False  # true if dates
         PD.yIsString=False  # true if strings
         PD.yIsDate  =False  # true if dates
+        PD.iz       =-1     # z/color column index (-1 = no Z variable)
+        PD.sz       =''     # z/color label
+        PD.z        =None   # z/color data (None when not used)
+        PD.zIsString=False  # true if strings
+        PD.zIsDate  =False  # true if dates
         # Misc data
         PD._xMin = None
         PD._xMax = None
@@ -91,6 +96,17 @@ class PlotData():
         PD.x, PD.xIsString, PD.xIsDate,_ = tabs[PD.it].getColumn(PD.ix)  # actual x data, with info
         PD.y, PD.yIsString, PD.yIsDate,c = tabs[PD.it].getColumn(PD.iy)  # actual y data, with info
         PD.c =c  # raw values, used by PDF
+        # Z/color variable (optional, idx[6] and idx[7] if provided)
+        if len(idx) >= 8 and idx[6] >= 0:
+            PD.iz = idx[6]
+            PD.sz = idx[7].replace('_', ' ') if idx[7] else ''
+            PD.z, PD.zIsString, PD.zIsDate, _ = tabs[PD.it].getColumn(PD.iz)
+        else:
+            PD.iz = -1
+            PD.sz = ''
+            PD.z  = None
+            PD.zIsString = False
+            PD.zIsDate   = False
 
         PD._post_init(pipeline=pipeline)
 

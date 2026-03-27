@@ -744,6 +744,11 @@ class ColumnPanel(wx.Panel):
         self.comboX.SetFont(getMonoFont(self))
         self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
         self.lbColumns.SetFont(getMonoFont(self))
+        # Z/Color variable selector
+        self.lbZ = wx.StaticText(self, -1, 'z-axis:')
+        self.comboZ = wx.ComboBox(self, choices=['None'], style=wx.CB_READONLY)
+        self.comboZ.SetFont(getMonoFont(self))
+        self.comboZ.SetSelection(0)
         # Events
         self.lbColumns.Bind(wx.EVT_RIGHT_DOWN, self.OnColPopup)
         self.lbColumns.Bind(wx.EVT_MOTION, self.OnColMotion)
@@ -751,6 +756,9 @@ class ColumnPanel(wx.Panel):
         # Layout
         sizerX = wx.BoxSizer(wx.HORIZONTAL)
         sizerX.Add(self.comboX   , 1, flag=wx.TOP | wx.BOTTOM, border=2)
+        sizerZ = wx.BoxSizer(wx.HORIZONTAL)
+        sizerZ.Add(self.lbZ    , 0, flag=wx.CENTER|wx.RIGHT, border=2)
+        sizerZ.Add(self.comboZ , 1, flag=wx.TOP | wx.BOTTOM, border=2)
         sizerF = wx.BoxSizer(wx.HORIZONTAL)
 
         sizerF.Add(self.tFilter, 1,  flag=          wx.CENTER|wx.TOP          , border=0)
@@ -762,6 +770,7 @@ class ColumnPanel(wx.Panel):
         sizerCol.Add(tb            , 0, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,border=1)
         #sizerCol.Add(self.comboX   , 0, flag=wx.TOP|wx.RIGHT|wx.BOTTOM|wx.TOP,border=2)
         sizerCol.Add(sizerX        , 0, flag=wx.EXPAND, border=0)
+        sizerCol.Add(sizerZ        , 0, flag=wx.EXPAND, border=0)
         sizerCol.Add(sizerF        , 0, flag=wx.EXPAND|wx.TOP|wx.BOTTOM, border=0)
         sizerCol.Add(self.lbColumns, 2, flag=wx.EXPAND, border=0)
         self.SetSizer(sizerCol)
@@ -827,11 +836,13 @@ class ColumnPanel(wx.Panel):
     def _setReadOnly(self):
         self.bReadOnly=True
         self.comboX.Enable(False)
+        self.comboZ.Enable(False)
         self.lbColumns.Enable(False)
 
     def _unsetReadOnly(self):
         self.bReadOnly=False
         self.comboX.Enable(True)
+        self.comboZ.Enable(True)
         self.lbColumns.Enable(True)
 
     def setReadOnly(self, tabLabel=None, cols=[]):
@@ -970,6 +981,15 @@ class ColumnPanel(wx.Panel):
                 columnsX_show=columnsX
             self.comboX.Set(columnsX_show) # non filtered
 
+        # Populate comboZ with None + same columns as comboX (full, non-filtered)
+        prevZSel = self.comboZ.GetSelection()
+        columnsZ_show = np.append(['None'], columnsX_show if len(columnsX) > MAX_X_COLUMNS else columnsX)
+        self.comboZ.Set(columnsZ_show)
+        if prevZSel >= 0 and prevZSel < len(columnsZ_show):
+            self.comboZ.SetSelection(prevZSel)
+        else:
+            self.comboZ.SetSelection(0)  # default: None
+
         # Set selection for y, if any, and considering filtering
         if selInFull:
             for iFull in ySel:
@@ -1006,10 +1026,14 @@ class ColumnPanel(wx.Panel):
     def empty(self):
         self.lbColumns.Clear()
         self.comboX.Clear()
+        self.comboZ.Clear()
+        self.comboZ.Append('None')
+        self.comboZ.SetSelection(0)
         self.lb.SetLabel('')
         self.bReadOnly=False
         self.lbColumns.Enable(False)
         self.comboX.Enable(False)
+        self.comboZ.Enable(False)
         self.bt.Enable(False)
         self.tab=None
         self.columns=[]
@@ -1044,6 +1068,20 @@ class ColumnPanel(wx.Panel):
         if self.comboX.GetCurrentSelection()==MAX_X_COLUMNS:
             self.setGUIColumns(xSel=iXFull, ySel=IYFull)
         return iXFull,IYFull,sX,SY
+
+    def getZColumnSelection(self):
+        """
+        Return the Z/color column selection.
+        iZ: index in full table (-1 means 'None'/no Z variable)
+        sZ: column name string
+        """
+        iZ = self.comboZ.GetSelection()
+        if iZ <= 0:  # 0 = 'None', -1 = nothing selected
+            return -1, ''
+        # iZ-1 because first item is 'None'
+        iZFull = iZ - 1
+        sZ = self.comboZ.GetStringSelection()
+        return iZFull, sZ
 
     def onClearFilter(self, event=None):
         self.tFilter.SetValue('')
@@ -1111,10 +1149,13 @@ class SelectionPanel(wx.Panel):
         # BINDINGS
         self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel1.comboX   )
         self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.colPanel1.lbColumns)
+        self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel1.comboZ   )
         self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel2.comboX   )
         self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.colPanel2.lbColumns)
+        self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel2.comboZ   )
         self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel3.comboX   )
         self.Bind(wx.EVT_LISTBOX , self.onColSelectionChange, self.colPanel3.lbColumns)
+        self.Bind(wx.EVT_COMBOBOX, self.onColSelectionChange, self.colPanel3.comboZ   )
         self.Bind(wx.EVT_LISTBOX,  self.onTabSelectionChange, self.tabPanel.lbTab)
 
         # TRIGGERS
@@ -1555,6 +1596,7 @@ class SelectionPanel(wx.Panel):
             ITab,STab = self.getSelectedTables()
             if self.currentMode=='simColumnsMode' and len(ITab)>1:
                 iiX1,IY1,ssX1,SY1 = self.colPanel1.getColumnSelection()
+                iZ1,sZ1 = self.colPanel1.getZColumnSelection()
                 SameCol=False
                 for i,(itab,stab) in enumerate(zip(ITab,STab)):
                     IKeep=self.IKeepPerTab[i]
@@ -1563,26 +1605,31 @@ class SelectionPanel(wx.Panel):
                         sy =  self.tabList[itab].columns[IKeep[iiy]]
                         iX1 =  IKeep[iiX1]
                         sX1 =  self.tabList[itab].columns[IKeep[iiX1]]
-                        ID.append([itab,iX1,iy,sX1,sy,stab])
+                        iZ = IKeep[iZ1] if iZ1 >= 0 and iZ1 < len(IKeep) else -1
+                        szZ = self.tabList[itab].columns[iZ] if iZ >= 0 else ''
+                        ID.append([itab,iX1,iy,sX1,sy,stab,iZ,szZ])
             else:
                 iX1,IY1,sX1,SY1 = self.colPanel1.getColumnSelection()
+                iZ1,sZ1 = self.colPanel1.getZColumnSelection()
                 SameCol=self.tabList.haveSameColumns(ITab)
                 if self.nSplits in [0,1] or SameCol:
                     for i,(itab,stab) in enumerate(zip(ITab,STab)):
                         for j,(iy,sy) in enumerate(zip(IY1,SY1)):
-                            ID.append([itab,iX1,iy,sX1,sy,stab])
+                            ID.append([itab,iX1,iy,sX1,sy,stab,iZ1,sZ1])
                 elif self.nSplits in [2,3]:
                     if len(ITab)>=1:
                         for j,(iy,sy) in enumerate(zip(IY1,SY1)):
-                            ID.append([ITab[0],iX1,iy,sX1,sy,STab[0]])
+                            ID.append([ITab[0],iX1,iy,sX1,sy,STab[0],iZ1,sZ1])
                     if len(ITab)>=2:
                         iX2,IY2,sX2,SY2 = self.colPanel2.getColumnSelection()
+                        iZ2,sZ2 = self.colPanel2.getZColumnSelection()
                         for j,(iy,sy) in enumerate(zip(IY2,SY2)):
-                            ID.append([ITab[1],iX2,iy,sX2,sy,STab[1]])
+                            ID.append([ITab[1],iX2,iy,sX2,sy,STab[1],iZ2,sZ2])
                     if len(ITab)>=3:
-                        iX2,IY2,sX2,SY2 = self.colPanel3.getColumnSelection()
-                        for j,(iy,sy) in enumerate(zip(IY2,SY2)):
-                            ID.append([ITab[2],iX2,iy,sX2,sy,STab[2]])
+                        iX3,IY3,sX3,SY3 = self.colPanel3.getColumnSelection()
+                        iZ3,sZ3 = self.colPanel3.getZColumnSelection()
+                        for j,(iy,sy) in enumerate(zip(IY3,SY3)):
+                            ID.append([ITab[2],iX3,iy,sX3,sy,STab[2],iZ3,sZ3])
                 else:
                     raise Exception('Wrong number of splits {}'.format(self.nSplits))
         return ID,SameCol,self.currentMode

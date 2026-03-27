@@ -11,7 +11,16 @@ class SwappyFigure(Figure):
         # See matplotlib.projections/__init__.py    projection_registry.register
         kwargs.update({'projection':projection})
         ax =  super().add_subplot(*args, **kwargs)
-        ax.setSwap(swap)
+        if hasattr(ax, 'setSwap'):
+            ax.setSwap(swap)
+        else:
+            # Non-SwappyAxes (e.g. Axes3D): add compatibility shims
+            ax.setSwap     = lambda s: None
+            ax.set_xlim_   = lambda *a, **kw: ax.set_xlim(*a, **kw)
+            ax.set_ylim_   = lambda *a, **kw: ax.set_ylim(*a, **kw)
+            ax.get_xlim_   = lambda *a, **kw: ax.get_xlim(*a, **kw)
+            ax.get_ylim_   = lambda *a, **kw: ax.get_ylim(*a, **kw)
+            ax.axvline_    = lambda x, *a, **kw: None
         return ax
 
 class SwappyAxes(plt.Axes):
