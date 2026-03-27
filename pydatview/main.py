@@ -1,8 +1,10 @@
 import numpy as np
-import os.path 
+import os
+import os.path
 import sys
-import traceback 
+import traceback
 import gc
+import json
 try:
     import pandas as pd
 except:
@@ -48,6 +50,7 @@ from pydatview.appdata import loadAppData, saveAppData, configFilePath, defaultA
 PROG_NAME='pyDatView'
 PROG_VERSION='v0.5-local'
 ISTAT = 0 # Index of Status bar where main status info is provided
+VIEW_FILE_EXT = '.pdvview'  # Extension for exported view files
 
 #matplotlib.rcParams['text.usetex'] = False
 # matplotlib.rcParams['font.sans-serif'] = 'DejaVu Sans'
@@ -74,15 +77,18 @@ class FileDropTarget(wx.FileDropTarget):
    def OnDropFiles(self, x, y, filenames):
       filenames = [f for f in filenames if not os.path.isdir(f)]
       filenames.sort()
-      if len(filenames)>0:
-          # If Ctrl is pressed we add
-          bAdd= wx.GetKeyState(wx.WXK_CONTROL);
-          iFormat=self.parent.comboFormats.GetSelection()
-          if iFormat==0: # auto-format
-              Format = None
-          else:
-              Format = self.parent.FILE_FORMATS[iFormat-1]
-          self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd, bPlot=True)
+      if len(filenames) == 0:
+          return True
+      # View files are handled separately
+      view_files = [f for f in filenames if f.lower().endswith(VIEW_FILE_EXT)]
+      data_files  = [f for f in filenames if not f.lower().endswith(VIEW_FILE_EXT)]
+      if view_files:
+          self.parent.load_view_file(view_files[0])
+      elif data_files:
+          bAdd = wx.GetKeyState(wx.WXK_CONTROL)
+          iFormat = self.parent.comboFormats.GetSelection()
+          Format = None if iFormat == 0 else self.parent.FILE_FORMATS[iFormat-1]
+          self.parent.load_files(data_files, fileformats=[Format]*len(data_files), bAdd=bAdd, bPlot=True)
       return True
 
 
@@ -167,6 +173,17 @@ class MainFrame(wx.Frame):
         for toolName in TOOLS.keys():
             self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), toolMenu.Append(wx.ID_ANY, toolName))
 
+        # --- Views Menu
+        self.viewsMenu = wx.Menu()
+        saveViewMenuItem   = self.viewsMenu.Append(wx.ID_ANY, 'Save current view...',   'Save the current selection and plot settings as a named view')
+        exportViewMenuItem = self.viewsMenu.Append(wx.ID_ANY, 'Export view to file...', 'Export the current view to a .pdvview file (includes file list and settings)')
+        importViewMenuItem = self.viewsMenu.Append(wx.ID_ANY, 'Import view from file...', 'Load a .pdvview file, open its data files, and restore the view')
+        self.viewsMenu.AppendSeparator()
+        menuBar.Append(self.viewsMenu, "&Views")
+        self.Bind(wx.EVT_MENU, self.onSaveView,    saveViewMenuItem)
+        self.Bind(wx.EVT_MENU, self.onExportView,  exportViewMenuItem)
+        self.Bind(wx.EVT_MENU, self.onImportView,  importViewMenuItem)
+
         # --- OpenFAST Plugins
         ofMenu = wx.Menu()
         menuBar.Append(ofMenu, "&OpenFAST")
@@ -212,9 +229,9 @@ class MainFrame(wx.Frame):
         tb.AddControl( self.cbLivePlot ) 
         tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Format: ' ) )
-        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
+        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)
         self.comboFormats.SetSelection(0)
-        tb.AddControl(self.comboFormats ) 
+        tb.AddControl(self.comboFormats )
         # Menu for loader options
         self.btLoaderMenu = wx.Button(tb, wx.ID_ANY, CHAR['menu'], style=wx.BU_EXACTFIT)
         tb.AddControl(self.btLoaderMenu)
@@ -223,16 +240,23 @@ class MainFrame(wx.Frame):
         TBAddTool(tb, "Open"  , 'ART_FILE_OPEN', self.onLoad)
         TBAddTool(tb, "Reload", 'ART_REDO'     , self.onReload)
         TBAddTool(tb, "Add"   , 'ART_PLUS'     , self.onAdd)
-        #bmp = wx.Bitmap('help.png') #wx.Bitmap("NEW.BMP", wx.BITMAP_TYPE_BMP) 
-        #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onDEBUG)
+        # Views combobox
+        tb.AddSeparator()
+        tb.AddControl( wx.StaticText(tb, -1, 'View: ' ) )
+        self.comboViews = wx.ComboBox(tb, choices=[], style=wx.CB_READONLY, size=(120,-1))
+        self.comboViews.SetToolTip('Select a saved view to restore it')
+        tb.AddControl(self.comboViews)
+        self.Bind(wx.EVT_COMBOBOX, self.onRestoreViewFromCombo, self.comboViews)
         tb.AddStretchableSpace()
-        tb.Realize() 
-        self.toolBar = tb 
+        tb.Realize()
+        self.toolBar = tb
         # Bind Toolbox Events
         self.Bind(wx.EVT_COMBOBOX, self.onModeChange, self.comboMode )
         self.Bind(wx.EVT_COMBOBOX, self.onFormatChange, self.comboFormats )
         tb.Bind(wx.EVT_BUTTON, self.onShowLoaderMenu, self.btLoaderMenu)
         tb.Bind(wx.EVT_CHECKBOX, self.onLivePlotChange, self.cbLivePlot)
+        # Populate the views combobox and menu from saved data
+        self._populateViewsUI()
 
         # --- Status bar
         self.statusbar=self.CreateStatusBar(3, style=0)
@@ -753,20 +777,22 @@ class MainFrame(wx.Frame):
 
 
     def onLoad(self, event=None):
-        self.selectFile(bAdd=False)
+        # Check CTRL state: if held, add to existing tables (same as CTRL+drag-drop)
+        bAdd = wx.GetKeyState(wx.WXK_CONTROL) and self.tabList.len() > 0
+        self.selectFile(bAdd=bAdd)
 
     def onAdd(self, event=None):
         self.selectFile(bAdd=self.tabList.len()>0)
 
-    def selectFile(self,bAdd=False):
+    def selectFile(self, bAdd=False):
         # --- File Format extension
         iFormat=self.comboFormats.GetSelection()
         sFormat=self.comboFormats.GetStringSelection()
         if iFormat==0: # auto-format
             Format = None
-            #wildcard = 'all (*.*)|*.*'
-            wildcard='|'.join([n+'|*'+';*'.join(e) for n,e in zip(self.FILE_FORMATS_NAMEXT,self.FILE_FORMATS_EXTENSIONS)])
-            #wildcard = sFormat + extensions+'|all (*.*)|*.*'
+            view_wc = 'pyDatView views (*{})|*{}'.format(VIEW_FILE_EXT, VIEW_FILE_EXT)
+            wildcard = '|'.join([n+'|*'+';*'.join(e) for n,e in zip(self.FILE_FORMATS_NAMEXT,self.FILE_FORMATS_EXTENSIONS)])
+            wildcard = view_wc + '|' + wildcard
         else:
             Format = self.FILE_FORMATS[iFormat-1]
             extensions = '|*'+';*'.join(self.FILE_FORMATS[iFormat-1].extensions)
@@ -775,12 +801,16 @@ class MainFrame(wx.Frame):
         with wx.FileDialog(self, "Open file", wildcard=wildcard,
                 style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE) as dlg:
             #other options: wx.CHANGE_DIR
-            #dlg.SetSize((100,100))
-            #dlg.Center()
-           if dlg.ShowModal() == wx.ID_CANCEL:
+            if dlg.ShowModal() == wx.ID_CANCEL:
                return     # the user changed their mind
-           filenames = dlg.GetPaths()
-           self.load_files(filenames,fileformats=[Format]*len(filenames),bAdd=bAdd, bPlot=True)
+            filenames = dlg.GetPaths()
+            # Route view files the same way as drag-and-drop does
+            view_files = [f for f in filenames if f.lower().endswith(VIEW_FILE_EXT)]
+            data_files = [f for f in filenames if not f.lower().endswith(VIEW_FILE_EXT)]
+            if view_files:
+                self.load_view_file(view_files[0])
+            elif data_files:
+                self.load_files(data_files, fileformats=[Format]*len(data_files), bAdd=bAdd, bPlot=True)
 
     def onModeChange(self, event=None):
         if hasattr(self,'selPanel'):
@@ -800,6 +830,252 @@ class MainFrame(wx.Frame):
         #pos = (self.btLoaderMenu.GetPosition()[0], self.btLoaderMenu.GetPosition()[1] + self.btLoaderMenu.GetSize()[1])
         self.PopupMenu(self.loaderMenu) #, pos)
 
+
+    # --- Views: save / restore
+    def _populateViewsUI(self):
+        """Rebuild the Views menu items and toolbar combobox from saved views list"""
+        views = self.data.get('views', [])
+        # Update combobox
+        names = [v['name'] for v in views]
+        self.comboViews.Set(names)
+        # Rebuild dynamic menu items (keep 'Save...' and separator at top)
+        # Remove all items after the separator (index 2+)
+        while self.viewsMenu.GetMenuItemCount() > 2:
+            item = self.viewsMenu.FindItemByPosition(2)
+            self.viewsMenu.Delete(item)
+        for v in views:
+            item = self.viewsMenu.Append(wx.ID_ANY, v['name'], 'Restore view: ' + v['name'])
+            self.Bind(wx.EVT_MENU, lambda e, name=v['name']: self.onRestoreView(name), item)
+
+    def _capturePipelineState(self):
+        """Return {action_name: data_dict} for every action currently in the pipeline."""
+        if not hasattr(self, 'pipePanel'):
+            return {}
+        state = {}
+        for action in list(self.pipePanel.actionsData) + list(self.pipePanel.actionsPlotFilters):
+            state[action.name] = dict(action.data)
+        return state
+
+    def _restorePipelineState(self, pipeline_state):
+        """Restore pipeline actions from a saved state dict.
+
+        Strategy
+        --------
+        * PlotDataActions (Filter, Remove Outliers, Resample, Bin data):
+          Non-destructive — safe to cancel and re-apply at any time.
+        * ReversibleTableAction (Mask):
+          cancel() calls clearMask() on each table, so the original rows
+          are recovered before the saved mask is re-applied.
+        * IrreversibleTableAction (Standardize Units etc.):
+          Cannot be undone — left in place, not overwritten.
+        """
+        if not hasattr(self, 'pipePanel') or not pipeline_state:
+            return
+        from pydatview.plugins import DATA_PLUGINS_WITH_EDITOR, OF_DATA_PLUGINS_WITH_EDITOR
+        from pydatview.pipeline import IrreversibleTableAction, AdderAction
+        all_restorable = {}
+        all_restorable.update(DATA_PLUGINS_WITH_EDITOR)
+        all_restorable.update(OF_DATA_PLUGINS_WITH_EDITOR)
+
+        # Step 1 – remove every restorable action that is currently active.
+        # IrreversibleTableAction and AdderAction are excluded: they can't
+        # be undone without a data reload so we leave them untouched.
+        for name in list(all_restorable.keys()):
+            existing = self.pipePanel.find(name)
+            if existing is not None and not isinstance(existing, (IrreversibleTableAction, AdderAction)):
+                self.pipePanel.remove(existing, cancel=True, tabList=self.tabList, updateGUI=False)
+
+        # Step 2 – recreate each action that was active when the view was saved
+        for name, saved_data in pipeline_state.items():
+            if name not in all_restorable:
+                continue  # Unknown or irreversible plugin — skip
+            if not saved_data.get('active', False):
+                continue  # Only restore actions that were active
+            constructor = all_restorable[name]
+            action = constructor(label=name, mainframe=self)
+            # Skip AdderAction and IrreversibleTableAction — restoring these
+            # without a data reload would produce duplicate or inconsistent tables.
+            if isinstance(action, (IrreversibleTableAction, AdderAction)):
+                continue
+            action.data.update(saved_data)
+            self.pipePanel.append(action, overwrite=False, apply=True,
+                                  updateGUI=True, tabList=self.tabList)
+
+    def onSaveView(self, event=None):
+        """Prompt for a view name and save current state"""
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            from .GUICommon import Error
+            Error(self, 'Load some data and plot it before saving a view.')
+            return
+        dlg = wx.TextEntryDialog(self, 'Enter a name for this view:', 'Save View', '')
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        name = dlg.GetValue().strip()
+        dlg.Destroy()
+        if not name:
+            return
+        view = {
+            'name':         name,
+            'selection':    self.selPanel.captureViewState(),
+            'plotPanel':    self.plotPanel.captureViewData(),
+            'modeIndex':    self.comboMode.GetSelection(),
+            'loaderOptions': dict(self.data['loaderOptions']),
+            'pipeline':     self._capturePipelineState(),
+        }
+        # Replace existing view with same name, otherwise append
+        views = self.data.get('views', [])
+        for i, v in enumerate(views):
+            if v['name'] == name:
+                views[i] = view
+                break
+        else:
+            views.append(view)
+        self.data['views'] = views
+        self._populateViewsUI()
+        self.statusbar.SetStatusText('View "{}" saved.'.format(name), ISTAT)
+
+    def onRestoreViewFromCombo(self, event=None):
+        """Restore the view selected in the toolbar combobox"""
+        name = self.comboViews.GetStringSelection()
+        if name:
+            self.onRestoreView(name)
+
+    def onRestoreView(self, name):
+        """Restore the named view"""
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            return
+        views = self.data.get('views', [])
+        view = next((v for v in views if v['name'] == name), None)
+        if view is None:
+            return
+        # R9 – Restore loader options (e.g. dayfirst) stored in the view
+        loader_opts = view.get('loaderOptions', {})
+        if loader_opts:
+            self.data['loaderOptions'].update(loader_opts)
+        # Restore selection mode
+        modeIndex = view.get('modeIndex', 0)
+        self.comboMode.SetSelection(modeIndex)
+        self.selPanel.updateLayout(SEL_MODES_ID[modeIndex])
+        # Restore selection state (tables + columns); collect any warnings
+        warnings = self.selPanel.restoreViewState(view.get('selection', {}))
+        # Restore plot settings
+        self.plotPanel.restoreViewData(view.get('plotPanel', {}))
+        # Restore pipeline actions (Mask, Filter, Resample, Bin data, etc.)
+        self._restorePipelineState(view.get('pipeline', {}))
+        # Trigger a full redraw
+        self.plotPanel.load_and_draw()
+        if warnings:
+            Warn(self, 'View "{}" was partially restored:\n\n{}'.format(name, '\n'.join(warnings)))
+            self.statusbar.SetStatusText('View "{}" partially restored.'.format(name), ISTAT)
+        else:
+            self.statusbar.SetStatusText('View "{}" restored.'.format(name), ISTAT)
+
+    def onExportView(self, event=None):
+        """Export the current view (files + selection + plot settings) to a .pdvview file"""
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            Error(self, 'Load some data and plot it before exporting a view.')
+            return
+        if self.tabList.len() == 0:
+            Error(self, 'No files are loaded.')
+            return
+        wildcard = 'pyDatView view (*{})|*{}'.format(VIEW_FILE_EXT, VIEW_FILE_EXT)
+        with wx.FileDialog(self, 'Export view to file', wildcard=wildcard,
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                return
+            path = dlg.GetPath()
+        if not path.lower().endswith(VIEW_FILE_EXT):
+            path += VIEW_FILE_EXT
+        base_dir = os.path.dirname(os.path.abspath(path))
+        # Build file list with relative paths
+        filenames, fileformats = self.tabList.filenames_and_formats
+        files = []
+        for fn, ff in zip(filenames, fileformats):
+            try:
+                rel = os.path.relpath(fn, base_dir)
+            except ValueError:
+                rel = fn  # Different drive on Windows: fall back to absolute
+            files.append({'path': rel, 'format': ff.name if ff is not None else ''})
+        view_data = {
+            'version':       1,
+            'name':          os.path.splitext(os.path.basename(path))[0],
+            'files':         files,
+            'loaderOptions': dict(self.data['loaderOptions']),
+            'modeIndex':     self.comboMode.GetSelection(),
+            'selection':     self.selPanel.captureViewState(),
+            'plotPanel':     self.plotPanel.captureViewData(),
+            'pipeline':      self._capturePipelineState(),
+        }
+        try:
+            with open(path, 'w') as f:
+                json.dump(view_data, f, indent=2)
+            self.statusbar.SetStatusText('View exported to: {}'.format(path), ISTAT)
+        except Exception as e:
+            Error(self, 'Failed to export view:\n{}'.format(str(e)))
+
+    def onImportView(self, event=None):
+        """Open a file dialog to pick a .pdvview file and load it"""
+        wildcard = 'pyDatView view (*{})|*{}|All files (*.*)|*.*'.format(VIEW_FILE_EXT, VIEW_FILE_EXT)
+        with wx.FileDialog(self, 'Import view from file', wildcard=wildcard,
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                return
+            path = dlg.GetPath()
+        self.load_view_file(path)
+
+    def load_view_file(self, path):
+        """Load a .pdvview file: open its data files then restore the saved view state"""
+        try:
+            with open(path, 'r') as f:
+                view_data = json.load(f)
+        except Exception as e:
+            Error(self, 'Failed to read view file:\n{}'.format(str(e)))
+            return
+        base_dir = os.path.dirname(os.path.abspath(path))
+        # Resolve file paths (relative to the view file) and match formats
+        filenames   = []
+        fileformats = []
+        missing     = []
+        for entry in view_data.get('files', []):
+            rel   = entry.get('path', '')
+            abs_path = os.path.normpath(os.path.join(base_dir, rel))
+            if not os.path.isfile(abs_path):
+                missing.append(abs_path)
+                continue
+            fmt_name = entry.get('format', '')
+            ff = next((f for f in self.FILE_FORMATS if f.name == fmt_name), None)
+            filenames.append(abs_path)
+            fileformats.append(ff)
+        if missing:
+            Warn(self, 'The following file(s) from the view could not be found:\n\n'
+                       + '\n'.join(missing))
+        if not filenames:
+            Error(self, 'No loadable files found in the view.')
+            return
+        # Restore loader options stored in the view
+        loader_opts = view_data.get('loaderOptions', {})
+        if loader_opts:
+            self.data['loaderOptions'].update(loader_opts)
+        # Load the data files (bPlot=False so we can restore settings first)
+        self.load_files(filenames, fileformats=fileformats, bAdd=False, bPlot=False)
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            return
+        # Restore view state
+        modeIndex = view_data.get('modeIndex', 0)
+        self.comboMode.SetSelection(modeIndex)
+        self.selPanel.updateLayout(SEL_MODES_ID[modeIndex])
+        warnings = self.selPanel.restoreViewState(view_data.get('selection', {}))
+        self.plotPanel.restoreViewData(view_data.get('plotPanel', {}))
+        # Restore pipeline actions (Mask, Filter, Resample, Bin data, etc.)
+        self._restorePipelineState(view_data.get('pipeline', {}))
+        self.plotPanel.load_and_draw()
+        view_name = view_data.get('name', os.path.basename(path))
+        if warnings:
+            Warn(self, 'View "{}" was partially restored:\n\n{}'.format(view_name, '\n'.join(warnings)))
+            self.statusbar.SetStatusText('View "{}" partially restored.'.format(view_name), ISTAT)
+        else:
+            self.statusbar.SetStatusText('View "{}" loaded from file.'.format(view_name), ISTAT)
 
     def mainFrameUpdateLayout(self, event=None):
         if hasattr(self.nb,'fields_1d_tab'):

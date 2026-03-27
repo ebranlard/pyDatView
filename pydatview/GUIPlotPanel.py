@@ -821,7 +821,172 @@ class PlotPanel(wx.Panel):
         data['CrossHair'] = self.cbXHair.IsChecked()
         self.esthPanel._GUI2Data()
         data['plotStyle']= self.esthPanel.data
-        
+
+    def captureViewData(self):
+        """Capture current plot panel state for view saving"""
+        data = {}
+        data['plotType']  = self.pltTypePanel.plotType()
+        data['logX']      = self.cbLogX.IsChecked()
+        data['logY']      = self.cbLogY.IsChecked()
+        data['grid']      = self.cbGrid.IsChecked()
+        data['crossHair'] = self.cbXHair.IsChecked()
+        data['subplot']   = self.cbSub.IsChecked()
+        data['sync']      = self.cbSync.IsChecked()
+        data['autoScale'] = self.cbAutoScale.IsChecked()
+        data['stepPlot']  = self.cbStepPlot.IsChecked()
+        data['curveType'] = self.cbCurveType.GetSelection()
+        data['plotStyle'] = {
+            'Font':           self.esthPanel.cbFont.GetValue(),
+            'LegendFont':     self.esthPanel.cbLgdFont.GetValue(),
+            'LegendPosition': self.esthPanel.cbLegend.GetValue(),
+            'LineWidth':      self.esthPanel.cbLW.GetValue(),
+            'MarkerSize':     self.esthPanel.cbMS.GetValue(),
+        }
+        data['view3D']     = self.colorPanel.cb3D.IsChecked()
+        # R1 – Spectral / FFT panel
+        spc = self.spcPanel._GUI2Data()
+        spc['xlim'] = self.spcPanel.tMaxFreq.GetValue()
+        data['spectral'] = spc
+        # R2 – Compare panel
+        data['compare']   = self.cmpPanel._GUI2Data()
+        # R3 – MinMax panel
+        data['minmax']    = self.mmxPanel._GUI2Data()
+        # R4 – PDF panel
+        data['pdf']       = self.pdfPanel._GUI2Data()
+        # R5 – Polar panel
+        data['polar']     = self.polPanel._GUI2Data()
+        # R6 – Swap XY
+        data['swapXY']    = self.cbSwapXY.IsChecked()
+        # R7 – Flip axes
+        data['flipX']     = self.cbFlipX.IsChecked()
+        data['flipY']     = self.cbFlipY.IsChecked()
+        # R8 – Plot matrix
+        data['plotMatrix'] = self.cbPlotMatrix.IsChecked()
+        return data
+
+    def restoreViewData(self, data):
+        """Restore plot panel state from a saved view (does not redraw)"""
+        plotType = data.get('plotType', 'Regular')
+        # Set radio buttons without triggering events, then show/hide opt panels
+        for pt, d in self.pltTypePanel.PTDict.items():
+            d['cb'].SetValue(pt == plotType)
+            if d['opt_panel'] is not None:
+                d['opt_panel'].Show() if pt == plotType else d['opt_panel'].Hide()
+        has_opt_panel = self.pltTypePanel.PTDict.get(plotType, {}).get('opt_panel') is not None
+        self.slEsth.Show() if has_opt_panel else self.slEsth.Hide()
+        self.plotsizer.Layout()
+        # Checkboxes
+        self.cbLogX.SetValue(data.get('logX', False))
+        self.cbLogY.SetValue(data.get('logY', plotType == 'FFT'))
+        self.cbGrid.SetValue(data.get('grid', False))
+        self.cbXHair.SetValue(data.get('crossHair', True))
+        self.cbSub.SetValue(data.get('subplot', False))
+        self.cbSync.SetValue(data.get('sync', True))
+        self.cbAutoScale.SetValue(data.get('autoScale', True))
+        self.cbStepPlot.SetValue(data.get('stepPlot', False))
+        self.cbCurveType.SetSelection(data.get('curveType', 1))
+        # R6-R8 – axis toggles and matrix
+        self.cbSwapXY.SetValue(data.get('swapXY', False))
+        self.cbFlipX.SetValue(data.get('flipX', False))
+        self.cbFlipY.SetValue(data.get('flipY', False))
+        self.cbPlotMatrix.SetValue(data.get('plotMatrix', False))
+        # Aesthetics
+        plotStyle = data.get('plotStyle', {})
+        if plotStyle:
+            fontChoices = ['6','7','8','9','10','11','12','13','14','15','16','17','18']
+            LWChoices   = ['0.5','1.0','1.25','1.5','2.0','2.5','3.0']
+            MSChoices   = ['0.5','1','2','3','4','5','6','7','8']
+            lbChoices   = ['None','Upper right','Upper left','Lower left','Lower right','Right','Center left','Center right','Lower center','Upper center','Center']
+            try:
+                self.esthPanel.cbFont.SetSelection(fontChoices.index(str(plotStyle.get('Font','11'))))
+            except ValueError:
+                pass
+            try:
+                self.esthPanel.cbLgdFont.SetSelection(fontChoices.index(str(plotStyle.get('LegendFont','11'))))
+            except ValueError:
+                pass
+            try:
+                self.esthPanel.cbLegend.SetSelection(lbChoices.index(str(plotStyle.get('LegendPosition','Upper right'))))
+            except ValueError:
+                pass
+            try:
+                self.esthPanel.cbLW.SetSelection(LWChoices.index(str(plotStyle.get('LineWidth','1.5'))))
+            except ValueError:
+                pass
+            try:
+                self.esthPanel.cbMS.SetSelection(MSChoices.index(str(plotStyle.get('MarkerSize','2'))))
+            except ValueError:
+                pass
+            try:
+                matplotlib_rc('font', **{'size': int(plotStyle.get('Font', '11'))})
+            except Exception:
+                pass
+        self.colorPanel.cb3D.SetValue(data.get('view3D', False))
+        # R1 – Spectral / FFT panel
+        spc = data.get('spectral', {})
+        if spc:
+            _spc_types    = ['PSD', 'f x PSD', 'Amplitude']
+            _spc_typeX    = ['1/x', '2pi/x', 'x']
+            _spc_avg      = ['None', 'Welch', 'Binning']
+            _spc_avgwin   = ['Hamming', 'Hann', 'Rectangular']
+            try:
+                self.spcPanel.cbType.SetSelection(_spc_types.index(spc.get('yType', 'PSD')))
+            except ValueError:
+                pass
+            try:
+                self.spcPanel.cbTypeX.SetSelection(_spc_typeX.index(spc.get('xType', '1/x')))
+            except ValueError:
+                pass
+            try:
+                self.spcPanel.cbAveraging.SetSelection(_spc_avg.index(spc.get('avgMethod', 'Welch')))
+            except ValueError:
+                pass
+            try:
+                self.spcPanel.cbAveragingMethod.SetSelection(_spc_avgwin.index(spc.get('avgWindow', 'Hamming')))
+            except ValueError:
+                pass
+            self.spcPanel.cbDetrend.SetValue(spc.get('bDetrend', False))
+            self.spcPanel.scP2.SetValue(int(spc.get('nExp', 11)))
+            self.spcPanel.tMaxFreq.SetValue(str(spc.get('xlim', '-1')))
+        # R2 – Compare panel
+        cmp = data.get('compare', {})
+        if cmp:
+            _cmp_types = ['Relative', '|Relative|', 'Ratio', 'Absolute', 'Y-Y']
+            try:
+                self.cmpPanel.rbType.SetSelection(_cmp_types.index(cmp.get('type', 'Relative')))
+            except ValueError:
+                pass
+        # R3 – MinMax panel
+        mmx = data.get('minmax', {})
+        if mmx:
+            self.mmxPanel.cbyMinMax.SetValue(mmx.get('yScale', True))
+            self.mmxPanel.cbxMinMax.SetValue(mmx.get('xScale', False))
+            _mmx_centers = ['None', 'Mid=0', 'Mid=ref', 'Mean=0', 'Mean=ref']
+            try:
+                self.mmxPanel.cbyMean.SetSelection(_mmx_centers.index(mmx.get('yCenter', 'None')))
+            except ValueError:
+                pass
+        # R4 – PDF panel
+        pdf = data.get('pdf', {})
+        if pdf:
+            self.pdfPanel.scBins.SetValue(int(pdf.get('nBins', 51)))
+            self.pdfPanel.cbSmooth.SetValue(pdf.get('smooth', False))
+        # R5 – Polar panel
+        pol = data.get('polar', {})
+        if pol:
+            _pol_bins  = ['None', '12', '36', '60', '180', '360']
+            _pol_about = ['x (from z, y hori flip, z vert)', 'z (from x, x hori, y vert)']
+            self.polPanel.cbPolarDeg.SetValue(pol.get('Deg', True))
+            self.polPanel.cbPolarSameMean.SetValue(pol.get('SameMean', False))
+            try:
+                self.polPanel.cbPolarBins.SetSelection(_pol_bins.index(str(pol.get('Bins', 'None'))))
+            except ValueError:
+                pass
+            try:
+                self.polPanel.cbPolarAbout.SetSelection(_pol_about.index(pol.get('About', _pol_about[0])))
+            except ValueError:
+                pass
+
     @staticmethod
     def defaultData():
         data={}
@@ -1288,7 +1453,10 @@ class PlotPanel(wx.Panel):
         """ Perform comparison of the selected PlotData, returns new plotData with the comparison. """
         sComp = self.cmpPanel.rbType.GetStringSelection()
         try:
-            self.plotData = compareMultiplePD(self.plotData,mode, sComp)
+            result = compareMultiplePD(self.plotData, mode, sComp)
+            if result:  # only replace plotData when compare produced results
+                self.plotData = result
+            # if result is empty (e.g. only 1 series), keep plotData so it still draws
         except Exception as e:
             self.pltTypePanel.cbRegular.SetValue(True)
             raise e

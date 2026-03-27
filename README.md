@@ -113,6 +113,8 @@ Documentation is scarce for now, but here are some tips for using the program:
  - Different plot styling options can be found below the plot area. The button next to the "Save" icon can be used to customize the esthetics of the plot (e.g. fontsize, linewidth, legend location).
  - **Third variable / Color scale**: in the column selection panel, a `Z/C:` dropdown is shown below the X-axis selector. Select any column to use it as a color variable — the plot automatically switches to a scatter plot colored by that column. A control bar appears below the canvas with options for the colormap, a colorbar toggle, and a "3D view" checkbox for a 3D scatter visualization.
  - Live plotting can be disabled using the check box "Live plot". This is useful when manipulating large datasets, and potentially wanting to delete some columns without plotting them.
+ - **Views** allow you to save and restore a complete selection state (tables, channels, plot type, and plot settings). Use the **Views** menu to save the current view under a name; previously saved views appear in the toolbar drop-down and can be restored with one click. Views are stored in the session data and survive a reload. If a table or channel referenced by a saved view is not available at restore time (e.g. file not yet loaded, or a channel was renamed), the view is restored as fully as possible and a warning lists what could not be matched.
+ - **Portable views (`.pdvview` files)**: use **Views > Export view to file** to write the current view — including the list of source files and all settings — into a single `.pdvview` JSON file. File paths are stored relative to the view file, so the whole folder can be shared or moved. To reload: drag-and-drop the `.pdvview` file onto pyDatView, or use **Views > Import view from file**. Missing source files are reported; available ones are loaded and the view is restored.
  
  
 
@@ -125,6 +127,8 @@ Main features:
 - Export figure as pdf, png, eps, svg
 - Export python script
 - Export data as csv, or other file formats
+- Save and restore named views (table selection, channels, plot type, and aesthetics)
+- Export/import portable view files (`.pdvview`) that bundle file references and settings; loadable by drag-and-drop
 
 Different kind of plots:
 - Scatter plots or line plots

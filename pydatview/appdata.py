@@ -132,6 +132,8 @@ def defaultAppData(mainframe):
     # GUI
     data['plotPanel']=PlotPanel.defaultData()
     data['infoPanel']=InfoPanel.defaultData()
+    # Saved views
+    data['views'] = []
     return data
 
 
