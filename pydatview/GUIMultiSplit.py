@@ -30,40 +30,46 @@ class MultiSplit(MultiSplitterWindow):
         return len(self._windows)
 
     def _savePanelWidths(self):
-        """Record each non-last pane's current pixel width."""
+        """Record ALL panels' current pixel widths (including the last)."""
+        total = self.GetClientSize()[0]
         for i in range(self.nWindows - 1):
-            win = self._windows[i]
-            self._panelWidths[id(win)] = self.GetSashPosition(i)
+            self._panelWidths[id(self._windows[i])] = self.GetSashPosition(i)
+        if self.nWindows >= 1:
+            sash_sum = sum(self.GetSashPosition(i) for i in range(self.nWindows - 1))
+            self._panelWidths[id(self._windows[-1])] = max(self.MinSashSize, total - sash_sum)
 
     def _restorePanelWidths(self):
-        """Apply stored absolute pixel widths to sash positions.
+        """Restore panel widths, scaling all proportionally to the current total.
 
-        Panels with no stored width receive an equal share of unclaimed space.
+        Panels with no stored width share any unclaimed space equally.
         Falls back to setEquiSash() when no history exists at all.
-        The last panel always absorbs whatever space remains.
         """
         if self.nWindows <= 1:
             return
         total = self.GetClientSize()[0]
         if total <= 0:
             return
-        has_history = any(id(w) in self._panelWidths for w in self._windows[:-1])
+        has_history = any(id(w) in self._panelWidths for w in self._windows)
         if not has_history:
             self.setEquiSash()
             return
         known_sum = sum(
             self._panelWidths[id(w)]
-            for w in self._windows[:-1]
+            for w in self._windows
             if id(w) in self._panelWidths
         )
-        n_unknown = sum(1 for w in self._windows[:-1] if id(w) not in self._panelWidths)
+        n_unknown = sum(1 for w in self._windows if id(w) not in self._panelWidths)
         unk_w = (
             max(self.MinSashSize, (total - known_sum) // n_unknown)
             if n_unknown else self.MinSashSize
         )
-        for i, win in enumerate(self._windows[:-1]):
-            w = self._panelWidths.get(id(win), unk_w)
-            self.SetSashPosition(i, max(self.MinSashSize, w))
+        widths = [self._panelWidths.get(id(w), unk_w) for w in self._windows]
+        # Scale proportionally so panels fill the current total width
+        w_sum = sum(widths)
+        if w_sum > 0 and abs(w_sum - total) > 1:
+            widths = [max(self.MinSashSize, int(w * total / w_sum)) for w in widths]
+        for i, w in enumerate(widths[:-1]):
+            self.SetSashPosition(i, w)
 
     def removeAll(self):
         self._savePanelWidths()  # remember widths before detaching
@@ -73,7 +79,7 @@ class MultiSplit(MultiSplitterWindow):
             w.Hide()
 
     def onParentChangeSize(self, Event=None):
-        # Re-apply stored absolute widths; the last panel absorbs any slack.
+        # Scale all panels proportionally to the new total width.
         self._restorePanelWidths()
 
     def setEquiSash(self, event=None):
@@ -88,18 +94,22 @@ class MultiSplit(MultiSplitterWindow):
                     self.SetSashPosition(i, equi)
 
     def onSashChange(self, event=None):
-        """Persist only the pane to the LEFT of the dragged sash.
+        """Persist the pane to the LEFT of the dragged sash and the last pane.
 
-        All other stored widths are untouched so only the last pane absorbs the
-        change in total width.  GetSashIdx() is provided by MultiSplitterEvent
-        and returns the 0-based index of the moved sash.
+        Only those two stored widths change per drag; all others are untouched.
+        GetSashIdx() is provided by MultiSplitterEvent and returns the 0-based
+        index of the moved sash.
         """
         if event is not None and hasattr(event, 'GetSashIdx'):
             idx = event.GetSashIdx()
             if 0 <= idx < self.nWindows - 1:
                 self._panelWidths[id(self._windows[idx])] = self.GetSashPosition(idx)
+                # Also record the last panel (it absorbs the drag visually)
+                total = self.GetClientSize()[0]
+                sash_sum = sum(self.GetSashPosition(j) for j in range(self.nWindows - 1))
+                self._panelWidths[id(self._windows[-1])] = max(self.MinSashSize, total - sash_sum)
         else:
-            # Fallback (called manually without an event): save all non-last panes
+            # Fallback (called manually without an event): save all panes
             self._savePanelWidths()
 
 
