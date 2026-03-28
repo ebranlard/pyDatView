@@ -1254,7 +1254,6 @@ class MainFrame(wx.Frame):
     def OnIdle(self, event):
         if self.resized:
             self.resized = False
-            self.mainFrameUpdateLayout()
             if hasattr(self,'plotPanel'):
                 self.plotPanel.setSubplotTight()
             #self.Thaw() # Commented see #166

@@ -79,8 +79,9 @@ class MultiSplit(MultiSplitterWindow):
             w.Hide()
 
     def onParentChangeSize(self, Event=None):
-        # Scale all panels proportionally to the new total width.
-        self._restorePanelWidths()
+        # Keep panels at their current pixel widths (don't scale).
+        # The last panel absorbs any extra space automatically.
+        pass
 
     def setEquiSash(self, event=None):
         if self.nWindows > 0:

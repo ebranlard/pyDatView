@@ -42,6 +42,7 @@ class Fields1DPanel(wx.SplitterWindow): # TODO Panel
 
         self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
         self.vSplitter.SetMinimumPaneSize(SIDE_COL[0])
+        self.vSplitter.SetSashGravity(0)  # Left panel stays fixed on resize; only plot area changes
         self.tSplitter.SetSashPosition(SIDE_COL[0])
 
 
