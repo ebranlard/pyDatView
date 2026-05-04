@@ -21,7 +21,7 @@ class TableList(object): # todo inherit list
         self.options = self.defaultOptions() if options is None else options
 
     # --- Options 
-    def saveOptions(self, optionts):
+    def saveOptions(self, options):
         options['naming']   = self.options['naming']
         options['dayfirst'] = self.options['dayfirst']
         
@@ -636,7 +636,7 @@ class Table(object):
         s='Table object:\n'
         s+=' - name: {}\n'.format(self.name)
         s+=' - raw_name   : {}\n'.format(self.raw_name)
-        s+=' - active_name: {}\n'.format(self.raw_name)
+        s+=' - active_name: {}\n'.format(self.active_name)
         s+=' - filename   : {}\n'.format(self.filename)
         s+=' - fileformat : {}\n'.format(self.fileformat)
         s+=' - fileformat_name : {}\n'.format(self.fileformat_name)
@@ -667,9 +667,14 @@ class Table(object):
                 else:
                     self.mask=mask
                     self.maskString=sMask
-            except:
-                # TODO come up with better error messages
-                raise Exception('Error: The mask failed to evaluate for table: '+self.nickname)
+            except Exception as e:
+                # Preserve the underlying error so the user can debug a
+                # bad mask string instead of seeing a generic message.
+                raise Exception(
+                    'Error: The mask failed to evaluate for table: {}\n'
+                    '       mask string: {}\n'
+                    '       reason: {}: {}'.format(
+                        self.nickname, sMask, type(e).__name__, e))
             if sum(mask)==0:
                 self.clearMask()
                 raise PyDatViewException('Error: The mask returned no value for table: '+self.nickname)

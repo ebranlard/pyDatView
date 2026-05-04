@@ -82,8 +82,8 @@ def saveAppData(mainFrame, data):
             mainFrame.plotPanel.saveData(data['plotPanel'])
         if hasattr(mainFrame, 'infoPanel'):
             mainFrame.infoPanel.saveData(data['infoPanel'])
-        if hasattr(mainFrame, 'tablist'):
-            mainFrame.tablist.saveOptions(data['loaderOptions'])
+        if hasattr(mainFrame, 'tabList'):
+            mainFrame.tabList.saveOptions(data['loaderOptions'])
         if hasattr(mainFrame, 'pipePanel'):
             mainFrame.pipePanel.saveData(data['pipeline'])
 

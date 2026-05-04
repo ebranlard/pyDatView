@@ -105,13 +105,20 @@ def addTabMask(tab, opts):
 def formatMaskString(df, sMask):
     """ """
     from pydatview.common import no_unit
+    # Detect timestamp columns via dtype rather than df.iloc[0, i]:
+    # iloc[0, i] raises IndexError on empty frames, and is fragile when
+    # the column index isn't a plain RangeIndex.
+    dtypes = df.dtypes
     # TODO Loop on {VAR} instead..
     for i, c_in_df in enumerate(df.columns):
         c_no_unit = no_unit(c_in_df).strip()
         # TODO sort out the mess with asarray (introduced to have and/or
         # as array won't work with date comparison
-        # NOTE: using iloc to avoid duplicates column issue
-        if isinstance(df.iloc[0,i], pd._libs.tslibs.timestamps.Timestamp):
+        try:
+            is_timestamp = pd.api.types.is_datetime64_any_dtype(dtypes.iloc[i])
+        except Exception:
+            is_timestamp = False
+        if is_timestamp:
             sMask=sMask.replace('{'+c_no_unit+'}','df[\''+c_in_df+'\']')
         else:
             sMask=sMask.replace('{'+c_no_unit+'}','np.asarray(df[\''+c_in_df+'\'])')
