@@ -111,10 +111,15 @@ Documentation is scarce for now, but here are some tips for using the program:
  - The modes and fileformat drop down menus at the top can usually be kept on `auto`. If a file cannot be read, pay attention to the file extension used, and possibly select a specific file format in the dropdown menu instead of `auto`. 
  - Above the taskbar is the "Pipeline" which lists the different actions (e.g. binning, filtering, mask) that are applied to the different tables before being plotted. The pipeline actions will be reapplied on reload, and python code for them will be generated when exporting a script.
  - Different plot styling options can be found below the plot area. The button next to the "Save" icon can be used to customize the esthetics of the plot (e.g. fontsize, linewidth, legend location).
- - **Third variable / Color scale**: in the column selection panel, a `Z/C:` dropdown is shown below the X-axis selector. Select any column to use it as a color variable — the plot automatically switches to a scatter plot colored by that column. A control bar appears below the canvas with options for the colormap, a colorbar toggle, and a "3D view" checkbox for a 3D scatter visualization.
+ - **Third variable / Color scale**: in the column selection panel, a `Z/C:` dropdown is shown below the X-axis selector. Select any column to use it as a color variable — the plot automatically switches to a scatter plot colored by that column. A control bar appears below the canvas with options for the colormap, a colorbar toggle, and a "3D view" checkbox for a 3D scatter visualization. In 3D mode, use the *Rotate* toggle button to switch between rotate and pan; the *x-y*, *y-z*, *x-z* buttons snap to orthographic plane views; *Home* resets the camera.
  - Live plotting can be disabled using the check box "Live plot". This is useful when manipulating large datasets, and potentially wanting to delete some columns without plotting them.
  - **Views** allow you to save and restore a complete selection state (tables, channels, plot type, and plot settings). Use the **Views** menu to save the current view under a name; previously saved views appear in the toolbar drop-down and can be restored with one click. Views are stored in the session data and survive a reload. If a table or channel referenced by a saved view is not available at restore time (e.g. file not yet loaded, or a channel was renamed), the view is restored as fully as possible and a warning lists what could not be matched.
  - **Portable views (`.pdvview` files)**: use **Views > Export view to file** to write the current view — including the list of source files and all settings — into a single `.pdvview` JSON file. File paths are stored relative to the view file, so the whole folder can be shared or moved. To reload: drag-and-drop the `.pdvview` file onto pyDatView, or use **Views > Import view from file**. Missing source files are reported; available ones are loaded and the view is restored.
+ - **Background image** (BG toolbar button): load an image from file or paste from clipboard. *Fixed* mode anchors the image to the plot area regardless of zoom/pan; *Moving* mode ties it to data coordinates. Use the Clear option to remove it.
+ - **Manual axis limits**: open the Esthetics panel (button next to the Save icon) to set `xmin`, `xmax`, `ymin`, `ymax` — and `zmin`, `zmax` when a Z variable is active. Leave a field blank for automatic scaling.
+ - **Paste** (`Ctrl+V`): accepts file paths (data files, `.pdvview`, images) or bitmap images from the clipboard. `Shift+Ctrl+V` appends to the current file list instead of replacing it. Pasted files appear in Recent Files.
+ - **Copy** (`Ctrl+C`): context-aware — column panel → selected columns as TSV; tables panel → all columns for selected tables as TSV; plot canvas → PNG bitmap of the figure; stats panel → statistics table.
+ - **Recent Files** (File menu): tracks the last 30 opened data files, imported `.pdvview` files, and exported files for quick re-opening.
  
  
 
@@ -129,6 +134,10 @@ Main features:
 - Export data as csv, or other file formats
 - Save and restore named views (table selection, channels, plot type, and aesthetics)
 - Export/import portable view files (`.pdvview`) that bundle file references and settings; loadable by drag-and-drop
+- Background image overlay behind the plot (Fixed or Moving mode, load from file or paste from clipboard)
+- Manual axis and color-scale limits (`xmin`/`xmax`/`ymin`/`ymax`/`zmin`/`zmax`) in the Esthetics panel
+- Context-aware `Ctrl+C` copy (columns → TSV, plot → PNG, stats → clipboard) and `Ctrl+V` paste (file paths, images)
+- Recent Files submenu (last 30 data files, view files, and exported files)
 
 Different kind of plots:
 - Scatter plots or line plots
@@ -144,8 +153,7 @@ Plot options:
 - Synchronization of the x-axis of the sub-figures while zooming
 - Markers annotations and Measurements
 - Plot styling options
-- **Z/color variable** (third variable): select a Z/C column in the column panel to color scatter points; choose from a range of colormaps (viridis, coolwarm, jet, etc.) and optionally display a colorbar
-- **3D view**: when a Z/C variable is selected, enable the "3D view" checkbox to switch to an interactive 3D scatter plot
+- Z/color variable and 3D scatter: see "Different kind of plots" above
 
 Data manipulation options:
  - Remove columns in a table, add columns using a given formula, and export the table to csv
