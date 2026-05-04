@@ -6,6 +6,7 @@ import dateutil # required by matplotlib
 #from matplotlib import pyplot as plt
 import matplotlib
 import matplotlib.dates as mdates
+import matplotlib.image as mpimg
 # Backends:
 #  ['GTK3Agg', 'GTK3Cairo', 'GTK4Agg', 'GTK4Cairo', 'MacOSX', 'nbAgg', 'QtAgg', 'QtCairo', 'Qt5Agg', 'Qt5Cairo', 'TkAgg', 'TkCairo', 'WebAgg', 'WX', 'WXAgg', 'WXCairo', 'agg', 'cairo', 'pdf', 'pgf', 'ps', 'svg', 'template']
 matplotlib.use('WX') # Important for Windows version of installer. NOTE: changed from Agg to wxAgg, then to WX
@@ -43,6 +44,9 @@ from matplotlib import font_manager
 from pandas.plotting import register_matplotlib_converters
 
 import gc
+
+# Supported image file extensions for background images
+IMAGE_EXTS = ('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')
 
 from pydatview.common import * # unique, CHAR, pretty_date
 from pydatview.plotdata import PlotData, compareMultiplePD 
@@ -766,25 +770,74 @@ class EstheticsPanel(wx.Panel):
             i = 2
         self.cbMS.SetSelection(i)
         self.cbMS.SetToolTip("Size of data point markers")
+        # Axis Limits
+        lbXMin = wx.StaticText(self, -1, 'xmin:')
+        self.tXMin = wx.TextCtrl(self, size=(60, -1), style=wx.TE_PROCESS_ENTER)
+        self.tXMin.SetValue(str(data.get('xmin', '')))
+        self.tXMin.SetToolTip("Minimum x-axis limit (empty = auto)")
+        lbXMax = wx.StaticText(self, -1, 'xmax:')
+        self.tXMax = wx.TextCtrl(self, size=(60, -1), style=wx.TE_PROCESS_ENTER)
+        self.tXMax.SetValue(str(data.get('xmax', '')))
+        self.tXMax.SetToolTip("Maximum x-axis limit (empty = auto)")
+        lbYMin = wx.StaticText(self, -1, 'ymin:')
+        self.tYMin = wx.TextCtrl(self, size=(60, -1), style=wx.TE_PROCESS_ENTER)
+        self.tYMin.SetValue(str(data.get('ymin', '')))
+        self.tYMin.SetToolTip("Minimum y-axis limit (empty = auto)")
+        lbYMax = wx.StaticText(self, -1, 'ymax:')
+        self.tYMax = wx.TextCtrl(self, size=(60, -1), style=wx.TE_PROCESS_ENTER)
+        self.tYMax.SetValue(str(data.get('ymax', '')))
+        self.tYMax.SetToolTip("Maximum y-axis limit (empty = auto)")
+        lbZMin = wx.StaticText(self, -1, 'zmin:')
+        self.tZMin = wx.TextCtrl(self, size=(60, -1), style=wx.TE_PROCESS_ENTER)
+        self.tZMin.SetValue(str(data.get('zmin', '')))
+        self.tZMin.SetToolTip("Minimum z value (empty = auto). 3D: z axis. 2D+Z: color scale lower bound.")
+        lbZMax = wx.StaticText(self, -1, 'zmax:')
+        self.tZMax = wx.TextCtrl(self, size=(60, -1), style=wx.TE_PROCESS_ENTER)
+        self.tZMax.SetValue(str(data.get('zmax', '')))
+        self.tZMax.SetToolTip("Maximum z value (empty = auto). 3D: z axis. 2D+Z: color scale upper bound.")
 
-        # Layout
-        #dummy_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        dummy_sizer = wx.WrapSizer(orient=wx.HORIZONTAL)
-        dummy_sizer.Add(lbFont                ,0, flag = wx.CENTER|wx.LEFT,border = 1)
-        dummy_sizer.Add(self.cbFont           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
-        dummy_sizer.Add(lbLW                  ,0, flag = wx.CENTER|wx.LEFT,border = 5)
-        dummy_sizer.Add(self.cbLW             ,0, flag = wx.CENTER|wx.LEFT,border = 1)
-        dummy_sizer.Add(lbMS                  ,0, flag = wx.CENTER|wx.LEFT,border = 5)
-        dummy_sizer.Add(self.cbMS             ,0, flag = wx.CENTER|wx.LEFT,border = 1)
-        dummy_sizer.Add(lbLegend              ,0, flag = wx.CENTER|wx.LEFT,border = 5)
-        dummy_sizer.Add(self.cbLegend         ,0, flag = wx.CENTER|wx.LEFT,border = 1)
-        dummy_sizer.Add(lbLgdFont             ,0, flag = wx.CENTER|wx.LEFT,border = 5)
-        dummy_sizer.Add(self.cbLgdFont        ,0, flag = wx.CENTER|wx.LEFT,border = 1)
-        self.SetSizer(dummy_sizer)
+        # Layout — single WrapSizer holding both the esthetic controls and
+        # the axis-limit controls. Previously this was a BoxSizer(VERTICAL)
+        # containing two nested WrapSizers, but nested WrapSizers inside a
+        # BoxSizer break the panel's Hide() propagation on first show — the
+        # esthetics panel would leak through as visible on startup — so we
+        # keep a single WrapSizer and let it wrap naturally.
+        self.lbZMin = lbZMin
+        self.lbZMax = lbZMax
+        main_sizer = wx.WrapSizer(orient=wx.HORIZONTAL)
+        main_sizer.Add(lbFont                ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(self.cbFont           ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbLW                  ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.cbLW             ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbMS                  ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.cbMS             ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbLegend              ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.cbLegend         ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbLgdFont             ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.cbLgdFont        ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbXMin                ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.tXMin            ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbXMax                ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.tXMax            ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbYMin                ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.tYMin            ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbYMax                ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.tYMax            ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbZMin                ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.tZMin            ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        main_sizer.Add(lbZMax                ,0, flag = wx.CENTER|wx.LEFT,border = 5)
+        main_sizer.Add(self.tZMax            ,0, flag = wx.CENTER|wx.LEFT,border = 1)
+        self.SetSizer(main_sizer)
         self.Hide()
         # Callbacks
         self.Bind(wx.EVT_COMBOBOX  ,self.onAnyEsthOptionChange)
         self.cbFont.Bind(wx.EVT_COMBOBOX  ,self.onFontOptionChange)
+        self.tXMin.Bind(wx.EVT_TEXT_ENTER, self.onAxisLimitChange)
+        self.tXMax.Bind(wx.EVT_TEXT_ENTER, self.onAxisLimitChange)
+        self.tYMin.Bind(wx.EVT_TEXT_ENTER, self.onAxisLimitChange)
+        self.tYMax.Bind(wx.EVT_TEXT_ENTER, self.onAxisLimitChange)
+        self.tZMin.Bind(wx.EVT_TEXT_ENTER, self.onAxisLimitChange)
+        self.tZMax.Bind(wx.EVT_TEXT_ENTER, self.onAxisLimitChange)
 
         # Store data
         self.data={}
@@ -797,6 +850,38 @@ class EstheticsPanel(wx.Panel):
         matplotlib_rc('font', **{'size':int(self.cbFont.Value) }) # affect all (including ticks)
         self.onAnyEsthOptionChange()
 
+    def onAxisLimitChange(self, event=None):
+        if self.parent.cbAutoScale.IsChecked():
+            self.parent.cbAutoScale.SetValue(False)
+        self.parent.redraw_same_data()
+
+    def getAxisLimits(self):
+        """Return axis limit values. Empty/invalid fields become None."""
+        def _parse(tc):
+            v = tc.GetValue().strip()
+            if v == '':
+                return None
+            try:
+                return float(v)
+            except ValueError:
+                return None
+        return {
+            'xmin': _parse(self.tXMin),
+            'xmax': _parse(self.tXMax),
+            'ymin': _parse(self.tYMin),
+            'ymax': _parse(self.tYMax),
+            'zmin': _parse(self.tZMin),
+            'zmax': _parse(self.tZMax),
+        }
+
+    def showZLimits(self, show):
+        """Show or hide the z-axis limit fields."""
+        self.lbZMin.Show(show)
+        self.tZMin.Show(show)
+        self.lbZMax.Show(show)
+        self.tZMax.Show(show)
+        self.Layout()
+
     def _GUI2Data(self):
         """ data['plotStyle'] """
         self.data['Font']           = int(self.cbFont.GetValue())
@@ -804,6 +889,12 @@ class EstheticsPanel(wx.Panel):
         self.data['LegendPosition'] = self.cbLegend.GetValue()
         self.data['LineWidth']      = float(self.cbLW.GetValue())
         self.data['MarkerSize']     = float(self.cbMS.GetValue())
+        self.data['xmin']           = self.tXMin.GetValue()
+        self.data['xmax']           = self.tXMax.GetValue()
+        self.data['ymin']           = self.tYMin.GetValue()
+        self.data['ymax']           = self.tYMax.GetValue()
+        self.data['zmin']           = self.tZMin.GetValue()
+        self.data['zmax']           = self.tZMax.GetValue()
         return self.data
 
 
@@ -857,7 +948,14 @@ class PlotPanel(wx.Panel):
         self.markers = [] # List of GUIMeasures
         self.xlim_prev = [[0, 1]]
         self.ylim_prev = [[0, 1]]
+        self.zlim_prev = []      # per-axis z-limits for 3D axes; None otherwise
+        self.view3d_prev = []    # per-axis (elev, azim) for 3D axes; None otherwise
         self.addTablesCallback = None
+        self._bg_image = None    # numpy array for background image
+        self._bg_glued = False   # True = 'Moving with axes' (glued to data coords);
+                                 # False = 'Fixed' (fills current plot view, default)
+        self._bg_extent = None   # [xmin, xmax, ymin, ymax] in data coords, captured
+                                 # when entering 'Moving with axes' mode
 
         # --- GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
@@ -873,6 +971,7 @@ class PlotPanel(wx.Panel):
         self.navTBBottom = MyNavigationToolbar2Wx(self.canvas, ['Subplots', 'Save'], plotPanel=self)
         TBAddCheckTool(self.navTBBottom,'', icons.chart.GetBitmap(), self.onEsthToggle)
         self.esthToggle=False
+        TBAddTool(self.navTBBottom, 'BG', callback=self.onBgMenu)
 
         self.navTBBottom.Realize()
 
@@ -901,6 +1000,7 @@ class PlotPanel(wx.Panel):
 
         # --- Esthetics panel
         self.esthPanel = EstheticsPanel(self, data=self.data['plotStyle'])
+        self.esthPanel.showZLimits(False)  # hidden until a Z variable is selected
 
 
         # --- Ctrl Panel
@@ -1042,22 +1142,32 @@ class PlotPanel(wx.Panel):
         self.slEsth = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
         self.slEsth.Hide()
         sl1 = wx.StaticLine(self, -1, size=wx.Size(-1,1), style=wx.LI_HORIZONTAL)
-        plotsizer.Add(self.toolSizer  ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.toolSizer  ,0,flag = wx.EXPAND|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.canvas     ,1,flag = wx.EXPAND,border = 5 )
         plotsizer.Add(sl1             ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(self.spcPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.pdfPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.cmpPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.mmxPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.polPanel   ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
-        plotsizer.Add(self.colorPanel ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.spcPanel   ,0,flag = wx.EXPAND|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.pdfPanel   ,0,flag = wx.EXPAND|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.cmpPanel   ,0,flag = wx.EXPAND|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.mmxPanel   ,0,flag = wx.EXPAND|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.polPanel   ,0,flag = wx.EXPAND|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.colorPanel ,0,flag = wx.EXPAND|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.slEsth     ,0,flag = wx.EXPAND,border = 0)
-        plotsizer.Add(self.esthPanel  ,0,flag = wx.EXPAND|wx.CENTER|wx.TOP|wx.BOTTOM,border = 10)
+        plotsizer.Add(self.esthPanel  ,0,flag = wx.EXPAND|wx.TOP|wx.BOTTOM,border = 10)
         plotsizer.Add(self.slCtrl     ,0,flag = wx.EXPAND,border = 0)
         plotsizer.Add(row_sizer       ,0,flag = wx.EXPAND|wx.NORTH ,border = 2)
 
         self.SetSizer(plotsizer)
         self.plotsizer=plotsizer;
+        # Explicitly hide optional panels via the sizer. Each panel calls
+        # self.Hide() at the end of its own __init__, but on some platforms
+        # that pre-Add state is not reliably honored by the sizer once the
+        # parent first lays itself out, so the panels would briefly appear
+        # on first open. Hiding via the sizer after SetSizer makes it stick.
+        for _p in (self.spcPanel, self.pdfPanel, self.cmpPanel, self.mmxPanel,
+                   self.polPanel, self.colorPanel, self.esthPanel,
+                   self.slEsth, self.slCtrl):
+            plotsizer.Hide(_p)
+        plotsizer.Layout()
 #         self.setSubplotSpacing(init=True)
 
     # --- Bindings/callback
@@ -1200,6 +1310,15 @@ class PlotPanel(wx.Panel):
         data['flipY']     = self.cbFlipY.IsChecked()
         # R8 – Plot matrix
         data['plotMatrix'] = self.cbPlotMatrix.IsChecked()
+        # R9 – Axis limits
+        data['axisLimits'] = {
+            'xmin': self.esthPanel.tXMin.GetValue(),
+            'xmax': self.esthPanel.tXMax.GetValue(),
+            'ymin': self.esthPanel.tYMin.GetValue(),
+            'ymax': self.esthPanel.tYMax.GetValue(),
+            'zmin': self.esthPanel.tZMin.GetValue(),
+            'zmax': self.esthPanel.tZMax.GetValue(),
+        }
         return data
 
     def restoreViewData(self, data):
@@ -1359,6 +1478,14 @@ class PlotPanel(wx.Panel):
                 self.polPanel.cbPolarAbout.SetSelection(_pol_about.index(pol.get('About', _pol_about[0])))
             except ValueError:
                 pass
+        # R9 – Axis limits
+        axisLimits = data.get('axisLimits', {})
+        self.esthPanel.tXMin.SetValue(str(axisLimits.get('xmin', '')))
+        self.esthPanel.tXMax.SetValue(str(axisLimits.get('xmax', '')))
+        self.esthPanel.tYMin.SetValue(str(axisLimits.get('ymin', '')))
+        self.esthPanel.tYMax.SetValue(str(axisLimits.get('ymax', '')))
+        self.esthPanel.tZMin.SetValue(str(axisLimits.get('zmin', '')))
+        self.esthPanel.tZMax.SetValue(str(axisLimits.get('zmax', '')))
 
     @staticmethod
     def defaultData():
@@ -1371,6 +1498,12 @@ class PlotPanel(wx.Panel):
         plotStyle['LegendPosition'] = 'Upper right'
         plotStyle['LineWidth']      = '1.5'
         plotStyle['MarkerSize']     = '2'
+        plotStyle['xmin']           = ''
+        plotStyle['xmax']           = ''
+        plotStyle['ymin']           = ''
+        plotStyle['ymax']           = ''
+        plotStyle['zmin']           = ''
+        plotStyle['zmax']           = ''
         data['plotStyle']= plotStyle
         return data
 
@@ -1386,6 +1519,117 @@ class PlotPanel(wx.Panel):
         self.plotsizer.Layout()
         self.Thaw()
         event.Skip()
+
+    # --- Background image
+    def onBgMenu(self, event):
+        """Show popup menu with background image options."""
+        menu = wx.Menu()
+        m1 = menu.Append(wx.ID_ANY, 'Load from file...')
+        m2 = menu.Append(wx.ID_ANY, 'Paste from clipboard')
+        menu.AppendSeparator()
+        m3 = menu.Append(wx.ID_ANY, 'Clear background')
+        m3.Enable(self._bg_image is not None)
+        menu.AppendSeparator()
+        # Mode toggle: radio items — only one can be active at a time.
+        mFixed  = menu.AppendRadioItem(wx.ID_ANY, 'Fixed (default)')
+        mMoving = menu.AppendRadioItem(wx.ID_ANY, 'Moving with axes')
+        mFixed.Enable(self._bg_image is not None)
+        mMoving.Enable(self._bg_image is not None)
+        if self._bg_image is not None:
+            if self._bg_glued:
+                mMoving.Check(True)
+            else:
+                mFixed.Check(True)
+        self.Bind(wx.EVT_MENU, self.onLoadBgImage,  m1)
+        self.Bind(wx.EVT_MENU, self.onPasteBgImage, m2)
+        self.Bind(wx.EVT_MENU, self.onClearBgImage, m3)
+        self.Bind(wx.EVT_MENU, self.onBgModeFixed,  mFixed)
+        self.Bind(wx.EVT_MENU, self.onBgModeMoving, mMoving)
+        self.PopupMenu(menu)
+        menu.Destroy()
+
+    def _setBgImage(self, img_array):
+        """Install a new background image without touching any GUI setting.
+
+        The image is shown filling the current plot area ('Fixed' mode), so
+        AutoScale, axis limits and other plot options are left exactly as the
+        user had them.
+        """
+        self._bg_image = img_array
+        self._bg_glued = False
+        self._bg_extent = None
+        self.redraw_same_data()
+
+    def onLoadBgImage(self, event):
+        """Load a background image from file."""
+        exts_pattern = ';'.join('*' + e for e in IMAGE_EXTS)
+        wildcard = 'Image files ({0})|{0}|All files (*.*)|*.*'.format(exts_pattern)
+        with wx.FileDialog(self, 'Load background image', wildcard=wildcard,
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                return
+            path = dlg.GetPath()
+        try:
+            img = mpimg.imread(path)
+            self._setBgImage(img)
+            # Track in the Recent Files menu
+            top = self.GetTopLevelParent()
+            if hasattr(top, '_track_recent'):
+                top._track_recent(path)
+        except Exception as e:
+            Error(self, 'Failed to load image:\n{}'.format(str(e)))
+
+    def onPasteBgImage(self, event):
+        """Paste a background image from the clipboard."""
+        bmp_data = wx.BitmapDataObject()
+        success = False
+        if wx.TheClipboard.Open():
+            success = wx.TheClipboard.GetData(bmp_data)
+            wx.TheClipboard.Close()
+        if not success:
+            Warn(self, 'No image found in clipboard.')
+            return
+        bmp = bmp_data.GetBitmap()
+        img = bmp.ConvertToImage()
+        width, height = img.GetWidth(), img.GetHeight()
+        buf = bytes(img.GetDataBuffer())
+        arr = np.frombuffer(buf, dtype=np.uint8).reshape(height, width, 3).copy()
+        # Normalize to 0-1 float for matplotlib
+        self._setBgImage(arr.astype(np.float64) / 255.0)
+
+    def onClearBgImage(self, event):
+        """Remove the background image."""
+        self._bg_image = None
+        self.redraw_same_data()
+
+    def onBgModeFixed(self, event):
+        """'Fixed' mode: the image always fills the current plot view.
+
+        The axes pan/zoom/rescale freely; the image extent is recomputed on
+        every redraw so it keeps covering the visible area. No GUI settings
+        are changed when entering this mode.
+        """
+        self._bg_glued = False
+        self._bg_extent = None
+        self.redraw_same_data()
+
+    def onBgModeMoving(self, event):
+        """'Moving with axes' mode: the image is glued to data coordinates.
+
+        We capture the current xlim/ylim as the image's data-coord extent;
+        from now on the image is rendered at those data points, so pan/zoom
+        moves the image along with the data. We deliberately do NOT toggle
+        AutoScale or any other GUI setting — the image-to-data relation is
+        preserved regardless.
+        """
+        if len(self.fig.axes) == 0:
+            return
+        ax = self.fig.axes[0]
+        xlim = ax.get_xlim_()
+        ylim = ax.get_ylim_()
+        self._bg_extent = [min(xlim), max(xlim), min(ylim), max(ylim)]
+        self._bg_glued = True
+        self.redraw_same_data()
 
     def setSubplotSpacing(self, init=False, tight=False):
         """ 
@@ -1848,6 +2092,8 @@ class PlotPanel(wx.Panel):
             self.colorPanel.Show()
         else:
             self.colorPanel.Hide()
+        # Show z-limit fields when a Z variable is present (3D or color-mapped 2D)
+        self.esthPanel.showZLimits(hasZ)
         # Adapt the curve-type combo for 2D+Z (only when not already in 3D mode)
         self.setZMode(hasZ and not self.colorPanel.cb3D.IsChecked())
         self.plotsizer.Layout()
@@ -2091,13 +2337,45 @@ class PlotPanel(wx.Panel):
             # Set limit before plot when possible, for optimization
             self.set_axes_lim(PD, ax_left, plotType)
 
+            # Draw background image if present (not supported on 3D axes)
+            if self._bg_image is not None:
+                if not hasattr(ax_left, 'set_zlim'):
+                    if self._bg_glued and self._bg_extent is not None:
+                        # Moving-with-axes: image is glued to data coords
+                        ax_left.imshow(self._bg_image, extent=self._bg_extent,
+                                       aspect='auto', zorder=0, interpolation='bilinear',
+                                       origin='upper')
+                    else:
+                        # Fixed (default): image fills the current view.
+                        # Use standard get_xlim/get_ylim (not swap-aware) because
+                        # imshow() is not overridden by SwappyAxes and uses
+                        # standard data-space coordinates.
+                        xlim = ax_left.get_xlim()
+                        ylim = ax_left.get_ylim()
+                        bg_ext = [xlim[0], xlim[1], ylim[0], ylim[1]]
+                        bg_artist = ax_left.imshow(
+                            self._bg_image, extent=bg_ext,
+                            aspect='auto', zorder=0, interpolation='bilinear',
+                            origin='upper')
+                        # Keep the image filling the visible area during
+                        # interactive pan / zoom by updating its extent
+                        # whenever the axis limits change.
+                        def _on_lim_changed(ax, _a=bg_artist, _s=self):
+                            if _s._bg_glued or _a.axes is None:
+                                return
+                            xl = ax.get_xlim()
+                            yl = ax.get_ylim()
+                            _a.set_extent([xl[0], xl[1], yl[0], yl[1]])
+                        ax_left.callbacks.connect('xlim_changed', _on_lim_changed)
+                        ax_left.callbacks.connect('ylim_changed', _on_lim_changed)
+
             # Actually plot
             if self.infoPanel is not None:
                 pm = self.infoPanel.getPlotMatrix(PD, self.cbSub.IsChecked())
             else:
                 pm = None
-            __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, plot_options)
-            ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, plot_options)
+            __, bAllNegLeft        = self.plotSignals(ax_left, axis_idx, PD, pm, 1, plot_options, autoscale=autoscale)
+            ax_right, bAllNegRight = self.plotSignals(ax_left, axis_idx, PD, pm, 2, plot_options, autoscale=autoscale)
 
             # Log Axes
             if plot_options['logX'] and not hasattr(ax_left, 'set_zlim'):
@@ -2128,8 +2406,51 @@ class PlotPanel(wx.Panel):
                             pass
 
             if not autoscale:
-                # We force the limits to be the same as before
-                self._restore_limits()
+                user_lim = self.esthPanel.getAxisLimits()
+                has_user_lim = any(v is not None for v in user_lim.values())
+                if has_user_lim:
+                    # User specified at least one limit: start from data-computed
+                    # limits (already set by set_axes_lim), override with user values
+                    for ax_i in axes:
+                        cur_xlim = list(ax_i.get_xlim_())
+                        cur_ylim = list(ax_i.get_ylim_())
+                        if user_lim['xmin'] is not None:
+                            cur_xlim[0] = user_lim['xmin']
+                        if user_lim['xmax'] is not None:
+                            cur_xlim[1] = user_lim['xmax']
+                        if user_lim['ymin'] is not None:
+                            cur_ylim[0] = user_lim['ymin']
+                        if user_lim['ymax'] is not None:
+                            cur_ylim[1] = user_lim['ymax']
+                        ax_i.set_xlim_(cur_xlim)
+                        ax_i.set_ylim_(cur_ylim)
+                        # Z-axis limits (3D only). In log-z 3D mode the z
+                        # values are plotted in log10 space, so the user's
+                        # limits (entered in data space) must also be
+                        # log-transformed to match.
+                        if hasattr(ax_i, 'set_zlim'):
+                            if user_lim['zmin'] is not None or user_lim['zmax'] is not None:
+                                cur_zlim = list(ax_i.get_zlim())
+                                u_zmin = user_lim['zmin']
+                                u_zmax = user_lim['zmax']
+                                if plot_options.get('logZ', False):
+                                    with np.errstate(divide='ignore', invalid='ignore'):
+                                        if u_zmin is not None and u_zmin > 0:
+                                            u_zmin = float(np.log10(u_zmin))
+                                        elif u_zmin is not None:
+                                            u_zmin = None
+                                        if u_zmax is not None and u_zmax > 0:
+                                            u_zmax = float(np.log10(u_zmax))
+                                        elif u_zmax is not None:
+                                            u_zmax = None
+                                if u_zmin is not None:
+                                    cur_zlim[0] = u_zmin
+                                if u_zmax is not None:
+                                    cur_zlim[1] = u_zmax
+                                ax_i.set_zlim(cur_zlim)
+                else:
+                    # No user limits: restore previous zoom/pan state
+                    self._restore_limits()
             elif self.pltTypePanel.cbFFT.GetValue():
                 # XLIM - TODO FFT ONLY NASTY
                 try:
@@ -2174,6 +2495,11 @@ class PlotPanel(wx.Panel):
                 ax_left.invert_xaxis()
             if plot_options['flipY']:
                 ax_left.invert_yaxis()
+            if plot_options.get('flipZ', False) and hasattr(ax_left, 'invert_zaxis'):
+                try:
+                    ax_left.invert_zaxis()
+                except Exception:
+                    pass
 
             # TODO put this in set_axes_lim
             if plotType=='Compare':
@@ -2264,7 +2590,7 @@ class PlotPanel(wx.Panel):
             except Exception:
                 pass
 
-    def plotSignals(self, ax, axis_idx, PD, pm, left_right, opts):
+    def plotSignals(self, ax, axis_idx, PD, pm, left_right, opts, autoscale=True):
         axis = None
         bAllNeg = True
         if pm is None:
@@ -2283,6 +2609,10 @@ class PlotPanel(wx.Panel):
 
         # --- Pre-compute shared Z normalisation across all Z-coloured signals on this axis
         # This ensures consistent colours and a single correct colorbar for all signals.
+        # NOTE: z_norm must be built regardless of `showColorBar`, because it
+        # also controls the color mapping of the scatter/surf calls. If we
+        # only built it when the colorbar is on, disabling the colorbar would
+        # silently drop the user's zmin/zmax limits.
         z_norm = None
         z_label_combined = ''
         _z_signals_pd = []   # PlotData objects that will be plotted with Z coloring
@@ -2293,27 +2623,78 @@ class PlotPanel(wx.Panel):
             )
             if will_plot:
                 pd_i = PD[signal_idx]
-                if pd_i.z is not None and not pd_i.zIsString:
+                # Only include Z-coloured signals where the Z array still
+                # aligns with the plotted X/Y. After FFT/PDF/MinMax/Polar
+                # transforms, pd.x and pd.y are reshaped (often shorter) but
+                # pd.z is left at its original length. Plotting colour in
+                # that case would error silently and leave a stray colorbar.
+                if (pd_i.z is not None
+                        and not pd_i.zIsString
+                        and not getattr(pd_i, 'zIsDate', False)
+                        and hasattr(pd_i, 'x') and pd_i.x is not None
+                        and len(pd_i.z) == len(pd_i.x)):
                     _z_signals_pd.append(pd_i)
 
-        if _z_signals_pd and showColorBar:
+        if _z_signals_pd:
             import matplotlib.colors as mcolors
-            import matplotlib.cm as mcm
             all_z_parts = []
             z_label_parts = []
             for pd_i in _z_signals_pd:
                 z_vals = np.asarray(pd_i.z, dtype=float)
-                if logZ and use3D:
+                if logZ:
                     with np.errstate(divide='ignore', invalid='ignore'):
                         z_vals = np.log10(z_vals)
                 all_z_parts.append(z_vals)
                 z_label_parts.append(pd_i.sz)
             all_z = np.concatenate(all_z_parts)
             finite_z = all_z[np.isfinite(all_z)]
+            # Start from data-driven vmin/vmax (if any finite data)
+            z_vmin = None
+            z_vmax = None
             if len(finite_z) > 0:
-                z_norm = mcolors.Normalize(vmin=np.min(finite_z), vmax=np.max(finite_z))
+                z_vmin = float(np.min(finite_z))
+                z_vmax = float(np.max(finite_z))
+            # Override with user-specified z-limits if provided.
+            # Only honored when AutoScale is off, matching the x/y/z handling
+            # in plot_all(); otherwise stale values in the zmin/zmax fields
+            # would desynchronise the colorbar from the data-driven axes.
+            # In log-z mode the data was transformed with log10 above, so
+            # the user's limits (entered in data space) must also be log10'd.
+            if not autoscale:
+                user_lim = self.esthPanel.getAxisLimits()
+                u_zmin = user_lim['zmin']
+                u_zmax = user_lim['zmax']
+                if logZ:
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        if u_zmin is not None and u_zmin > 0:
+                            u_zmin = float(np.log10(u_zmin))
+                        elif u_zmin is not None:
+                            u_zmin = None  # invalid: drop
+                        if u_zmax is not None and u_zmax > 0:
+                            u_zmax = float(np.log10(u_zmax))
+                        elif u_zmax is not None:
+                            u_zmax = None  # invalid: drop
+                if u_zmin is not None:
+                    z_vmin = u_zmin
+                if u_zmax is not None:
+                    z_vmax = u_zmax
+            # Ensure a valid pair. Handle edge cases:
+            # - inverted user limits (zmin > zmax): swap silently
+            # - constant Z data (zmin == zmax): pad by a small epsilon so
+            #   Normalize doesn't collapse to a single colour
+            if z_vmin is not None and z_vmax is not None:
+                if z_vmin > z_vmax:
+                    z_vmin, z_vmax = z_vmax, z_vmin
+                if z_vmin == z_vmax:
+                    eps = max(abs(z_vmin), 1.0) * 1e-6
+                    z_vmin -= eps
+                    z_vmax += eps
+                z_norm = mcolors.Normalize(vmin=z_vmin, vmax=z_vmax)
+            elif z_vmin is not None or z_vmax is not None:
+                # Partial limits — build norm with what we have
+                z_norm = mcolors.Normalize(vmin=z_vmin, vmax=z_vmax)
             z_label_combined = ' / '.join(unique(z_label_parts))
-            if logZ and use3D:
+            if logZ:
                 z_label_combined = 'log\u2081\u2080(' + z_label_combined + ')'
 
         iPlot = -1
@@ -2333,7 +2714,13 @@ class PlotPanel(wx.Panel):
             pd=PD[signal_idx]
             if do_plot:
                 iPlot+=1
-                hasZ = pd.z is not None and not pd.zIsString
+                # Only treat as Z-coloured if z is present AND aligned with x
+                # (transforms like FFT/PDF reshape x but not z).
+                hasZ = (pd.z is not None
+                        and not pd.zIsString
+                        and not getattr(pd, 'zIsDate', False)
+                        and pd.x is not None
+                        and len(pd.z) == len(pd.x))
                 if hasZ and use3D:
                     # 3D plot: x, y, z as spatial axes
                     # Apply log-z via data transformation (Axes3D does not support set_zscale)
@@ -2341,11 +2728,10 @@ class PlotPanel(wx.Panel):
                     if logZ:
                         with np.errstate(divide='ignore', invalid='ignore'):
                             z_plot = np.log10(z_plot)
-                    if flipZ:
-                        try:
-                            axis.invert_zaxis()
-                        except Exception:
-                            pass
+                    # NOTE: flipZ is applied once per axis after the signal
+                    # loop, NOT here. invert_zaxis() toggles state, so calling
+                    # it per-signal would cancel out for an even number of
+                    # Z-coloured signals.
                     try:
                         if plot3DType == 'Surf':
                             sc = axis.plot_trisurf(pd.x, pd.y, z_plot, cmap=colormap, alpha=0.85,
@@ -2364,11 +2750,15 @@ class PlotPanel(wx.Panel):
                         pass
                 elif hasZ:
                     # 2D scatter coloured by Z variable – use shared norm for consistent colours
+                    z_color = np.asarray(pd.z, dtype=float)
+                    if logZ:
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            z_color = np.log10(z_color)
                     try:
                         if opts.get('plot2DZType') == 'Scatter+Line':
                             axis.plot(pd.x, pd.y, color='#808080', alpha=0.4,
                                       lw=opts['lw'], zorder=1)
-                        sc = axis.scatter(pd.x, pd.y, c=pd.z, cmap=colormap,
+                        sc = axis.scatter(pd.x, pd.y, c=z_color, cmap=colormap,
                                           label=pd.syl, s=opts['ms']**2, norm=z_norm, zorder=2)
                     except Exception:
                         try:
@@ -2397,8 +2787,16 @@ class PlotPanel(wx.Panel):
                     except:
                         pass # Dates or strings
 
-        # --- Single colorbar for all Z-coloured signals on this axis
-        if showColorBar and _z_signals_pd and not _colorbar_added:
+        # --- Single colorbar for all Z-coloured signals on this axis.
+        # Skip when z_norm is None (no finite z data and no user limits),
+        # otherwise ScalarMappable would build a misleading default 0..1 bar.
+        # Also skip when plotSignals already added one on this physical
+        # subplot (e.g. twinx right axis coming in after the left axis).
+        # Both bars would crowd the same subplot with effectively the same
+        # information for the user.
+        already = getattr(ax, '_colorbar_added', False)
+        if (showColorBar and _z_signals_pd and not _colorbar_added
+                and z_norm is not None and axis is not None and not already):
             try:
                 import matplotlib.cm as mcm, matplotlib.colors as mcolors
                 sm = mcm.ScalarMappable(norm=z_norm, cmap=colormap)
@@ -2408,6 +2806,10 @@ class PlotPanel(wx.Panel):
                 else:
                     self.fig.colorbar(sm, ax=axis, label=z_label_combined)
                 _colorbar_added = True
+                try:
+                    ax._colorbar_added = True
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -2669,6 +3071,8 @@ class PlotPanel(wx.Panel):
     def _store_limits(self):
         self.xlim_prev = []
         self.ylim_prev = []
+        self.zlim_prev = []
+        self.view3d_prev = []
         for ax in self.fig.axes:
             try:
                 self.xlim_prev.append(ax.get_xlim_())
@@ -2676,14 +3080,60 @@ class PlotPanel(wx.Panel):
             except AttributeError:
                 self.xlim_prev.append((0, 1))
                 self.ylim_prev.append((0, 1))
+            # Capture 3D-only state so redraws don't silently discard it.
+            if hasattr(ax, 'set_zlim'):
+                try:
+                    self.zlim_prev.append(tuple(ax.get_zlim()))
+                except Exception:
+                    self.zlim_prev.append(None)
+            else:
+                self.zlim_prev.append(None)
+            if hasattr(ax, 'view_init'):
+                try:
+                    self.view3d_prev.append((float(ax.elev), float(ax.azim)))
+                except Exception:
+                    self.view3d_prev.append(None)
+            else:
+                self.view3d_prev.append(None)
+        # Mirror the latest interactive rotation back into the pending slots
+        # so that the next set_subplots (which rebuilds the 3D axes from
+        # scratch) keeps the user's view angle instead of snapping back to
+        # matplotlib's default. Only copy the first 3D axis — that's what the
+        # existing view-save path does.
+        for vs in self.view3d_prev:
+            if vs is not None:
+                try:
+                    self.colorPanel._pending_elev = vs[0]
+                    self.colorPanel._pending_azim = vs[1]
+                except Exception:
+                    pass
+                break
 
     def _restore_limits(self):
-        for ax, xlim, ylim in zip(self.fig.axes, self.xlim_prev, self.ylim_prev):
+        axes = list(self.fig.axes)
+        for i, ax in enumerate(axes):
+            if i >= len(self.xlim_prev):
+                break
             try:
-                ax.set_xlim_(xlim)
-                ax.set_ylim_(ylim)
+                ax.set_xlim_(self.xlim_prev[i])
+                ax.set_ylim_(self.ylim_prev[i])
             except AttributeError:
                 pass
+            if (hasattr(ax, 'set_zlim')
+                    and i < len(self.zlim_prev)
+                    and self.zlim_prev[i] is not None):
+                try:
+                    ax.set_zlim(self.zlim_prev[i])
+                except Exception:
+                    pass
+            if (hasattr(ax, 'view_init')
+                    and i < len(self.view3d_prev)
+                    and self.view3d_prev[i] is not None):
+                try:
+                    elev, azim = self.view3d_prev[i]
+                    ax.view_init(elev=elev, azim=azim)
+                except Exception:
+                    pass
 
 if __name__ == '__main__':
     import pandas as pd;
