@@ -34,6 +34,7 @@ from pydatview.GUISelectionPanel import ColumnPopup,TablePopup
 from pydatview.GUISelectionPanel import _tab_shortname
 from pydatview.GUIPipelinePanel import PipelinePanel
 from pydatview.GUIToolBox import GetKeyString, TBAddTool
+from pydatview.GUIPlotPanel import IMAGE_EXTS
 from pydatview.Tables import TableList, Table
 # Helper
 from pydatview.common import exception2string, PyDatViewException
@@ -66,8 +67,20 @@ VIEW_FILE_EXT = '.pdvview'  # Extension for exported view files
 
 
 
+def _toCell(v):
+    """Format a single value for TSV clipboard output."""
+    if v is None:
+        return ''
+    try:
+        if isinstance(v, float):
+            return repr(v)
+        return str(v)
+    except Exception:
+        return ''
+
+
 # --------------------------------------------------------------------------------}
-# --- Drag and drop 
+# --- Drag and drop
 # --------------------------------------------------------------------------------{
 # Implement File Drop Target class
 class FileDropTarget(wx.FileDropTarget):
@@ -80,16 +93,8 @@ class FileDropTarget(wx.FileDropTarget):
       filenames.sort()
       if len(filenames) == 0:
           return True
-      # View files are handled separately
-      view_files = [f for f in filenames if f.lower().endswith(VIEW_FILE_EXT)]
-      data_files  = [f for f in filenames if not f.lower().endswith(VIEW_FILE_EXT)]
-      if view_files:
-          self.parent.load_view_file(view_files[0])
-      elif data_files:
-          bAdd = wx.GetKeyState(wx.WXK_CONTROL)
-          iFormat = self.parent.comboFormats.GetSelection()
-          Format = None if iFormat == 0 else self.parent.FILE_FORMATS[iFormat-1]
-          self.parent.load_files(data_files, fileformats=[Format]*len(data_files), bAdd=bAdd, bPlot=True)
+      bAdd = wx.GetKeyState(wx.WXK_CONTROL)
+      self.parent._routeFilenames(filenames, bAdd=bAdd)
       return True
 
 
@@ -149,6 +154,12 @@ class MainFrame(wx.Frame):
         loadMenuItem  = fileMenu.Append(wx.ID_NEW,"&Open file\tCtrl+O" ,"Open file"           )
         reloadMenuItem= fileMenu.Append(wx.ID_ANY,"&Reload\tCtrl+R"    ,"Reload current files" )
         addMenuItem   = fileMenu.Append(wx.ID_ANY,"&Add file\tCtrl+A"  ,"Add file to current data" )
+        # Menu label has no accelerator — Ctrl+V/Ctrl+C are routed via
+        # EVT_CHAR_HOOK so TextCtrls keep native clipboard behavior. Adding
+        # the shortcut here as a menu accelerator would steal paste from the
+        # filter box and axis-limit text fields.
+        pasteMenuItem = fileMenu.Append(wx.ID_ANY,"&Paste (Ctrl+V)"    ,"Paste files, view, or image from clipboard (Shift+Ctrl+V to add)")
+        copyMenuItem  = fileMenu.Append(wx.ID_ANY,"&Copy (Ctrl+C)"     ,"Copy current selection or plot to clipboard")
         self.recentFilesMenu = wx.Menu()
         fileMenu.AppendSubMenu(self.recentFilesMenu, 'Recent Files')
         fileMenu.AppendSeparator()
@@ -157,13 +168,15 @@ class MainFrame(wx.Frame):
         saveMenuItem  = fileMenu.Append(wx.ID_SAVE,"Save figure" ,"Save figure"           )
         exitMenuItem  = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
         menuBar.Append(fileMenu, "&File")
-        self.Bind(wx.EVT_MENU,self.onExit   ,exitMenuItem)
-        self.Bind(wx.EVT_MENU,self.onLoad   ,loadMenuItem)
-        self.Bind(wx.EVT_MENU,self.onReload ,reloadMenuItem)
-        self.Bind(wx.EVT_MENU,self.onAdd    ,addMenuItem)
-        self.Bind(wx.EVT_MENU,self.onScript ,scrpMenuItem)
-        self.Bind(wx.EVT_MENU,self.onExport ,exptMenuItem)
-        self.Bind(wx.EVT_MENU,self.onSave   ,saveMenuItem)
+        self.Bind(wx.EVT_MENU,self.onExit       ,exitMenuItem)
+        self.Bind(wx.EVT_MENU,self.onLoad       ,loadMenuItem)
+        self.Bind(wx.EVT_MENU,self.onReload     ,reloadMenuItem)
+        self.Bind(wx.EVT_MENU,self.onAdd        ,addMenuItem)
+        self.Bind(wx.EVT_MENU,self.onPasteGlobal,pasteMenuItem)
+        self.Bind(wx.EVT_MENU,self.onCopyGlobal ,copyMenuItem)
+        self.Bind(wx.EVT_MENU,self.onScript     ,scrpMenuItem)
+        self.Bind(wx.EVT_MENU,self.onExport     ,exptMenuItem)
+        self.Bind(wx.EVT_MENU,self.onSave       ,saveMenuItem)
 
         # --- Data Plugins
         # NOTE: very important, need "s_loc" otherwise the lambda function take the last toolName
@@ -312,11 +325,301 @@ class MainFrame(wx.Frame):
             (wx.ACCEL_CTRL, ord('F'), idFilter),
         ])
         self.SetAcceleratorTable(accel_tbl)
+        # Ctrl+V / Ctrl+C via EVT_CHAR_HOOK so TextCtrls keep native behavior
+        self._lastActive = None
+        self._focusTrackingInstalled = False
+        self.Bind(wx.EVT_CHAR_HOOK, self.onCharHook)
 
     def onFilter(self,event):
         if hasattr(self,'selPanel'):
             self.selPanel.colPanel1.tFilter.SetFocus()
         event.Skip()
+
+    # --------------------------------------------------------------------------------
+    # --- Keyboard shortcuts: Ctrl+V paste, Ctrl+C context-aware copy
+    # --------------------------------------------------------------------------------
+    def onCharHook(self, event):
+        """Frame-level key dispatcher. Defers to TextCtrl/ComboBox natively."""
+        key = event.GetKeyCode()
+        ctrl = event.ControlDown() or event.CmdDown()
+        if not ctrl or key not in (ord('C'), ord('V')):
+            event.Skip()
+            return
+        # Don't steal Ctrl+C/V from native text widgets
+        focus = wx.Window.FindFocus()
+        if isinstance(focus, (wx.TextCtrl, wx.SearchCtrl, wx.ComboBox)):
+            event.Skip()
+            return
+        if key == ord('V'):
+            self.onPasteGlobal(event)
+        else:
+            self.onCopyGlobal(event)
+
+    def _routeFilenames(self, filenames, bAdd=False):
+        """Split filenames into view/image/data files and dispatch each.
+
+        Used by both drag-and-drop and Ctrl+V paste so both paths behave the
+        same way. All files loaded are tracked in the Recent Files menu via
+        the loaders they hit.
+        """
+        filenames = [f for f in filenames if not os.path.isdir(f)]
+        if not filenames:
+            return 0, 0, 0
+        view_files  = [f for f in filenames if f.lower().endswith(VIEW_FILE_EXT)]
+        image_files = [f for f in filenames if f.lower().endswith(IMAGE_EXTS)]
+        data_files  = [f for f in filenames
+                       if not f.lower().endswith(VIEW_FILE_EXT)
+                       and not f.lower().endswith(IMAGE_EXTS)]
+        # View file: only the first is meaningful
+        if view_files:
+            self.load_view_file(view_files[0])
+        # Image files: each becomes a background
+        for p in image_files:
+            self._loadBgImageFromPath(p)
+        # Data files: one batched call
+        if data_files:
+            iFormat = self.comboFormats.GetSelection()
+            Format = None if iFormat == 0 else self.FILE_FORMATS[iFormat-1]
+            self.load_files(data_files, fileformats=[Format]*len(data_files),
+                            bAdd=bAdd, bPlot=True)
+        return len(view_files), len(image_files), len(data_files)
+
+    def _loadBgImageFromPath(self, path):
+        """Load an image file as plot background and track in recent files."""
+        if not hasattr(self, 'plotPanel'):
+            Warn(self, 'Plot panel not ready yet — load a data file first.')
+            return False
+        try:
+            import matplotlib.image as mpimg
+            img = mpimg.imread(path)
+        except Exception as e:
+            Error(self, 'Failed to load image:\n{}'.format(str(e)))
+            return False
+        self.plotPanel._setBgImage(img)
+        self._track_recent(path)
+        return True
+
+    def onPasteGlobal(self, event):
+        """Ctrl+V: paste files, view file, or image from the clipboard."""
+        bAdd = wx.GetKeyState(wx.WXK_SHIFT)
+        if not wx.TheClipboard.Open():
+            Warn(self, 'Could not open clipboard.')
+            return
+        try:
+            # 1) File paths
+            file_data = wx.FileDataObject()
+            if wx.TheClipboard.GetData(file_data):
+                filenames = list(file_data.GetFilenames())
+                if filenames:
+                    nv, ni, nd = self._routeFilenames(filenames, bAdd=bAdd)
+                    parts = []
+                    if nv: parts.append('{} view file'.format(nv))
+                    if ni: parts.append('{} image{}'.format(ni, '' if ni==1 else 's'))
+                    if nd: parts.append('{} data file{}'.format(nd, '' if nd==1 else 's'))
+                    if parts:
+                        self.statusbar.SetStatusText('Pasted ' + ', '.join(parts), ISTAT)
+                    return
+            # 2) Bitmap from clipboard (e.g. a screenshot)
+            bmp_data = wx.BitmapDataObject()
+            if wx.TheClipboard.GetData(bmp_data):
+                if hasattr(self, 'plotPanel'):
+                    # Close here so onPasteBgImage can re-open the clipboard
+                    wx.TheClipboard.Close()
+                    self.plotPanel.onPasteBgImage(None)
+                    self.statusbar.SetStatusText(
+                        'Pasted background image from clipboard', ISTAT)
+                    return
+                else:
+                    Warn(self, 'Plot panel not ready yet — load a data file first.')
+                    return
+            # 3) Text — maybe a file path
+            text_data = wx.TextDataObject()
+            if wx.TheClipboard.GetData(text_data):
+                text = text_data.GetText().strip().strip('"').strip("'")
+                if text and os.path.isfile(text):
+                    nv, ni, nd = self._routeFilenames([text], bAdd=bAdd)
+                    if (nv + ni + nd) > 0:
+                        self.statusbar.SetStatusText(
+                            'Pasted "{}"'.format(os.path.basename(text)), ISTAT)
+                        return
+            Warn(self, 'Clipboard has no supported content (files, image, or path).')
+        finally:
+            try:
+                wx.TheClipboard.Close()
+            except Exception:
+                pass
+
+    def _ensureFocusTracking(self):
+        """Install EVT_SET_FOCUS handlers on the widgets that Ctrl+C dispatches on."""
+        if self._focusTrackingInstalled:
+            return
+        if not (hasattr(self, 'selPanel') and hasattr(self, 'plotPanel')
+                and hasattr(self, 'infoPanel')):
+            return
+        def _setActive(key):
+            def handler(event):
+                self._lastActive = key
+                event.Skip()
+            return handler
+        try:
+            for cp in (getattr(self.selPanel, 'colPanel1', None),
+                       getattr(self.selPanel, 'colPanel2', None),
+                       getattr(self.selPanel, 'colPanel3', None)):
+                if cp is not None and hasattr(cp, 'lbColumns'):
+                    cp.lbColumns.Bind(wx.EVT_SET_FOCUS, _setActive('columns'))
+            tp = getattr(self.selPanel, 'tabPanel', None)
+            if tp is not None and hasattr(tp, 'lbTab'):
+                tp.lbTab.Bind(wx.EVT_SET_FOCUS, _setActive('tables'))
+            if hasattr(self.infoPanel, 'tbStats'):
+                self.infoPanel.tbStats.Bind(wx.EVT_SET_FOCUS, _setActive('stats'))
+            canvas = getattr(self.plotPanel, 'canvas', None)
+            if canvas is not None:
+                canvas.Bind(wx.EVT_SET_FOCUS, _setActive('plot'))
+                canvas.Bind(wx.EVT_LEFT_DOWN, lambda e: (
+                    setattr(self, '_lastActive', 'plot'), e.Skip()))
+            self._focusTrackingInstalled = True
+        except Exception as e:
+            print('[WARN] Failed to install focus tracking: {}'.format(e))
+
+    def _inferLastActive(self):
+        """Fallback — walk the focused widget's parents to infer the pane."""
+        focus = wx.Window.FindFocus()
+        w = focus
+        while w is not None:
+            if hasattr(self, 'infoPanel') and w is self.infoPanel:
+                return 'stats'
+            if hasattr(self, 'plotPanel') and w is self.plotPanel:
+                return 'plot'
+            if hasattr(self, 'selPanel') and w is self.selPanel:
+                tp = getattr(self.selPanel, 'tabPanel', None)
+                # If focus is inside tabPanel, treat as tables; else columns
+                w2 = focus
+                while w2 is not None:
+                    if w2 is tp:
+                        return 'tables'
+                    w2 = w2.GetParent()
+                return 'columns'
+            w = w.GetParent()
+        return None
+
+    def onCopyGlobal(self, event):
+        """Ctrl+C: copy based on the last focused/clicked pane."""
+        if not hasattr(self, 'plotPanel'):
+            return
+        active = self._lastActive or self._inferLastActive()
+        if active == 'stats' and hasattr(self, 'infoPanel'):
+            self.infoPanel.CopyToClipBoard(event)
+            self.statusbar.SetStatusText('Copied stats to clipboard', ISTAT)
+            return
+        if active == 'columns':
+            self._copyColumnsSelection()
+            return
+        if active == 'tables':
+            self._copyTablesSelection()
+            return
+        if active == 'plot':
+            self._copyPlotBitmap()
+            return
+        Warn(self, 'Click a pane (columns, tables, plot, or stats) first, then Ctrl+C.')
+
+    def _copyColumnsSelection(self):
+        """Copy X, selected Y (and Z if set) columns for each selected table."""
+        if not hasattr(self, 'selPanel'):
+            return
+        ITab, _ = self.selPanel.getSelectedTables()
+        if not ITab:
+            Warn(self, 'No tables selected.')
+            return
+        cp = self.selPanel.colPanel1
+        iX, IY, sX, SY = cp.getColumnSelection()
+        try:
+            iZ, sZ = cp.getZColumnSelection()
+        except Exception:
+            iZ, sZ = -1, ''
+        col_indices = [iX] + list(IY)
+        if iZ >= 0 and iZ not in col_indices:
+            col_indices.append(iZ)
+        if not col_indices:
+            Warn(self, 'No columns selected.')
+            return
+        self._copyTablesColumnsToClipboard(ITab, col_indices,
+                                           context='columns')
+
+    def _copyTablesSelection(self):
+        """Copy all columns for each selected table."""
+        if not hasattr(self, 'selPanel'):
+            return
+        ITab, _ = self.selPanel.getSelectedTables()
+        if not ITab:
+            Warn(self, 'No tables selected.')
+            return
+        self._copyTablesColumnsToClipboard(ITab, None, context='tables')
+
+    def _copyTablesColumnsToClipboard(self, ITab, col_indices, context='columns'):
+        """Build a tab-separated grid of selected columns and copy it."""
+        try:
+            headers = []
+            columns = []  # list of string-lists
+            for iTab in ITab:
+                try:
+                    tab = self.tabList[iTab]
+                except Exception:
+                    continue
+                tab_name = getattr(tab, 'active_name', None) or getattr(tab, 'raw_name', '') or 'table'
+                if col_indices is None:
+                    ncols = len(tab.data.columns)
+                    idxs = list(range(ncols))
+                else:
+                    idxs = [i for i in col_indices if 0 <= i < len(tab.data.columns)]
+                for i in idxs:
+                    try:
+                        x, _isStr, _isDate, c = tab.getColumn(i)
+                    except Exception:
+                        continue
+                    col_name = str(tab.data.columns[i])
+                    headers.append('{}:{}'.format(tab_name, col_name))
+                    columns.append([_toCell(v) for v in x])
+            if not columns:
+                Warn(self, 'Nothing to copy.')
+                return
+            nrows = max(len(c) for c in columns)
+            lines = ['\t'.join(headers)]
+            for r in range(nrows):
+                row = [(columns[c][r] if r < len(columns[c]) else '')
+                       for c in range(len(columns))]
+                lines.append('\t'.join(row))
+            text = '\n'.join(lines)
+            if wx.TheClipboard.Open():
+                try:
+                    wx.TheClipboard.SetData(wx.TextDataObject(text))
+                finally:
+                    wx.TheClipboard.Close()
+            self.statusbar.SetStatusText(
+                'Copied {} tables x {} columns'.format(len(ITab), len(columns)),
+                ISTAT)
+        except Exception as e:
+            Error(self, 'Failed to copy to clipboard:\n{}'.format(str(e)))
+
+    def _copyPlotBitmap(self):
+        """Copy the current plot figure to the clipboard as a bitmap."""
+        if not hasattr(self, 'plotPanel'):
+            return
+        try:
+            import io as _io
+            buf = _io.BytesIO()
+            self.plotPanel.fig.savefig(buf, format='png',
+                                       dpi=self.plotPanel.fig.dpi)
+            buf.seek(0)
+            img = wx.Image(buf, wx.BITMAP_TYPE_PNG)
+            bmp = img.ConvertToBitmap()
+            if wx.TheClipboard.Open():
+                try:
+                    wx.TheClipboard.SetData(wx.BitmapDataObject(bmp))
+                finally:
+                    wx.TheClipboard.Close()
+            self.statusbar.SetStatusText('Copied figure to clipboard', ISTAT)
+        except Exception as e:
+            Error(self, 'Failed to copy figure to clipboard:\n{}'.format(str(e)))
 
     def clean_memory(self,bReload=False):
         #print('Clean memory')
@@ -384,6 +687,7 @@ class MainFrame(wx.Frame):
         # Load tables into the GUI
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=bPlot)
+            self._ensureFocusTracking()
 
     def load_dfs(self, dfs, names=None, bAdd=False, bPlot=True):
         """ Load one or multiple dataframes intoGUI """
@@ -398,6 +702,7 @@ class MainFrame(wx.Frame):
         self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
+        self._ensureFocusTracking()
 
     def load_tabs_into_GUI(self, bReload=False, bAdd=False, bPlot=True):
         if self.nb.GetPageCount()==0:
@@ -901,9 +1206,18 @@ class MainFrame(wx.Frame):
             emptyItem.Enable(False)
         else:
             for path in recent:
-                item = self.recentFilesMenu.Append(wx.ID_ANY, path)
-                if path.endswith(VIEW_FILE_EXT):
+                low = path.lower()
+                if low.endswith(VIEW_FILE_EXT):
+                    label = '[view] {}'.format(path)
+                elif low.endswith(IMAGE_EXTS):
+                    label = '[bg] {}'.format(path)
+                else:
+                    label = path
+                item = self.recentFilesMenu.Append(wx.ID_ANY, label)
+                if low.endswith(VIEW_FILE_EXT):
                     self.Bind(wx.EVT_MENU, lambda e, p=path: self.load_view_file(p), item)
+                elif low.endswith(IMAGE_EXTS):
+                    self.Bind(wx.EVT_MENU, lambda e, p=path: self._loadBgImageFromPath(p), item)
                 else:
                     self.Bind(wx.EVT_MENU, lambda e, p=path: self.load_files([p]), item)
 
