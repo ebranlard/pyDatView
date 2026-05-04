@@ -79,9 +79,16 @@ class MultiSplit(MultiSplitterWindow):
             w.Hide()
 
     def onParentChangeSize(self, Event=None):
-        # Keep panels at their current pixel widths (don't scale).
-        # The last panel absorbs any extra space automatically.
-        pass
+        # Re-apply stored widths (or fall back to equal split) when the
+        # MultiSplit is resized. Needed both for the initial layout (when
+        # the MultiSplit first gets its real size from its parent) and
+        # for mode switches that append/detach panels while the splitter
+        # is visible. The outer vSplitter's gravity=0 already keeps the
+        # SelectionPanel width fixed on window resize, so this handler
+        # mostly just fires during startup.
+        self._restorePanelWidths()
+        if Event is not None:
+            Event.Skip()
 
     def setEquiSash(self, event=None):
         if self.nWindows > 0:

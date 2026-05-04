@@ -17,6 +17,28 @@ SEL_MODES_ID = ['auto','sameColumnsMode','simColumnsMode','twoColumnsMode'  ,'th
 MAX_X_COLUMNS=300 # Maximum number of columns used in combo box of the x-axis (for performance)
 
 
+class _ClampedListBox(wx.ListBox):
+    """wx.ListBox whose best size doesn't balloon with long item text.
+
+    Default wx.ListBox.DoGetBestSize() returns a size based on the widest
+    item's text and the item count. Via GetEffectiveMinSize this propagates
+    up to the parent panel, past any SetMinSize cap, and can push the
+    selection panel wider than the splitter's configured sash position.
+    Clamp the best size here to a small fixed value so the container's
+    layout is driven by the splitter, not by the list contents.
+    """
+    def DoGetBestSize(self):
+        return wx.Size(50, 80)
+
+
+class _ClampedComboBox(wx.ComboBox):
+    """wx.ComboBox whose best width doesn't balloon with long item text."""
+    def DoGetBestSize(self):
+        sz = wx.ComboBox.DoGetBestSize(self)
+        # Clamp width; keep the natural height so the dropdown still renders.
+        return wx.Size(50, sz.height)
+
+
 def _tab_shortname(tab):
     """Return a path-independent key for a table: basename[|sheetname].
 
@@ -702,7 +724,7 @@ class TablePanel(wx.Panel):
         tb.Bind(wx.EVT_BUTTON, self.showTableMenu, self.bt)
         tb.Realize() 
         #label = wx.StaticText( self, -1, 'Tables: ')
-        self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
+        self.lbTab=_ClampedListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
         self.lbTab.SetFont(getMonoFont(self))
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(tb, 0, flag=wx.EXPAND,border=5)
@@ -778,13 +800,16 @@ class ColumnPanel(wx.Panel):
         self.Bind(wx.EVT_TEXT_ENTER, self.onFilterChange, self.tFilter )
         self.tFilter.Bind(wx.EVT_TEXT, self._onFilterText, self.tFilter)
         #
-        self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
+        # Use clamped subclasses so long column names don't inflate the
+        # widgets' best size and push the selection panel past the
+        # splitter's sash position.
+        self.comboX = _ClampedComboBox(self, choices=[], style=wx.CB_READONLY)
         self.comboX.SetFont(getMonoFont(self))
-        self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
+        self.lbColumns = _ClampedListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
         self.lbColumns.SetFont(getMonoFont(self))
         # Z/Color variable selector
         self.lbZ = wx.StaticText(self, -1, 'z-axis:')
-        self.comboZ = wx.ComboBox(self, choices=['None'], style=wx.CB_READONLY)
+        self.comboZ = _ClampedComboBox(self, choices=['None'], style=wx.CB_READONLY)
         self.comboZ.SetFont(getMonoFont(self))
         self.comboZ.SetSelection(0)
         # Events
@@ -1153,7 +1178,7 @@ class ColumnPanel(wx.Panel):
 
     def onFilterKey(self, event=None):
         s=GetKeyString(event)
-        if s=='ESCAPE' or s=='Ctrl+C':
+        if s=='ESCAPE':
             self.onClearFilter()
         event.Skip()
 
