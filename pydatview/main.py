@@ -127,7 +127,6 @@ class MainFrame(wx.Frame):
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
         # --- Data
-        self.restore_formulas = []
         self.systemFontSize = self.GetFont().GetPointSize()
         self.data = loadAppData(self)
         self.tabList=TableList(options=self.data['loaderOptions'])
@@ -1308,12 +1307,6 @@ class MainFrame(wx.Frame):
         self.data['views'] = views
         self._populateViewsUI()
         self.statusbar.SetStatusText('View "{}" saved.'.format(name), ISTAT)
-
-    def onRestoreViewFromCombo(self, event=None):
-        """Restore the view selected in the toolbar combobox"""
-        name = self.comboViews.GetStringSelection()
-        if name:
-            self.onRestoreView(name)
 
     def onRestoreView(self, name):
         """Restore the named view"""

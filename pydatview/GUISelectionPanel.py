@@ -1063,7 +1063,7 @@ class ColumnPanel(wx.Panel):
                         self.lbColumns.EnsureVisible(iFilt)
         else:
             for iFilt in ySel:
-                if iFilt>=0 and iFilt<=len(columnsY):
+                if iFilt>=0 and iFilt<len(columnsY):
                     self.lbColumns.SetSelection(iFilt)
                     self.lbColumns.EnsureVisible(iFilt)
 

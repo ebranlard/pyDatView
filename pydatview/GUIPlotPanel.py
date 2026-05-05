@@ -1280,7 +1280,8 @@ class PlotPanel(wx.Panel):
             'MarkerSize':     self.esthPanel.cbMS.GetValue(),
         }
         data['view3D']      = self.colorPanel.cb3D.IsChecked()
-        data['plot3D_type'] = self.colorPanel.cbPlot3D.GetValue()
+        # Use cbCurveType (the live widget) not the always-hidden cbPlot3D
+        data['plot3D_type'] = self.cbCurveType.GetValue() if data['view3D'] else 'Scatter'
         # Camera angle for 3D view
         elev, azim = None, None
         for ax in self.fig.axes:
@@ -1350,7 +1351,7 @@ class PlotPanel(wx.Panel):
         plotStyle = data.get('plotStyle', {})
         if plotStyle:
             fontChoices = ['6','7','8','9','10','11','12','13','14','15','16','17','18']
-            LWChoices   = ['0.5','1.0','1.25','1.5','2.0','2.5','3.0']
+            LWChoices   = ['0.5','1.0','1.25','1.5','1.75','2.0','2.5','3.0']
             MSChoices   = ['0.5','1','2','3','4','5','6','7','8']
             lbChoices   = ['None','Upper right','Upper left','Lower left','Lower right','Right','Center left','Center right','Lower center','Upper center','Center']
             try:

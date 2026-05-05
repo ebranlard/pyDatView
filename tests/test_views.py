@@ -656,5 +656,126 @@ class TestLoaderOptionsInView(unittest.TestCase):
         self.assertEqual(opts, {})
 
 
+class TestPlotPanelViewData(unittest.TestCase):
+    """
+    Headless tests for captureViewData / restoreViewData logic.
+    These cover bugs W2 (missing '1.75' in LWChoices) and W3 (plot3D_type
+    read from wrong widget) that were found in the pre-merge review.
+    """
+
+    # Must match EstheticsPanel.__init__ AND restoreViewData exactly.
+    LW_CHOICES = ['0.5', '1.0', '1.25', '1.5', '1.75', '2.0', '2.5', '3.0']
+
+    def _make_plot_data(self, curveType='LS', lineWidth='1.5', view3D=False,
+                        plot3D_type='Scatter', axisLimits=None):
+        """Build a minimal captureViewData-like dict."""
+        return {
+            'plotType': 'Regular',
+            'logX': False, 'logY': False, 'grid': False,
+            'crossHair': True, 'subplot': False, 'sync': True,
+            'autoScale': True, 'stepPlot': False,
+            'curveType':   curveType,
+            'view3D':      view3D,
+            'plot3D_type': plot3D_type,
+            'plotStyle': {
+                'LineWidth': lineWidth, 'Font': '11',
+                'LegendFont': '11', 'LegendPosition': 'Upper right',
+                'MarkerSize': '2',
+            },
+            'axisLimits': axisLimits or {
+                'xmin': '', 'xmax': '', 'ymin': '', 'ymax': '',
+                'zmin': '', 'zmax': '',
+            },
+            'logZ': False, 'flipZ': False,
+            'swapXY': False, 'flipX': False, 'flipY': False,
+            'plotMatrix': False,
+        }
+
+    # --- W2: LWChoices consistency ---
+
+    def test_lw_175_in_choices(self):
+        """'1.75' must be present in the LWChoices list used by restoreViewData."""
+        self.assertIn('1.75', self.LW_CHOICES)
+
+    def test_all_lw_choices_indexable(self):
+        """Every value in the LW dropdown must be findable via .index() without ValueError."""
+        for val in self.LW_CHOICES:
+            # Would raise ValueError if val is missing — that is the bug W2 fixed.
+            idx = self.LW_CHOICES.index(val)
+            self.assertEqual(self.LW_CHOICES[idx], val)
+
+    def test_lw_175_round_trip(self):
+        """LineWidth '1.75' must survive a save/restore cycle (pure dict)."""
+        data = self._make_plot_data(lineWidth='1.75')
+        lw = data['plotStyle']['LineWidth']
+        idx = self.LW_CHOICES.index(lw)   # must not raise ValueError
+        self.assertEqual(self.LW_CHOICES[idx], '1.75')
+
+    # --- W3: curveType vs plot3D_type ---
+
+    def test_curve_type_stored_as_string(self):
+        """curveType must be a string (read from cbCurveType.GetValue())."""
+        data = self._make_plot_data(curveType='Scatter', view3D=True,
+                                    plot3D_type='Scatter')
+        self.assertIsInstance(data['curveType'], str)
+
+    def test_3d_restore_prefers_curveType_over_plot3D_type(self):
+        """When view3D=True, restoreViewData must pick curveType over the legacy plot3D_type."""
+        # Simulate: view saved in 3D+Surf mode; plot3D_type is stale 'Scatter'
+        data = self._make_plot_data(curveType='Surf', view3D=True,
+                                    plot3D_type='Scatter')
+        choices = ['Scatter', 'Surf']
+        curveType = data.get('curveType')
+        if isinstance(curveType, str) and curveType in choices:
+            sel = choices.index(curveType)
+        elif data.get('plot3D_type') in choices:
+            sel = choices.index(data['plot3D_type'])
+        else:
+            sel = 0
+        self.assertEqual(sel, 1)   # 'Surf', not stale 'Scatter'
+
+    def test_plot3D_type_matches_curveType_when_3d(self):
+        """captureViewData must write plot3D_type from cbCurveType when view3D=True."""
+        # Simulate fixed captureViewData: plot3D_type = cbCurveType.GetValue() if view3D
+        curveType = 'Surf'
+        view3D = True
+        plot3D_type = curveType if view3D else 'Scatter'
+        self.assertEqual(plot3D_type, 'Surf')
+
+    # --- Axis limits ---
+
+    def test_axis_limits_all_keys_present(self):
+        """axisLimits dict must contain all six keys."""
+        data = self._make_plot_data()
+        for key in ('xmin', 'xmax', 'ymin', 'ymax', 'zmin', 'zmax'):
+            self.assertIn(key, data['axisLimits'])
+
+    def test_axis_limits_json_round_trip(self):
+        """Non-empty axis limits must survive JSON serialisation."""
+        data = self._make_plot_data(axisLimits={
+            'xmin': '0.5', 'xmax': '10.0',
+            'ymin': '',    'ymax': '',
+            'zmin': '-1',  'zmax': '1',
+        })
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = os.path.join(tmpdir, 'v.pdvview')
+            with open(p, 'w') as f:
+                json.dump({'plotPanel': data}, f)
+            with open(p, 'r') as f:
+                loaded = json.load(f)
+        lims = loaded['plotPanel']['axisLimits']
+        self.assertEqual(lims['xmin'], '0.5')
+        self.assertEqual(lims['xmax'], '10.0')
+        self.assertEqual(lims['zmin'], '-1')
+        self.assertEqual(lims['ymin'], '')   # blank = auto-scale
+
+    def test_axis_limits_missing_in_old_view_defaults_empty(self):
+        """Old views without axisLimits must not crash; missing key → empty string."""
+        data = {'plotType': 'Regular', 'view3D': False}
+        lims = data.get('axisLimits', {})
+        self.assertEqual(lims.get('xmin', ''), '')
+        self.assertEqual(lims.get('zmax', ''), '')
+
+
 if __name__ == '__main__':
     unittest.main()

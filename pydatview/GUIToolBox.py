@@ -31,9 +31,8 @@ def GetKeyString(evt):
     return modifiers + keyname
 
 # --------------------------------------------------------------------------------}
-# --- Toolbar utils for backwards compatibilty 
+# --- Toolbar utils for backwards compatibilty
 # --------------------------------------------------------------------------------{
-    """ """
 
 
 def TBAddCheckTool(tb,label,bitmap,callback=None,bitmap2=None):
@@ -245,7 +244,6 @@ class NavigationToolbar2WxSubTools(NavigationToolbar2Wx):
     def __init__(self, canvas, keep_tools):
         # Taken from matplotlib/backend_wx.py but added style:
         self.VERSION = matplotlib.__version__
-        print('MPL VERSION:',self.VERSION)
         if self.VERSION[0]=='2' or self.VERSION[0]=='1': 
             wx.ToolBar.__init__(self, canvas.GetParent(), -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
             NavigationToolbar2.__init__(self, canvas)
