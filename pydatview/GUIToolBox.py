@@ -336,7 +336,7 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
                 pass
 
     def _toggle_rotate(self, event=None):
-        """Toggle rotate mode on/off. When on: drag rotates 3D axes; zoom/pan disabled."""
+        """Toggle rotate mode on/off. When on: drag rotates 3D axes; when off: left-drag pans."""
         self.rotate_on = not self.rotate_on
         if self.rotate_on:
             # Deactivate pan if active
@@ -355,8 +355,10 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
                 except Exception:
                     pass
         else:
-            # Restore zoom mode
-            NavigationToolbar2.zoom(self)
+            # Activate pan mode when leaving rotate so left-drag pans (matches tooltip)
+            if not self.pan_on:
+                self.pan_on = True
+                NavigationToolbar2.pan(self)
         if self._rotate_tool_id is not None:
             self.ToggleTool(self._rotate_tool_id, self.rotate_on)
 
