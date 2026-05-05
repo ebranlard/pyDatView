@@ -73,6 +73,24 @@ def _find_tab_by_key(tab_list, key):
     return None
 
 
+def _unique_tab_keys(tab_list):
+    """Return {tab.name: key} for every table in tab_list.
+
+    Uses the shortname (basename-only, portable) when it is unique across all
+    loaded tables.  Falls back to the full tab.name when two or more tables
+    share the same shortname (e.g. same-named files from different directories)
+    so that each table gets a distinct key and no saved entry is silently
+    overwritten.
+    """
+    from collections import Counter
+    shortnames = [_tab_shortname(t) for t in tab_list]
+    counts = Counter(shortnames)
+    return {
+        t.name: (sn if counts[sn] == 1 else t.name)
+        for t, sn in zip(tab_list, shortnames)
+    }
+
+
 def ireplace(text, old, new):
     """ Replace case insensitive """
     try:
@@ -1665,10 +1683,13 @@ class SelectionPanel(wx.Panel):
         self.saveSelection()  # ensure internal state is up-to-date
         ISel = self.tabSelected
         state = {}
-        # Save which tables are selected – store shortname (basename only) so
-        # the view file is portable across directories.
-        state['tabSelectedNames'] = [_tab_shortname(self.tabList[i]) for i in ISel if i < self.tabList.len()]
-        # Save column selections keyed by shortname, storing BOTH index and name
+        # Build per-table keys: shortname when unique, full name when two tables
+        # share the same basename (avoids silently overwriting saved entries).
+        tab_keys = _unique_tab_keys(self.tabList)
+        # Save which tables are selected using the same portable/unique keys.
+        state['tabSelectedNames'] = [tab_keys[self.tabList[i].name] for i in ISel if i < self.tabList.len()]
+        # Save column selections keyed by the portable/unique key, storing BOTH
+        # index and name so restore is resilient to column reordering.
         tabSelectionsFull = {}
         for k, v in self.tabSelections.items():
             tab = next((t for t in self.tabList if t.name == k), None)
@@ -1685,8 +1706,8 @@ class SelectionPanel(wx.Panel):
                 zSel = v.get('zSel', 0)
                 zColIdx = zSel - 1  # convert comboZ index to column index
                 zName = cols[zColIdx] if 0 <= zColIdx < len(cols) else None
-            short_k = _tab_shortname(tab) if tab is not None else k
-            tabSelectionsFull[short_k] = {
+            key = tab_keys.get(tab.name, k) if tab is not None else k
+            tabSelectionsFull[key] = {
                 'xSel':   v['xSel'],
                 'ySel':   list(v['ySel']),
                 'zSel':   v.get('zSel', 0),
@@ -1727,7 +1748,7 @@ class SelectionPanel(wx.Panel):
         formulas_state = {}
         for tab in self.tabList:
             if tab.formulas:
-                formulas_state[_tab_shortname(tab)] = sorted(tab.formulas, key=lambda f: f['pos'])
+                formulas_state[tab_keys[tab.name]] = sorted(tab.formulas, key=lambda f: f['pos'])
         state['formulas'] = formulas_state
         return state
 

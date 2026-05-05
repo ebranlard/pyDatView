@@ -777,5 +777,87 @@ class TestPlotPanelViewData(unittest.TestCase):
         self.assertEqual(lims.get('zmax', ''), '')
 
 
+class TestUniqueTabKeys(unittest.TestCase):
+    """Regression: same-basename tables from different dirs must get distinct keys."""
+
+    def _make_tab(self, name, filename):
+        """Minimal stand-in for a Table object."""
+        class FakeTab:
+            pass
+        t = FakeTab()
+        t.name = name
+        t.filename = filename
+        return t
+
+    def _tab_shortname(self, tab):
+        """Mirror of GUISelectionPanel._tab_shortname."""
+        if not getattr(tab, 'filename', ''):
+            return tab.name
+        basename = os.path.splitext(os.path.basename(tab.filename))[0]
+        parts = tab.name.split('|')
+        try:
+            idx = parts.index(basename)
+            return '|'.join(parts[idx:])
+        except ValueError:
+            return parts[-1]
+
+    def _unique_tab_keys(self, tab_list):
+        """Mirror of GUISelectionPanel._unique_tab_keys."""
+        from collections import Counter
+        shortnames = [self._tab_shortname(t) for t in tab_list]
+        counts = Counter(shortnames)
+        return {
+            t.name: (sn if counts[sn] == 1 else t.name)
+            for t, sn in zip(tab_list, shortnames)
+        }
+
+    def test_distinct_basenames_use_shortnames(self):
+        """Different basenames → each tab gets its unique shortname."""
+        t1 = self._make_tab('|dir|alpha', '/dir/alpha.csv')
+        t2 = self._make_tab('|dir|beta',  '/dir/beta.csv')
+        keys = self._unique_tab_keys([t1, t2])
+        self.assertEqual(keys[t1.name], 'alpha')
+        self.assertEqual(keys[t2.name], 'beta')
+
+    def test_same_basename_uses_full_name(self):
+        """Same basename in different dirs → fall back to full tab.name to avoid collision."""
+        t1 = self._make_tab('|dir1|data', '/dir1/data.csv')
+        t2 = self._make_tab('|dir2|data', '/dir2/data.csv')
+        keys = self._unique_tab_keys([t1, t2])
+        # Keys must be distinct
+        self.assertNotEqual(keys[t1.name], keys[t2.name])
+        # Each key must identify its table (either by shortname or full name)
+        self.assertEqual(keys[t1.name], t1.name)
+        self.assertEqual(keys[t2.name], t2.name)
+
+    def test_same_basename_keys_are_unique_in_saved_dict(self):
+        """Simulates the captureViewState loop: no entry must be overwritten."""
+        t1 = self._make_tab('|dir1|data', '/dir1/data.csv')
+        t2 = self._make_tab('|dir2|data', '/dir2/data.csv')
+        tab_keys = self._unique_tab_keys([t1, t2])
+
+        fake_selections = {
+            t1.name: {'xSel': 0, 'ySel': [1], 'zSel': 2},
+            t2.name: {'xSel': 0, 'ySel': [2], 'zSel': 3},
+        }
+        saved = {}
+        for k, v in fake_selections.items():
+            key = tab_keys.get(k, k)
+            saved[key] = dict(v)
+
+        self.assertEqual(len(saved), 2, 'Both tables must have separate entries')
+        # t1 entry should have ySel=[1], t2 entry ySel=[2]
+        entry1 = saved[tab_keys[t1.name]]
+        entry2 = saved[tab_keys[t2.name]]
+        self.assertEqual(entry1['ySel'], [1])
+        self.assertEqual(entry2['ySel'], [2])
+
+    def test_single_table_still_uses_shortname(self):
+        """With only one table per basename, shortname is used (portable)."""
+        t = self._make_tab('|somepath|run', '/somepath/run.csv')
+        keys = self._unique_tab_keys([t])
+        self.assertEqual(keys[t.name], 'run')
+
+
 if __name__ == '__main__':
     unittest.main()
