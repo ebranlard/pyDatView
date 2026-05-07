@@ -1701,56 +1701,50 @@ class PlotPanel(wx.Panel):
     def onBgModeFixed(self, event):
         """'Fixed' mode: the image always fills the current plot view.
 
-        The axes pan/zoom/rescale freely; the image extent is recomputed on
-        every redraw so it keeps covering the visible area. No GUI settings
-        are changed when entering this mode.
+        Toggling mode does NOT replot — that would go through plot_all /
+        set_axes_lim and reset the user's zoom/pan when AutoScale is on.
+        Instead, locate the existing bg image artist on each axis, retarget
+        its extent to the current view, and flip the _bg_glued flag. The
+        xlim_changed/ylim_changed callback registered when the artist was
+        created already keeps the extent in sync going forward (it early-
+        returns while _bg_glued is True).
         """
-        view = self._capture_current_view()
         self._bg_glued = False
         self._bg_extent = None
-        self.redraw_same_data()
-        self._apply_view(view)
+        if self._bg_image is None:
+            return
+        for ax in self.fig.axes:
+            if hasattr(ax, 'set_zlim'):  # 3D: no bg image
+                continue
+            xl = ax.get_xlim()
+            yl = ax.get_ylim()
+            for img in list(ax.images):
+                if getattr(img, '_is_pydatview_bg', False):
+                    img.set_extent([xl[0], xl[1], yl[0], yl[1]])
+        self.canvas.draw_idle()
 
     def onBgModeMoving(self, event):
         """'Moving with axes' mode: the image is glued to data coordinates.
 
-        We capture the current xlim/ylim as the image's data-coord extent;
-        from now on the image is rendered at those data points, so pan/zoom
-        moves the image along with the data. We deliberately do NOT toggle
-        AutoScale or any other GUI setting — the image-to-data relation is
-        preserved regardless.
+        Capture the current xlim/ylim of the first axis as the image's data-
+        coord extent and freeze the existing bg artists at that extent. The
+        already-registered xlim_changed/ylim_changed callback early-returns
+        while _bg_glued is True, so the image stays put as the user pans/
+        zooms. No replot, no AutoScale or other GUI setting is touched.
         """
-        if len(self.fig.axes) == 0:
+        if len(self.fig.axes) == 0 or self._bg_image is None:
             return
         ax = self.fig.axes[0]
         xlim = ax.get_xlim_()
         ylim = ax.get_ylim_()
         self._bg_extent = [min(xlim), max(xlim), min(ylim), max(ylim)]
         self._bg_glued = True
-        view = self._capture_current_view()
-        self.redraw_same_data()
-        self._apply_view(view)
-
-    def _capture_current_view(self):
-        view = []
-        for ax in self.fig.axes:
-            try:
-                view.append((ax.get_xlim_(), ax.get_ylim_()))
-            except AttributeError:
-                view.append(None)
-        return view
-
-    def _apply_view(self, view):
-        if not view:
-            return
-        for ax, lims in zip(self.fig.axes, view):
-            if lims is None:
+        for ax_i in self.fig.axes:
+            if hasattr(ax_i, 'set_zlim'):
                 continue
-            try:
-                ax.set_xlim_(lims[0])
-                ax.set_ylim_(lims[1])
-            except AttributeError:
-                pass
+            for img in list(ax_i.images):
+                if getattr(img, '_is_pydatview_bg', False):
+                    img.set_extent(self._bg_extent)
         self.canvas.draw_idle()
 
     def setSubplotSpacing(self, init=False, tight=False):
@@ -2462,34 +2456,36 @@ class PlotPanel(wx.Panel):
             # Draw background image if present (not supported on 3D axes)
             if self._bg_image is not None:
                 if not hasattr(ax_left, 'set_zlim'):
+                    # Use standard get_xlim/get_ylim (not swap-aware) because
+                    # imshow() is not overridden by SwappyAxes and uses
+                    # standard data-space coordinates.
                     if self._bg_glued and self._bg_extent is not None:
-                        # Moving-with-axes: image is glued to data coords
-                        ax_left.imshow(self._bg_image, extent=self._bg_extent,
-                                       aspect='auto', zorder=0, interpolation='bilinear',
-                                       origin='upper')
+                        # Moving-with-axes: image is glued to captured data coords
+                        bg_ext = list(self._bg_extent)
                     else:
                         # Fixed (default): image fills the current view.
-                        # Use standard get_xlim/get_ylim (not swap-aware) because
-                        # imshow() is not overridden by SwappyAxes and uses
-                        # standard data-space coordinates.
                         xlim = ax_left.get_xlim()
                         ylim = ax_left.get_ylim()
                         bg_ext = [xlim[0], xlim[1], ylim[0], ylim[1]]
-                        bg_artist = ax_left.imshow(
-                            self._bg_image, extent=bg_ext,
-                            aspect='auto', zorder=0, interpolation='bilinear',
-                            origin='upper')
-                        # Keep the image filling the visible area during
-                        # interactive pan / zoom by updating its extent
-                        # whenever the axis limits change.
-                        def _on_lim_changed(ax, _a=bg_artist, _s=self):
-                            if _s._bg_glued or _a.axes is None:
-                                return
-                            xl = ax.get_xlim()
-                            yl = ax.get_ylim()
-                            _a.set_extent([xl[0], xl[1], yl[0], yl[1]])
-                        ax_left.callbacks.connect('xlim_changed', _on_lim_changed)
-                        ax_left.callbacks.connect('ylim_changed', _on_lim_changed)
+                    bg_artist = ax_left.imshow(
+                        self._bg_image, extent=bg_ext,
+                        aspect='auto', zorder=0, interpolation='bilinear',
+                        origin='upper')
+                    bg_artist._is_pydatview_bg = True
+                    # Keep the image filling the visible area during
+                    # interactive pan / zoom by updating its extent
+                    # whenever the axis limits change. The callback is
+                    # registered in both modes; it early-returns while
+                    # _bg_glued is True so the image stays put in
+                    # Moving-with-axes mode.
+                    def _on_lim_changed(ax, _a=bg_artist, _s=self):
+                        if _s._bg_glued or _a.axes is None:
+                            return
+                        xl = ax.get_xlim()
+                        yl = ax.get_ylim()
+                        _a.set_extent([xl[0], xl[1], yl[0], yl[1]])
+                    ax_left.callbacks.connect('xlim_changed', _on_lim_changed)
+                    ax_left.callbacks.connect('ylim_changed', _on_lim_changed)
 
             # Actually plot
             if self.infoPanel is not None:
