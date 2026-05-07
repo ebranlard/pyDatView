@@ -1705,9 +1705,11 @@ class PlotPanel(wx.Panel):
         every redraw so it keeps covering the visible area. No GUI settings
         are changed when entering this mode.
         """
+        view = self._capture_current_view()
         self._bg_glued = False
         self._bg_extent = None
         self.redraw_same_data()
+        self._apply_view(view)
 
     def onBgModeMoving(self, event):
         """'Moving with axes' mode: the image is glued to data coordinates.
@@ -1725,7 +1727,31 @@ class PlotPanel(wx.Panel):
         ylim = ax.get_ylim_()
         self._bg_extent = [min(xlim), max(xlim), min(ylim), max(ylim)]
         self._bg_glued = True
+        view = self._capture_current_view()
         self.redraw_same_data()
+        self._apply_view(view)
+
+    def _capture_current_view(self):
+        view = []
+        for ax in self.fig.axes:
+            try:
+                view.append((ax.get_xlim_(), ax.get_ylim_()))
+            except AttributeError:
+                view.append(None)
+        return view
+
+    def _apply_view(self, view):
+        if not view:
+            return
+        for ax, lims in zip(self.fig.axes, view):
+            if lims is None:
+                continue
+            try:
+                ax.set_xlim_(lims[0])
+                ax.set_ylim_(lims[1])
+            except AttributeError:
+                pass
+        self.canvas.draw_idle()
 
     def setSubplotSpacing(self, init=False, tight=False):
         """ 
