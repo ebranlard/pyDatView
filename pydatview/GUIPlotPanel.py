@@ -133,6 +133,34 @@ def _patch_3d_ctrl_rotate(ax, canvas, toolbar=None):
         except Exception:
             pass
 
+    # Tracks state for the manual 3D zoom gesture (right-drag in pan or rotate mode).
+    _zoom_state = {'active': False, 'x0': 0.0, 'y0': 0.0,
+                   'xlim': None, 'ylim': None, 'zlim': None}
+
+    def _do_zoom_move(event, _zs=_zoom_state):
+        """Exponentially scale axis limits about their centre on right-drag."""
+        if not _zs['active']:
+            return
+        try:
+            dx = event.x - _zs['x0']
+            dy = event.y - _zs['y0']
+            W, H = canvas.get_width_height()
+            if W == 0 or H == 0:
+                return
+            disp = -(dx / float(W) + dy / float(H))
+            alpha = 10.0 ** disp  # alpha < 1 → zoom in, alpha > 1 → zoom out
+            for lim, setter in (
+                (_zs['xlim'], ax.set_xlim3d),
+                (_zs['ylim'], ax.set_ylim3d),
+                (_zs['zlim'], ax.set_zlim3d),
+            ):
+                mid = 0.5 * (lim[0] + lim[1])
+                half = 0.5 * (lim[1] - lim[0]) * alpha
+                setter(mid - half, mid + half)
+            canvas.draw_idle()
+        except Exception:
+            pass
+
     # --- Layer 0: wrap Axes3D._button_press ---
     press_cbs = getattr(canvas.callbacks, 'callbacks', {}).get('button_press_event', {})
     for cid, val in list(press_cbs.items()):
@@ -144,27 +172,39 @@ def _patch_3d_ctrl_rotate(ax, canvas, toolbar=None):
             continue
         if getattr(func, '__self__', None) is ax:
             canvas.mpl_disconnect(cid)
-            def _wrapped_press(event, _orig=func, _ps=_pan_state):
+            def _wrapped_press(event, _orig=func, _ps=_pan_state, _zs=_zoom_state):
                 _orig(event)  # Axes3D sets ax.button_pressed = event.button
-                if event.inaxes == ax and event.button == 1 and _pan_active():
+                if event.inaxes != ax:
+                    return
+                if event.button == 1 and _pan_active():
                     try:
-                        # Suppress Axes3D rotation; pan is handled in _wrapped_move.
                         ax.button_pressed = None
                         _ps['active'] = True
-                        _ps['x0'] = event.x
-                        _ps['y0'] = event.y
+                        _ps['x0'] = event.x; _ps['y0'] = event.y
                         _ps['xlim'] = list(ax.get_xlim3d())
                         _ps['ylim'] = list(ax.get_ylim3d())
                         _ps['zlim'] = list(ax.get_zlim3d())
                     except Exception:
                         pass
+                elif event.button == 3 and (_pan_active() or _rotate_active()):
+                    try:
+                        ax.button_pressed = None
+                        _zs['active'] = True
+                        _zs['x0'] = event.x; _zs['y0'] = event.y
+                        _zs['xlim'] = list(ax.get_xlim3d())
+                        _zs['ylim'] = list(ax.get_ylim3d())
+                        _zs['zlim'] = list(ax.get_zlim3d())
+                    except Exception:
+                        pass
             canvas.mpl_connect('button_press_event', _wrapped_press)
             break
 
-    # Clear pan state when the left button is released.
-    def _on_release(event, _ps=_pan_state):
+    # Clear gesture state on button release.
+    def _on_release(event, _ps=_pan_state, _zs=_zoom_state):
         if event.button == 1:
             _ps['active'] = False
+        elif event.button == 3:
+            _zs['active'] = False
     canvas.mpl_connect('button_release_event', _on_release)
 
     # --- Layer 2: wrap Axes3D._on_move in the callback registry ---
@@ -183,15 +223,14 @@ def _patch_3d_ctrl_rotate(ax, canvas, toolbar=None):
                 if event.inaxes != ax:
                     _orig(event)
                     return
+                # Right-drag zoom takes precedence in both pan and rotate modes.
+                if _zoom_state['active']:
+                    _do_zoom_move(event)
+                    return
                 if _rotate_active():
                     _orig(event)
-                elif _pan_active():
-                    if _pan_state['active']:
-                        # Manual 3D pan via axis-limit shift.
-                        _do_pan_move(event)
-                    else:
-                        # Right-drag: native Axes3D behaviour (zoom / pan).
-                        _orig(event)
+                elif _pan_active() and _pan_state['active']:
+                    _do_pan_move(event)
                 # else: neither rotate nor pan — suppress all drag
             canvas.mpl_connect('motion_notify_event', _wrapped_move)
             wrapped[0] = True
@@ -199,21 +238,30 @@ def _patch_3d_ctrl_rotate(ax, canvas, toolbar=None):
 
     if not wrapped[0]:
         # Fallback for versions where _on_move isn't in canvas callbacks.
-        def _on_press_fb(event, _ps=_pan_state):
-            if event.inaxes != ax or event.button != 1:
+        def _on_press_fb(event, _ps=_pan_state, _zs=_zoom_state):
+            if event.inaxes != ax:
                 return
-            if _pan_active():
+            if event.button == 1 and _pan_active():
                 try:
                     ax.button_pressed = None
                     _ps['active'] = True
-                    _ps['x0'] = event.x
-                    _ps['y0'] = event.y
+                    _ps['x0'] = event.x; _ps['y0'] = event.y
                     _ps['xlim'] = list(ax.get_xlim3d())
                     _ps['ylim'] = list(ax.get_ylim3d())
                     _ps['zlim'] = list(ax.get_zlim3d())
                 except Exception:
                     pass
-            elif not _rotate_active():
+            elif event.button == 3 and (_pan_active() or _rotate_active()):
+                try:
+                    ax.button_pressed = None
+                    _zs['active'] = True
+                    _zs['x0'] = event.x; _zs['y0'] = event.y
+                    _zs['xlim'] = list(ax.get_xlim3d())
+                    _zs['ylim'] = list(ax.get_ylim3d())
+                    _zs['zlim'] = list(ax.get_zlim3d())
+                except Exception:
+                    pass
+            elif event.button == 1 and not _rotate_active():
                 for attr in ('button_pressed', '_button_pressed'):
                     try:
                         setattr(ax, attr, None)
@@ -224,7 +272,9 @@ def _patch_3d_ctrl_rotate(ax, canvas, toolbar=None):
         def _on_move_fb(event):
             if event.inaxes != ax:
                 return
-            if _pan_active() and _pan_state['active']:
+            if _zoom_state['active']:
+                _do_zoom_move(event)
+            elif _pan_active() and _pan_state['active']:
                 _do_pan_move(event)
         canvas.mpl_connect('motion_notify_event', _on_move_fb)
 
@@ -246,7 +296,9 @@ def _patch_3d_ctrl_rotate(ax, canvas, toolbar=None):
                     _orig(ax, button, key, x, y)
                 # Pan mode: handled in _wrapped_move / _on_move_fb.
             elif button == 3:
-                # Right-click: native behaviour only when no mode is active.
+                # Right-drag zoom is handled manually via _do_zoom_move in
+                # _wrapped_move/_on_move_fb for both pan and rotate modes.
+                # Only call native behaviour in idle 3D state.
                 if not _rotate_active() and not _pan_active():
                     _orig(ax, button, key, x, y)
             else:
