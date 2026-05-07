@@ -1699,28 +1699,20 @@ class PlotPanel(wx.Panel):
         self.redraw_same_data()
 
     def onBgModeFixed(self, event):
-        """'Fixed' mode: the image always fills the current plot view.
+        """'Fixed' mode: the image follows the current plot view.
 
-        Toggling mode does NOT replot — that would go through plot_all /
-        set_axes_lim and reset the user's zoom/pan when AutoScale is on.
-        Instead, locate the existing bg image artist on each axis, retarget
-        its extent to the current view, and flip the _bg_glued flag. The
-        xlim_changed/ylim_changed callback registered when the artist was
-        created already keeps the extent in sync going forward (it early-
-        returns while _bg_glued is True).
+        We deliberately do NOT touch the existing image extent. If the user
+        was previously in 'Moving with axes' mode and zoomed into a portion
+        of the background, rewriting the extent to the current xlim/ylim
+        would squeeze the whole image into the small viewport (the user
+        reported this as the background "resetting to full size"). Instead
+        we just flip _bg_glued; the existing xlim_changed/ylim_changed
+        callback will start tracking the viewport on the next pan/zoom, at
+        which point the image transitions naturally from "magnified
+        portion" to "fills viewport" without a visible jump.
         """
         self._bg_glued = False
         self._bg_extent = None
-        if self._bg_image is None:
-            return
-        for ax in self.fig.axes:
-            if hasattr(ax, 'set_zlim'):  # 3D: no bg image
-                continue
-            xl = ax.get_xlim()
-            yl = ax.get_ylim()
-            for img in list(ax.images):
-                if getattr(img, '_is_pydatview_bg', False):
-                    img.set_extent([xl[0], xl[1], yl[0], yl[1]])
         self.canvas.draw_idle()
 
     def onBgModeMoving(self, event):
