@@ -1048,9 +1048,16 @@ class PlotPanel(wx.Panel):
         self.addTablesCallback = None
         self._bg_image = None    # numpy array for background image
         self._bg_glued = False   # True = 'Moving with axes' (glued to data coords);
-                                 # False = 'Fixed' (fills current plot view, default)
+                                 # False = 'Fixed' (pinned to plot rectangle, default)
         self._bg_extent = None   # [xmin, xmax, ymin, ymax] in data coords, captured
                                  # when entering 'Moving with axes' mode
+        self._bg_display_image = None  # cropped image rendered in Fixed mode
+                                       # (None = use the full _bg_image)
+        self._bg_axes_extent = None    # [afx0, afx1, afy0, afy1] in axes-fraction
+                                       # coords for Fixed-mode artist (None = [0,1,0,1])
+        self._bg_crop_box = None       # [col0, col1, row0, row1] as fractions [0,1]
+                                       # of the original _bg_image that
+                                       # _bg_display_image represents (None = full image)
 
         # --- GUI
         self.fig = Figure(facecolor="white", figsize=(1, 1))
@@ -1654,6 +1661,9 @@ class PlotPanel(wx.Panel):
         self._bg_image = img_array
         self._bg_glued = False
         self._bg_extent = None
+        self._bg_display_image = None
+        self._bg_axes_extent = None
+        self._bg_crop_box = None
         self.redraw_same_data()
 
     def onLoadBgImage(self, event):
@@ -1696,36 +1706,212 @@ class PlotPanel(wx.Panel):
     def onClearBgImage(self, event):
         """Remove the background image."""
         self._bg_image = None
-        self.redraw_same_data()
-
-    def onBgModeFixed(self, event):
-        """'Fixed' mode: the image always fills the current plot view.
-
-        The axes pan/zoom/rescale freely; the image extent is recomputed on
-        every redraw so it keeps covering the visible area. No GUI settings
-        are changed when entering this mode.
-        """
         self._bg_glued = False
         self._bg_extent = None
+        self._bg_display_image = None
+        self._bg_axes_extent = None
+        self._bg_crop_box = None
         self.redraw_same_data()
+
+    def _compute_bg_screen_lock(self, ax):
+        """Given an axis currently showing the bg image (in data coords),
+        compute the cropped image and the axes-fraction extent that, when
+        rendered with transAxes, reproduces the currently-visible portion
+        of the bg pinned to the plot rectangle.
+
+        Returns (cropped_image, [afx0, afx1, afy0, afy1]) or (None, None)
+        if the bg is not visible at all in the current viewport.
+        """
+        if self._bg_image is None:
+            return None, None, None
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        vx0, vx1 = sorted(xlim)
+        vy0, vy1 = sorted(ylim)
+        # Locate the current bg artist on this axis to read its image and extent.
+        bg_artist = None
+        for img in ax.images:
+            if getattr(img, '_is_pydatview_bg', False):
+                bg_artist = img
+                break
+        if bg_artist is not None:
+            try:
+                src = np.asarray(bg_artist.get_array())
+            except Exception:
+                src = self._bg_image
+            ext = bg_artist.get_extent()
+            if bg_artist.get_transform() == ax.transData:
+                bx0, bx1, by0, by1 = ext
+                if bx0 > bx1: bx0, bx1 = bx1, bx0
+                if by0 > by1: by0, by1 = by1, by0
+            else:
+                # transAxes: extent is axes-fraction; map back to data coords.
+                afx0, afx1, afy0, afy1 = ext
+                bx0 = vx0 + afx0 * (vx1 - vx0)
+                bx1 = vx0 + afx1 * (vx1 - vx0)
+                by0 = vy0 + afy0 * (vy1 - vy0)
+                by1 = vy0 + afy1 * (vy1 - vy0)
+        else:
+            # No artist drawn yet: treat as Fixed-default (full image == viewport).
+            src = self._bg_image
+            bx0, bx1, by0, by1 = vx0, vx1, vy0, vy1
+        ix0, ix1 = max(bx0, vx0), min(bx1, vx1)
+        iy0, iy1 = max(by0, vy0), min(by1, vy1)
+        if ix1 <= ix0 or iy1 <= iy0:
+            return None, None, None
+        # Crop fractions WITHIN the source array (cropped or full).
+        col_lf = (ix0 - bx0) / (bx1 - bx0)
+        col_rf = (ix1 - bx0) / (bx1 - bx0)
+        # origin='upper': image row 0 is at by1 (top), row h is at by0 (bottom).
+        row_tf = (by1 - iy1) / (by1 - by0)
+        row_bf = (by1 - iy0) / (by1 - by0)
+        h, w = src.shape[:2]
+        col0 = max(0, min(w, int(round(col_lf * w))))
+        col1 = max(0, min(w, int(round(col_rf * w))))
+        row0 = max(0, min(h, int(round(row_tf * h))))
+        row1 = max(0, min(h, int(round(row_bf * h))))
+        if col1 <= col0 or row1 <= row0:
+            return None, None, None
+        cropped = src[row0:row1, col0:col1]
+        afx0 = (ix0 - vx0) / (vx1 - vx0)
+        afx1 = (ix1 - vx0) / (vx1 - vx0)
+        afy0 = (iy0 - vy0) / (vy1 - vy0)
+        afy1 = (iy1 - vy0) / (vy1 - vy0)
+        # Compose with the existing crop box so the new crop box is expressed
+        # as a fraction of the original _bg_image (regardless of whether the
+        # source we just cropped was the full image or an already-cropped one).
+        parent = self._bg_crop_box if self._bg_crop_box is not None \
+                 else [0.0, 1.0, 0.0, 1.0]
+        pa, pb, pc, pd = parent
+        crop_box = [pa + col_lf * (pb - pa),
+                    pa + col_rf * (pb - pa),
+                    pc + row_tf * (pd - pc),
+                    pc + row_bf * (pd - pc)]
+        return cropped, [afx0, afx1, afy0, afy1], crop_box
+
+    def _full_extent_from_state(self, ax):
+        """Compute the data-coord extent of the FULL _bg_image needed to
+        place its currently-cropped portion (described by _bg_axes_extent
+        and _bg_crop_box) at exactly the screen rectangle it now occupies
+        within the current viewport. Used at Fixed -> Moving transition.
+        """
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        vx0, vx1 = sorted(xlim)
+        vy0, vy1 = sorted(ylim)
+        ae = self._bg_axes_extent if self._bg_axes_extent is not None \
+             else [0.0, 1.0, 0.0, 1.0]
+        afx0, afx1, afy0, afy1 = ae
+        # Current cropped image's data-coord rectangle.
+        dx0 = vx0 + afx0 * (vx1 - vx0)
+        dx1 = vx0 + afx1 * (vx1 - vx0)
+        dy0 = vy0 + afy0 * (vy1 - vy0)
+        dy1 = vy0 + afy1 * (vy1 - vy0)
+        cb = self._bg_crop_box if self._bg_crop_box is not None \
+             else [0.0, 1.0, 0.0, 1.0]
+        a, b, c, d = cb
+        if (b - a) <= 0 or (d - c) <= 0:
+            return [vx0, vx1, vy0, vy1]
+        full_w = (dx1 - dx0) / (b - a)
+        full_h = (dy1 - dy0) / (d - c)
+        Dx0 = dx0 - a * full_w
+        Dx1 = Dx0 + full_w
+        # origin='upper': row 0 (fraction c) corresponds to data y = dy1 (top).
+        Dy1 = dy1 + c * full_h
+        Dy0 = Dy1 - full_h
+        return [Dx0, Dx1, Dy0, Dy1]
+
+    def _replace_bg_artists(self):
+        """Remove existing bg artists on every 2D axis and re-create them
+        per the current bg state (_bg_glued, _bg_extent, _bg_display_image,
+        _bg_axes_extent). Used by the mode-toggle handlers so the change is
+        immediate and does not require a full plot rebuild.
+        """
+        for ax in self.fig.axes:
+            if hasattr(ax, 'set_zlim'):
+                continue
+            for img in list(ax.images):
+                if getattr(img, '_is_pydatview_bg', False):
+                    img.remove()
+            if self._bg_image is None:
+                continue
+            if self._bg_glued and self._bg_extent is not None:
+                bg_artist = ax.imshow(
+                    self._bg_image, extent=self._bg_extent,
+                    transform=ax.transData,
+                    aspect='auto', zorder=0, origin='upper',
+                    interpolation='bilinear')
+            elif (self._bg_display_image is not None
+                  and self._bg_axes_extent is not None):
+                bg_artist = ax.imshow(
+                    self._bg_display_image, extent=self._bg_axes_extent,
+                    transform=ax.transAxes,
+                    aspect='auto', zorder=0, origin='upper',
+                    interpolation='bilinear')
+            else:
+                bg_artist = ax.imshow(
+                    self._bg_image, extent=[0, 1, 0, 1],
+                    transform=ax.transAxes,
+                    aspect='auto', zorder=0, origin='upper',
+                    interpolation='bilinear')
+            bg_artist._is_pydatview_bg = True
+
+    def onBgModeFixed(self, event):
+        """'Fixed' (default) mode: the image is pinned to the plot rectangle.
+
+        We snapshot the currently-visible portion of the bg and re-render
+        it in axes (screen) coordinates via transAxes. From this point on,
+        any axis-limit change (toolbar zoom, limits panel, autoscale) is
+        independent of the bg — what the user saw at the moment of the
+        switch stays pixel-identical until they switch modes again or
+        change the bg image.
+        """
+        if self._bg_image is None or len(self.fig.axes) == 0:
+            self._bg_glued = False
+            self._bg_extent = None
+            self._bg_display_image = None
+            self._bg_axes_extent = None
+            self._bg_crop_box = None
+            self.canvas.draw_idle()
+            return
+        cropped, ax_extent, crop_box = self._compute_bg_screen_lock(
+            self.fig.axes[0])
+        self._bg_glued = False
+        self._bg_extent = None
+        self._bg_display_image = cropped
+        self._bg_axes_extent = ax_extent
+        self._bg_crop_box = crop_box
+        self._replace_bg_artists()
+        self.canvas.draw_idle()
 
     def onBgModeMoving(self, event):
         """'Moving with axes' mode: the image is glued to data coordinates.
 
-        We capture the current xlim/ylim as the image's data-coord extent;
-        from now on the image is rendered at those data points, so pan/zoom
-        moves the image along with the data. We deliberately do NOT toggle
-        AutoScale or any other GUI setting — the image-to-data relation is
-        preserved regardless.
+        Render the FULL _bg_image at a data-coord extent chosen so the
+        currently-displayed crop lands exactly where it was on screen. The
+        previously-hidden portions of the bg (axis labels etc.) become
+        accessible by panning/zooming the axes. As the user pans/zooms,
+        the bg stays put in data space (its screen position changes
+        naturally with the viewport).
         """
-        if len(self.fig.axes) == 0:
+        if len(self.fig.axes) == 0 or self._bg_image is None:
             return
         ax = self.fig.axes[0]
-        xlim = ax.get_xlim_()
-        ylim = ax.get_ylim_()
-        self._bg_extent = [min(xlim), max(xlim), min(ylim), max(ylim)]
+        if (self._bg_axes_extent is not None
+                or self._bg_crop_box is not None):
+            self._bg_extent = self._full_extent_from_state(ax)
+        else:
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            vx0, vx1 = sorted(xlim)
+            vy0, vy1 = sorted(ylim)
+            self._bg_extent = [vx0, vx1, vy0, vy1]
         self._bg_glued = True
-        self.redraw_same_data()
+        self._bg_display_image = None
+        self._bg_axes_extent = None
+        self._bg_crop_box = None
+        self._replace_bg_artists()
+        self.canvas.draw_idle()
 
     def setSubplotSpacing(self, init=False, tight=False):
         """ 
@@ -2433,37 +2619,32 @@ class PlotPanel(wx.Panel):
             # Set limit before plot when possible, for optimization
             self.set_axes_lim(PD, ax_left, plotType)
 
-            # Draw background image if present (not supported on 3D axes)
-            if self._bg_image is not None:
-                if not hasattr(ax_left, 'set_zlim'):
-                    if self._bg_glued and self._bg_extent is not None:
-                        # Moving-with-axes: image is glued to data coords
-                        ax_left.imshow(self._bg_image, extent=self._bg_extent,
-                                       aspect='auto', zorder=0, interpolation='bilinear',
-                                       origin='upper')
-                    else:
-                        # Fixed (default): image fills the current view.
-                        # Use standard get_xlim/get_ylim (not swap-aware) because
-                        # imshow() is not overridden by SwappyAxes and uses
-                        # standard data-space coordinates.
-                        xlim = ax_left.get_xlim()
-                        ylim = ax_left.get_ylim()
-                        bg_ext = [xlim[0], xlim[1], ylim[0], ylim[1]]
-                        bg_artist = ax_left.imshow(
-                            self._bg_image, extent=bg_ext,
-                            aspect='auto', zorder=0, interpolation='bilinear',
-                            origin='upper')
-                        # Keep the image filling the visible area during
-                        # interactive pan / zoom by updating its extent
-                        # whenever the axis limits change.
-                        def _on_lim_changed(ax, _a=bg_artist, _s=self):
-                            if _s._bg_glued or _a.axes is None:
-                                return
-                            xl = ax.get_xlim()
-                            yl = ax.get_ylim()
-                            _a.set_extent([xl[0], xl[1], yl[0], yl[1]])
-                        ax_left.callbacks.connect('xlim_changed', _on_lim_changed)
-                        ax_left.callbacks.connect('ylim_changed', _on_lim_changed)
+            # Draw background image if present (not supported on 3D axes).
+            # Three rendering modes:
+            #   Moving       : transData with extent=_bg_extent
+            #   Fixed-locked : transAxes with cropped image at _bg_axes_extent
+            #   Fixed-default: transAxes with full image at [0,1,0,1]
+            if self._bg_image is not None and not hasattr(ax_left, 'set_zlim'):
+                if self._bg_glued and self._bg_extent is not None:
+                    bg_artist = ax_left.imshow(
+                        self._bg_image, extent=list(self._bg_extent),
+                        transform=ax_left.transData,
+                        aspect='auto', zorder=0, origin='upper',
+                        interpolation='bilinear')
+                elif (self._bg_display_image is not None
+                      and self._bg_axes_extent is not None):
+                    bg_artist = ax_left.imshow(
+                        self._bg_display_image, extent=self._bg_axes_extent,
+                        transform=ax_left.transAxes,
+                        aspect='auto', zorder=0, origin='upper',
+                        interpolation='bilinear')
+                else:
+                    bg_artist = ax_left.imshow(
+                        self._bg_image, extent=[0, 1, 0, 1],
+                        transform=ax_left.transAxes,
+                        aspect='auto', zorder=0, origin='upper',
+                        interpolation='bilinear')
+                bg_artist._is_pydatview_bg = True
 
             # Actually plot
             if self.infoPanel is not None:
