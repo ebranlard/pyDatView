@@ -480,7 +480,7 @@ class Pipeline(object):
         data['actionsPlotFilters'] = {}
         for ac in self.actionsData:
             data['actionsData'][ac.name] = ac.data
-        for ac in self.actions:
+        for ac in self.actionsPlotFilters:
             data['actionsPlotFilters'][ac.name] = ac.data
         #data[] = self.Naming
         

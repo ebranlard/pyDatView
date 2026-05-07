@@ -1,4 +1,5 @@
 import wx
+import os
 import platform
 from pydatview.common import *
 from pydatview.GUICommon import *
@@ -11,9 +12,84 @@ from pydatview.GUIToolBox import GetKeyString
 
 __all__  = ['ColumnPanel', 'TablePanel', 'SelectionPanel','SEL_MODES','SEL_MODES_ID','TablePopup','ColumnPopup']
 
-SEL_MODES    = ['auto','Same tables'    ,'Sim. tables' ,'2 tables','3 tables (exp.)'  ]
+SEL_MODES    = ['Auto','Same columns'   ,'Similar columns','2 tables','3 tables'      ]
 SEL_MODES_ID = ['auto','sameColumnsMode','simColumnsMode','twoColumnsMode'  ,'threeColumnsMode' ]
 MAX_X_COLUMNS=300 # Maximum number of columns used in combo box of the x-axis (for performance)
+
+
+class _ClampedListBox(wx.ListBox):
+    """wx.ListBox whose best size doesn't balloon with long item text.
+
+    Default wx.ListBox.DoGetBestSize() returns a size based on the widest
+    item's text and the item count. Via GetEffectiveMinSize this propagates
+    up to the parent panel, past any SetMinSize cap, and can push the
+    selection panel wider than the splitter's configured sash position.
+    Clamp the best size here to a small fixed value so the container's
+    layout is driven by the splitter, not by the list contents.
+    """
+    def DoGetBestSize(self):
+        return wx.Size(50, 80)
+
+
+class _ClampedComboBox(wx.ComboBox):
+    """wx.ComboBox whose best width doesn't balloon with long item text."""
+    def DoGetBestSize(self):
+        sz = wx.ComboBox.DoGetBestSize(self)
+        # Clamp width; keep the natural height so the dropdown still renders.
+        return wx.Size(50, sz.height)
+
+
+def _tab_shortname(tab):
+    """Return a path-independent key for a table: basename[|sheetname].
+
+    This allows view files to be reused with the same data files located in a
+    different directory.  Falls back to the full tab.name when no filename is
+    available (e.g. formula-derived tables).
+    """
+    if not getattr(tab, 'filename', ''):
+        return tab.name
+    basename = os.path.splitext(os.path.basename(tab.filename))[0]
+    parts = tab.name.split('|')
+    try:
+        idx = parts.index(basename)
+        return '|'.join(parts[idx:])
+    except ValueError:
+        return parts[-1]
+
+
+def _find_tab_by_key(tab_list, key):
+    """Find a table matching *key* as shortname (new format) or full name (old).
+
+    Tries shortname first so new-format view files work when data is in a
+    different directory.  Falls back to an exact full-name match for backward
+    compatibility with view files saved before the shortname change.
+    """
+    for t in tab_list:
+        if _tab_shortname(t) == key:
+            return t
+    for t in tab_list:
+        if t.name == key:
+            return t
+    return None
+
+
+def _unique_tab_keys(tab_list):
+    """Return {tab.name: key} for every table in tab_list.
+
+    Uses the shortname (basename-only, portable) when it is unique across all
+    loaded tables.  Falls back to the full tab.name when two or more tables
+    share the same shortname (e.g. same-named files from different directories)
+    so that each table gets a distinct key and no saved entry is silently
+    overwritten.
+    """
+    from collections import Counter
+    shortnames = [_tab_shortname(t) for t in tab_list]
+    counts = Counter(shortnames)
+    return {
+        t.name: (sn if counts[sn] == 1 else t.name)
+        for t, sn in zip(tab_list, shortnames)
+    }
+
 
 def ireplace(text, old, new):
     """ Replace case insensitive """
@@ -666,7 +742,7 @@ class TablePanel(wx.Panel):
         tb.Bind(wx.EVT_BUTTON, self.showTableMenu, self.bt)
         tb.Realize() 
         #label = wx.StaticText( self, -1, 'Tables: ')
-        self.lbTab=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
+        self.lbTab=_ClampedListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
         self.lbTab.SetFont(getMonoFont(self))
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(tb, 0, flag=wx.EXPAND,border=5)
@@ -717,10 +793,11 @@ class ColumnPanel(wx.Panel):
         self.selPanel = selPanel;
         # Data
         self.tab=None
-        self.columns=[] # All the columns available (may be different from the displayed ones)
+        self.columns=np.array([]) # All the columns available (may be different from the displayed ones)
         self.Filt2Full=None # Index of GUI columns in self.columns
         self.bShowID=False
         self.bReadOnly=False
+        self._filterDebounceTimer = None
         # --- GUI Toolbar
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
         self.bt=wx.Button(tb,wx.ID_ANY,CHAR['menu'], style=wx.BU_EXACTFIT)
@@ -739,14 +816,18 @@ class ColumnPanel(wx.Panel):
         self.Bind(wx.EVT_BUTTON    , self.onFilterChange, self.btFilter)
         self.tFilter.Bind(wx.EVT_KEY_DOWN, self.onFilterKey   , self.tFilter )
         self.Bind(wx.EVT_TEXT_ENTER, self.onFilterChange, self.tFilter )
+        self.tFilter.Bind(wx.EVT_TEXT, self._onFilterText, self.tFilter)
         #
-        self.comboX = wx.ComboBox(self, choices=[], style=wx.CB_READONLY)
+        # Use clamped subclasses so long column names don't inflate the
+        # widgets' best size and push the selection panel past the
+        # splitter's sash position.
+        self.comboX = _ClampedComboBox(self, choices=[], style=wx.CB_READONLY)
         self.comboX.SetFont(getMonoFont(self))
-        self.lbColumns=wx.ListBox(self, -1, choices=[], style=wx.LB_EXTENDED )
+        self.lbColumns = _ClampedListBox(self, -1, choices=[], style=wx.LB_EXTENDED)
         self.lbColumns.SetFont(getMonoFont(self))
         # Z/Color variable selector
         self.lbZ = wx.StaticText(self, -1, 'z-axis:')
-        self.comboZ = wx.ComboBox(self, choices=['None'], style=wx.CB_READONLY)
+        self.comboZ = _ClampedComboBox(self, choices=['None'], style=wx.CB_READONLY)
         self.comboZ.SetFont(getMonoFont(self))
         self.comboZ.SetSelection(0)
         # Events
@@ -862,7 +943,7 @@ class ColumnPanel(wx.Panel):
         self.tFilter.Enable(False)
         self.tFilter.SetValue('')
 
-    def setTab(self, tab=None, xSel=-1, ySel=[], colNames=None, tabLabel='', sFilter=None):
+    def setTab(self, tab=None, xSel=-1, ySel=[], zSel=0, colNames=None, tabLabel='', sFilter=None):
         """ Set the table used for the columns, update the GUI
         tab is None, when in simColumnsMode
         """
@@ -886,11 +967,11 @@ class ColumnPanel(wx.Panel):
                 self.lb.SetLabel(' '+tab.active_name)
             # Setting raw columns from raw table (self.tab)
             self.setColumns()
-            self.setGUIColumns(xSel=xSel, ySel=ySel, selInFull=selInFull) # Filt2Full will be created if a filter is present
+            self.setGUIColumns(xSel=xSel, ySel=ySel, zSel=zSel, selInFull=selInFull) # Filt2Full will be created if a filter is present
         else:
             self.lb.SetLabel(tabLabel)
             self.setColumns(columnNames=colNames)
-            self.setGUIColumns(xSel=xSel, ySel=ySel, selInFull=selInFull) # Filt2Full will be created if a filter is present
+            self.setGUIColumns(xSel=xSel, ySel=ySel, zSel=zSel, selInFull=selInFull) # Filt2Full will be created if a filter is present
 
     def updateColumn(self,i,newName):
         """ Update of one column name
@@ -926,7 +1007,7 @@ class ColumnPanel(wx.Panel):
         # Storing columns, considered as "Full"
         self.columns=np.array(columns)
 
-    def setGUIColumns(self, xSel=-1, ySel=[], selInFull=True):
+    def setGUIColumns(self, xSel=-1, ySel=[], zSel=0, selInFull=True):
         """ Set columns actually shown on the GUI based on self.columns and potential filter
           if selInFull is True, the selection is assumed to be in the full/raw columns
           Otherwise, the selection is assumed to be in the filtered column
@@ -952,7 +1033,8 @@ class ColumnPanel(wx.Panel):
 
         else:
             self.Filt2Full = list(np.arange(len(self.columns)))
-        columns=self.columns[self.Filt2Full] 
+        # Guard: ensure columns is always a numpy array so fancy list indexing works
+        columns=np.array(self.columns)[self.Filt2Full]
 
         # GUI update
         self.Freeze()
@@ -982,11 +1064,10 @@ class ColumnPanel(wx.Panel):
             self.comboX.Set(columnsX_show) # non filtered
 
         # Populate comboZ with None + same columns as comboX (full, non-filtered)
-        prevZSel = self.comboZ.GetSelection()
         columnsZ_show = np.append(['None'], columnsX_show if len(columnsX) > MAX_X_COLUMNS else columnsX)
         self.comboZ.Set(columnsZ_show)
-        if prevZSel >= 0 and prevZSel < len(columnsZ_show):
-            self.comboZ.SetSelection(prevZSel)
+        if 0 <= zSel < len(columnsZ_show):
+            self.comboZ.SetSelection(zSel)
         else:
             self.comboZ.SetSelection(0)  # default: None
 
@@ -1000,7 +1081,7 @@ class ColumnPanel(wx.Panel):
                         self.lbColumns.EnsureVisible(iFilt)
         else:
             for iFilt in ySel:
-                if iFilt>=0 and iFilt<=len(columnsY):
+                if iFilt>=0 and iFilt<len(columnsY):
                     self.lbColumns.SetSelection(iFilt)
                     self.lbColumns.EnsureVisible(iFilt)
 
@@ -1008,7 +1089,7 @@ class ColumnPanel(wx.Panel):
             self.lbColumns.SetSelection(self.getDefaultColumnY(self.tab,len(columnsY)-1))
 
         # Set selection for x, if any, NOTE x is not filtered, alwasy in full!
-        if (xSel<0) or xSel>len(columnsX):
+        if (xSel<0) or xSel>=len(columnsX):
             self.comboX.SetSelection(self.getDefaultColumnX(self.tab,len(columnsX)-1))
         else:
             self.comboX.SetSelection(xSel)
@@ -1024,6 +1105,15 @@ class ColumnPanel(wx.Panel):
         self.lbColumns.SetSelection(-1)
 
     def empty(self):
+        # Cancel any pending filter debounce timer to prevent it from firing
+        # after columns have been cleared (which would cause a TypeError when
+        # setGUIColumns tries self.columns[self.Filt2Full] on a plain Python list).
+        if self._filterDebounceTimer is not None:
+            try:
+                self._filterDebounceTimer.Stop()
+            except Exception:
+                pass
+            self._filterDebounceTimer = None
         self.lbColumns.Clear()
         self.comboX.Clear()
         self.comboZ.Clear()
@@ -1036,7 +1126,7 @@ class ColumnPanel(wx.Panel):
         self.comboZ.Enable(False)
         self.bt.Enable(False)
         self.tab=None
-        self.columns=[]
+        self.columns=np.array([])
         self.Filt2Full=None
         self.btClear.Enable(False)
         self.btFilter.Enable(False)
@@ -1089,12 +1179,24 @@ class ColumnPanel(wx.Panel):
 
     def onFilterChange(self, event=None):
         xSel,ySel,_,_ = self.getColumnSelection() # (indices in full)
-        self.setGUIColumns(xSel=xSel, ySel=ySel) # <<< Filtering done here
+        zSel = self.comboZ.GetSelection()          # preserve current Z selection
+        self.setGUIColumns(xSel=xSel, ySel=ySel, zSel=zSel) # Filtering done here
         self.triggerPlot() # Trigger a col selection event
+
+    def _onFilterText(self, event=None):
+        """Debounced live filter: fires ~200 ms after the user stops typing."""
+        if self._filterDebounceTimer is not None:
+            try:
+                self._filterDebounceTimer.Stop()
+            except Exception:
+                pass
+        self._filterDebounceTimer = wx.CallLater(200, self.onFilterChange)
+        if event is not None:
+            event.Skip()
 
     def onFilterKey(self, event=None):
         s=GetKeyString(event)
-        if s=='ESCAPE' or s=='Ctrl+C':
+        if s=='ESCAPE':
             self.onClearFilter()
         event.Skip()
 
@@ -1122,6 +1224,9 @@ class SelectionPanel(wx.Panel):
         self.currentMode   = None
         self.nSplits = -1
         self.IKeepPerTab=None
+        # Debounce timers (wx.CallLater instances)
+        self._colDebounceTimer  = None
+        self._tabDebounceTimer  = None
         # Useful callBacks to be set by callee
         self.redrawCallback             = None # called when new data is selected
         self.colSelectionChangeCallback = None # called after a column selection has changed
@@ -1183,27 +1288,39 @@ class SelectionPanel(wx.Panel):
         if self.updateLayoutCallback is not None:
             self.updateLayoutCallback()
 
-    def onColSelectionChange(self, event=None):
-        # Letting selection panel handle the change
+    def _doColSelectionChange(self):
+        self._colDebounceTimer = None
         self.colSelectionChanged()
-        # We call the callback if it was set
         if self.colSelectionChangeCallback is not None:
             self.colSelectionChangeCallback()
-        # We redraw
         self.redraw()
 
-    def onTabSelectionChange(self, event=None):
-        ISel=self.tabPanel.lbTab.GetSelections()
-        if len(ISel)>0:
-            # Letting seletion panel handle the change
-            self.tabSelectionChanged()
+    def onColSelectionChange(self, event=None):
+        if self._colDebounceTimer is not None:
+            try:
+                self._colDebounceTimer.Stop()
+            except Exception:
+                pass
+        self._colDebounceTimer = wx.CallLater(150, self._doColSelectionChange)
 
-            # We call the callback if it was set
+    def _doTabSelectionChange(self):
+        self._tabDebounceTimer = None
+        ISel = self.tabPanel.lbTab.GetSelections()
+        if len(ISel) > 0:
+            self.tabSelectionChanged()
             if self.tabSelectionChangeCallback is not None:
                 self.tabSelectionChangeCallback()
+            self._doColSelectionChange()
 
-            # We trigger a column selection change...
-            self.onColSelectionChange(event=None)
+    def onTabSelectionChange(self, event=None):
+        ISel = self.tabPanel.lbTab.GetSelections()
+        if len(ISel) > 0:
+            if self._tabDebounceTimer is not None:
+                try:
+                    self._tabDebounceTimer.Stop()
+                except Exception:
+                    pass
+            self._tabDebounceTimer = wx.CallLater(150, self._doTabSelectionChange)
 
 
 
@@ -1277,9 +1394,9 @@ class SelectionPanel(wx.Panel):
         self.currentMode = 'simColumnsMode'
         self.splitter.removeAll()
         self.splitter.AppendWindow(self.tabPanel) 
-        self.splitter.AppendWindow(self.colPanel2) 
-        self.splitter.AppendWindow(self.colPanel1) 
-        self.splitter.setEquiSash()
+        self.splitter.AppendWindow(self.colPanel2)
+        self.splitter.AppendWindow(self.colPanel1)
+        self.splitter._restorePanelWidths()
         if self.nSplits<2:
             self.parentUpdateLayout()
         self.nSplits=2
@@ -1289,10 +1406,10 @@ class SelectionPanel(wx.Panel):
         if self.nSplits==2:
             return
         self.splitter.removeAll()
-        self.splitter.AppendWindow(self.tabPanel) 
-        self.splitter.AppendWindow(self.colPanel2) 
-        self.splitter.AppendWindow(self.colPanel1) 
-        self.splitter.setEquiSash()
+        self.splitter.AppendWindow(self.tabPanel)
+        self.splitter.AppendWindow(self.colPanel2)
+        self.splitter.AppendWindow(self.colPanel1)
+        self.splitter._restorePanelWidths()
         if self.nSplits<2:
             self.parentUpdateLayout()
         self.nSplits=2
@@ -1302,11 +1419,11 @@ class SelectionPanel(wx.Panel):
         if self.nSplits==3:
             return
         self.splitter.removeAll()
-        self.splitter.AppendWindow(self.tabPanel) 
-        self.splitter.AppendWindow(self.colPanel3) 
-        self.splitter.AppendWindow(self.colPanel2) 
-        self.splitter.AppendWindow(self.colPanel1) 
-        self.splitter.setEquiSash()
+        self.splitter.AppendWindow(self.tabPanel)
+        self.splitter.AppendWindow(self.colPanel3)
+        self.splitter.AppendWindow(self.colPanel2)
+        self.splitter.AppendWindow(self.colPanel1)
+        self.splitter._restorePanelWidths()
         self.parentUpdateLayout()
         self.nSplits=3
 
@@ -1326,7 +1443,7 @@ class SelectionPanel(wx.Panel):
         self.tabPanel.updateTabNames()
         for tn in tabnames:
             if tn not in self.tabSelections.keys():
-                self.tabSelections[tn]={'xSel':-1,'ySel':[]}
+                self.tabSelections[tn]={'xSel':-1,'ySel':[],'zSel':0}
             else:
                 pass # do nothing
 
@@ -1368,11 +1485,11 @@ class SelectionPanel(wx.Panel):
         t  = self.tabList[iTabSel]
         ts = self.tabSelections[t.name]
         if iPanel==1:
-            self.colPanel1.setTab(t,ts['xSel'],ts['ySel'], sFilter=self.filterSelection[0])
+            self.colPanel1.setTab(t,ts['xSel'],ts['ySel'],ts.get('zSel',0), sFilter=self.filterSelection[0])
         elif iPanel==2:
-            self.colPanel2.setTab(t,ts['xSel'],ts['ySel'], sFilter=self.filterSelection[1])
+            self.colPanel2.setTab(t,ts['xSel'],ts['ySel'],ts.get('zSel',0), sFilter=self.filterSelection[1])
         elif iPanel==3:
-            self.colPanel3.setTab(t,ts['xSel'],ts['ySel'], sFilter=self.filterSelection[2])
+            self.colPanel3.setTab(t,ts['xSel'],ts['ySel'],ts.get('zSel',0), sFilter=self.filterSelection[2])
         else:
             raise Exception('Wrong ipanel')
 
@@ -1446,15 +1563,34 @@ class SelectionPanel(wx.Panel):
 
         colNames = [columnsPerTab[0][i] for i in IKeepPerTab[0]]
 
-        # restore selection 
+        # restore selection, resolving by column name first
         xSel = -1
         ySel = []
+        zSel = 0
         sFilter = self.filterSelection[0]
         if 'xSel' in self.simTabSelection:
             xSel = self.simTabSelection['xSel']
-            ySel = self.simTabSelection['ySel']
+            ySel = list(self.simTabSelection.get('ySel', []))
+            zSel = self.simTabSelection.get('zSel', 0)
+            xName  = self.simTabSelection.get('xName')
+            yNames = self.simTabSelection.get('yNames', [])
+            zName  = self.simTabSelection.get('zName')
+            if xName is not None:
+                xSel = colNames.index(xName) if xName in colNames else -1
+            elif xSel >= len(colNames):
+                xSel = -1
+            if yNames:
+                ySel_new = [colNames.index(yn) for yn in yNames if yn in colNames]
+                ySel = ySel_new if ySel_new else [iy for iy in ySel if 0 <= iy < len(colNames)]
+            else:
+                ySel = [iy for iy in ySel if 0 <= iy < len(colNames)]
+            # Resolve Z: comboZ index 0=None, 1+=col
+            if zName is not None:
+                zSel = colNames.index(zName) + 1 if zName in colNames else 0
+            elif zSel > len(colNames):  # comboZ has len+1 entries
+                zSel = 0
         # Set the colPanels
-        self.colPanel1.setTab(tab=None, colNames=colNames, tabLabel=' Tab. Intersection', xSel=xSel, ySel=ySel, sFilter=sFilter)
+        self.colPanel1.setTab(tab=None, colNames=colNames, tabLabel=' Tab. Intersection', xSel=xSel, ySel=ySel, zSel=zSel, sFilter=sFilter)
         self.colPanel2.setReadOnly(' Tab. Difference', ColInfo)
         self.IKeepPerTab=IKeepPerTab
 
@@ -1468,10 +1604,11 @@ class SelectionPanel(wx.Panel):
         else:
             self.tabSelected=[]
 
-    def tabSelectionChanged(self):
+    def tabSelectionChanged(self, save=True):
         # TODO This can be cleaned-up and merged with updateLayout
-        # Storing the previous selection 
-        self.saveSelection() # 
+        # Storing the previous selection
+        if save:
+            self.saveSelection() #
         ISel=self.tabPanel.lbTab.GetSelections()
         if len(ISel)>0:
             if self.modeRequested=='auto':
@@ -1541,9 +1678,167 @@ class SelectionPanel(wx.Panel):
         self.tabPanel.updateTabNames()
         #self.printSelection()
 
+    def captureViewState(self):
+        """Capture current selection state for view saving"""
+        self.saveSelection()  # ensure internal state is up-to-date
+        ISel = self.tabSelected
+        state = {}
+        # Build per-table keys: shortname when unique, full name when two tables
+        # share the same basename (avoids silently overwriting saved entries).
+        tab_keys = _unique_tab_keys(self.tabList)
+        # Save which tables are selected using the same portable/unique keys.
+        state['tabSelectedNames'] = [tab_keys[self.tabList[i].name] for i in ISel if i < self.tabList.len()]
+        # Save column selections keyed by the portable/unique key, storing BOTH
+        # index and name so restore is resilient to column reordering.
+        tabSelectionsFull = {}
+        for k, v in self.tabSelections.items():
+            tab = next((t for t in self.tabList if t.name == k), None)
+            xName  = None
+            yNames = []
+            zName  = None
+            if tab is not None:
+                cols = list(tab.columns)
+                xSel = v['xSel']
+                if 0 <= xSel < len(cols):
+                    xName = cols[xSel]
+                yNames = [cols[iy] for iy in v['ySel'] if 0 <= iy < len(cols)]
+                # zSel: comboZ index (0=None, 1+=column); zName is the column name
+                zSel = v.get('zSel', 0)
+                zColIdx = zSel - 1  # convert comboZ index to column index
+                zName = cols[zColIdx] if 0 <= zColIdx < len(cols) else None
+            key = tab_keys.get(tab.name, k) if tab is not None else k
+            tabSelectionsFull[key] = {
+                'xSel':   v['xSel'],
+                'ySel':   list(v['ySel']),
+                'zSel':   v.get('zSel', 0),
+                'xName':  xName,
+                'yNames': yNames,
+                'zName':  zName,
+            }
+        state['tabSelections'] = tabSelectionsFull
+        simSel = dict(self.simTabSelection)
+        if 'ySel' in simSel:
+            simSel['ySel'] = list(simSel['ySel'])
+        # Add column-name backup for sim tab (resolution happens in setColForSimTab)
+        if self.currentMode == 'simColumnsMode':
+            simCols = list(self.colPanel1.columns)
+            xSim = simSel.get('xSel', -1)
+            zSim = simSel.get('zSel', 0)
+            simSel['xName']  = simCols[xSim] if 0 <= xSim < len(simCols) else None
+            simSel['yNames'] = [simCols[iy] for iy in simSel.get('ySel', []) if 0 <= iy < len(simCols)]
+            # zSim is comboZ index (0=None, 1+=col); store the column name
+            zColIdx = zSim - 1
+            simSel['zName']  = simCols[zColIdx] if 0 <= zColIdx < len(simCols) else None
+        state['simTabSelection']  = simSel
+        state['filterSelection']  = list(self.filterSelection)
+        state['mode']             = self.currentMode
+        # Save per-table formulas so added columns can be recreated on restore
+        formulas_state = {}
+        for tab in self.tabList:
+            if tab.formulas:
+                formulas_state[tab_keys[tab.name]] = sorted(tab.formulas, key=lambda f: f['pos'])
+        state['formulas'] = formulas_state
+        return state
+
+    def restoreViewState(self, state):
+        """Restore selection state from a saved view (does not redraw).
+        Returns a list of warning strings for any missing tables or columns."""
+        warnings = []
+        # Re-apply saved formulas (added columns) before resolving column names.
+        # Keys in saved_formulas are shortnames; translate to raw_name for applyFormulas.
+        saved_formulas = state.get('formulas', {})
+        if saved_formulas:
+            full_formulas = {}
+            for short_k, flist in saved_formulas.items():
+                matched = _find_tab_by_key(self.tabList, short_k)
+                full_formulas[matched.raw_name if matched else short_k] = flist
+            self.tabList.applyFormulas(full_formulas)
+            # Refresh column panel so new columns are visible
+            ISel = self.tabPanel.lbTab.GetSelections()
+            for i in ISel:
+                if i < self.tabList.len():
+                    tab = self.tabList[i]
+                    if tab.name in self.tabSelections:
+                        ts = self.tabSelections[tab.name]
+                        self.colPanel1.setTab(tab, ts['xSel'], ts['ySel'], ts.get('zSel', 0))
+        # Restore column selections – keys in the saved state are shortnames (or
+        # full names in old view files); _find_tab_by_key handles both.
+        selectedNames = set(state.get('tabSelectedNames', []))
+        for k, v in state.get('tabSelections', {}).items():
+            tab = _find_tab_by_key(self.tabList, k)
+            if tab is None:
+                # No matching table loaded; skip (can't store by shortname key).
+                continue
+            # Use the full internal key so tabSelections stays consistent.
+            full_k = tab.name
+            if full_k not in self.tabSelections:
+                continue
+            xSel = v.get('xSel', -1)
+            ySel = list(v.get('ySel', []))
+            cols = list(tab.columns)
+            # Resolve X by name first, then fall back to stored index
+            xName = v.get('xName')
+            if xName is not None:
+                if xName in cols:
+                    xSel = cols.index(xName)
+                else:
+                    if k in selectedNames:
+                        warnings.append('  Table "{}": x-column "{}" not found, using default'.format(k, xName))
+                    xSel = -1
+            elif xSel >= len(cols):
+                xSel = -1
+            # Resolve Y by name first, then fall back to stored indices
+            yNames = v.get('yNames', [])
+            if yNames:
+                ySel_new = [cols.index(yn) for yn in yNames if yn in cols]
+                missing_y = [yn for yn in yNames if yn not in cols]
+                if missing_y and k in selectedNames:
+                    warnings.append('  Table "{}": column(s) not found: {}'.format(k, ', '.join('"{}"'.format(n) for n in missing_y)))
+                ySel = ySel_new if ySel_new else [iy for iy in ySel if 0 <= iy < len(cols)]
+            else:
+                ySel = [iy for iy in ySel if 0 <= iy < len(cols)]
+            # Resolve Z by name first (zSel is comboZ index: 0=None, 1+=col)
+            zSel = v.get('zSel', 0)
+            zName = v.get('zName')
+            if zName is not None:
+                if zName in cols:
+                    zSel = cols.index(zName) + 1  # +1 because comboZ[0]='None'
+                else:
+                    if k in selectedNames:
+                        warnings.append('  Table "{}": z-column "{}" not found, using None'.format(k, zName))
+                    zSel = 0
+            elif zSel > len(cols):  # comboZ length = len(cols)+1
+                zSel = 0
+            self.tabSelections[full_k] = {'xSel': xSel, 'ySel': tuple(ySel), 'zSel': zSel}
+        # Restore sim tab selection
+        simSel = state.get('simTabSelection', {})
+        self.simTabSelection = dict(simSel)
+        if 'ySel' in self.simTabSelection:
+            self.simTabSelection['ySel'] = tuple(self.simTabSelection['ySel'])
+        # Restore filters
+        self.filterSelection = list(state.get('filterSelection', ['', '', '']))
+        # Restore table selection – saved names are shortnames (or full names for
+        # old view files); _find_tab_by_key handles both formats.
+        tabSelectedNames = state.get('tabSelectedNames', [])
+        missing_tables = [n for n in tabSelectedNames if _find_tab_by_key(self.tabList, n) is None]
+        if missing_tables:
+            warnings.append('Table(s) not found: {}'.format(', '.join('"{}"'.format(n) for n in missing_tables)))
+        self.tabSelected = [i for i, t in enumerate(self.tabList)
+                            if _tab_shortname(t) in tabSelectedNames or t.name in tabSelectedNames]
+        # Apply selection to the list box
+        for i in range(self.tabPanel.lbTab.GetCount()):
+            self.tabPanel.lbTab.Deselect(i)
+        for i in self.tabSelected:
+            if i < self.tabPanel.lbTab.GetCount():
+                self.tabPanel.lbTab.SetSelection(i)
+        # Update columns based on selection; skip saveSelection so the restored
+        # tabSelections are not overwritten by the current (stale) GUI state.
+        self.tabSelectionChanged(save=False)
+        return warnings
+
     def saveSelection(self):
         #self.ISel=self.tabPanel.lbTab.GetSelections()
-        ISel=self.tabSelected # 
+        ISel=self.tabSelected #
 
         # --- Save filters
         self.filterSelection  = [self.colPanel1.tFilter.GetLineText(0).strip()]
@@ -1554,6 +1849,7 @@ class SelectionPanel(wx.Panel):
         if self.currentMode=='simColumnsMode':
             self.simTabSelection['xSel'] = self.colPanel1.comboX.GetSelection()
             self.simTabSelection['ySel'] = self.colPanel1.lbColumns.GetSelections()
+            self.simTabSelection['zSel'] = self.colPanel1.comboZ.GetSelection()
         else:
             #self.simTabSelection = {} # We do not erase it
             # --- Save selected columns for each tab
@@ -1562,19 +1858,23 @@ class SelectionPanel(wx.Panel):
                     t=self.tabList[ii]
                     self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
                     self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
+                    self.tabSelections[t.name]['zSel'] = self.colPanel1.comboZ.GetSelection()
             else:
                 if len(ISel)>=1:
                     t=self.tabList[ISel[0]]
                     self.tabSelections[t.name]['xSel'] = self.colPanel1.comboX.GetSelection()
                     self.tabSelections[t.name]['ySel'] = self.colPanel1.lbColumns.GetSelections()
+                    self.tabSelections[t.name]['zSel'] = self.colPanel1.comboZ.GetSelection()
                 if len(ISel)>=2:
                     t=self.tabList[ISel[1]]
                     self.tabSelections[t.name]['xSel'] = self.colPanel2.comboX.GetSelection()
                     self.tabSelections[t.name]['ySel'] = self.colPanel2.lbColumns.GetSelections()
+                    self.tabSelections[t.name]['zSel'] = self.colPanel2.comboZ.GetSelection()
                 if len(ISel)>=3:
                     t=self.tabList[ISel[2]]
                     self.tabSelections[t.name]['xSel'] = self.colPanel3.comboX.GetSelection()
                     self.tabSelections[t.name]['ySel'] = self.colPanel3.lbColumns.GetSelections()
+                    self.tabSelections[t.name]['zSel'] = self.colPanel3.comboZ.GetSelection()
             self.tabSelected = self.tabPanel.lbTab.GetSelections();
         #self.printSelection()
 

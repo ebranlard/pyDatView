@@ -244,7 +244,9 @@ class InfoPanel(wx.Panel):
         self.tbStats.SetFont(getMonoFont(self))
         # For sorting see wx/lib/mixins/listctrl.py listmix.ColumnSorterMixin
         #self.tbStats.Bind(wx.EVT_LIST_COL_CLICK, self.CopyToClipBoard)
-        self.tbStats.Bind(wx.EVT_LIST_ITEM_SELECTED, self.CopyToClipBoard)
+        # NOTE: auto-copy on row select was removed — it silently overwrote
+        # the system clipboard. Stats are now copied explicitly via Ctrl+C
+        # (the frame-level handler calls CopyToClipBoard).
         # self.tbStats.Bind(wx.EVT_RIGHT_UP, self.ShowPopup)
 
 

@@ -19,7 +19,7 @@ class Fields1DPanel(wx.SplitterWindow): # TODO Panel
 
     def __init__(self, parent, mainframe):
         # Superclass constructor
-        super(Fields1DPanel, self).__init__(parent)
+        super(Fields1DPanel, self).__init__(parent, style=wx.SP_LIVE_UPDATE)
         # Data
         self.parent = parent
         self.mainframe = mainframe
@@ -29,7 +29,7 @@ class Fields1DPanel(wx.SplitterWindow): # TODO Panel
         # --- Create a selPanel, plotPanel and infoPanel
         mode = SEL_MODES_ID[mainframe.comboMode.GetSelection()]
         self.selPanel = SelectionPanel(self.vSplitter, mainframe.tabList, mode=mode, mainframe=mainframe)
-        self.tSplitter = wx.SplitterWindow(self.vSplitter)
+        self.tSplitter = wx.SplitterWindow(self.vSplitter, style=wx.SP_LIVE_UPDATE)
         #self.tSplitter.SetMinimumPaneSize(20)
         self.infoPanel = InfoPanel(self.tSplitter, data=mainframe.data['infoPanel'])
         self.plotPanel = PlotPanel(self.tSplitter, self.selPanel, infoPanel=self.infoPanel, pipeLike=mainframe.pipePanel, data=mainframe.data['plotPanel'])
@@ -40,9 +40,15 @@ class Fields1DPanel(wx.SplitterWindow): # TODO Panel
         self.tSplitter.SetSashGravity(1)
         self.tSplitter.SetSashPosition(400)
 
-        self.vSplitter.SplitVertically(self.selPanel, self.tSplitter)
+        # Set min pane size and gravity *before* splitting so the sash
+        # position passed to SplitVertically isn't silently overridden by
+        # a later SetMinimumPaneSize or SetSashGravity call (wx sometimes
+        # re-normalizes the sash on these calls when the splitter already
+        # has a size).
         self.vSplitter.SetMinimumPaneSize(SIDE_COL[0])
-        self.tSplitter.SetSashPosition(SIDE_COL[0])
+        self.vSplitter.SetSashGravity(0)  # Left pane stays fixed on resize; only plot area changes
+        self.vSplitter.SplitVertically(self.selPanel, self.tSplitter, SIDE_COL[0])
+        self.vSplitter.SetSashPosition(SIDE_COL[0])
 
 
         # --- Bind 

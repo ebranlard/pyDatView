@@ -321,7 +321,11 @@ class PlotData():
             else:
                 PD.sx= ''
         elif xType=='x':
-            PD.x=1/PD.x
+            # Drop DC (f=0) to avoid division by zero when computing Period
+            nz = PD.x != 0
+            PD.x = PD.x[nz]
+            PD.y = PD.y[nz]
+            PD.x = 1/PD.x
             if unit(PD.sx)=='s':
                 PD.sx= 'Period [s]'
             else:
