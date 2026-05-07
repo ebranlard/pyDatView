@@ -1723,26 +1723,38 @@ class PlotPanel(wx.Panel):
         ylim = ax.get_ylim()
         vx0, vx1 = sorted(xlim)
         vy0, vy1 = sorted(ylim)
-        # Locate the current bg artist on this axis to read its data extent.
+        # Locate the current bg artist on this axis to read its image and extent.
         bg_artist = None
         for img in ax.images:
             if getattr(img, '_is_pydatview_bg', False):
                 bg_artist = img
                 break
-        if bg_artist is not None and bg_artist.get_transform() == ax.transData:
-            bx0, bx1, by0, by1 = bg_artist.get_extent()
-            if bx0 > bx1:
-                bx0, bx1 = bx1, bx0
-            if by0 > by1:
-                by0, by1 = by1, by0
+        if bg_artist is not None:
+            try:
+                src = np.asarray(bg_artist.get_array())
+            except Exception:
+                src = self._bg_image
+            ext = bg_artist.get_extent()
+            if bg_artist.get_transform() == ax.transData:
+                bx0, bx1, by0, by1 = ext
+                if bx0 > bx1: bx0, bx1 = bx1, bx0
+                if by0 > by1: by0, by1 = by1, by0
+            else:
+                # transAxes: extent is axes-fraction; map back to data coords.
+                afx0, afx1, afy0, afy1 = ext
+                bx0 = vx0 + afx0 * (vx1 - vx0)
+                bx1 = vx0 + afx1 * (vx1 - vx0)
+                by0 = vy0 + afy0 * (vy1 - vy0)
+                by1 = vy0 + afy1 * (vy1 - vy0)
         else:
-            # Fall back to current viewport — same as 'Fixed default' state
+            # No artist drawn yet: treat as Fixed-default (full image == viewport).
+            src = self._bg_image
             bx0, bx1, by0, by1 = vx0, vx1, vy0, vy1
         ix0, ix1 = max(bx0, vx0), min(bx1, vx1)
         iy0, iy1 = max(by0, vy0), min(by1, vy1)
         if ix1 <= ix0 or iy1 <= iy0:
             return None, None
-        h, w = self._bg_image.shape[:2]
+        h, w = src.shape[:2]
         col0 = int(round((ix0 - bx0) / (bx1 - bx0) * w))
         col1 = int(round((ix1 - bx0) / (bx1 - bx0) * w))
         # origin='upper': image row 0 is the top (highest y). Flip y.
@@ -1752,7 +1764,7 @@ class PlotPanel(wx.Panel):
         row0 = max(0, min(h, row0)); row1 = max(0, min(h, row1))
         if col1 <= col0 or row1 <= row0:
             return None, None
-        cropped = self._bg_image[row0:row1, col0:col1]
+        cropped = src[row0:row1, col0:col1]
         afx0 = (ix0 - vx0) / (vx1 - vx0)
         afx1 = (ix1 - vx0) / (vx1 - vx0)
         afy0 = (iy0 - vy0) / (vy1 - vy0)
@@ -1774,8 +1786,11 @@ class PlotPanel(wx.Panel):
             if self._bg_image is None:
                 continue
             if self._bg_glued and self._bg_extent is not None:
+                img_data = self._bg_display_image \
+                           if self._bg_display_image is not None \
+                           else self._bg_image
                 bg_artist = ax.imshow(
-                    self._bg_image, extent=self._bg_extent,
+                    img_data, extent=self._bg_extent,
                     transform=ax.transData,
                     aspect='auto', zorder=0, origin='upper',
                     interpolation='bilinear')
@@ -1822,21 +1837,37 @@ class PlotPanel(wx.Panel):
     def onBgModeMoving(self, event):
         """'Moving with axes' mode: the image is glued to data coordinates.
 
-        Capture the current xlim/ylim of the first axis as the image's
-        data-coord extent and re-render every bg artist in transData. As
-        the user pans/zooms, the bg stays put in data space (the screen
-        position changes naturally with the viewport). No AutoScale or
-        other GUI setting is touched.
+        Compute a data-coord extent for the bg such that the switch is
+        visually invisible: take whatever portion of the bg is currently
+        visible (axes-fraction extent in Fixed-locked mode, or [0,1,0,1]
+        in Fixed-default mode) and map it to data coords using the
+        current viewport. The image array used is whatever was on screen
+        (cropped if Fixed-locked, full if Fixed-default).
+
+        After this, the user can pan/zoom freely; the bg stays put in
+        data space (its screen position changes with the viewport).
         """
         if len(self.fig.axes) == 0 or self._bg_image is None:
             return
         ax = self.fig.axes[0]
-        xlim = ax.get_xlim_()
-        ylim = ax.get_ylim_()
-        self._bg_extent = [min(xlim), max(xlim), min(ylim), max(ylim)]
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        vx0, vx1 = sorted(xlim)
+        vy0, vy1 = sorted(ylim)
+        ax_ext = self._bg_axes_extent if self._bg_axes_extent is not None \
+                 else [0.0, 1.0, 0.0, 1.0]
+        afx0, afx1, afy0, afy1 = ax_ext
+        self._bg_extent = [
+            vx0 + afx0 * (vx1 - vx0),
+            vx0 + afx1 * (vx1 - vx0),
+            vy0 + afy0 * (vy1 - vy0),
+            vy0 + afy1 * (vy1 - vy0),
+        ]
         self._bg_glued = True
-        self._bg_display_image = None
         self._bg_axes_extent = None
+        # Keep _bg_display_image so the image used in transData matches
+        # what was just on screen (the cropped portion in Fixed-locked
+        # mode, or None which falls back to _bg_image in Fixed-default).
         self._replace_bg_artists()
         self.canvas.draw_idle()
 
@@ -2553,8 +2584,11 @@ class PlotPanel(wx.Panel):
             #   Fixed-default: transAxes with full image at [0,1,0,1]
             if self._bg_image is not None and not hasattr(ax_left, 'set_zlim'):
                 if self._bg_glued and self._bg_extent is not None:
+                    img_data = self._bg_display_image \
+                               if self._bg_display_image is not None \
+                               else self._bg_image
                     bg_artist = ax_left.imshow(
-                        self._bg_image, extent=list(self._bg_extent),
+                        img_data, extent=list(self._bg_extent),
                         transform=ax_left.transData,
                         aspect='auto', zorder=0, origin='upper',
                         interpolation='bilinear')
