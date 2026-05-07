@@ -316,8 +316,7 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
                 self._rotate_tool_id = _rt.GetId()
                 self.Bind(wx.EVT_TOOL, self._toggle_rotate, id=self._rotate_tool_id)
                 self.SetToolShortHelp(self._rotate_tool_id,
-                    'Toggle 3D rotate mode (left-drag rotates)\n'
-                    'When off: left-drag pans, right-drag zooms')
+                    'Rotation for 3D: left rotates, right zooms')
                 self.Realize()
                 # Disabled until 3D mode is activated
                 self.EnableTool(self._rotate_tool_id, False)
@@ -329,20 +328,32 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
                     t = self.GetToolByPos(i)
                     if t.GetLabel() == 'Pan':
                         self.SetToolShortHelp(t.GetId(),
-                            'Left button pans, Right button zooms\n'
-                            'x/y/z fixes axis, CTRL fixes aspect')
+                            'When on:\n'
+                            'Left pans, Right zooms\n'
+                            'x/y/z fixes axis, CTRL fixes aspect\n'
+                            'When off:\n'
+                            'Left zooms in, right zooms out')
                         break
             except Exception:
                 pass
 
     def _toggle_rotate(self, event=None):
-        """Toggle rotate mode on/off. When on: drag rotates 3D axes; zoom/pan disabled."""
+        """Toggle rotate mode on/off. When on: drag rotates 3D axes; when off: left-drag pans."""
         self.rotate_on = not self.rotate_on
         if self.rotate_on:
             # Deactivate pan if active
             if self.pan_on:
                 self.pan_on = False
                 NavigationToolbar2.pan(self)
+                # Defensive: ensure the Pan toolbar button visual is OFF.
+                try:
+                    for i in range(self.GetToolsCount()):
+                        t = self.GetToolByPos(i)
+                        if t.GetLabel() == 'Pan':
+                            self.ToggleTool(t.GetId(), False)
+                            break
+                except Exception:
+                    pass
             # Deactivate zoom if active
             try:
                 from matplotlib.backend_bases import _Mode
@@ -355,7 +366,7 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
                 except Exception:
                     pass
         else:
-            # Restore zoom mode
+            # Rotate turned OFF — return to default (zoom) mode.
             NavigationToolbar2.zoom(self)
         if self._rotate_tool_id is not None:
             self.ToggleTool(self._rotate_tool_id, self.rotate_on)
@@ -368,11 +379,14 @@ class MyNavigationToolbar2Wx(NavigationToolbar2Wx):
             NavigationToolbar2.zoom(self, *args) # We skip wx and use the parent
 
     def pan(self, *args):
-        # Deactivate rotate if active
         if self.rotate_on:
             self.rotate_on = False
-            if self._rotate_tool_id is not None:
+        # Always force Rotate button visual OFF when Pan is clicked.
+        if self._rotate_tool_id is not None:
+            try:
                 self.ToggleTool(self._rotate_tool_id, False)
+            except Exception:
+                pass
         self.pan_on = not self.pan_on
         # NEW - MPL >= 3.0.0
         NavigationToolbar2.pan(self, *args) # We skip wx and use to parent
