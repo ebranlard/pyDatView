@@ -948,7 +948,32 @@ class EstheticsPanel(wx.Panel):
     def onAxisLimitChange(self, event=None):
         if self.parent.cbAutoScale.IsChecked():
             self.parent.cbAutoScale.SetValue(False)
-        self.parent.redraw_same_data()
+        # Snapshot the background image extent per-axis. An explicit limit
+        # change is a viewport choice — the user does not want the bg image
+        # to drift along with the new limits. In Fixed mode the
+        # xlim_changed callback would otherwise pull the artist to match
+        # the new viewport during the redraw; we restore the original
+        # extent on the rebuilt artist afterwards.
+        panel = self.parent
+        saved_bg = []
+        if panel._bg_image is not None:
+            for ax in panel.fig.axes:
+                ext = None
+                for img in ax.images:
+                    if getattr(img, '_is_pydatview_bg', False):
+                        ext = list(img.get_extent())
+                        break
+                saved_bg.append(ext)
+        panel.redraw_same_data()
+        if panel._bg_image is not None and saved_bg:
+            for ax, ext in zip(panel.fig.axes, saved_bg):
+                if ext is None:
+                    continue
+                for img in ax.images:
+                    if getattr(img, '_is_pydatview_bg', False):
+                        img.set_extent(ext)
+                        break
+            panel.canvas.draw_idle()
 
     def getAxisLimits(self):
         """Return axis limit values. Empty/invalid fields become None."""
