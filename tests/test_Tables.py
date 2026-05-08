@@ -62,7 +62,7 @@ class TestTable(unittest.TestCase):
         name, df = tablist.vstack(commonOnly=True)
         np.testing.assert_almost_equal(df['Index'], [0,1,2,3,4,5,6,7,8])
         np.testing.assert_almost_equal(df['ColA'], np.concatenate((tab1.data['ColA'], tab2.data['ColA'], )))
-        np.testing.assert_equal(df.columns.values, ['Index','ColA'])
+        np.testing.assert_array_equal(df.columns.values, ['Index','ColA'])
 
 
     def test_resample(self):
@@ -109,12 +109,12 @@ class TestTable(unittest.TestCase):
         np.testing.assert_almost_equal(tab.data.values[:,1],[1])
         np.testing.assert_almost_equal(tab.data.values[:,2],[2])
         np.testing.assert_almost_equal(tab.data.values[:,3],[10])
-        np.testing.assert_equal(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle_[deg]'])
+        np.testing.assert_array_equal(tab.columns, ['Index','om [rpm]', 'F [kN]', 'angle_[deg]'])
 
     def test_renameColumns(self):
         tab = Table.createDummy(n=3, columns=['RtFldCp [-]','B1FldFx [N]', 'angle [rad]'])
         tab.renameColumns(strReplDict={'Aero':'Fld'})
-        np.testing.assert_equal(tab.columns, ['Index','RtAeroCp [-]', 'B1AeroFx [N]', 'angle [rad]'])
+        np.testing.assert_array_equal(tab.columns, ['Index','RtAeroCp [-]', 'B1AeroFx [N]', 'angle [rad]'])
 
 if __name__ == '__main__':
 #     TestTable.setUpClass()
