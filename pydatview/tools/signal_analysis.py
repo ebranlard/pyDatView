@@ -259,8 +259,10 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
         sample_time = float(param[0])
         if sample_time <= 0:
             raise Exception('Error: sample time must be positive')
-        sample_time_ms = int(round(sample_time * 1000))
-        sSample = "{}ms".format(sample_time_ms)
+        sample_time_us = int(round(sample_time * 1_000_000))
+        if sample_time_us == 0:
+            raise Exception('Error: sample time is too small (rounds to 0 microseconds)')
+        sSample = "{}us".format(sample_time_us)
         time_index = pd.to_timedelta(np.asarray(x_old, dtype=float) * 1000, unit="ms")
         x_new = pd.Series(x_old, index=time_index).resample(sSample).mean().interpolate().values
 
