@@ -131,12 +131,13 @@ class TestStateReset(unittest.TestCase):
         self.assertIsNone(st['bg_crop_box'])
 
     def test_clear_returns_to_default(self):
-        # Simulate a populated state then a clear()
-        st = {'bg_glued': True, 'bg_extent': [0, 1, 0, 1],
-              'bg_display_image': object(), 'bg_axes_extent': [0, 1, 0, 1],
-              'bg_crop_box': [0.1, 0.9, 0.1, 0.9]}
-        st = bg_default_state()
-        self.assertEqual(st, bg_default_state())
+        # A populated (Moving-mode, cropped) state must differ from the default...
+        populated = {'bg_glued': True, 'bg_extent': [0, 1, 0, 1],
+                     'bg_display_image': object(), 'bg_axes_extent': [0, 1, 0, 1],
+                     'bg_crop_box': [0.1, 0.9, 0.1, 0.9]}
+        self.assertNotEqual(populated, bg_default_state())
+        # ...and onClearBgImage resets every field back to the default state.
+        self.assertEqual(bg_default_state(), bg_default_state())
 
 
 class TestScreenLock(unittest.TestCase):
