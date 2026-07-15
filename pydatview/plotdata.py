@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import pandas
 from pydatview.common import no_unit, unit, inverse_unit, splitunit, has_chinese_char
 from pydatview.common import isString, isDate, getDt
 from pydatview.common import unique, pretty_num, pretty_time, pretty_date
@@ -118,12 +119,12 @@ class PlotData():
 
 
         # --- Store stats
-        n=len(PD.y)
-        if n>1000:
+        n=len(pandas.unique(PD.y))
+        if n>100:
             if (PD.xIsString):
-                raise Exception('Error: x values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sx))
+                raise Exception('Error: x values contain more than 100 unique string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sx))
             if (PD.yIsString):
-                raise Exception('Error: y values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sy))
+                raise Exception('Error: y values contain more than 100 unique string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sy))
 
         PD.needChineseFont = has_chinese_char(PD.sy) or has_chinese_char(PD.sx)
         # Stats of the raw data (computed once and for all, since it can be expensive for large dataset
