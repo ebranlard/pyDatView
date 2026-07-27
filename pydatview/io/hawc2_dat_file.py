@@ -16,27 +16,56 @@ class HAWC2DatFile(File):
     def formatName():
         return 'HAWC2 dat file'
 
-    def __init__(self, filename=None, **kwargs):
+    def __init__(self, filename=None, streaming=False, **kwargs):
         self.info={}
-        self.data=np.array([])
+        self.data=None if streaming else np.array([])
         self.bHawc=False
-        super(HAWC2DatFile, self).__init__(filename=filename,**kwargs)
+        self._res_file = None  # Store ReadHawc2 object for streaming
 
-    def _read(self):
+        # Call parent __init__ - handles streaming, filename, _in_context, _fid
+        File.__init__(self, filename=filename, streaming=streaming, **kwargs)
+
+    def _read(self, streaming=False, **kwargs):
         try:
             res_file  = ReadHawc2(self.filename)
-            self.data = res_file.ReadAll()
+
+            # Store metadata (always loaded)
             self.info['attribute_names'] = res_file.ChInfo[0]
             self.info['attribute_units'] = res_file.ChInfo[1]
             self.info['attribute_descr'] = res_file.ChInfo[2]
+            self.info['NrSc'] = res_file.NrSc
+            self.info['NrCh'] = res_file.NrCh
+            self.info['Time'] = res_file.Time
+            self.info['Freq'] = res_file.Freq
+            self.info['FileFormat'] = res_file.FileFormat
+
             if res_file.FileFormat=='BHAWC_ASCII':
                 self.bHawc=True
+
+            if streaming:
+                # Streaming mode: store ReadHawc2 object, don't load data yet
+                self._res_file = res_file
+                self.data = None
+            else:
+                # Normal mode: load all data immediately
+                self.data = res_file.ReadAll()
+
         except FileNotFoundError:
             raise
-            #raise WrongFormatError('HAWC2 dat File {}:  '.format(self.filename)+' File Not Found:'+e.filename)
-        except Exception as e:    
-#             raise e
+        except Exception as e:
             raise WrongFormatError('HAWC2 dat File {}: '.format(self.filename)+e.args[0])
+
+    def _readAll(self):
+        """Read all data in streaming mode."""
+        if self._res_file is None:
+            raise RuntimeError("No ReadHawc2 object available (not in streaming mode)")
+
+        # Read all channels
+        self.data = self._res_file.ReadAll()
+
+    def _readChunk(self, **kwargs):
+        """Read chunk of data - not implemented for HAWC2 files."""
+        raise NotImplementedError(f"{self.__class__.__name__} does not support readChunk()")
 
     #def _write(self):
         #self.data.to_csv(self.filename,sep=self.false,index=False)
