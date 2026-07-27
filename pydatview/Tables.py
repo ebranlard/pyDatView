@@ -561,7 +561,7 @@ class Table(object):
 
     def setData(self, data, dayfirst=False):
         # sanitize columns, we only accept strings
-        data.columns = data.columns.astype(str)
+        data.columns = pd.Index([str(c) for c in data.columns], dtype='object')
 
         # Adding index
         if data.columns[0].lower().find('index')>=0:
@@ -965,7 +965,7 @@ class Table(object):
 
     @property
     def columns(self):
-        return self.data.columns.values #.astype(str)
+        return np.asarray(self.data.columns, dtype='object')
 
     @columns.setter
     def columns(self, cols):

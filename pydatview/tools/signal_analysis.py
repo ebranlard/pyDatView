@@ -259,13 +259,18 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
         sample_time = float(param[0])
         if sample_time <= 0:
             raise Exception('Error: sample time must be positive')
-        # --- Version dependency...
-        pdVer = [int(s) for s in pd.__version__.split('.')]
-        sSample = "{:f}s".format(sample_time)
-        if pdVer[0]<=1 or (pdVer[0]<=2 and pdVer[1]<2):
-            sSample = "{:f}S".format(sample_time)
+        # --- Old way to get sSample
+        #pdVer = [int(s) for s in pd.__version__.split('.')]
+        #sSample = "{:f}s".format(sample_time)
+        #if pdVer[0]<=1 or (pdVer[0]<=2 and pdVer[1]<2):
+        #    sSample = "{:f}S".format(sample_time)
+        #time_index = pd.to_timedelta(x_old, unit="s")
+        # --- New way to get sSample, and use ns
+        # Use Timedelta directly to avoid pandas unit-casting issues for sub-second frequencies.
+        sSample = pd.to_timedelta(sample_time, unit='s')
+        x_old_ns = np.rint(np.asarray(x_old, dtype=float) * 1e9).astype(np.int64)
+        time_index = pd.to_timedelta(x_old_ns, unit='ns')
 
-        time_index = pd.to_timedelta(x_old, unit="s")
         x_new = pd.Series(x_old, index=time_index).resample(sSample).mean().interpolate().values
 
         if df_old is not None:
