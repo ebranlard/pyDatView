@@ -3,6 +3,7 @@ TODO come up with some decent sepcs. Potentially use pandas or xarray
 
 """
 import numpy as np
+from pydatview.common import PyDatViewException
 
 def extract2Dfields(fo, force=False, **kwargs):
     if not hasattr(fo, 'fields2D_tmp') or force:
@@ -11,6 +12,10 @@ def extract2Dfields(fo, force=False, **kwargs):
         if not hasattr(fo, 'to2DFields'):
             print('[WARN] type {} does not have a `to2DFields` method'.format(type(fo)))
             return None
+        try:
+            import xarray 
+        except:
+            raise PyDatViewException('Package xarray is not installed, cannot plot 2D field.')
         try:
             fields = fo.to2DFields(**kwargs)
         except:

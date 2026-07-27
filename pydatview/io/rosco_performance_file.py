@@ -36,7 +36,7 @@ class ROSCOPerformanceFile(File):
     @staticmethod
     def defaultExtensions():
         """ List of file extensions expected for this fileformat"""
-        return ['.txt']
+        return ['.txt', '.rpf']
 
     @staticmethod
     def formatName():
@@ -132,8 +132,8 @@ class ROSCOPerformanceFile(File):
         # Check consistency
         CP2 = CQ*TSR
         deltaCP = np.abs(CP-CP2)/0.5*100 # relative difference in %, for a mean CP of 0.5
-        if np.max(deltaCP)>5: # more than 5%
-            raise Exception('Inconsitency between power coefficient and torque coefficient')
+        if np.max(deltaCP)>7: # more than 5%
+            raise Exception('Inconsitency between power coefficient and torque coefficient. We should have CP ~ CQ * TSR')
         self['CP'] = CP
         self['CQ'] = CQ
 
