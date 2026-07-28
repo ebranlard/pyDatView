@@ -85,7 +85,7 @@ class FASTSummaryFile(File):
         if attrList is None:
             attrList = [c for c in child.__dir__() if not c.startswith('_')]
         for attr in attrList:
-            print('FASTSummaryFile from child {}, setting `{}`'.format(type(child).__name__, attr))
+            #print('FASTSummaryFile from child {}, setting `{}`'.format(type(child).__name__, attr))
             setattr(self, attr, getattr(child, attr)) 
 
     def toDataFrame(self):

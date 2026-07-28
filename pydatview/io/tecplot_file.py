@@ -158,9 +158,9 @@ class TecplotFile(File):
     def __init__(self,filename=None,**kwargs):
         self.filename = None
         if filename:
-            self.read(filename=filename,**kwargs)
+            self.read(filename=filename, **kwargs)
 
-    def read(self, filename=None):
+    def read(self, filename=None, **kwargs):
         """ read a tecplot ascii file
         sea `read_tecplot` documentation above
         """

@@ -14,7 +14,7 @@ class FASTInputDeck(dict):
 
     @property
     def readlist_default(self):
-        return ['Fst','ED','AD','BD','BDbld','EDtwr','EDbld','ADbld','AF','AC','OLAF','IW','HD','SrvD','SD','MD']
+        return ['Fst','ED','SED','AD','ADdsk', 'BD','BDbld','EDtwr','EDbld','ADbld','AF','AC','OLAF','IW','HD','SS','SrvD','SrvDdll','SrvDini', 'SD','MD']
 
     def __init__(self, fullFstPath='', readlist=['all'], verbose=False):
         """Read FAST master file and read inputs for FAST modules
@@ -63,6 +63,7 @@ class FASTInputDeck(dict):
         self.fst_vt['AeroDynTower']      = None
         self.fst_vt['AeroDynPolar']      = None
         self.fst_vt['ServoDyn']          = None
+        self.fst_vt['SeaState']          = None
         self.fst_vt['DISCON_in']         = None
         self.fst_vt['HydroDyn']          = None
         self.fst_vt['MoorDyn']           = None
@@ -75,6 +76,7 @@ class FASTInputDeck(dict):
 
 
         self.ADversion=''
+        self.version=''
 
         # Read all inputs files
         if len(fullFstPath)>0:
@@ -94,7 +96,7 @@ class FASTInputDeck(dict):
             return ED
 
 
-    def readAD(self, filename=None, readlist=None, verbose=False, key='AeroDyn15'):
+    def readAD(self, filename=None, readlist=None, verbose=False, key='AeroDyn15', key_short='AD'):
         """ 
         readlist: 'AD','AF','AC','OLAF'
         """
@@ -115,7 +117,7 @@ class FASTInputDeck(dict):
         self.verbose  = verbose
 
         # AD
-        AD = self._read(filename,'AD')
+        AD = self._read(filename, key_short)
         self.fst_vt[key] = AD
 
         if AD is not None:
@@ -131,15 +133,20 @@ class FASTInputDeck(dict):
             self.fst_vt['AeroDynBlade'] = []
             for i in range(nBlades):
                 bld_file = os.path.join(baseDir, self.fst_vt[key]['ADBlFile({})'.format(i+1)])
-                self.fst_vt['AeroDynBlade'].append(self._read(bld_file,'ADbld'))
+                self.fst_vt['AeroDynBlade'].append(self._read(bld_file,'ADbld', multiple=True))
             # OLAF
-            #if os.path.exist(AD['OLAFInputFileName']):
-            self.fst_vt['OLAF'] = self._read(AD['OLAFInputFileName'], 'OLAF')
+            hasOLAF = False
+            if 'Wake_Mod' in AD:
+                hasOLAF = AD['Wake_Mod']==3
+            elif 'WakeMod' in AD:
+                hasOLAF = AD['WakeMod']==3
+            if hasOLAF:
+                self.fst_vt['OLAF'] = self._read(AD['OLAFInputFileName'], 'OLAF')
 
             # Polars
             self.fst_vt['af_data']=[] # TODO add to "AeroDyn"
             for afi, af_filename in enumerate(self.fst_vt['AeroDyn15']['AFNames']):
-                af_filename = os.path.join(baseDir,af_filename).replace('"','')
+                af_filename = clean_path(os.path.join(baseDir, af_filename))
                 # AF - Airfoil file
                 try: 
                     polar = self._read(af_filename, 'AF')
@@ -151,12 +158,16 @@ class FASTInputDeck(dict):
                 if polar is not None:
                     coordFile = polar['NumCoords']
                     if isinstance(coordFile,str):
-                        coordFile = coordFile.replace('"','')
+                        coordFile = clean_path(coordFile)
                         baseDirCoord=os.path.dirname(af_filename)
                         if coordFile[0]=='@':
                             ac_filename = os.path.join(baseDirCoord,coordFile[1:])
-                            coords = self._read(ac_filename, 'AC')
+                            coords = self._read(ac_filename, 'AC', multiple=True)
                             self.fst_vt['ac_data'].append(coords)
+                        else:
+                            self.fst_vt['ac_data'].append(None)
+                    else:
+                        self.fst_vt['ac_data'].append(None)
 
         # --- Backward compatibility
         self.AD  = AD
@@ -184,15 +195,15 @@ class FASTInputDeck(dict):
     def _relpath(self, k1, k2=None, k3=None):
         try:
             if k2 is None:
-                return self.fst_vt['Fst'][k1].replace('"','')
+                return clean_path(self.fst_vt['Fst'][k1])
             else:
-                parent = os.path.dirname(self.fst_vt['Fst'][k1]).replace('"','')
+                parent = clean_path(os.path.dirname(self.fst_vt['Fst'][k1]))
                 if type(k3)==list:
                     for k in k3:
                         if k in self.fst_vt[k2].keys():
-                            child =  self.fst_vt[k2][k].replace('"','')
+                            child =  clean_path(self.fst_vt[k2][k])
                 else:
-                    child =  self.fst_vt[k2][k3].replace('"','')
+                    child =  clean_path(self.fst_vt[k2][k3])
                 return os.path.join(parent, child)
         except:
             return 'none'
@@ -213,7 +224,7 @@ class FASTInputDeck(dict):
 
 
     def _fullpath(self, relfilepath):
-        relfilepath = relfilepath.replace('"','')
+        relfilepath = clean_path(relfilepath)
         basename = os.path.basename(relfilepath)
         if basename.lower() in self.unusedNames:
             return 'none'
@@ -271,7 +282,10 @@ class FASTInputDeck(dict):
             # ---- Regular OpenFAST file
             # ElastoDyn
             if 'EDFile' in self.fst_vt['Fst'].keys():
-                self.fst_vt['ElastoDyn'] = self._read(self.fst_vt['Fst']['EDFile'],'ED')
+                if self.fst_vt['Fst']['CompElast']==3:
+                    self.fst_vt['ElastoDyn'] = self._read(self.fst_vt['Fst']['EDFile'],'SED')
+                else:
+                    self.fst_vt['ElastoDyn'] = self._read(self.fst_vt['Fst']['EDFile'],'ED')
                 if self.fst_vt['ElastoDyn'] is not None:
                     twr_file = self.ED_twr_path
                     bld_file = self.ED_bld_path
@@ -284,17 +298,33 @@ class FASTInputDeck(dict):
 
             # AeroDyn
             if self.fst_vt['Fst']['CompAero']>0:
-                key = 'AeroDyn14' if self.fst_vt['Fst']['CompAero']==1 else 'AeroDyn15'
-                self.readAD(key=key, readlist=self.readlist)
+                #   key = 'AeroDyn14' if self.fst_vt['Fst']['CompAero']==1 else 'AeroDyn15'
+                key = 'AeroDyn15'
+                key_short = 'AD'
+                if self.fst_vt['Fst']['CompAero']==1:
+                    key_short = 'ADdsk'
+                self.readAD(key=key, readlist=self.readlist, key_short=key_short)
 
             # ServoDyn
             if self.fst_vt['Fst']['CompServo']>0:
                 self.fst_vt['ServoDyn'] = self._read(self.fst_vt['Fst']['ServoFile'],'SrvD')
-                # TODO Discon
+                if self.fst_vt['ServoDyn'] is not None:
+                    dll_file = clean_path(os.path.join(os.path.dirname(self.inputFilesRead['SrvD']), self.fst_vt['ServoDyn']['DLL_FileName']))
+                    ini_file = clean_path(os.path.join(os.path.dirname(self.inputFilesRead['SrvD']), self.fst_vt['ServoDyn']['DLL_InFile']))
+                    if 'SrvDdll' in self.readlist:
+                        self.inputFilesRead['SrvDdll'] = dll_file
+                    if 'SrvDini' in self.readlist:
+                        self.inputFilesRead['SrvDini'] = ini_file
+                    # TODO Actually read them...
 
             # HydroDyn
-            if self.fst_vt['Fst']['CompHydro']== 1:
+            if self.fst_vt['Fst']['CompHydro']>0:
                 self.fst_vt['HydroDyn'] = self._read(self.fst_vt['Fst']['HydroFile'],'HD')
+
+            # SeaState
+            if 'CompSeaSt' in self.fst_vt['Fst'].keys():
+                if self.fst_vt['Fst']['CompSeaSt']>0:
+                    self.fst_vt['SeaState'] = self._read(self.fst_vt['Fst']['SeaStFile'],'SS')
 
             # SubDyn
             if self.fst_vt['Fst']['CompSub'] == 1:
@@ -322,18 +352,19 @@ class FASTInputDeck(dict):
         if self.AD is not None:
             self.AD.Bld1 = self.fst_vt['AeroDynBlade'][0]
             self.AD.AF  = self.fst_vt['af_data']
-        self.IW  = self.fst_vt['InflowWind']
-        self.BD  = self.fst_vt['BeamDyn']
-        self.BDbld  = self.fst_vt['BeamDynBlade']
-        self.SD  = self.fst_vt['SubDyn']
+        self.IW    = self.fst_vt['InflowWind']
+        self.BD    = self.fst_vt['BeamDyn']
+        self.BDbld = self.fst_vt['BeamDynBlade']
+        self.SD    = self.fst_vt['SubDyn']
+        self.SS    = self.fst_vt['SeaState']
 
     @ property
     def unusedNames(self):
         return ['unused','nan','na','none']
 
-    def _read(self, relfilepath, shortkey):
+    def _read(self, relfilepath, shortkey, multiple=False):
         """ read any openfast input """
-        relfilepath =relfilepath.replace('"','')
+        relfilepath =clean_path(relfilepath)
         basename = os.path.basename(relfilepath)
 
         # Only read what the user requested to be read
@@ -354,10 +385,15 @@ class FASTInputDeck(dict):
         else:
             fullpath = os.path.join(self.FAST_directory, relfilepath)
         try:
-            data = FASTInputFile(fullpath)
+            data = FASTInputFile(fullpath, verbose=self.verbose)
             if self.verbose:
                 print('>>> Read: ',fullpath)
-            self.inputFilesRead[shortkey] = fullpath
+            if multiple:
+                if shortkey not in self.inputFilesRead:
+                    self.inputFilesRead[shortkey] = []
+                self.inputFilesRead[shortkey] += [fullpath]
+            else:
+                self.inputFilesRead[shortkey] = fullpath
             return data
         except FileNotFoundError:
             print('[WARN] File not found '+fullpath)
@@ -487,9 +523,19 @@ class FASTInputDeck(dict):
         s+='AD version : '+self.ADversion+'\n'
         s+='fst_vt     : dict{'+','.join([k for k,v in self.fst_vt.items() if v is not None])+'}\n'
         s+='inputFiles : {}\n'.format(self.inputFiles)
-        s+='inputFilesRead : {}\n'.format(self.inputFilesRead)
-        s+='\n'
+        s+='inputFilesRead :\n'
+        for k,v in self.inputFilesRead.items():
+            if isinstance(v, list):
+                for i,l in enumerate(v):
+                    s+=' - {:5s}[{}]: {}\n'.format(k,i,l)
+            else:
+                s+=' - {:8s} : {}\n'.format(k,v)
         return s
+
+def clean_path(path):
+    path = path.replace('"','')
+    path = path.replace("\\", "/")
+    return path
 
 if __name__ == "__main__":
     fst=FASTInputDeck('NREL5MW.fst')

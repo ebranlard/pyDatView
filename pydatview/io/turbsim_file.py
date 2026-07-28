@@ -535,7 +535,7 @@ class TurbSimFile(File):
             print('New std : {:7.3f}  (target: {:7.3f}, old: {:7.3f})'.format(new_std2 , new_std , old_std))
 
     def makePeriodic(self):
-        """ Make the box periodic in the streamwise direction by mirroring it """
+        """ Make the box periodic in the streamwise direction by mirroring it - Periodic is ID=8"""
         nDim, nt0, ny, nz = self['u'].shape
         u = self['u'].copy()
         del self['u']
@@ -660,22 +660,23 @@ class TurbSimFile(File):
             import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore') #, category=DeprecationWarning)
-            fc, chi_uu, chi_vv, chi_ww = self.csd_longi()
-            cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
-            data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
-            dfs['Mid_csd_longi'] = pd.DataFrame(data = data ,columns = cols)
+            if len(self.t)>256:
+                fc, chi_uu, chi_vv, chi_ww = self.csd_longi()
+                cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
+                data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
+                dfs['Mid_csd_longi'] = pd.DataFrame(data = data ,columns = cols)
 
-            # Mid csd
-            fc, chi_uu, chi_vv, chi_ww = self.csd_lat()
-            cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
-            data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
-            dfs['Mid_csd_lat'] = pd.DataFrame(data = data ,columns = cols)
+                # Mid csd
+                fc, chi_uu, chi_vv, chi_ww = self.csd_lat()
+                cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
+                data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
+                dfs['Mid_csd_lat'] = pd.DataFrame(data = data ,columns = cols)
 
-            # Mid csd
-            fc, chi_uu, chi_vv, chi_ww = self.csd_vert()
-            cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
-            data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
-            dfs['Mid_csd_vert'] = pd.DataFrame(data = data ,columns = cols)
+                # Mid csd
+                fc, chi_uu, chi_vv, chi_ww = self.csd_vert()
+                cols = ['f_[Hz]','chi_uu_[-]', 'chi_vv_[-]','chi_ww_[-]']
+                data = np.column_stack((fc, chi_uu, chi_vv, chi_ww))
+                dfs['Mid_csd_vert'] = pd.DataFrame(data = data ,columns = cols)
         except ModuleNotFoundError:
             print('Module scipy.signal not available')
         except ImportError:

@@ -13,13 +13,14 @@ except ImportError:
 # --- Wrapper to convert a "fast" input file dictionary into a graph
 # --------------------------------------------------------------------------------{
 def fastToGraph(data, **kwargs):
-    if 'BeamProp' in data.keys():
+    keys = data.keys()
+    if 'BeamProp' in keys:
         return subdynToGraph(data, **kwargs)
     
-    if 'SmplProp' in data.keys():
+    if 'SmplProp' in keys or 'SmplPropCyl' in keys:
         return hydrodynToGraph(data, **kwargs)
 
-    if 'DOF2Nodes' in data.keys():
+    if 'DOF2Nodes' in keys:
         return subdynSumToGraph(data, **kwargs)
 
     raise NotImplementedError('Graph for object with keys: {}'.format(data.keys()))
@@ -34,13 +35,16 @@ def subdynToGraph(sd, propToNodes=False, propToElem=False):
     -propToNodes: if True, the element properties are also transferred to the nodes for convenience.
                  NOTE: this is not the default because a same node can have two different diameters in SubDyn (it's by element)
     """
-    type2Color=[
-            (0.1,0.1,0.1), # Watchout based on background
-            (0.753,0.561,0.05),  # 1 Beam
-            (0.541,0.753,0.05),  # 2 Cable
-            (0.753,0.05,0.204),  # 3 Rigid
-            (0.918,0.702,0.125), # 3 Rigid
-        ]
+    type2Color={
+            0: (0.1,0.1,0.1), # Watchout based on background
+           '1': (0.753,0.561,0.05), # 1 Beam
+          '1c': (0.753,0.561,0.05), # 1 Beam
+          '1r': (0.553,0.361,0.05), # 1 Beam Rect
+          '2': (0.541,0.753,0.05),  # 2 Cable
+          '3': (0.753,0.05,0.204),  # 3 Rigid
+          '4': (0.918,0.702,0.125), # 4 Rigid
+          '5': (0.018,0.702,0.125), # 5 Spring
+        }
 
     Graph = GraphModel()
     # --- Properties
@@ -74,19 +78,24 @@ def subdynToGraph(sd, propToNodes=False, propToElem=False):
         Graph.addNode(node)
 
     # --- Elements
-    Members  = sd['Members'].astype(int)
-    PropSets = ['Beam','Cable','Rigid']
+    Members  = sd['Members']# .astype(int)
+    #[MType={1c:beam circ., 1r:beam rect., 2:cable, 3:rigid, 4:beam arb., 5:spring}. COMSID={-1:none}]
+    PropSets = {'1': 'Beam', '1c':'Beam', '1r':'BeamRect', '2': 'Cable', '3':'Rigid', '4':'BeamArb', '5':'Spring'} # NOTE: name must match propset table
     for ie,E in enumerate(Members):
-        Type=1 if len(E)==5 else E[5]
-        #elem= Element(E[0], E[1:3], propset=PropSets[Type-1], propIDs=E[3:5])
-        elem= Element(E[0], E[1:3], Type=PropSets[Type-1], propIDs=E[3:5], propset=PropSets[Type-1])
+        EE = E[0:5].astype(int)
+        Type='1' if len(E)==5 else E[5]
+        try:
+            Type = str(int(Type))
+        except:
+            Type = str(Type)
+        elem= Element(EE[0], EE[1:3], Type=PropSets[Type], propIDs=EE[3:5], propset=PropSets[Type])
         elem.data['object']='cylinder'
         elem.data['color'] = type2Color[Type]
         Graph.addElement(elem)
         # Nodal prop data
         if propToNodes:
             # NOTE: this is disallowed by default because a same node can have two different diameters in SubDyn (it's by element)
-            Graph.setElementNodalProp(elem, propset=PropSets[Type-1], propIDs=E[3:5])
+            Graph.setElementNodalProp(elem, propset=PropSets[Type], propIDs=EE[3:5])
         if propToElem:
             Graph.setElementNodalPropToElem(elem) # TODO, this shouldn't be needed
 
@@ -151,9 +160,10 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False, verbose=False):
 
 
     Graph = GraphModel()
+    keys = hd.keys()
 
     # --- Properties
-    if 'SectionProp' in hd.keys():
+    if 'SectionProp' in keys:
         # NOTE: setting it as element property since two memebrs may connect on the same node with different diameters/thicknesses
         Graph.addNodePropertySet('Section')
         for ip,P in enumerate(hd['SectionProp']):
@@ -162,22 +172,27 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False, verbose=False):
             Graph.addNodeProperty('Section',prop)
 
     # --- Hydro Coefs - will be stored in AxCoefs, SimpleCoefs, DepthCoefs, MemberCoefs
-    if 'AxCoefs' in hd.keys():
+    if 'AxCoefs' in keys:
         Graph.addNodePropertySet('AxCoefs')
         for ip,P in enumerate(hd['AxCoefs']):
             prop= NodeProperty(ID=P[0], JAxCd=P[1], JAxCa=P[2], JAxCp=P[3])
             Graph.addNodeProperty('AxCoefs',prop)
-    if 'SmplProp' in hd.keys():
+
+    SmplPropKey = None 
+    if 'SmplProp' in keys:
+        SmplPropKey = 'SmplProp'
+    elif 'SmplPropCyl' in keys:
+        SmplPropKey = 'SmplPropCyl'
+    # TODO rect prop
+    if SmplPropKey is not None:
+        SmplProp = hd[SmplPropKey]
+        df = hd.getTab(SmplPropKey)
+        df.columns = [col.replace('Simpl', '') for col in df.columns]
         Graph.addNodePropertySet('SimpleCoefs')
-        for ip,P in enumerate(hd['SmplProp']):
-            #      SimplCd    SimplCdMG    SimplCa    SimplCaMG    SimplCp    SimplCpMG   SimplAxCd  SimplAxCdMG   SimplAxCa  SimplAxCaMG  SimplAxCp   SimplAxCpMG
-            if len(P)==12:
-                prop= NodeProperty(ID=ip+1, Cd=P[0], CdMG=P[1], Ca=P[2], CaMG=P[3], Cp=P[4], CpMG=P[5], AxCd=P[6], AxCdMG=P[7], AxCa=P[8], AxCaMG=P[9], AxCp=P[10], AxCpMG=P[11])
-            elif len(P)==10:
-                prop= NodeProperty(ID=ip+1, Cd=P[0], CdMG=P[1], Ca=P[2], CaMG=P[3], Cp=P[4], CpMG=P[5], AxCa=P[6], AxCaMG=P[7], AxCp=P[8], AxCpMG=P[9])
-            else:
-                raise NotImplementedError()
-            Graph.addNodeProperty('SimpleCoefs',prop)
+        #for ip,P in enumerate(SmplProp):
+        dd = df.iloc[0].to_dict()
+        prop = NodeProperty(ID=1, **dd)
+        Graph.addNodeProperty('SimpleCoefs',prop)
     if 'DpthProp' in hd.keys():
         Graph.addMiscPropertySet('DepthCoefs')
         for ip,P in enumerate(hd['DpthProp']):
@@ -185,7 +200,7 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False, verbose=False):
             prop= Property(ID=ip+1, Dpth=P[0], Cd=P[1], CdMG=P[2], Ca=P[3], CaMG=P[4], Cp=P[5], CpMG=P[6], AxCd=P[7], AxCdMG=P[8], AxCa=P[9], AxCaMG=P[10], AxCp=P[11], AxCpMG=P[12])
             Graph.addMiscProperty('DepthCoefs',prop)
     if 'MemberProp' in hd.keys():
-        # Member-based hydro coefficinet
+        # Member-based hydro coefficient
         Graph.addMiscPropertySet('MemberCoefs')
         for ip,P in enumerate(hd['MemberProp']):
             # MemberID    MemberCd1     MemberCd2    MemberCdMG1   MemberCdMG2    MemberCa1     MemberCa2    MemberCaMG1   MemberCaMG2    MemberCp1     MemberCp2    MemberCpMG1   MemberCpMG2   MemberAxCd1   MemberAxCd2  MemberAxCdMG1 MemberAxCdMG2  MemberAxCa1   MemberAxCa2  MemberAxCaMG1 MemberAxCaMG2  MemberAxCp1  MemberAxCp2   MemberAxCpMG1   MemberAxCpMG2
@@ -315,7 +330,7 @@ def subdynSumToGraph(data, Graph=None):
 if __name__ == '__main__':
     from .fast_input_file import FASTInputFile
 
-    filename='../../_data/Monopile/MT100_SD.dat'
+    filename='../../data/Monopile/MT100_Baseline/SD.dat'
     # filename='../../_data/Monopile/TetraSpar_SubDyn_v3.dat'
 
     sd = FASTInputFile(filename)

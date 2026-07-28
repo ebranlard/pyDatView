@@ -1,4 +1,4 @@
-from .file import File, WrongFormatError, BrokenFormatError
+from .file import File, WrongFormatError, BrokenFormatError, OptionalImportError
 import numpy as np
 import pandas as pd
 
@@ -16,6 +16,11 @@ class ExcelFile(File):
         return 'Excel file'
 
     def _read(self):
+        try:
+            import openpyxl
+        except:
+            raise OptionalImportError('Install the library openpyxl')
+
         self.data=dict()
         # Reading all sheets
         xls = pd.ExcelFile(self.filename,  engine='openpyxl')

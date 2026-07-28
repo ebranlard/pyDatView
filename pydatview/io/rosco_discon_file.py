@@ -136,13 +136,14 @@ class ROSCODISCONFile(File):
                 FMTs['{:<4.4f}']=['WE_FOPoles_v']
                 FMTs['{:<10.8f}']=['WE_FOPoles']
                 FMTs['{:<10.3f}']=['PS_BldPitchMin']
+                FMTs['{:<7.0f}']=['PerfTableSize','Ind_BldPitch']
                 fmtFloat='{:<014.5f}'
                 for fmt,keys in FMTs.items():
                     if param in keys:
                         fmtFloat=fmt
                         break
                 if type(v) is str:
-                    sval='"{:15s}"    '.format(v)
+                    sval='{:15s}    '.format('"'+v+'"')
                 elif hasattr(v, '__len__'):
                     if isinstance(v[0], (np.floating, float)):
                         sval=' '.join([fmtFloat.format(vi) for vi in v]  )+'    '
