@@ -286,6 +286,48 @@ class FASTLinearizationFile(File):
 
         return dfs
 
+    def to2DFields(self, nTOut=10, nYOut=3, nZOut=3, **kwargs):
+        import xarray as xr
+        if len(kwargs.keys())>0:
+            print('[WARN] FASTLinearizationFile: to2DFields: ignored keys: ',kwargs.keys())
+
+        IX     = np.arange(1, self.nx+1)
+        IU     = np.arange(1, self.nu+1)
+        IY     = np.arange(1, self.ny+1)
+        nq     = len(IX) // 2
+        IQ     = np.arange(1, nq + 1)
+        IQdot  = np.arange(nq + 1, 2 * nq + 1)
+        d_IQ   = IQ
+        d_IQdot = IQdot
+
+        ds = xr.Dataset(coords={'i_x': IX, 'i_y': IY, 'i_u': IU, 'i_xdot':IX, 
+                                'i_q': IQ, 'i_qdot': IQdot, 'i_d_q': d_IQ, 'i_d_qdot': d_IQdot})
+        ds['i_x'].attrs['unit']      = ' # '
+        ds['i_xdot'].attrs['unit']   = ' # '
+        ds['i_y'].attrs['unit']      = ' # '
+        ds['i_u'].attrs['unit']      = ' # '
+        ds['i_q'].attrs['unit']      = ' # '
+        ds['i_qdot'].attrs['unit']   = ' # '
+        ds['i_d_q'].attrs['unit']    = ' # '
+        ds['i_d_qdot'].attrs['unit'] = ' # '
+        # NOTE: we transpose the axes for more natural pcolormesh default vizualization
+        if 'A' in self.keys():
+            ds['A']= (   ['i_x'   , 'i_xdot'], self['A'].T)
+            ds['A11'] = (['i_q'   , 'i_d_q' ], self['A'][:nq, :nq].copy().T) # Should be zeros
+            ds['A12'] = (['i_q'   , 'i_d_q'], self['A'][:nq, nq:].copy().T) # Should be identity
+            ds['A21'] = (['i_q'   , 'i_d_qdot'], self['A'][nq:, :nq].copy().T)
+            ds['A22'] = (['i_qdot', 'i_d_qdot'], self['A'][nq:, nq:].copy().T)
+        if 'B' in self.keys():
+            ds['B']  = (['i_u' ,'i_x_dot']  , self['B'].T)
+            ds['B1'] = (['i_u', 'i_d_q']    , self['B'][:nq, :].T)
+            ds['B2'] = (['i_u', 'i_d_q_dot'], self['B'][nq:, :].T)
+        if 'C' in self.keys():
+            ds['C']= (['i_x','i_y'], self['C'].T)
+        if 'D' in self.keys():
+            ds['D']= (['i_u','i_y'], self['D'].T)
+
+        return ds
+
     def removeStates(self, pattern=None, Irm=None, verbose=True):
         """ 
         remove states based on pattern or index
