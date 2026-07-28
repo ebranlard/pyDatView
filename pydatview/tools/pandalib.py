@@ -3,14 +3,19 @@ import numpy as np
 import re
 
 
-def pd_interp1(x_new, xLabel, df):
+def pd_interp1(x_new, xLabel, df, extrap='bounded'):
     """ Interpolate a panda dataframe based on a set of new value
     This function assumes that the dataframe is a simple 2d-table
+    INPUTS:
+     - extrap: bounded or nan
+      
     """
     from .signal_analysis import multiInterp
     x_old = df[xLabel].values
-    data_new=multiInterp(x_new, x_old, df.values.T)
-    return pd.DataFrame(data=data_new.T, columns=df.columns.values)
+    data_new=multiInterp(x_new, x_old, df.values.T, extrap=extrap)
+    df = pd.DataFrame(data=data_new.T, columns=df.columns.values)
+    df[xLabel] = x_new
+    return df
     #nRow,nCol = df.shape
     #nRow = len(xnew)
     #data = np.zeros((nRow,nCol))

@@ -77,6 +77,7 @@ def adjust_color_lightness(rgb, factor):
     hls[ hls[...,1]<0, 1] = 0
     hls[ hls[...,1]>1, 1] = 1
     rgb = hls_to_rgb(hls)
+    rgb[rgb>1] = 1
     return rgb
 
 
@@ -87,8 +88,11 @@ def lighten_color(rgb, factor=0.1):
     return adjust_color_lightness(rgb, 1 + factor)
 
 def darken_color(rgb, factor=0.1):
-    rgb = standardize(rgb)
+    rgb = standardize(rgb[:3])
     return adjust_color_lightness(rgb, 1 - factor)
+
+def darken_colors(rgbs, factor=0.1):
+    return [darken_color(rgb[:3]) for rgb in rgbs]
 
 # --------------------------------------------------------------------------------}
 # --- COLOR MAPS 

@@ -124,7 +124,11 @@ def rsquare(y, f, c = True):
     rmse = np.sqrt(np.mean((y - f) ** 2))
     return r2,rmse
 
-def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='meanabs', verbose=False, varname='', absVal=True):
+
+
+
+
+def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='meanabs', verbose=False, varname='', absVal=True, tRange=None):
     """ 
     return mean relative error in % 
 
@@ -141,12 +145,27 @@ def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='meanabs', verbose=F
         else:
             return y
 
+    if tRange is not None and t1 is not None:
+        b = np.logical_and(t1>tRange[0], t1<tRange[1])
+        if sum(b)>0:
+            t1 = t1[b]
+            y1 = y1[b]
+            if t2 is not None:
+                b=np.logical_and(t2>tRange[0], t2<tRange[1])
+                t2 = t2[b]
+                y2 = y2[b]
+
 
     if t1 is None and t2 is None:
         pass
     else:
         if len(y1)!=len(y2):
-            y2=np.interp(t1,t2,y2)
+            y2=np.interp(t1, t2, y2)
+
+
+#     print('Mean rel error {:7.2f} %'.format( meanrelerr))
+#     return meanrelerr,meanrelerr0
+
     if method=='mean':
         # Method 1 relative to mean
         ref_val = np.nanmean(y1)
@@ -173,6 +192,8 @@ def mean_rel_err(t1=None, y1=None, t2=None, y2=None, method='meanabs', verbose=F
         # transform values from 1 to 2
         Min=min(np.nanmin(y1), np.nanmin(y2))
         Max=max(np.nanmax(y1), np.nanmax(y2))
+        if Max==Min:
+            Max=Min+1
         y1 = (y1-Min)/(Max-Min)+1
         y2 = (y2-Min)/(Max-Min)+1
         meanrelerr = np.nanmean(myabs(y2-y1)/np.abs(y1))*100

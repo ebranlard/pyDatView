@@ -30,7 +30,7 @@ __all__ += ['freqDampFromPeaks']
 __all__ += ['zetaEnvelop']
 __all__ += ['TestDamping']
 
-def indexes(y, thres=0.3, min_dist=1, thres_abs=False):
+def peak_indexes(y, thres=0.3, min_dist=1, thres_abs=False):
     """Peak detection routine.
 
     Finds the numeric index of the peaks in *y* by taking its first order difference. By using
@@ -133,7 +133,7 @@ def logDecFromThreshold(x, threshold=None, bothSides=False, decay=True):
 
     if threshold is None:
         threshold = np.mean(abs(x-np.mean(x)))/3;
-    I =indexes(x, thres=threshold, min_dist=1, thres_abs=True)
+    I =peak_indexes(x, thres=threshold, min_dist=1, thres_abs=True)
     # Estimating "index" period
     iT = round(np.median(np.diff(I)));
     vn=np.arange(0,len(I)-1)+1
