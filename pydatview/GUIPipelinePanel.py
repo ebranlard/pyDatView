@@ -152,15 +152,18 @@ class PipelinePanel(wx.Panel, Pipeline):
         self.wrapSizer.Add(ap, 0, wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL, 0)
 
     def _deletePanel(self, action):
+        actionPanel = None
         for child in self.wrapSizer.Children:
             win = child.GetWindow()
             if win is not None:
                 if hasattr(win,'action'):
                     if win.action==action:
                         actionPanel=win
-        self.wrapSizer.Hide(actionPanel) #actionPanel.Destroy()
-        self.wrapSizer.Layout()
-        self.Sizer.Layout()
+                        break
+        if actionPanel is not None:
+            self.wrapSizer.Hide(actionPanel) #actionPanel.Destroy()
+            self.wrapSizer.Layout()
+            self.Sizer.Layout()
 
     def onCloseAction(self, event, action=None):
         self.remove(action, tabList=self.tabList) # TODO

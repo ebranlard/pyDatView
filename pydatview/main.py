@@ -1,8 +1,10 @@
 import numpy as np
-import os.path 
+import os
+import os.path
 import sys
-import traceback 
+import traceback
 import gc
+import json
 try:
     import pandas as pd
 except:
@@ -29,8 +31,10 @@ from pydatview.GUIFields2D import Fields2DPanel
 
 from pydatview.GUISelectionPanel import SEL_MODES,SEL_MODES_ID
 from pydatview.GUISelectionPanel import ColumnPopup,TablePopup
+from pydatview.GUISelectionPanel import _tab_shortname
 from pydatview.GUIPipelinePanel import PipelinePanel
 from pydatview.GUIToolBox import GetKeyString, TBAddTool
+from pydatview.GUIPlotPanel import IMAGE_EXTS
 from pydatview.Tables import TableList, Table
 # Helper
 from pydatview.common import exception2string, PyDatViewException
@@ -48,6 +52,7 @@ from pydatview.appdata import loadAppData, saveAppData, configFilePath, defaultA
 PROG_NAME='pyDatView'
 PROG_VERSION='v0.5-local'
 ISTAT = 0 # Index of Status bar where main status info is provided
+VIEW_FILE_EXT = '.pdvview'  # Extension for exported view files
 
 #matplotlib.rcParams['text.usetex'] = False
 # matplotlib.rcParams['font.sans-serif'] = 'DejaVu Sans'
@@ -62,8 +67,20 @@ ISTAT = 0 # Index of Status bar where main status info is provided
 
 
 
+def _toCell(v):
+    """Format a single value for TSV clipboard output."""
+    if v is None:
+        return ''
+    try:
+        if isinstance(v, float):
+            return repr(v)
+        return str(v)
+    except Exception:
+        return ''
+
+
 # --------------------------------------------------------------------------------}
-# --- Drag and drop 
+# --- Drag and drop
 # --------------------------------------------------------------------------------{
 # Implement File Drop Target class
 class FileDropTarget(wx.FileDropTarget):
@@ -74,15 +91,10 @@ class FileDropTarget(wx.FileDropTarget):
    def OnDropFiles(self, x, y, filenames):
       filenames = [f for f in filenames if not os.path.isdir(f)]
       filenames.sort()
-      if len(filenames)>0:
-          # If Ctrl is pressed we add
-          bAdd= wx.GetKeyState(wx.WXK_CONTROL);
-          iFormat=self.parent.comboFormats.GetSelection()
-          if iFormat==0: # auto-format
-              Format = None
-          else:
-              Format = self.parent.FILE_FORMATS[iFormat-1]
-          self.parent.load_files(filenames, fileformats=[Format]*len(filenames), bAdd=bAdd, bPlot=True)
+      if len(filenames) == 0:
+          return True
+      bAdd = wx.GetKeyState(wx.WXK_CONTROL)
+      self.parent._routeFilenames(filenames, bAdd=bAdd)
       return True
 
 
@@ -115,7 +127,6 @@ class MainFrame(wx.Frame):
         # Hooking exceptions to display them to the user
         sys.excepthook = MyExceptionHook
         # --- Data
-        self.restore_formulas = []
         self.systemFontSize = self.GetFont().GetPointSize()
         self.data = loadAppData(self)
         self.tabList=TableList(options=self.data['loaderOptions'])
@@ -139,17 +150,32 @@ class MainFrame(wx.Frame):
         menuBar = wx.MenuBar()
 
         fileMenu = wx.Menu()
-        loadMenuItem  = fileMenu.Append(wx.ID_NEW,"Open file" ,"Open file"           )
+        loadMenuItem  = fileMenu.Append(wx.ID_NEW,"&Open file\tCtrl+O" ,"Open file"           )
+        reloadMenuItem= fileMenu.Append(wx.ID_ANY,"&Reload\tCtrl+R"    ,"Reload current files" )
+        addMenuItem   = fileMenu.Append(wx.ID_ANY,"&Add file\tCtrl+A"  ,"Add file to current data" )
+        # Menu label has no accelerator — Ctrl+V/Ctrl+C are routed via
+        # EVT_CHAR_HOOK so TextCtrls keep native clipboard behavior. Adding
+        # the shortcut here as a menu accelerator would steal paste from the
+        # filter box and axis-limit text fields.
+        pasteMenuItem = fileMenu.Append(wx.ID_ANY,"&Paste (Ctrl+V)"    ,"Paste files, view, or image from clipboard (Shift+Ctrl+V to add)")
+        copyMenuItem  = fileMenu.Append(wx.ID_ANY,"&Copy (Ctrl+C)"     ,"Copy current selection or plot to clipboard")
+        self.recentFilesMenu = wx.Menu()
+        fileMenu.AppendSubMenu(self.recentFilesMenu, 'Recent Files')
+        fileMenu.AppendSeparator()
         scrpMenuItem  = fileMenu.Append(-1        ,"Export script" ,"Export script"           )
         exptMenuItem  = fileMenu.Append(-1        ,"Export table" ,"Export table"           )
         saveMenuItem  = fileMenu.Append(wx.ID_SAVE,"Save figure" ,"Save figure"           )
         exitMenuItem  = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
         menuBar.Append(fileMenu, "&File")
-        self.Bind(wx.EVT_MENU,self.onExit  ,exitMenuItem)
-        self.Bind(wx.EVT_MENU,self.onLoad  ,loadMenuItem)
-        self.Bind(wx.EVT_MENU,self.onScript,scrpMenuItem)
-        self.Bind(wx.EVT_MENU,self.onExport,exptMenuItem)
-        self.Bind(wx.EVT_MENU,self.onSave  ,saveMenuItem)
+        self.Bind(wx.EVT_MENU,self.onExit       ,exitMenuItem)
+        self.Bind(wx.EVT_MENU,self.onLoad       ,loadMenuItem)
+        self.Bind(wx.EVT_MENU,self.onReload     ,reloadMenuItem)
+        self.Bind(wx.EVT_MENU,self.onAdd        ,addMenuItem)
+        self.Bind(wx.EVT_MENU,self.onPasteGlobal,pasteMenuItem)
+        self.Bind(wx.EVT_MENU,self.onCopyGlobal ,copyMenuItem)
+        self.Bind(wx.EVT_MENU,self.onScript     ,scrpMenuItem)
+        self.Bind(wx.EVT_MENU,self.onExport     ,exptMenuItem)
+        self.Bind(wx.EVT_MENU,self.onSave       ,saveMenuItem)
 
         # --- Data Plugins
         # NOTE: very important, need "s_loc" otherwise the lambda function take the last toolName
@@ -166,6 +192,17 @@ class MainFrame(wx.Frame):
         menuBar.Append(toolMenu, "&Tools")
         for toolName in TOOLS.keys():
             self.Bind(wx.EVT_MENU, lambda e, s_loc=toolName: self.onShowTool(e, s_loc), toolMenu.Append(wx.ID_ANY, toolName))
+
+        # --- Views Menu
+        self.viewsMenu = wx.Menu()
+        saveViewMenuItem   = self.viewsMenu.Append(wx.ID_ANY, '&Save current view...\tCtrl+S',   'Save the current selection and plot settings as a named view')
+        exportViewMenuItem = self.viewsMenu.Append(wx.ID_ANY, 'Export view to file...', 'Export the current view to a .pdvview file (includes file list and settings)')
+        importViewMenuItem = self.viewsMenu.Append(wx.ID_ANY, 'Import view from file...', 'Load a .pdvview file, open its data files, and restore the view')
+        self.viewsMenu.AppendSeparator()
+        menuBar.Append(self.viewsMenu, "&Views")
+        self.Bind(wx.EVT_MENU, self.onSaveView,    saveViewMenuItem)
+        self.Bind(wx.EVT_MENU, self.onExportView,  exportViewMenuItem)
+        self.Bind(wx.EVT_MENU, self.onImportView,  importViewMenuItem)
 
         # --- OpenFAST Plugins
         ofMenu = wx.Menu()
@@ -202,8 +239,9 @@ class MainFrame(wx.Frame):
         # --- ToolBar
         tb = self.CreateToolBar(wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT)
         tb.AddSeparator()
-        self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)  
+        self.comboMode = wx.ComboBox(tb, choices = SEL_MODES, style=wx.CB_READONLY)
         self.comboMode.SetSelection(0)
+        self.comboMode.SetToolTip("How to handle column matching when multiple tables are selected")
         #tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Mode: ' ) )
         tb.AddControl( self.comboMode ) 
@@ -212,9 +250,9 @@ class MainFrame(wx.Frame):
         tb.AddControl( self.cbLivePlot ) 
         tb.AddStretchableSpace()
         tb.AddControl( wx.StaticText(tb, -1, 'Format: ' ) )
-        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)  
+        self.comboFormats = wx.ComboBox(tb, choices = self.FILE_FORMATS_NAMEXT, style=wx.CB_READONLY)
         self.comboFormats.SetSelection(0)
-        tb.AddControl(self.comboFormats ) 
+        tb.AddControl(self.comboFormats )
         # Menu for loader options
         self.btLoaderMenu = wx.Button(tb, wx.ID_ANY, CHAR['menu'], style=wx.BU_EXACTFIT)
         tb.AddControl(self.btLoaderMenu)
@@ -223,16 +261,31 @@ class MainFrame(wx.Frame):
         TBAddTool(tb, "Open"  , 'ART_FILE_OPEN', self.onLoad)
         TBAddTool(tb, "Reload", 'ART_REDO'     , self.onReload)
         TBAddTool(tb, "Add"   , 'ART_PLUS'     , self.onAdd)
-        #bmp = wx.Bitmap('help.png') #wx.Bitmap("NEW.BMP", wx.BITMAP_TYPE_BMP) 
-        #self.AddTBBitmapTool(tb,"Debug" ,wx.ArtProvider.GetBitmap(wx.ART_ERROR),self.onDEBUG)
         tb.AddStretchableSpace()
-        tb.Realize() 
-        self.toolBar = tb 
+        tb.Realize()
+        self.toolBar = tb
+        # Set short-help tooltips on named toolbar tools
+        try:
+            _tb_tooltips = {
+                'Open':   'Open file (Ctrl+O)',
+                'Reload': 'Reload current files (Ctrl+R)',
+                'Add':    'Add file to current data set (Ctrl+A)',
+            }
+            for i in range(tb.GetToolsCount()):
+                t = tb.GetToolByPos(i)
+                lbl = t.GetLabel()
+                if lbl in _tb_tooltips:
+                    tb.SetToolShortHelp(t.GetId(), _tb_tooltips[lbl])
+        except Exception:
+            pass
         # Bind Toolbox Events
         self.Bind(wx.EVT_COMBOBOX, self.onModeChange, self.comboMode )
         self.Bind(wx.EVT_COMBOBOX, self.onFormatChange, self.comboFormats )
         tb.Bind(wx.EVT_BUTTON, self.onShowLoaderMenu, self.btLoaderMenu)
         tb.Bind(wx.EVT_CHECKBOX, self.onLivePlotChange, self.cbLivePlot)
+        # Populate the views combobox and menu from saved data
+        self._populateViewsUI()
+        self._populateRecentFilesMenu()
 
         # --- Status bar
         self.statusbar=self.CreateStatusBar(3, style=0)
@@ -265,18 +318,307 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.onClose)
 
         # Shortcuts
-        idFilter=wx.NewId()
+        idFilter = wx.NewId()
         self.Bind(wx.EVT_MENU, self.onFilter, id=idFilter)
-
-        accel_tbl = wx.AcceleratorTable(
-                [(wx.ACCEL_CTRL,  ord('F'), idFilter )]
-                )
+        accel_tbl = wx.AcceleratorTable([
+            (wx.ACCEL_CTRL, ord('F'), idFilter),
+        ])
         self.SetAcceleratorTable(accel_tbl)
+        # Ctrl+V / Ctrl+C via EVT_CHAR_HOOK so TextCtrls keep native behavior
+        self._lastActive = None
+        self._focusTrackingInstalled = False
+        self.Bind(wx.EVT_CHAR_HOOK, self.onCharHook)
 
     def onFilter(self,event):
         if hasattr(self,'selPanel'):
             self.selPanel.colPanel1.tFilter.SetFocus()
         event.Skip()
+
+    # --------------------------------------------------------------------------------
+    # --- Keyboard shortcuts: Ctrl+V paste, Ctrl+C context-aware copy
+    # --------------------------------------------------------------------------------
+    def onCharHook(self, event):
+        """Frame-level key dispatcher. Defers to TextCtrl/ComboBox natively."""
+        key = event.GetKeyCode()
+        ctrl = event.ControlDown() or event.CmdDown()
+        if not ctrl or key not in (ord('C'), ord('V')):
+            event.Skip()
+            return
+        # Don't steal Ctrl+C/V from native text widgets
+        focus = wx.Window.FindFocus()
+        if isinstance(focus, (wx.TextCtrl, wx.SearchCtrl, wx.ComboBox)):
+            event.Skip()
+            return
+        if key == ord('V'):
+            self.onPasteGlobal(event)
+        else:
+            self.onCopyGlobal(event)
+
+    def _routeFilenames(self, filenames, bAdd=False):
+        """Split filenames into view/image/data files and dispatch each.
+
+        Used by both drag-and-drop and Ctrl+V paste so both paths behave the
+        same way. All files loaded are tracked in the Recent Files menu via
+        the loaders they hit.
+        """
+        filenames = [f for f in filenames if not os.path.isdir(f)]
+        if not filenames:
+            return 0, 0, 0
+        view_files  = [f for f in filenames if f.lower().endswith(VIEW_FILE_EXT)]
+        image_files = [f for f in filenames if f.lower().endswith(IMAGE_EXTS)]
+        data_files  = [f for f in filenames
+                       if not f.lower().endswith(VIEW_FILE_EXT)
+                       and not f.lower().endswith(IMAGE_EXTS)]
+        # View file: only the first is meaningful
+        if view_files:
+            self.load_view_file(view_files[0])
+        # Image files: each becomes a background
+        for p in image_files:
+            self._loadBgImageFromPath(p)
+        # Data files: one batched call
+        if data_files:
+            iFormat = self.comboFormats.GetSelection()
+            Format = None if iFormat == 0 else self.FILE_FORMATS[iFormat-1]
+            self.load_files(data_files, fileformats=[Format]*len(data_files),
+                            bAdd=bAdd, bPlot=True)
+        return len(view_files), len(image_files), len(data_files)
+
+    def _loadBgImageFromPath(self, path):
+        """Load an image file as plot background and track in recent files."""
+        if not hasattr(self, 'plotPanel'):
+            Warn(self, 'Plot panel not ready yet — load a data file first.')
+            return False
+        try:
+            import matplotlib.image as mpimg
+            img = mpimg.imread(path)
+        except Exception as e:
+            Error(self, 'Failed to load image:\n{}'.format(str(e)))
+            return False
+        self.plotPanel._setBgImage(img)
+        self._track_recent(path)
+        return True
+
+    def onPasteGlobal(self, event):
+        """Ctrl+V: paste files, view file, or image from the clipboard."""
+        bAdd = wx.GetKeyState(wx.WXK_SHIFT)
+        if not wx.TheClipboard.Open():
+            Warn(self, 'Could not open clipboard.')
+            return
+        try:
+            # 1) File paths
+            file_data = wx.FileDataObject()
+            if wx.TheClipboard.GetData(file_data):
+                filenames = list(file_data.GetFilenames())
+                if filenames:
+                    nv, ni, nd = self._routeFilenames(filenames, bAdd=bAdd)
+                    parts = []
+                    if nv: parts.append('{} view file'.format(nv))
+                    if ni: parts.append('{} image{}'.format(ni, '' if ni==1 else 's'))
+                    if nd: parts.append('{} data file{}'.format(nd, '' if nd==1 else 's'))
+                    if parts:
+                        self.statusbar.SetStatusText('Pasted ' + ', '.join(parts), ISTAT)
+                    return
+            # 2) Bitmap from clipboard (e.g. a screenshot)
+            bmp_data = wx.BitmapDataObject()
+            if wx.TheClipboard.GetData(bmp_data):
+                if hasattr(self, 'plotPanel'):
+                    # Close here so onPasteBgImage can re-open the clipboard
+                    wx.TheClipboard.Close()
+                    self.plotPanel.onPasteBgImage(None)
+                    self.statusbar.SetStatusText(
+                        'Pasted background image from clipboard', ISTAT)
+                    return
+                else:
+                    Warn(self, 'Plot panel not ready yet — load a data file first.')
+                    return
+            # 3) Text — maybe a file path
+            text_data = wx.TextDataObject()
+            if wx.TheClipboard.GetData(text_data):
+                text = text_data.GetText().strip().strip('"').strip("'")
+                if text and os.path.isfile(text):
+                    nv, ni, nd = self._routeFilenames([text], bAdd=bAdd)
+                    if (nv + ni + nd) > 0:
+                        self.statusbar.SetStatusText(
+                            'Pasted "{}"'.format(os.path.basename(text)), ISTAT)
+                        return
+            Warn(self, 'Clipboard has no supported content (files, image, or path).')
+        finally:
+            try:
+                wx.TheClipboard.Close()
+            except Exception:
+                pass
+
+    def _ensureFocusTracking(self):
+        """Install EVT_SET_FOCUS handlers on the widgets that Ctrl+C dispatches on."""
+        if self._focusTrackingInstalled:
+            return
+        if not (hasattr(self, 'selPanel') and hasattr(self, 'plotPanel')
+                and hasattr(self, 'infoPanel')):
+            return
+        def _setActive(key):
+            def handler(event):
+                self._lastActive = key
+                event.Skip()
+            return handler
+        try:
+            for cp in (getattr(self.selPanel, 'colPanel1', None),
+                       getattr(self.selPanel, 'colPanel2', None),
+                       getattr(self.selPanel, 'colPanel3', None)):
+                if cp is not None and hasattr(cp, 'lbColumns'):
+                    cp.lbColumns.Bind(wx.EVT_SET_FOCUS, _setActive('columns'))
+            tp = getattr(self.selPanel, 'tabPanel', None)
+            if tp is not None and hasattr(tp, 'lbTab'):
+                tp.lbTab.Bind(wx.EVT_SET_FOCUS, _setActive('tables'))
+            if hasattr(self.infoPanel, 'tbStats'):
+                self.infoPanel.tbStats.Bind(wx.EVT_SET_FOCUS, _setActive('stats'))
+            canvas = getattr(self.plotPanel, 'canvas', None)
+            if canvas is not None:
+                canvas.Bind(wx.EVT_SET_FOCUS, _setActive('plot'))
+                canvas.Bind(wx.EVT_LEFT_DOWN, lambda e: (
+                    setattr(self, '_lastActive', 'plot'), e.Skip()))
+            self._focusTrackingInstalled = True
+        except Exception as e:
+            print('[WARN] Failed to install focus tracking: {}'.format(e))
+
+    def _inferLastActive(self):
+        """Fallback — walk the focused widget's parents to infer the pane."""
+        focus = wx.Window.FindFocus()
+        w = focus
+        while w is not None:
+            if hasattr(self, 'infoPanel') and w is self.infoPanel:
+                return 'stats'
+            if hasattr(self, 'plotPanel') and w is self.plotPanel:
+                return 'plot'
+            if hasattr(self, 'selPanel') and w is self.selPanel:
+                tp = getattr(self.selPanel, 'tabPanel', None)
+                # If focus is inside tabPanel, treat as tables; else columns
+                w2 = focus
+                while w2 is not None:
+                    if w2 is tp:
+                        return 'tables'
+                    w2 = w2.GetParent()
+                return 'columns'
+            w = w.GetParent()
+        return None
+
+    def onCopyGlobal(self, event):
+        """Ctrl+C: copy based on the last focused/clicked pane."""
+        if not hasattr(self, 'plotPanel'):
+            return
+        active = self._lastActive or self._inferLastActive()
+        if active == 'stats' and hasattr(self, 'infoPanel'):
+            self.infoPanel.CopyToClipBoard(event)
+            self.statusbar.SetStatusText('Copied stats to clipboard', ISTAT)
+            return
+        if active == 'columns':
+            self._copyColumnsSelection()
+            return
+        if active == 'tables':
+            self._copyTablesSelection()
+            return
+        if active == 'plot':
+            self._copyPlotBitmap()
+            return
+        Warn(self, 'Click a pane (columns, tables, plot, or stats) first, then Ctrl+C.')
+
+    def _copyColumnsSelection(self):
+        """Copy X, selected Y (and Z if set) columns for each selected table."""
+        if not hasattr(self, 'selPanel'):
+            return
+        ITab, _ = self.selPanel.getSelectedTables()
+        if not ITab:
+            Warn(self, 'No tables selected.')
+            return
+        cp = self.selPanel.colPanel1
+        iX, IY, sX, SY = cp.getColumnSelection()
+        try:
+            iZ, sZ = cp.getZColumnSelection()
+        except Exception:
+            iZ, sZ = -1, ''
+        col_indices = [iX] + list(IY)
+        if iZ >= 0 and iZ not in col_indices:
+            col_indices.append(iZ)
+        if not col_indices:
+            Warn(self, 'No columns selected.')
+            return
+        self._copyTablesColumnsToClipboard(ITab, col_indices,
+                                           context='columns')
+
+    def _copyTablesSelection(self):
+        """Copy all columns for each selected table."""
+        if not hasattr(self, 'selPanel'):
+            return
+        ITab, _ = self.selPanel.getSelectedTables()
+        if not ITab:
+            Warn(self, 'No tables selected.')
+            return
+        self._copyTablesColumnsToClipboard(ITab, None, context='tables')
+
+    def _copyTablesColumnsToClipboard(self, ITab, col_indices, context='columns'):
+        """Build a tab-separated grid of selected columns and copy it."""
+        try:
+            headers = []
+            columns = []  # list of string-lists
+            for iTab in ITab:
+                try:
+                    tab = self.tabList[iTab]
+                except Exception:
+                    continue
+                tab_name = getattr(tab, 'active_name', None) or getattr(tab, 'raw_name', '') or 'table'
+                if col_indices is None:
+                    ncols = len(tab.data.columns)
+                    idxs = list(range(ncols))
+                else:
+                    idxs = [i for i in col_indices if 0 <= i < len(tab.data.columns)]
+                for i in idxs:
+                    try:
+                        x, _isStr, _isDate, c = tab.getColumn(i)
+                    except Exception:
+                        continue
+                    col_name = str(tab.data.columns[i])
+                    headers.append('{}:{}'.format(tab_name, col_name))
+                    columns.append([_toCell(v) for v in x])
+            if not columns:
+                Warn(self, 'Nothing to copy.')
+                return
+            nrows = max(len(c) for c in columns)
+            lines = ['\t'.join(headers)]
+            for r in range(nrows):
+                row = [(columns[c][r] if r < len(columns[c]) else '')
+                       for c in range(len(columns))]
+                lines.append('\t'.join(row))
+            text = '\n'.join(lines)
+            if wx.TheClipboard.Open():
+                try:
+                    wx.TheClipboard.SetData(wx.TextDataObject(text))
+                finally:
+                    wx.TheClipboard.Close()
+            self.statusbar.SetStatusText(
+                'Copied {} tables x {} columns'.format(len(ITab), len(columns)),
+                ISTAT)
+        except Exception as e:
+            Error(self, 'Failed to copy to clipboard:\n{}'.format(str(e)))
+
+    def _copyPlotBitmap(self):
+        """Copy the current plot figure to the clipboard as a bitmap."""
+        if not hasattr(self, 'plotPanel'):
+            return
+        try:
+            import io as _io
+            buf = _io.BytesIO()
+            self.plotPanel.fig.savefig(buf, format='png',
+                                       dpi=self.plotPanel.fig.dpi)
+            buf.seek(0)
+            img = wx.Image(buf, wx.BITMAP_TYPE_PNG)
+            bmp = img.ConvertToBitmap()
+            if wx.TheClipboard.Open():
+                try:
+                    wx.TheClipboard.SetData(wx.BitmapDataObject(bmp))
+                finally:
+                    wx.TheClipboard.Close()
+            self.statusbar.SetStatusText('Copied figure to clipboard', ISTAT)
+        except Exception as e:
+            Error(self, 'Failed to copy figure to clipboard:\n{}'.format(str(e)))
 
     def clean_memory(self,bReload=False):
         #print('Clean memory')
@@ -337,9 +679,14 @@ class MainFrame(wx.Frame):
         # Display warnings
         for warn in warnList: 
             Warn(self,warn)
+        # Track recent files (only for fresh loads, not reloads)
+        if not bReload and filenames:
+            for p in reversed(filenames):
+                self._track_recent(p)
         # Load tables into the GUI
         if self.tabList.len()>0:
             self.load_tabs_into_GUI(bReload=bReload, bAdd=bAdd, bPlot=bPlot)
+            self._ensureFocusTracking()
 
     def load_dfs(self, dfs, names=None, bAdd=False, bPlot=True):
         """ Load one or multiple dataframes intoGUI """
@@ -354,6 +701,7 @@ class MainFrame(wx.Frame):
         self.load_tabs_into_GUI(bAdd=bAdd, bPlot=bPlot)
         if hasattr(self,'selPanel'):
             self.selPanel.updateLayout(SEL_MODES_ID[self.comboMode.GetSelection()])
+        self._ensureFocusTracking()
 
     def load_tabs_into_GUI(self, bReload=False, bAdd=False, bPlot=True):
         if self.nb.GetPageCount()==0:
@@ -436,9 +784,23 @@ class MainFrame(wx.Frame):
             self.statusbar.SetStatusText(self.tabList[ISel[0]].filename        , ISTAT+1)
             self.statusbar.SetStatusText(self.tabList[ISel[0]].shapestring     , ISTAT+2)
         else:
-            self.statusbar.SetStatusText('{} tables loaded'.format(nTabs)                                                     ,ISTAT+0) 
+            self.statusbar.SetStatusText('{} tables loaded'.format(nTabs)                                                     ,ISTAT+0)
             self.statusbar.SetStatusText(", ".join(list(set([self.tabList.filenames[i] for i in ISel]))),ISTAT+1)
             self.statusbar.SetStatusText(''                                                             ,ISTAT+2)
+        # Update window title to show loaded file names
+        base = PROG_NAME + ' ' + PROG_VERSION
+        try:
+            unique_files = list(dict.fromkeys(
+                os.path.basename(self.tabList.filenames[i]) for i in range(nTabs)
+                if self.tabList.filenames[i]))
+            if len(unique_files) == 0:
+                self.SetTitle(base)
+            elif len(unique_files) <= 3:
+                self.SetTitle('{} \u2014 {}'.format(base, ', '.join(unique_files)))
+            else:
+                self.SetTitle('{} \u2014 {} \u2026 ({} files)'.format(base, unique_files[0], len(unique_files)))
+        except Exception:
+            self.SetTitle(base)
 
     # --- Table Actions - TODO consider a table handler, or doing only the triggers
     def onTabListChangeLowLevel(self):
@@ -495,6 +857,7 @@ class MainFrame(wx.Frame):
             path = dlg.GetPath()
             fformat = fformat[dlg.GetFilterIndex()]
             tab.export(path=path, fformat=fformat)
+            self._track_recent(path)
 
     def onShowTool(self, event=None, toolName=''):
         """ 
@@ -615,18 +978,14 @@ class MainFrame(wx.Frame):
     def onLivePlotChange(self, event=None):
         if self.cbLivePlot.IsChecked():
             if hasattr(self,'plotPanel'):
-                #print('[INFO] Reenabling live plot')
-                #self.plotPanel.Enable(True)
-                #self.infoPanel.Enable(True)
+                self.statusbar.SetStatusText('', ISTAT)
                 self.redrawCallback()
         else:
+            self.statusbar.SetStatusText('Live plot OFF \u2014 press Ctrl+R to update', ISTAT)
             if hasattr(self,'plotPanel'):
-                #print('[INFO] Disabling live plot')
                 for ax in self.plotPanel.fig.axes:
                     ax.annotate('Live Plot Disabled', xy=(0.5, 0.5), size=20, xycoords='axes fraction', ha='center', va='center',)
                     self.plotPanel.canvas.draw()
-                #self.plotPanel.Enable(False)
-                #self.infoPanel.Enable(False)
 
 
     def redrawCallback(self):
@@ -753,20 +1112,22 @@ class MainFrame(wx.Frame):
 
 
     def onLoad(self, event=None):
-        self.selectFile(bAdd=False)
+        # Check CTRL state: if held, add to existing tables (same as CTRL+drag-drop)
+        bAdd = wx.GetKeyState(wx.WXK_CONTROL) and self.tabList.len() > 0
+        self.selectFile(bAdd=bAdd)
 
     def onAdd(self, event=None):
         self.selectFile(bAdd=self.tabList.len()>0)
 
-    def selectFile(self,bAdd=False):
+    def selectFile(self, bAdd=False):
         # --- File Format extension
         iFormat=self.comboFormats.GetSelection()
         sFormat=self.comboFormats.GetStringSelection()
         if iFormat==0: # auto-format
             Format = None
-            #wildcard = 'all (*.*)|*.*'
-            wildcard='|'.join([n+'|*'+';*'.join(e) for n,e in zip(self.FILE_FORMATS_NAMEXT,self.FILE_FORMATS_EXTENSIONS)])
-            #wildcard = sFormat + extensions+'|all (*.*)|*.*'
+            view_wc = 'pyDatView views (*{})|*{}'.format(VIEW_FILE_EXT, VIEW_FILE_EXT)
+            wildcard = '|'.join([n+'|*'+';*'.join(e) for n,e in zip(self.FILE_FORMATS_NAMEXT,self.FILE_FORMATS_EXTENSIONS)])
+            wildcard = view_wc + '|' + wildcard
         else:
             Format = self.FILE_FORMATS[iFormat-1]
             extensions = '|*'+';*'.join(self.FILE_FORMATS[iFormat-1].extensions)
@@ -775,12 +1136,16 @@ class MainFrame(wx.Frame):
         with wx.FileDialog(self, "Open file", wildcard=wildcard,
                 style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE) as dlg:
             #other options: wx.CHANGE_DIR
-            #dlg.SetSize((100,100))
-            #dlg.Center()
-           if dlg.ShowModal() == wx.ID_CANCEL:
+            if dlg.ShowModal() == wx.ID_CANCEL:
                return     # the user changed their mind
-           filenames = dlg.GetPaths()
-           self.load_files(filenames,fileformats=[Format]*len(filenames),bAdd=bAdd, bPlot=True)
+            filenames = dlg.GetPaths()
+            # Route view files the same way as drag-and-drop does
+            view_files = [f for f in filenames if f.lower().endswith(VIEW_FILE_EXT)]
+            data_files = [f for f in filenames if not f.lower().endswith(VIEW_FILE_EXT)]
+            if view_files:
+                self.load_view_file(view_files[0])
+            elif data_files:
+                self.load_files(data_files, fileformats=[Format]*len(data_files), bAdd=bAdd, bPlot=True)
 
     def onModeChange(self, event=None):
         if hasattr(self,'selPanel'):
@@ -801,6 +1166,391 @@ class MainFrame(wx.Frame):
         self.PopupMenu(self.loaderMenu) #, pos)
 
 
+    # --- Views: save / restore
+    def _populateViewsUI(self):
+        """Rebuild the Views menu items from saved views list"""
+        views = self.data.get('views', [])
+        # Rebuild dynamic menu items (keep Save/Export/Import + separator at top, positions 0-3)
+        while self.viewsMenu.GetMenuItemCount() > 4:
+            item = self.viewsMenu.FindItemByPosition(4)
+            self.viewsMenu.Delete(item)
+        for v in views:
+            subMenu = wx.Menu()
+            applyItem    = subMenu.Append(wx.ID_ANY, 'Apply view')
+            applyTabItem = subMenu.Append(wx.ID_ANY, 'Apply view to current table')
+            deleteItem   = subMenu.Append(wx.ID_ANY, 'Delete view')
+            self.viewsMenu.AppendSubMenu(subMenu, v['name'])
+            self.Bind(wx.EVT_MENU, lambda e, n=v['name']: self.onRestoreView(n),               applyItem)
+            self.Bind(wx.EVT_MENU, lambda e, n=v['name']: self.onRestoreViewCurrentTable(n), applyTabItem)
+            self.Bind(wx.EVT_MENU, lambda e, n=v['name']: self.onDeleteView(n),               deleteItem)
+
+    def _track_recent(self, path):
+        """Insert *path* at the top of recentFiles (capped at 30) and refresh the menu."""
+        recent = self.data.get('recentFiles', [])
+        abs_path = os.path.abspath(path)
+        if abs_path in recent:
+            recent.remove(abs_path)
+        recent.insert(0, abs_path)
+        self.data['recentFiles'] = recent[:30]
+        self._populateRecentFilesMenu()
+
+    def _populateRecentFilesMenu(self):
+        """Rebuild the Recent Files submenu from saved recentFiles list."""
+        while self.recentFilesMenu.GetMenuItemCount() > 0:
+            item = self.recentFilesMenu.FindItemByPosition(0)
+            self.recentFilesMenu.Delete(item)
+        recent = self.data.get('recentFiles', [])
+        if not recent:
+            emptyItem = self.recentFilesMenu.Append(wx.ID_ANY, '(empty)')
+            emptyItem.Enable(False)
+        else:
+            for path in recent:
+                low = path.lower()
+                if low.endswith(VIEW_FILE_EXT):
+                    label = '[view] {}'.format(path)
+                elif low.endswith(IMAGE_EXTS):
+                    label = '[bg] {}'.format(path)
+                else:
+                    label = path
+                item = self.recentFilesMenu.Append(wx.ID_ANY, label)
+                if low.endswith(VIEW_FILE_EXT):
+                    self.Bind(wx.EVT_MENU, lambda e, p=path: self.load_view_file(p), item)
+                elif low.endswith(IMAGE_EXTS):
+                    self.Bind(wx.EVT_MENU, lambda e, p=path: self._loadBgImageFromPath(p), item)
+                else:
+                    self.Bind(wx.EVT_MENU, lambda e, p=path: self.load_files([p]), item)
+
+    def _capturePipelineState(self):
+        """Return {action_name: data_dict} for every action currently in the pipeline."""
+        if not hasattr(self, 'pipePanel'):
+            return {}
+        state = {}
+        for action in list(self.pipePanel.actionsData) + list(self.pipePanel.actionsPlotFilters):
+            state[action.name] = dict(action.data)
+        return state
+
+    def _restorePipelineState(self, pipeline_state):
+        """Restore pipeline actions from a saved state dict.
+
+        Strategy
+        --------
+        * PlotDataActions (Filter, Remove Outliers, Resample, Bin data):
+          Non-destructive — safe to cancel and re-apply at any time.
+        * ReversibleTableAction (Mask):
+          cancel() calls clearMask() on each table, so the original rows
+          are recovered before the saved mask is re-applied.
+        * IrreversibleTableAction (Standardize Units etc.):
+          Cannot be undone — left in place, not overwritten.
+        """
+        if not hasattr(self, 'pipePanel') or not pipeline_state:
+            return
+        from pydatview.plugins import DATA_PLUGINS_WITH_EDITOR, OF_DATA_PLUGINS_WITH_EDITOR
+        from pydatview.pipeline import IrreversibleTableAction, AdderAction
+        all_restorable = {}
+        all_restorable.update(DATA_PLUGINS_WITH_EDITOR)
+        all_restorable.update(OF_DATA_PLUGINS_WITH_EDITOR)
+
+        # Step 1 – remove every restorable action that is currently active.
+        # IrreversibleTableAction and AdderAction are excluded: they can't
+        # be undone without a data reload so we leave them untouched.
+        for name in list(all_restorable.keys()):
+            existing = self.pipePanel.find(name)
+            if existing is not None and not isinstance(existing, (IrreversibleTableAction, AdderAction)):
+                self.pipePanel.remove(existing, cancel=True, tabList=self.tabList, updateGUI=False)
+
+        # Step 2 – recreate each action that was active when the view was saved
+        for name, saved_data in pipeline_state.items():
+            if name not in all_restorable:
+                continue  # Unknown or irreversible plugin — skip
+            if not saved_data.get('active', False):
+                continue  # Only restore actions that were active
+            constructor = all_restorable[name]
+            action = constructor(label=name, mainframe=self)
+            # Skip AdderAction and IrreversibleTableAction — restoring these
+            # without a data reload would produce duplicate or inconsistent tables.
+            if isinstance(action, (IrreversibleTableAction, AdderAction)):
+                continue
+            action.data.update(saved_data)
+            self.pipePanel.append(action, overwrite=False, apply=True,
+                                  updateGUI=True, tabList=self.tabList)
+
+    def onSaveView(self, event=None):
+        """Prompt for a view name and save current state"""
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            from .GUICommon import Error
+            Error(self, 'Load some data and plot it before saving a view.')
+            return
+        dlg = wx.TextEntryDialog(self, 'Enter a name for this view:', 'Save View', '')
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            return
+        name = dlg.GetValue().strip()
+        dlg.Destroy()
+        if not name:
+            return
+        view = {
+            'name':         name,
+            'selection':    self.selPanel.captureViewState(),
+            'plotPanel':    self.plotPanel.captureViewData(),
+            'modeIndex':    self.comboMode.GetSelection(),
+            'loaderOptions': dict(self.data['loaderOptions']),
+            'pipeline':     self._capturePipelineState(),
+        }
+        # Replace existing view with same name, otherwise append
+        views = self.data.get('views', [])
+        for i, v in enumerate(views):
+            if v['name'] == name:
+                views[i] = view
+                break
+        else:
+            views.append(view)
+        self.data['views'] = views
+        self._populateViewsUI()
+        self.statusbar.SetStatusText('View "{}" saved.'.format(name), ISTAT)
+
+    def onRestoreView(self, name):
+        """Restore the named view"""
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            return
+        views = self.data.get('views', [])
+        view = next((v for v in views if v['name'] == name), None)
+        if view is None:
+            return
+        # R9 – Restore loader options (e.g. dayfirst) stored in the view
+        loader_opts = view.get('loaderOptions', {})
+        if loader_opts:
+            self.data['loaderOptions'].update(loader_opts)
+        # Restore selection mode
+        modeIndex = view.get('modeIndex', 0)
+        self.comboMode.SetSelection(modeIndex)
+        self.selPanel.updateLayout(SEL_MODES_ID[modeIndex])
+        # Restore selection state (tables + columns); collect any warnings
+        warnings = self.selPanel.restoreViewState(view.get('selection', {}))
+        # Restore plot settings
+        self.plotPanel.restoreViewData(view.get('plotPanel', {}))
+        # Restore pipeline actions (Mask, Filter, Resample, Bin data, etc.)
+        self._restorePipelineState(view.get('pipeline', {}))
+        # Trigger a full redraw
+        self.plotPanel.load_and_draw()
+        if warnings:
+            Warn(self, 'View "{}" was partially restored:\n\n{}'.format(name, '\n'.join(warnings)))
+            self.statusbar.SetStatusText('View "{}" partially restored.'.format(name), ISTAT)
+        else:
+            self.statusbar.SetStatusText('View "{}" restored.'.format(name), ISTAT)
+
+    def onRestoreViewCurrentTable(self, name):
+        """Restore view's column selections + plot settings on the currently selected table(s).
+
+        Keeps the current table selection but resolves the view's saved column
+        names (x, y, z) against each currently selected table.  If a table's
+        shortname matches a saved entry that is used directly; otherwise the
+        first saved selection is tried.
+        """
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            return
+        views = self.data.get('views', [])
+        view = next((v for v in views if v['name'] == name), None)
+        if view is None:
+            return
+
+        selection = view.get('selection', {})
+        saved_tabs = selection.get('tabSelections', {})
+
+        # Apply formulas from the view so added columns exist before name lookup
+        saved_formulas = selection.get('formulas', {})
+        if saved_formulas:
+            from pydatview.GUISelectionPanel import _find_tab_by_key
+            full_formulas = {}
+            for short_k, flist in saved_formulas.items():
+                matched = _find_tab_by_key(self.tabList, short_k)
+                full_formulas[matched.raw_name if matched else short_k] = flist
+            self.tabList.applyFormulas(full_formulas)
+
+        # Restore plot settings (3D mode, style, etc.)
+        self.plotPanel.restoreViewData(view.get('plotPanel', {}))
+
+        warnings = []
+        ISel = self.selPanel.tabPanel.lbTab.GetSelections()
+        if len(ISel) == 0 or not saved_tabs:
+            self.plotPanel.load_and_draw()
+            self.statusbar.SetStatusText('View "{}" settings applied.'.format(name), ISTAT)
+            return
+
+        # Collect a fallback selection (first saved entry)
+        fallback_sel = next(iter(saved_tabs.values()))
+
+        for iTab in ISel:
+            if iTab >= self.tabList.len():
+                continue
+            tab = self.tabList[iTab]
+            cols = list(tab.columns)
+            full_k = tab.name
+            short = _tab_shortname(tab)
+
+            # Match by shortname first, then fall back to first saved entry
+            matched_sel = saved_tabs.get(short, fallback_sel)
+
+            # Resolve X column by name
+            xName = matched_sel.get('xName')
+            xSel = matched_sel.get('xSel', -1)
+            if xName is not None:
+                xSel = cols.index(xName) if xName in cols else -1
+                if xName not in cols:
+                    warnings.append('Table "{}": x-column "{}" not found'.format(short, xName))
+            elif xSel >= len(cols):
+                xSel = -1
+
+            # Resolve Y columns by name
+            yNames = matched_sel.get('yNames', [])
+            if yNames:
+                ySel = [cols.index(yn) for yn in yNames if yn in cols]
+                missing = [yn for yn in yNames if yn not in cols]
+                if missing:
+                    warnings.append('Table "{}": column(s) not found: {}'.format(
+                        short, ', '.join('"{}"'.format(n) for n in missing)))
+            else:
+                ySel_raw = matched_sel.get('ySel', [])
+                ySel = [iy for iy in ySel_raw if 0 <= iy < len(cols)]
+
+            # Resolve Z column by name (comboZ: 0=None, 1+=col)
+            zName = matched_sel.get('zName')
+            zSel = matched_sel.get('zSel', 0)
+            if zName is not None:
+                zSel = (cols.index(zName) + 1) if zName in cols else 0
+                if zName not in cols:
+                    warnings.append('Table "{}": z-column "{}" not found'.format(short, zName))
+            elif zSel > len(cols):
+                zSel = 0
+
+            if full_k in self.selPanel.tabSelections:
+                self.selPanel.tabSelections[full_k] = {
+                    'xSel': xSel, 'ySel': tuple(ySel), 'zSel': zSel,
+                }
+
+        # Refresh column panels from the updated selections (without overwriting)
+        self.selPanel.tabSelectionChanged(save=False)
+        self.plotPanel.load_and_draw()
+        if warnings:
+            Warn(self, 'View "{}" partially applied:\n\n{}'.format(name, '\n'.join(warnings)))
+            self.statusbar.SetStatusText('View "{}" partially applied.'.format(name), ISTAT)
+        else:
+            self.statusbar.SetStatusText('View "{}" applied to current table.'.format(name), ISTAT)
+
+    def onDeleteView(self, name):
+        """Delete the named view from the saved views list"""
+        views = self.data.get('views', [])
+        self.data['views'] = [v for v in views if v['name'] != name]
+        self._populateViewsUI()
+        self.statusbar.SetStatusText('View "{}" deleted.'.format(name), ISTAT)
+
+    def onExportView(self, event=None):
+        """Export the current view (files + selection + plot settings) to a .pdvview file"""
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            Error(self, 'Load some data and plot it before exporting a view.')
+            return
+        if self.tabList.len() == 0:
+            Error(self, 'No files are loaded.')
+            return
+        wildcard = 'pyDatView view (*{})|*{}'.format(VIEW_FILE_EXT, VIEW_FILE_EXT)
+        with wx.FileDialog(self, 'Export view to file', wildcard=wildcard,
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                return
+            path = dlg.GetPath()
+        if not path.lower().endswith(VIEW_FILE_EXT):
+            path += VIEW_FILE_EXT
+        base_dir = os.path.dirname(os.path.abspath(path))
+        # Build file list with relative paths
+        filenames, fileformats = self.tabList.filenames_and_formats
+        files = []
+        for fn, ff in zip(filenames, fileformats):
+            try:
+                rel = os.path.relpath(fn, base_dir)
+            except ValueError:
+                rel = fn  # Different drive on Windows: fall back to absolute
+            files.append({'path': rel, 'format': ff.name if ff is not None else ''})
+        view_data = {
+            'version':       1,
+            'name':          os.path.splitext(os.path.basename(path))[0],
+            'files':         files,
+            'loaderOptions': dict(self.data['loaderOptions']),
+            'modeIndex':     self.comboMode.GetSelection(),
+            'selection':     self.selPanel.captureViewState(),
+            'plotPanel':     self.plotPanel.captureViewData(),
+            'pipeline':      self._capturePipelineState(),
+        }
+        try:
+            with open(path, 'w') as f:
+                json.dump(view_data, f, indent=2)
+            self.statusbar.SetStatusText('View exported to: {}'.format(path), ISTAT)
+            self._track_recent(path)
+        except Exception as e:
+            Error(self, 'Failed to export view:\n{}'.format(str(e)))
+
+    def onImportView(self, event=None):
+        """Open a file dialog to pick a .pdvview file and load it"""
+        wildcard = 'pyDatView view (*{})|*{}|All files (*.*)|*.*'.format(VIEW_FILE_EXT, VIEW_FILE_EXT)
+        with wx.FileDialog(self, 'Import view from file', wildcard=wildcard,
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dlg:
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                return
+            path = dlg.GetPath()
+        self.load_view_file(path)
+
+    def load_view_file(self, path):
+        """Load a .pdvview file: open its data files then restore the saved view state"""
+        try:
+            with open(path, 'r') as f:
+                view_data = json.load(f)
+        except Exception as e:
+            Error(self, 'Failed to read view file:\n{}'.format(str(e)))
+            return
+        base_dir = os.path.dirname(os.path.abspath(path))
+        # Resolve file paths (relative to the view file) and match formats
+        filenames   = []
+        fileformats = []
+        missing     = []
+        for entry in view_data.get('files', []):
+            rel   = entry.get('path', '')
+            abs_path = os.path.normpath(os.path.join(base_dir, rel))
+            if not os.path.isfile(abs_path):
+                missing.append(abs_path)
+                continue
+            fmt_name = entry.get('format', '')
+            ff = next((f for f in self.FILE_FORMATS if f.name == fmt_name), None)
+            filenames.append(abs_path)
+            fileformats.append(ff)
+        if missing:
+            Warn(self, 'The following file(s) from the view could not be found:\n\n'
+                       + '\n'.join(missing))
+        if not filenames:
+            Error(self, 'No loadable files found in the view.')
+            return
+        # Restore loader options stored in the view
+        loader_opts = view_data.get('loaderOptions', {})
+        if loader_opts:
+            self.data['loaderOptions'].update(loader_opts)
+        # Load the data files (bPlot=False so we can restore settings first)
+        self.load_files(filenames, fileformats=fileformats, bAdd=False, bPlot=False)
+        if not hasattr(self, 'selPanel') or not hasattr(self, 'plotPanel'):
+            return
+        # Restore view state
+        modeIndex = view_data.get('modeIndex', 0)
+        self.comboMode.SetSelection(modeIndex)
+        self.selPanel.updateLayout(SEL_MODES_ID[modeIndex])
+        warnings = self.selPanel.restoreViewState(view_data.get('selection', {}))
+        self.plotPanel.restoreViewData(view_data.get('plotPanel', {}))
+        # Restore pipeline actions (Mask, Filter, Resample, Bin data, etc.)
+        self._restorePipelineState(view_data.get('pipeline', {}))
+        self.plotPanel.load_and_draw()
+        view_name = view_data.get('name', os.path.basename(path))
+        if warnings:
+            Warn(self, 'View "{}" was partially restored:\n\n{}'.format(view_name, '\n'.join(warnings)))
+            self.statusbar.SetStatusText('View "{}" partially restored.'.format(view_name), ISTAT)
+        else:
+            self.statusbar.SetStatusText('View "{}" loaded from file.'.format(view_name), ISTAT)
+        self._track_recent(path)
+
     def mainFrameUpdateLayout(self, event=None):
         if hasattr(self.nb,'fields_1d_tab'):
             try:
@@ -811,7 +1561,6 @@ class MainFrame(wx.Frame):
     def OnIdle(self, event):
         if self.resized:
             self.resized = False
-            self.mainFrameUpdateLayout()
             if hasattr(self,'plotPanel'):
                 self.plotPanel.setSubplotTight()
             #self.Thaw() # Commented see #166
