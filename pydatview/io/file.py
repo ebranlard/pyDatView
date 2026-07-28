@@ -22,23 +22,72 @@ except NameError: # Python2
     FileNotFoundError = IOError
 
 class File(OrderedDict):
-    def __init__(self,filename=None,**kwargs):
-        if filename:
-            self.read(filename, **kwargs)
-        else:
-            self.filename = None
+    def __init__(self, filename=None, streaming=False, **kwargs):
+        OrderedDict.__init__(self)
+        self.filename = filename
+        self.streaming = streaming      # If True, read headers only, keep file open
+        self.data = None                # Data storage (varies by format)
+        self._in_context = False        # True only if in 'with' block
+        self._fid = None                # File handle when streaming
+        if filename is not None and not streaming:
+            # Only read immediately in normal mode; streaming mode waits for __enter__
+            self.read(streaming=streaming, **kwargs)
 
-    def read(self, filename=None, **kwargs):
-        if filename:
+    def __enter__(self):
+        """Context manager entry."""
+        self._in_context = True
+        if self.filename:
+            self.read(streaming=self.streaming)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Context manager exit - close file handle if open."""
+        if self._fid is not None:
+            self._fid.close()
+            self._fid = None
+        self._in_context = False
+        # Optional: free data on exit if not streaming (saves memory)
+        if not self.streaming and self.data is not None:
+            self.data = None
+        return False  # Propagate exceptions
+
+    def _enforce_context_if_needed(self):
+        """Raise if streaming and not in context manager."""
+        # Check if streaming attribute exists (some old file formats may not have it)
+        if hasattr(self, 'streaming') and self.streaming and not self._in_context:
+            raise RuntimeError(
+                "streaming=True requires using a context manager ('with' statement) "
+                "to ensure the file is closed. Use: `with File(...) as reader:`"
+            )
+
+    def read(self, filename=None, streaming=None, **kwargs):
+        if filename is not None:
             self.filename = filename
+        if streaming is not None:
+            self.streaming = streaming
+        # Initialize streaming attribute if it doesn't exist (for old file formats)
+        if not hasattr(self, 'streaming'):
+            self.streaming = False
         if not self.filename:
             raise Exception('No filename provided')
         if not os.path.isfile(self.filename):
-            raise OSError(2,'File not found:',self.filename)
+            raise OSError(2, 'File not found:', self.filename)
         if os.stat(self.filename).st_size == 0:
-            raise EmptyFileError('File is empty:',self.filename)
+            raise EmptyFileError('File is empty:', self.filename)
+
+        self._enforce_context_if_needed()
+
         # Calling children function
-        self._read(**kwargs)
+        # Check if child class _read() accepts streaming parameter
+        import inspect
+        sig = inspect.signature(self._read)
+        if 'streaming' in sig.parameters:
+            # New-style _read() with streaming support
+            self._read(streaming=self.streaming, **kwargs)
+        else:
+            # Old-style _read() without streaming support
+            self._read(**kwargs)
+        return self
 
     def write(self, filename=None, **kwargs):
         if filename:
@@ -47,6 +96,22 @@ class File(OrderedDict):
             raise Exception('No filename provided')
         # Calling children function
         self._write(**kwargs)
+
+    def readAll(self):
+        """Read remaining data after streaming header (to be implemented by children)."""
+        if not self.streaming:
+            raise RuntimeError("readAll() only valid in streaming mode")
+        if not self._in_context:
+            raise RuntimeError("readAll() requires context manager")
+        self._readAll()
+
+    def readChunk(self, **kwargs):
+        """Read chunk of data (to be implemented by children)."""
+        if not self.streaming:
+            raise RuntimeError("readChunk() only valid in streaming mode")
+        if not self._in_context:
+            raise RuntimeError("readChunk() requires context manager")
+        return self._readChunk(**kwargs)
 
     def toDataFrame(self):
         return self._toDataFrame()
@@ -105,9 +170,9 @@ class File(OrderedDict):
 
     
     # --------------------------------------------------------------------------------
-    # --- Sub class methods 
+    # --- Sub class methods
     # --------------------------------------------------------------------------------
-    def _read(self,**kwargs):
+    def _read(self, streaming=False, **kwargs):
         raise NotImplementedError("Method must be implemented in the subclass")
 
     def _write(self):
@@ -115,6 +180,14 @@ class File(OrderedDict):
 
     def _toDataFrame(self):
         raise NotImplementedError("Method must be implemented in the subclass")
+
+    def _readAll(self):
+        """Override in child classes for streaming support."""
+        raise NotImplementedError(f"{self.__class__.__name__} does not support readAll()")
+
+    def _readChunk(self, **kwargs):
+        """Override in child classes for streaming support."""
+        raise NotImplementedError(f"{self.__class__.__name__} does not support readChunk()")
 
     def _fromDataFrame(self):
         raise NotImplementedError("Method must be implemented in the subclass")

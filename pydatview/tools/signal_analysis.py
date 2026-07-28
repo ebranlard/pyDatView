@@ -259,11 +259,30 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
         sample_time = float(param[0])
         if sample_time <= 0:
             raise Exception('Error: sample time must be positive')
-        sample_time_us = int(round(sample_time * 1_000_000))
-        if sample_time_us == 0:
-            raise Exception('Error: sample time is too small (rounds to 0 microseconds)')
-        sSample = "{}us".format(sample_time_us)
-        time_index = pd.to_timedelta(np.asarray(x_old, dtype=float) * 1000, unit="ms")
+
+        # --- Old way to get sSample
+        #pdVer = [int(s) for s in pd.__version__.split('.')]
+        #sSample = "{:f}s".format(sample_time)
+        #if pdVer[0]<=1 or (pdVer[0]<=2 and pdVer[1]<2):
+        #    sSample = "{:f}S".format(sample_time)
+        #time_index = pd.to_timedelta(x_old, unit="s")
+
+        # --- New way to get sSample, and use ns
+        # Use Timedelta directly to avoid pandas unit-casting issues for sub-second frequencies.
+        sSample = pd.to_timedelta(sample_time, unit='s')
+        x_old_ns = np.rint(np.asarray(x_old, dtype=float) * 1e9).astype(np.int64)
+        time_index = pd.to_timedelta(x_old_ns, unit='ns')
+        # TODO figure out if there is somehow a smart way to do all of this, maybe 
+        #  and adaptive way if microseconds is not enough, then we use nanosec.
+
+        # --- Middle ground, use microsecond
+        #sample_time_us = int(round(sample_time * 1_000_000))
+        #if sample_time_us == 0:
+        #    raise Exception('Error: sample time is too small (rounds to 0 microseconds)')
+        #sSample = "{}us".format(sample_time_us)
+        #time_index = pd.to_timedelta(np.asarray(x_old, dtype=float) * 1000, unit="ms")
+
+
         x_new = pd.Series(x_old, index=time_index).resample(sSample).mean().interpolate().values
 
         if df_old is not None:

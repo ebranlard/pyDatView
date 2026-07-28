@@ -3,8 +3,16 @@ TODO come up with some decent sepcs. Potentially use pandas or xarray
 
 """
 import numpy as np
+from pydatview.common import PyDatViewException
 
 def extract2Dfields(fo, force=False, **kwargs):
+    """ 
+    INPUTS:
+     - fo: a file object, e.g. from: fo = weio.read(filename)
+
+    OUTPUT (in place), add field to `fo`:
+     - fo.fields2D_tmp: object of type Fields2D() 
+    """
     if not hasattr(fo, 'fields2D_tmp') or force:
         fo.fields2D_tmp = None
         #print('[INFO] Attempting to extract 2D field for file {}'.format(fo.filename))
@@ -12,8 +20,13 @@ def extract2Dfields(fo, force=False, **kwargs):
             print('[WARN] type {} does not have a `to2DFields` method'.format(type(fo)))
             return None
         try:
-            fields = fo.to2DFields(**kwargs)
+            import xarray 
         except:
+            raise PyDatViewException('Package xarray is not installed, cannot plot 2D field.')
+        try:
+            fields = fo.to2DFields(**kwargs)
+        except Exception as e:
+            raise e
             print('[FAIL] Attempting to extract 2D field for file {}'.format(fo.filename))
             return None
         if fields is None:
@@ -21,7 +34,7 @@ def extract2Dfields(fo, force=False, **kwargs):
             return None
         # Convert to pydatview datatype for 2d fields
         fo.fields2D_tmp = Fields2D(fields)
-        fo.fields2D_tmp.keys()
+        fo.fields2D_tmp.keys() # Setup keys
         print('[ OK ] 2D field computed successfully')
     else:
         print('[INFO] 2D field already computed for file {}'.format(fo.filename))
@@ -51,15 +64,22 @@ class Fields2D():
     def keys(self):
         if self._keys is not None:
             return self._keys
-        keys =[]
-        variables = self.ds.variables
-        # Filter variables based on dimensions (r, t)
-        dims = np.unique(np.array([self.ds[var].dims for var in variables], dtype=object))
-        dims2d = [d for d in dims if len(d)==2]
-        for D in dims2d:
-            for var in variables:
-                if self.ds[var].dims==(D[0],D[1]):
-                    keys.append(var)
+        # --- Method 1
+        # 2D array keys
+        #ds.data_vars preserves insertion order and excludes coordinate variables
+        keys = [ var for var in self.ds.data_vars if len(self.ds[var].dims) == 2 ]
+        if len(keys)>0:
+            if keys[0][0]=='(':
+                # If labels are of the form "(x,y)_Var_[unit]", e.g. "(psi,r)_Fn_[N/m]"
+                # then we revert to old method where we sort by variable
+                keys =[]
+                variables = self.ds.variables # all variables including coords
+                dims = np.unique(np.array([self.ds[var].dims for var in variables], dtype=object))
+                dims2d = [d for d in dims if len(d)==2]
+                for D in dims2d:
+                    for var in self.ds.data_vars: # Loop on arrays only
+                        if self.ds[var].dims==(D[0],D[1]):
+                            keys.append(var)
         self._keys = keys
         return keys
 

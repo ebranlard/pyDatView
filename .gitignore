@@ -20,3 +20,5 @@ _*
 *.png
 tags
 *.DS_Store
+
+.vscode

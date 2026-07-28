@@ -2547,8 +2547,7 @@ class PlotPanel(wx.Panel):
             plot_options['grid'] = {'visible': self.cbGrid.IsChecked(), 'linestyle':'-', 'linewidth':0.5, 'color':'#b0b0b0'}
         else:
             plot_options['grid'] = {'visible': False}
-        #plot_options['tick_params'] = {'direction':'in', 'top':True, 'right':True, 'labelright':False, 'labeltop':False, 'which':'both'}
-        plot_options['tick_params'] = {}
+        plot_options['tick_params'] = {'direction':'in', 'top':True, 'right':True, 'labelright':False, 'labeltop':False, 'which':'both'}
 
         plot_options['lw']=plotStyle['LineWidth']
         plot_options['ms']=plotStyle['MarkerSize']
