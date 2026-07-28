@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import pandas
 from pydatview.common import no_unit, unit, inverse_unit, splitunit, has_chinese_char
 from pydatview.common import isString, isDate, getDt
 from pydatview.common import unique, pretty_num, pretty_time, pretty_date
@@ -10,6 +11,7 @@ try:
 except AttributeError:
     trapz = np.trapz
 
+MAX_UNIQUE_STRING_TO_PLOT = 1000 # Potentially put this in user file
 
 # --------------------------------------------------------------------------------}
 # --- PlotDataList functions
@@ -70,6 +72,7 @@ class PlotData():
         PD.xyMeasInput1 = (None, None)
         PD.xyMeasInput2 = (None, None)
         PD.xyMeas      = [(None,None)]*2 # 2 measures for now
+        PD.MAX_UNIQUE_STRING_TO_PLOT = MAX_UNIQUE_STRING_TO_PLOT
 
         if x is not None and y is not None:
             PD.fromXY(x,y,sx,sy)
@@ -118,12 +121,15 @@ class PlotData():
 
 
         # --- Store stats
-        n=len(PD.y)
-        if n>1000:
-            if (PD.xIsString):
-                raise Exception('Error: x values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sx))
-            if (PD.yIsString):
-                raise Exception('Error: y values contain more than 1000 string. This is not suitable for plotting.\n\nPlease select another column for table: {}\nProblematic column: {}\n'.format(PD.st,PD.sy))
+        n  = len(PD.y)
+        if PD.xIsString:
+            nu = len(np.unique(PD.x))
+            if nu > PD.MAX_UNIQUE_STRING_TO_PLOT:
+                raise Exception(f'Error: x values contain more than {PD.MAX_UNIQUE_STRING_TO_PLOT} unique strings. This is not suitable for plotting.\n\nPlease select another column for table: {PD.st}\nProblematic column: {PD.sx}\n')
+        if PD.yIsString:
+            nu = len(np.unique(PD.y))
+            if nu > PD.MAX_UNIQUE_STRING_TO_PLOT:
+                raise Exception(f'Error: y values contain more than {PD.MAX_UNIQUE_STRING_TO_PLOT} unique strings. This is not suitable for plotting.\n\nPlease select another column for table: {PD.st}\nProblematic column: {PD.sy}\n')
 
         PD.needChineseFont = has_chinese_char(PD.sy) or has_chinese_char(PD.sx)
         # Stats of the raw data (computed once and for all, since it can be expensive for large dataset

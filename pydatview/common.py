@@ -511,8 +511,15 @@ def exception2string(excp, iMax=40, prefix='    | ', prevStack=True):
 # ---  
 # --------------------------------------------------------------------------------{
 def isString(x):
-    b = x.dtype == object and isinstance(x.values[0], str)
-    return b 
+    if len(x) == 0:
+        return False
+    if isinstance(x, list):
+        return isinstance(x[0], str)
+    if hasattr(x, 'values'):  # handles pandas Series/DataFrame and xarray DataArray
+        val = x.values.flat[0]
+    else:  # handles numpy array
+        val = x.flat[0]
+    return isinstance(val, str)
 
 def isDate(x):
     return np.issubdtype(x.dtype, np.datetime64)

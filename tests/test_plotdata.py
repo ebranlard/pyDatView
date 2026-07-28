@@ -5,7 +5,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-from pydatview.plotdata import PlotData
+from pydatview.plotdata import PlotData, MAX_UNIQUE_STRING_TO_PLOT
 
 class TestPlotData(unittest.TestCase):
 
@@ -115,7 +115,21 @@ class TestPlotData(unittest.TestCase):
         np.testing.assert_almost_equal(v, 9.4714702, 3)
 
 
+    def test_plotManyStrings(self):
+        # Test for an array of size less than MAX_UNIQUE_STRING_TO_PLOT
+        x = np.linspace(-2, 2, MAX_UNIQUE_STRING_TO_PLOT)
+        y = np.asarray([f"s_{i}" for i in range(1, len(x) + 1)])
+        PD = PlotData(x,y)
+        self.assertEqual(PD.xIsString, False)
+        self.assertEqual(PD.yIsString, True)
+        # Test for a larger array
+        x = np.linspace(-2, 2, MAX_UNIQUE_STRING_TO_PLOT+1)
+        y = np.asarray([f"s_{i}" for i in range(1, len(x) + 1)])
+        with self.assertRaises(Exception):
+            PD = PlotData(x,y)
+
 
 
 if __name__ == '__main__':
-    unittest.main()
+    TestPlotData().test_plotManyStrings()
+#     unittest.main()
