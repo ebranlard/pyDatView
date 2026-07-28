@@ -5,8 +5,10 @@ import numpy as np
 import re
 try:
     from scipy.integrate import cumulative_trapezoid 
+    from numpy import trapezoid
 except:
     from scipy.integrate import cumtrapz as cumulative_trapezoid
+    from numpy import trapz as trapezoid
 
 import pydatview.io as weio
 from pydatview.common import PyDatViewException as WELIBException
@@ -16,6 +18,7 @@ from  pydatview.io.fast_input_file import FASTInputFile
 from  pydatview.io.fast_output_file import FASTOutputFile
 from  pydatview.io.fast_input_deck import FASTInputDeck
 from pydatview.fast.subdyn import SubDyn
+from pydatview.tools.stats import bin_DF
 import pydatview.fast.fastfarm as fastfarm
 
 # --------------------------------------------------------------------------------}
@@ -744,8 +747,9 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_\[-\]'  ]   =sB+'TnInd_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)AxInd_qs_\[-\]'  ]=sB+'AxInd_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)TnInd_qs_\[-\]'  ]=sB+'TnInd_qs_[-]'  
-        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_qs\[-\]'  ]=sB+'BEM_kp_qs_[-]'  
-        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_qs\[-\]'   ]=sB+'BEM_F_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_k_qs_\[-\]'  ]=sB+'BEM_k_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_qs_\[-\]' ]=sB+'BEM_kp_qs_[-]'  
+        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_qs_\[-\]'  ]=sB+'BEM_F_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_CT_qs_\[-\]' ]=sB+'BEM_CT_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)Chi_\[deg\]'     ]=sB+'Chi_[deg]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Cl_\[-\]'     ]   =sB+'Cl_[-]'   
@@ -774,6 +778,9 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxa_\[m/s\]']  =sB+'Vindxa_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindya_\[m/s\]']  =sB+'Vindya_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindza_\[m/s\]']  =sB+'Vindza_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxl_\[m/s\]']  =sB+'Vindxl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyl_\[m/s\]']  =sB+'Vindyl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzl_\[m/s\]']  =sB+'Vindzl_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fx_\[N/m\]'   ]   =sB+'Fx_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fy_\[N/m\]'   ]   =sB+'Fy_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fxi_\[N/m\]'   ]  =sB+'Fxi_[N/m]'   
@@ -788,6 +795,12 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)Mxp_\[N-m/m\]' ]  =sB+'Mxp_[N-m/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Myp_\[N-m/m\]' ]  =sB+'Myp_[N-m/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Mzp_\[N-m/m\]' ]  =sB+'Mzp_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fxl_\[N/m\]'   ]  =sB+'Fxl_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fyl_\[N/m\]'   ]  =sB+'Fyl_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fzl_\[N/m\]'   ]  =sB+'Fzl_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mxl_\[N-m/m\]' ]  =sB+'Mxl_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Myl_\[N-m/m\]' ]  =sB+'Myl_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mzl_\[N-m/m\]' ]  =sB+'Mzl_[N-m/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fl_\[N/m\]'   ]   =sB+'Fl_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fd_\[N/m\]'   ]   =sB+'Fd_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fn_\[N/m\]'   ]   =sB+'Fn_[N/m]'   
@@ -833,7 +846,6 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_k_\[-\]'  ]   =sB+'BEM_k_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_kp_\[-\]' ]   =sB+'BEM_kp_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_F_\[-\]'  ]   =sB+'BEM_F_qs_[-]'  
-        ADSpanMap['^[A]*'+sB+r'N(\d*)BEM_k_qs\[-\]']   =sB+'BEM_k_qs_[-]'  
         ADSpanMap['^[A]*'+sB+r'N(\d*)AOA_\[deg\]'  ]   =sB+'Alpha_[deg]' # DBGOuts
         ADSpanMap['^[A]*'+sB+r'N(\d*)AIn_\[deg\]'  ]   =sB+'AxInd_[-]'   # DBGOuts NOTE BUG Unit
         ADSpanMap['^[A]*'+sB+r'N(\d*)ApI_\[deg\]'  ]   =sB+'TnInd_[-]'   # DBGOuts NOTE BUG Unit
@@ -898,10 +910,7 @@ def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, ch
             Ct=nB*Fx/(0.5 * rho * 2 * U0**2 * np.pi * vr)
             Ct[vr<0.01*R] = 0
             dfRad[sB+'Ctloc_[-]'] = Ct
-            try:
-                CT=2*np.trapezoid(vr_bar*Ct,vr_bar)
-            except:
-                CT=2*np.trapz(vr_bar*Ct,vr_bar)
+            CT=2*trapezoid(vr_bar*Ct,vr_bar)
             dfRad[sB+'CtAvg_[-]']= CT*np.ones(vr.shape)
         except:
             pass
@@ -919,7 +928,7 @@ def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, ch
 
 
 
-def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.outb',df=None):
+def spanwisePostPro(FST_In=None, avgMethod='constantwindow', avgParam=5, out_ext='.outb', df=None):
     """
     Postprocess FAST radial data. 
     if avgMethod is not None: Average the time series, return a dataframe nr x nColumns
@@ -941,7 +950,7 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
     # NOTE: spanwise script doest not support duplicate columns
     df = df.loc[:,~df.columns.duplicated()]
     if avgMethod is not None:
-        dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam, filename=filename) # NOTE: average 5 last seconds
+        dfAvg = averageDF(df,avgMethod=avgMethod ,avgParam=avgParam, filename=filename)
     else:
         dfAvg=df
     # --- The script assume '_' between units and colnames
@@ -989,6 +998,7 @@ def spanwisePostPro(FST_In=None,avgMethod='constantwindow',avgParam=5,out_ext='.
         out['df']    = df
         out['dfAvg'] = dfAvg
     # --- Extract radial data and export to csv if needed
+    # TODO for loop on stats here.
     # --- AD
     ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
     dfRad_AD            = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=dfAvg.iloc[0])
@@ -1300,6 +1310,9 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, ve
           'WS_[m/s]'         : '{Wind1VelX_[m/s]}'             , # create a new column from existing one
           'RtTSR_[-]'        : '{RtTSR_[-]} * 2  +  {RtAeroCt_[-]}'    , # change value of column
           'RotSpeed_[rad/s]' : '{RotSpeed_[rpm]} * 2*np.pi/60 ', # new column [rpm] -> [rad/s]
+          'R_[m]'            : '{ones} * 15'                  , # Create a constant columns
+          'R_[m]'            : '{ones} * R'                   , # use dataDict['R']
+          'U_[m/s]'          : 'U'                            , # use dataDict['U']
           'q_p' :  ['Q_P_[rad]', '{PtfmSurge_[deg]}*np.pi/180']  # List of possible matches
         }
         # Read
@@ -1327,7 +1340,10 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, ve
         else:
             values = v
         Found = False
+        ColMapMissLoc=[]
         for v in values:
+            if v=='':
+                v=k # <<< If Value is empty, we reproduce it
             v=v.strip()
             if Found:
                 break # We avoid replacing twice
@@ -1341,10 +1357,13 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, ve
                 bFail=False
                 for item in search_results:
                     col=item.group(0)[1:-1]
-                    if col not in df.columns:
-                        ColMapMiss.append(col)
+                    if col=='ones':
+                        expr=expr.replace(item.group(0),'np.ones({:d})'.format(df.shape[0]))
+                    elif col not in df.columns:
+                        ColMapMissLoc.append(col)
                         bFail=True
-                    expr=expr.replace(item.group(0),'df[\''+col+'\']')
+                    else:
+                        expr=expr.replace(item.group(0),'df[\''+col+'\']')
                 #print(k0, '=', expr)
                 if not bFail:
                     df[k]=eval(expr)
@@ -1354,7 +1373,7 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, ve
             else:
                 #print(k0,'=',v)
                 if v not in df.columns:
-                    ColMapMiss.append(v)
+                    ColMapMissLoc.append(v)
                     if verbose:
                         print('[WARN] Column not present in dataframe: ',v)
                 else:
@@ -1363,6 +1382,14 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, ve
                     else:
                         RenameMap[k]=v
                         Found=True
+        if len(values)>0:
+            if Found:
+                pass
+            else:
+                ColMapMiss+=ColMapMissLoc
+        else:
+            ColMapMiss+=ColMapMissLoc
+
 
     # Applying renaming only now so that expressions may be applied in any order
     for k,v in RenameMap.items():
@@ -1615,29 +1642,17 @@ def radialInterpTS(df, r, varName, r_ref, blade=1, bldFmt='AB{:d}', ndFmt='N{:03
         raise NotImplementedError()
 
 
-
-def bin_mean_DF(df, xbins, colBin ):
-    """ 
-    Perform bin averaging of a dataframe
-    """
-    if colBin not in df.columns.values:
-        raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
-    xmid      = (xbins[:-1]+xbins[1:])/2
-    df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
-    df2       = df.groupby('Bin', observed=False).mean()     # Average by bin
-    # also counting
-    df['Counts'] = 1
-    dfCount=df[['Counts','Bin']].groupby('Bin', observed=False).sum()
-    df2['Counts'] = dfCount['Counts']
-    # Just in case some bins are missing (will be nan)
-    df2       = df2.reindex(xmid)
-    return df2
-
-def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]', periodic=False, nPeriods=None):
+def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, colTime='Time_[s]', periodic=False, nPeriods=None, stats=None):
     """ 
     Average a dataframe based on azimuthal value
     Returns a dataframe with same amount of columns as input, and azimuthal values as index
+    A list of dataframes is returned if multiple statistics are requested, e.g. avg, min, max, std
+    INPUTS:
+      - stats: list of statistics to be computed, in: ['avg', 'max', 'min', 'std]
     """
+    if stats is None:
+        stats=['avg']
+
     if psiBin is None: 
         psiBin = np.arange(0,360+1,10)
 
@@ -1650,18 +1665,21 @@ def azimuthal_average_DF(df, psiBin=None, colPsi='Azimuth_[deg]', tStart=None, c
                 raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
             df=df[ df[colTime]>tStart].copy()
 
-    dfPsi= bin_mean_DF(df, psiBin, colPsi)
-    if np.any(dfPsi['Counts']<1):
+    dfsPsi= bin_DF(df, psiBin, colPsi, stats=stats) # Returns a list of df for each statistics, e.g. , min, max, avg, std
+    if np.any(dfsPsi[0]['Counts']<1):
         print('[WARN] some bins have no data! Increase the bin size.')
 
     if periodic:
         # TODO, I should probably figure out a better way to do that 
-        I = dfPsi.index.values
-        DI = I[1]-I[0]
-        dfEnd = pd.DataFrame(data=dfPsi.loc[I[0:1]].values, columns=dfPsi.columns, index=[I[-1]+DI])
-        dfPsi = pd.concat([dfPsi, dfEnd], axis=0)
-
-    return dfPsi
+        for i, dfPsi in enumerate(dfsPsi):
+            I = dfPsi.index.values
+            DI = I[1]-I[0]
+            dfEnd = pd.DataFrame(data=dfPsi.loc[I[0:1]].values, columns=dfPsi.columns, index=[I[-1]+DI])
+            dfsPsi[i] = pd.concat([dfPsi, dfEnd], axis=0)
+    if len(stats)==1:
+        return dfsPsi[0] # for backward compatibility
+    else:
+        return dfsPsi
 
 
 def findPeriodTimeRange(df, nPeriods=3, filename='', colPsi=None, colTime=None):
@@ -1710,10 +1728,12 @@ def findPeriodTimeRange(df, nPeriods=3, filename='', colPsi=None, colTime=None):
             tStart=time[iBef[-1-nPeriods]]
     return tStart, tEnd
 
-def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColSort=None,stats=['mean'], filename=''):
+def averageDF(df, avgMethod='periods', avgParam=None, ColMap=None, ColKeep=None, ColSort=None, stats=None, filename=''):
     """
-    See average PostPro for documentation, same interface, just does it for one dataframe
+    See spanwisePostPro for documentation, same interface, just does it for one dataframe
     """
+    if stats is None:
+        stats=['avg']
     def renameCol(x):
         for k,v in ColMap.items():
             if x==v:
@@ -1773,10 +1793,10 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
     IWindow    = np.where((time>=tStart) & (time<=tEnd) & (~np.isnan(time)))[0]
     iEnd   = IWindow[-1]
     iStart = IWindow[0]
-    ## Absolute and relative differences at window extremities
-    DeltaValuesAbs=(df.iloc[iEnd]-df.iloc[iStart]).abs()
-#         DeltaValuesRel=(df.iloc[iEnd]-df.iloc[iStart]).abs()/df.iloc[iEnd]
-    DeltaValuesRel=(df.iloc[IWindow].max()-df.iloc[IWindow].min())/df.iloc[IWindow].mean()
+    ## Absolute and relative differences at window extremities to check for periodicity..
+    #DeltaValuesAbs=(df.iloc[iEnd]-df.iloc[iStart]).abs()
+    # DeltaValuesRel=(df.iloc[iEnd]-df.iloc[iStart]).abs()/df.iloc[iEnd]
+    #DeltaValuesRel=(df.iloc[IWindow].max()-df.iloc[IWindow].min())/df.iloc[IWindow].mean()
     #EndValues=df.iloc[iEnd]
     #if avgMethod.lower()=='periods_omega':
     #    if DeltaValuesRel['RotSpeed_[rpm]']*100>5:
@@ -1784,11 +1804,22 @@ def averageDF(df,avgMethod='periods',avgParam=None,ColMap=None,ColKeep=None,ColS
     ## Stats values during window
     # MeanValues = df[IWindow].mean()
     # StdValues  = df[IWindow].std()
-    if 'mean' in stats:
-        MeanValues = pd.DataFrame(df.iloc[IWindow].mean()).transpose()
+    dfs = []
+    for stat in stats:
+        if stat=='avg' or stat=='mean':
+            dfs.append (pd.DataFrame(df.iloc[IWindow].mean()).transpose() )
+        elif stat=='min':
+            dfs.append (pd.DataFrame(df.iloc[IWindow].min()).transpose() )
+        elif stat=='max':
+            dfs.append (pd.DataFrame(df.iloc[IWindow].max()).transpose() )
+        elif stat=='std':
+            dfs.append (pd.DataFrame(df.iloc[IWindow].std()).transpose() )
+        else:
+            raise NotImplementedError(f'Stat {stat}')
+    if len(stats)==1:
+        return dfs[0] # backward compatibility
     else:
-        raise NotImplementedError()
-    return MeanValues
+        return dfs
 
 def FAIL(msg):
     HEADER = '\033[95m'
@@ -1906,7 +1937,7 @@ def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
             try:
                 result.iloc[i] = MeanValues.iloc[0]
             except:
-                import pdb; pdb.set_trace()
+                raise 
 
 
     if len(invalidFiles)==len(outFiles_or_DFs):
@@ -1933,10 +1964,7 @@ def integrateMoment(r, F):
     """
     M = np.zeros(len(r)-1)
     for ir,_ in enumerate(r[:-1]):
-        try:
-            M[ir] = np.trapezoid(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
-        except:
-            M[ir] = np.trapz(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
+        M[ir] = trapezoid(F[ir:]*(r[ir:]-r[ir]), r[ir:]-r[ir])
     return M
 
 def integrateMomentTS(r, F):
@@ -1981,7 +2009,6 @@ def integrateMomentTS(r, F):
 
 if __name__ == '__main__':
 
-    import welib.weio as weio
-    df = weio.read('ad_driver_yaw.6.outb').toDataFrame()
+    df = FASTOutputFile('ad_driver_yaw.6.outb').toDataFrame()
     dfCat = spanwiseConcat(df)
     print(dfCat)

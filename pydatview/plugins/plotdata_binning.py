@@ -85,7 +85,7 @@ def bin_tab(tab, iCol, colName, opts, bAdd=True):
     error=''
     xBins = np.linspace(opts['xMin'], opts['xMax'], opts['nBins']+1)
 #     try:
-    df_new =bin_DF(tab.data, xbins=xBins, colBin=colName)
+    df_new =bin_DF(tab.data, xbins=xBins, colBin=colName, stats=['avg'])[0]
     # Remove index if present
     if df_new.columns[0].lower().find('index')>=0:
         df_new = df_new.iloc[:, 1:] # We don't use "drop" in case of duplicate "index"

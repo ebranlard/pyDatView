@@ -1,5 +1,6 @@
 
 import numpy as np
+import math
 import wx
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
@@ -104,17 +105,26 @@ class Plot2DPanel(wx.Panel):
         self.cbLevels.SetSelection(2)
         self.cbColorMap = wx.ComboBox(panel, choices=cmaps, style=wx.CB_READONLY)
         self.cbColorMap.SetSelection(0)
+        self.cbFlipXY = wx.CheckBox(panel, label="flipXY")
+        self.cbMatrixView = wx.CheckBox(panel, label="Matrix View")
+        self.cbGrid = wx.CheckBox(panel, label="Grid lines")
 
         sizer.Add(lb              , 0 , wx.ALL | wx.ALIGN_CENTER , 5)
         sizer.Add(wx.StaticText(panel, -1, 'Levels:'), 0, flag = wx.ALIGN_CENTER)
         sizer.Add(self.cbLevels   , 0 , wx.EXPAND | wx.ALL , 5)
         sizer.Add(wx.StaticText(panel, -1, 'Colormap:'), 0, flag = wx.ALIGN_CENTER)
         sizer.Add(self.cbColorMap, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(self.cbFlipXY   , 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(self.cbMatrixView, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(self.cbGrid     , 0, wx.EXPAND | wx.ALL, 5)
 
 
         # Bind
         self.cbColorMap.Bind(wx.EVT_COMBOBOX, self.update_plot)
         self.cbLevels.Bind(wx.EVT_COMBOBOX, self.update_plot)
+        self.cbFlipXY.Bind(wx.EVT_CHECKBOX, self.update_plot)
+        self.cbMatrixView.Bind(wx.EVT_CHECKBOX, self.onMatrixView)
+        self.cbGrid.Bind(wx.EVT_CHECKBOX, self.update_plot)
 
         panel.SetSizer(sizer)
         return panel
@@ -164,7 +174,7 @@ class Plot2DPanel(wx.Panel):
         # GUI Element
         lb = wx.StaticText(panel, -1, 'Plot type: ')
         lb.SetFont(boldFont)
-        plot_type_choices = ['contourf', 'contour', 'pcolormesh', 'surface']
+        plot_type_choices = ['contourf', 'contour', 'pcolormesh', 'matrix', 'surface']
         self.cbPlotType = wx.ComboBox(panel, choices=plot_type_choices, style=wx.CB_READONLY)
         self.cbPlotType.SetSelection(0)
         self.btPlot = wx.Button(panel, label=CHAR['chart']+' '+"Replot", style=wx.BU_EXACTFIT)
@@ -185,7 +195,7 @@ class Plot2DPanel(wx.Panel):
         panel.SetSizer(sizer)
         # Bind
         self.btPlot.Bind(wx.EVT_BUTTON, self.update_plot)
-        self.cbPlotType.Bind(wx.EVT_COMBOBOX, self.update_plot)
+        self.cbPlotType.Bind(wx.EVT_COMBOBOX, self.onPlotTypeChange)
         self.cbVSubplots.Bind(wx.EVT_COMBOBOX, self.update_plot)
         self.cbPolar.Bind(wx.EVT_CHECKBOX, self.onPolarPlot)
         self.cbDeg.Bind(wx.EVT_CHECKBOX, self.update_plot)
@@ -196,10 +206,29 @@ class Plot2DPanel(wx.Panel):
     def onPolarPlot(self, event=None, plot=True):
         if self.cbPolar.GetValue():
             self.cbDeg.Enable(True)
+            self.cbMatrixView.SetValue(False)
+            self.cbMatrixView.Enable(False)
+            self.cbFlipXY.SetValue(False)
+            self.cbFlipXY.Enable(False)
+            if self.cbPlotType.GetValue() == 'matrix':
+                iPlotType = self.cbPlotType.FindString('pcolormesh')
+                if iPlotType >= 0:
+                    self.cbPlotType.SetSelection(iPlotType)
         else:
             self.cbDeg.Enable(False)
+            self.cbMatrixView.Enable(True)
+            self.cbFlipXY.Enable(True)
         if plot:
             self.update_plot()
+
+    def onPlotTypeChange(self, event=None):
+        is_matrix = self.cbPlotType.GetValue() == 'matrix'
+        self.cbMatrixView.SetValue(is_matrix)
+        self.cbGrid.SetValue(is_matrix)
+        if is_matrix and self.cbPolar.GetValue():
+            self.cbPolar.SetValue(False)
+            self.cbDeg.Enable(False)
+        self.update_plot()
 
     def onCommonCB(self, event=None, plot=True):
         if self.cbCommonCB.GetValue():
@@ -234,6 +263,22 @@ class Plot2DPanel(wx.Panel):
     def onRangeChange(self, event=None):
         self.update_plot()
 
+    def onMatrixView(self, event=None):
+        # Keep the checkbox synchronized with the dedicated matrix plot type.
+        if self.cbMatrixView.GetValue():
+            if self.cbPolar.GetValue():
+                self.cbPolar.SetValue(False)
+                self.cbDeg.Enable(False)
+            #if self.cbPlotType.GetValue() != 'matrix':
+            #    iPlotType = self.cbPlotType.FindString('matrix')
+            #    if iPlotType >= 0:
+            #        self.cbPlotType.SetSelection(iPlotType)
+        #elif self.cbPlotType.GetValue() == 'matrix':
+        #    iPlotType = self.cbPlotType.FindString('pcolormesh')
+        #    if iPlotType >= 0:
+        #        self.cbPlotType.SetSelection(iPlotType)
+        self.update_plot()
+
     #def save_figure(self, event):
     #    # Save the figure to a file
     #    with wx.FileDialog(self, "Save Figure As", wildcard="PNG files (*.png)|*.png", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
@@ -249,6 +294,9 @@ class Plot2DPanel(wx.Panel):
         data['nLevels']  = int(self.cbLevels.GetValue())
         data['polar']    = self.cbPolar.GetValue()
         data['deg']      = self.cbDeg.GetValue()
+        data['flipXY']   = self.cbFlipXY.GetValue()
+        data['matrixView'] = self.cbMatrixView.GetValue()
+        data['grid']     = self.cbGrid.GetValue()
         data['commonCB'] = self.cbCommonCB.GetValue()
         if self.cbVertiCB.GetValue():
             data['orientation'] = 'vertical'
@@ -260,6 +308,65 @@ class Plot2DPanel(wx.Panel):
         data['VMin']       = float(self.textVMin.GetLineText(0))
         data['VMax']       = float(self.textVMax.GetLineText(0))
         return data
+
+    def _is_integer_axis(self, v, tol=1e-10):
+        v = np.asarray(v, dtype=float)
+        if len(v) == 0:
+            return False
+        return np.all(np.isfinite(v)) and np.allclose(v, np.round(v), atol=tol, rtol=0)
+
+    def _grid_edges(self, v):
+        v = np.asarray(v, dtype=float)
+        if len(v) == 0:
+            return v
+        if len(v) == 1:
+            return np.array([v[0] - 0.5, v[0] + 0.5])
+
+        dv = np.diff(v)
+        edges = np.empty(len(v) + 1)
+        edges[1:-1] = 0.5 * (v[:-1] + v[1:])
+        edges[0] = v[0] - 0.5 * dv[0]
+        edges[-1] = v[-1] + 0.5 * dv[-1]
+        return edges
+
+    def _apply_tick_style(self, ax, matrix_view=False):
+        ax.tick_params(direction='in', top=True, right=True, labelright=False, labeltop=False, which='both')
+        if matrix_view:
+            ax.xaxis.set_label_position('top')
+            ax.xaxis.tick_top()
+            ax.tick_params(axis='x', which='both', top=True, bottom=True, labeltop=True, labelbottom=False)
+            ax.tick_params(axis='y', which='both', left=True, right=True, labelleft=True, labelright=False)
+        else:
+            ax.xaxis.set_label_position('bottom')
+            ax.xaxis.tick_bottom()
+            ax.tick_params(axis='x', which='both', top=True, bottom=True, labeltop=False, labelbottom=True)
+            ax.tick_params(axis='y', which='both', left=True, right=True, labelleft=True, labelright=False)
+
+    def _apply_matrix_ticks(self, ax, x, y, use_index_grid=False):
+        if use_index_grid and len(x) <= 80 and len(y) <= 80:
+            ax.set_xticks(x)
+            ax.set_yticks(y)
+            ax.set_xticks(self._grid_edges(x), minor=True)
+            ax.set_yticks(self._grid_edges(y), minor=True)
+            ax.tick_params(axis='both', which='major', length=0)
+            ax.tick_params(axis='both', which='minor', length=6)
+
+    def _apply_grid(self, ax, x, y, use_index_grid=False, cell_grid=False):
+        x = np.asarray(x)
+        y = np.asarray(y)
+        nxy = max(len(x), len(y))
+        if nxy > 200:
+            # Keep only a light major grid when the matrix is dense.
+            ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.15)
+            return
+
+        if use_index_grid and len(x) <= 80 and len(y) <= 80:
+            ax.set_xticks(x)
+            ax.set_yticks(y)
+            if cell_grid:
+                ax.grid(True, which='minor', linestyle='-', linewidth=0.6, alpha=0.35)
+                return
+        ax.grid(True, which='major', linestyle='-', linewidth=0.4, alpha=0.25)
 
     def add_field(self, x, y, M, sx='x', sy='y', fieldname='field'):
         self.fields.append({'x':x, 'y':y, 'M':M, 'sx':sx, 'sy':sy, 'fieldname':fieldname})
@@ -287,11 +394,11 @@ class Plot2DPanel(wx.Panel):
 
         num_fields = len(self.fields)
         nRows = min(data['nVSubplots'], num_fields)
-        nCols = num_fields//nRows
+        nCols = math.ceil(num_fields/nRows)
         
         for i, field in enumerate(self.fields):
-            
-            j = i % num_fields + 1
+
+            j = i +1
         
             if data['plotType']=='surface':
                 ax = self.fig.add_subplot(nRows, nCols, j, projection='3d')
@@ -343,7 +450,6 @@ class Plot2DPanel(wx.Panel):
             vmin=None
             vmax=None
 
-
         # Titles
         all_fieldnames = np.array([f['fieldname'].replace('_',' ') for f in self.fields])
         oneTitle = len(np.unique(all_fieldnames))==1
@@ -361,27 +467,54 @@ class Plot2DPanel(wx.Panel):
             if data['polar'] and data['deg']:
                 x = np.deg2rad(x)
 
+            x_plot = x
+            y_plot = y
+            z_plot = M.T
+            sx_plot = sx
+            sy_plot = sy
+            do_flip = data['flipXY'] and (not data['polar'])
+            if do_flip:
+                x_plot = y
+                y_plot = x
+                z_plot = M
+                sx_plot = sy
+                sy_plot = sx
+
             if data['plotType'] == 'contourf':
-                cf = ax.contourf(x, y, M.T, levels=levels, cmap=data['colormap'])
+                cf = ax.contourf(x_plot, y_plot, z_plot, levels=levels, cmap=data['colormap'])
             elif data['plotType'] == 'contour':
-                cf = ax.contour(x, y, M.T, levels=levels, cmap=data['colormap'])
-            elif data['plotType'] == 'pcolormesh':
-                cf = ax.pcolormesh(x, y, M.T, vmin=vmin, vmax=vmax, cmap=data['colormap'])
+                cf = ax.contour(x_plot, y_plot, z_plot, levels=levels, cmap=data['colormap'])
+            elif data['plotType'] == 'pcolormesh' or data['plotType'] == 'matrix':
+                cf = ax.pcolormesh(x_plot, y_plot, z_plot, vmin=vmin, vmax=vmax, cmap=data['colormap'])
             elif data['plotType'] == 'surface':
                 if data['polar']:
                     T, R = np.meshgrid(x, y)
                     X = R * np.cos(T)
                     Y = R * np.sin(T)
+                    Z = M.T
                 else:
-                    X, Y = np.meshgrid(x, y)
-                cf = ax.plot_surface(X, Y, M.T, linewidth=0, antialiased=False, cmap=data['colormap'])
+                    X, Y = np.meshgrid(x_plot, y_plot)
+                    Z = z_plot
+                cf = ax.plot_surface(X, Y, Z, linewidth=0, antialiased=False, cmap=data['colormap'])
             mappables.append(cf)
 
             if not oneTitle:
                 ax.set_title("{}".format(fieldname.replace('_',' '))) 
-            if not data['polar']:
-                ax.set_xlabel(sx.replace('_',' '))
-                ax.set_ylabel(sy.replace('_',' '))
+            if data['polar']:
+                ax.grid(data['grid'])
+            else:
+                ax.set_xlabel(sx_plot.replace('_',' '))
+                ax.set_ylabel(sy_plot.replace('_',' '))
+                self._apply_tick_style(ax, matrix_view=data['matrixView'])
+                if data['matrixView']:
+                    # Show row 0 on top so pcolormesh matches matrix orientation.
+                    ax.invert_yaxis()
+                    use_index_grid = self._is_integer_axis(x_plot) and self._is_integer_axis(y_plot)
+                    self._apply_matrix_ticks(ax, x_plot, y_plot, use_index_grid=use_index_grid)
+                if data['grid'] and data['plotType'] != 'surface':
+                    use_index_grid = self._is_integer_axis(x_plot) and self._is_integer_axis(y_plot)
+                    use_cell_grid = data['plotType'] == 'matrix'
+                    self._apply_grid(ax, x_plot, y_plot, use_index_grid=use_index_grid, cell_grid=use_cell_grid)
 
         # --- Bounding boxes of axes
         pmin=[1,1,1,1]

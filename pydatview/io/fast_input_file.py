@@ -841,12 +841,13 @@ class FASTInputFileBase(File):
             s+='\n'
             s+='\n'
             return s
+
         for i in range(len(self.data)):
             d=self.data[i]
             if d['isComment']:
                 s+='{}'.format(d['value'])
             elif d['tabType']==TABTYPE_NOT_A_TAB:
-                if isinstance(d['value'], list):
+                if isinstance(d['value'], list) or isinstance(d['value'],np.ndarray):
                     sList=', '.join([str(x) for x in d['value']])
                     s+=toStringVLD(sList, d['label'], d['descr'])
                 else:
@@ -982,6 +983,13 @@ class FASTInputFileBase(File):
                     Cols = Cols + ShapeCols
 
                 name=d['label']
+                if 'AFCoeff' in name:
+                    if '_' in name:
+                        i = int(name.split('_')[1])
+                        Re = self['Re_'+str(i)]
+                    else:
+                        Re = self['Re']
+                    name = 'AFCoeff_Re{:.2f}'.format(Re)
 
                 if name=='DampingCoeffs':
                     pass
@@ -1839,6 +1847,44 @@ class ADBladeFile(FASTInputFileBase):
     @property
     def _IComment(self): return [1]
 
+    def resample(self, n=10, r=None):
+        def multiInterp(x, xp, fp, extrap='bounded'):
+            """ See welib.tools.signal_analysis """
+            x   = np.asarray(x)
+            xp  = np.asarray(xp)
+            j = np.searchsorted(xp, x, 'left') - 1
+            dd  = np.zeros(len(x)) #*np.nan
+            bOK = np.logical_and(j>=0, j< len(xp)-1)
+            jOK = j[bOK]
+            dd[bOK] = (x[bOK] - xp[jOK]) / (xp[jOK + 1] - xp[jOK])
+            jBef=j 
+            jAft=j+1
+            bLower =j<0
+            bUpper =j>=len(xp)-1
+            jAft[bUpper] = len(xp)-1
+            jBef[bUpper] = len(xp)-1
+            jAft[bLower] = 0
+            jBef[bLower] = 0
+            return (1 - dd) * fp[:,jBef] + fp[:,jAft] * dd
+        # current data
+        M_old= self['BldAeroNodes']
+        r_old = M_old[:,0]
+        if r is None:
+            r_new = np.linspace(r_old[0], r_old[-1], n)
+        else:
+            r_new = r
+        M_new = multiInterp(r_new, r_old, M_old.T).T
+        # Handling precision, but keeping first and last value 
+        M_new = np.around(M_new, 5)
+        if r_new[0]==r_old[0]:
+            M_new[0,:] = M_old[0,:]
+        if r_new[-1]==r_old[-1]:
+            M_new[-1,:] = M_old[-1,:]
+        M_new[:,6] = np.around(M_new[:,6],0).astype(int)
+        self['BldAeroNodes']=M_new
+        self['NumBlNds']=len(r_new)
+        return self
+
 
 # --------------------------------------------------------------------------------}
 # --- AeroDyn Polar 
@@ -1956,16 +2002,22 @@ class ADPolarFile(FASTInputFileBase):
                 self.data[i]['label'] = labFull
 
     def _toDataFrame(self):
+        # --- We rely on parent class, it has an if statement for AFCoeff already...
         dfs = FASTInputFileBase._toDataFrame(self)
         if not isinstance(dfs, dict):
             dfs={'AFCoeff':dfs}
 
-        for k,df in dfs.items():
+        # --- Adding more columns
+        for i,(k,df) in enumerate(dfs.items()):
             sp = k.split('_')
-            if len(sp)==2:
-                labOffset='_'+sp[1]
+            if len(dfs)>1:
+                labOffset='_'+str(i+1)
             else:
                 labOffset=''
+            #if len(sp)==2:
+            #    labOffset='_'+sp[1]
+            #else:
+            #    labOffset=''
             alpha = df['Alpha_[deg]'].values*np.pi/180.
             Cl    = df['Cl_[-]'].values
             Cd    = df['Cd_[-]'].values
@@ -2035,6 +2087,81 @@ class ADPolarFile(FASTInputFileBase):
                 if not self.data[i]['value'].startswith('! ---'):
                     I.append(i)
         return I
+
+
+    # --- Helper functions
+    @property
+    def reynolds(self):
+        return self.getAll('re')
+
+    def getPolar(self, i):
+        if i not in range(0, self['NumTabs']):
+            raise IndexError('Index {} for Polar should be between 0 and {}'.format(i, self['NumTabs']-1))
+        if self['NumTabs']==1:
+            return self[f'AFCoeff'].copy()
+        else:
+            return self[f'AFCoeff_{i+1}'].copy()
+
+    def setPolar(self, i, M):
+        if i not in range(0, self['NumTabs']):
+            raise IndexError('Index {} for Polar should be between 0 and {}'.format(i, self['NumTabs']-1))
+        if self['NumTabs']==1:
+            M_old =  self[f'AFCoeff']
+        else:
+            M_old =  self[f'AFCoeff_{i+1}']
+        if M_old.shape[1] != M.shape[1]:
+            # Actually, does it?
+            raise Exception('Number of columns must match previous data when setting a polar')
+        #self[f'AFCoeff_{i+1}']=M
+        if self['NumTabs']==1:
+            self[f'AFCoeff']=M
+        else:
+            ID = self.getID(f'AFCoeff_{i+1}')
+            self[f'NumAlf_{i+1}']=M.shape[0]
+            self.data[ID]['value']=M
+
+
+    def getAll(self, key):
+        """ 
+        Examples:
+            pol.getAll('re')
+        """
+        if self['NumTabs']==1:
+            return np.array([self[key]])
+        else:
+            return np.array([self[key + f'_{i}'] for i in range(1, self['NumTabs']+1)])
+
+    def setAll(self, key, value=None, offset=None):
+        """ 
+        Examples:
+            pol.setAll('T_f0', 6 )
+            pol.setAll('alpha1', offset=+2 )
+            pol.setAll('alpha2', offset=-2 )
+        """
+        if self['NumTabs']==1:
+            if value is not None:
+                self[f'{key}'] = value
+            if offset is not None:
+                self[f'{key}'] += offset
+        else:
+            for i in range(1, self['NumTabs']+1):
+                ID = self.getID(f'{key}_{i}')
+                if value is not None:
+                    self.data[ID]['value'] = value
+                if offset is not None:
+                    self.data[ID]['value']+= offset
+
+    def calcUnsteadyParams(self):
+        from welib.airfoils.Polar import Polar
+        for i in range(1, self['NumTabs']+1):
+            offset=f'_{i}' if self['NumTabs']>1 else ''
+            M = self['AFCoeff'+offset]
+            pol = Polar(alpha=M[:,0], cl=M[:,1], cd=M[:,2], cm=M[:,3], radians=False, name=os.path.basename(self.filename)+f'_Table{i}')
+            d = pol.unsteadyParams(dictOut=True)
+            for k,v in d.items():
+                self[k+offset] = v
+            
+
 
 
 # --------------------------------------------------------------------------------}

@@ -1,4 +1,5 @@
 from pydatview.common import no_unit
+import pydatview.tools.signal_analysis as sig
 
 # --- Give access to numpy and other useful functions for "eval"
 import numpy as np

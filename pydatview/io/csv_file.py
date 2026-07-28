@@ -1,4 +1,5 @@
 import os
+import re
 import pandas as pd
 
 try:
@@ -6,6 +7,7 @@ try:
 except:
     File=dict
     WrongFormatError  = type('WrongFormatError', (Exception,),{})
+    EmptyFileError    = type('EmptyFileError', (Exception,),{})
 
 class CSVFile(File):
     """ 
@@ -33,16 +35,17 @@ class CSVFile(File):
         return 'CSV file'
 
     def __init__(self, filename=None, sep=None, colNames=None, commentChar=None, commentLines=None,\
-                       colNamesLine=None, detectColumnNames=True, header=None, **kwargs):
+                       colNamesLine=None, detectColumnNames=True, header=None, doRead=True, streaming=False, **kwargs):
+        # Initialize CSV-specific attributes
         colNames     = [] if colNames is None else colNames
         commentLines = [] if commentLines is None else commentLines
         self.sep          = sep
+        self.skipRows     = []
         self.colNames     = colNames
         self.commentChar  = commentChar
         self.commentLines = commentLines
         self.colNamesLine = colNamesLine
         self.detectColumnNames = detectColumnNames
-        self.data=[]
         if header is None:
             self.header=[]
         else:
@@ -55,25 +58,53 @@ class CSVFile(File):
             raise Exception('Provide either `commentChar` or `commentLines` for CSV file types')
         if (len(self.colNames)>0) and (self.colNamesLine is not None):
             raise Exception('Provide either `colNames` or `colNamesLine` for CSV file types')
-        if filename:
-            self.read(filename, **kwargs)
-        else:
-            self.filename = None
 
-    def read(self, filename=None, **kwargs):
+        # Call parent __init__ - handles streaming, filename, etc.
+        File.__init__(self, filename=None, streaming=streaming)
+
+        # Handle filename after parent init
+        if filename:
+            if streaming:
+                # Don't read immediately in streaming mode - wait for context manager
+                self.filename = filename
+            else:
+                self.read(filename, doRead=doRead, **kwargs)
+
+    def __enter__(self):
+        """Context manager entry - CSV needs special handling for detect()."""
+        self._in_context = True
+        if self.filename:
+            # In streaming mode: detect headers, open file but don't read data
+            # In normal mode: read everything
+            if self.streaming:
+                self.read(doRead=False)  # Run detect() only
+                self._read()  # Open file handle and skip to data
+            else:
+                self.read(doRead=True)
+        return self
+
+    # Inherit __exit__ and _enforce_context_if_needed from parent File class
+
+    def read(self, filename=None, doRead=True, streaming=None, **kwargs):
         if filename:
             self.filename = filename
+        if streaming is not None:
+            self.streaming = streaming
         if not self.filename:
             raise Exception('No filename provided')
         if not os.path.isfile(self.filename):
             raise OSError(2,'File not found:',self.filename)
         if os.stat(self.filename).st_size == 0:
             raise EmptyFileError('File is empty:',self.filename)
+
+        self._enforce_context_if_needed()
+
         # Calling children function
-        self._read(**kwargs)
+        self.detect()
+        if doRead:
+            self._read(**kwargs)
 
-
-    def _read(self):
+    def detect(self):
         COMMENT_CHAR=['#','!',';']
         # --- Detecting encoding
         # NOTE: done by parent class method
@@ -248,22 +279,119 @@ class CSVFile(File):
             skiprows.append(self.colNamesLine)
         if (self.commentLines is not None) and len(self.commentLines)>0:
             skiprows = skiprows + self.commentLines
-        skiprows =list(sorted(set(skiprows)))
+        self.skiprows =list(sorted(set(skiprows)))
         if self.sep is not None:
             if self.sep=='\t':
                 self.sep=r'\s+'
         #print(skiprows)
+
+    def _read(self):
+        """Read CSV data. In streaming mode, file handle is kept open."""
         try:
-#             self.data = pd.read_csv(self.filename,sep=self.sep,skiprows=skiprows,header=None,comment=self.commentChar,encoding=self.encoding)
-            with open(self.filename,'r',encoding=self.encoding) as f:
-                self.data = pd.read_csv(f,sep=self.sep,skiprows=skiprows,header=None,comment=self.commentChar)
+            if self.streaming:
+                # Streaming mode: keep file open
+                self._fid = open(self.filename, 'r', encoding=self.encoding)
+                # Skip to data start
+                for _ in range(max(self.skiprows) + 1 if self.skiprows else 0):
+                    self._fid.readline()
+                # Data is not loaded yet
+                self.data = None
+            else:
+                # Normal mode: read entire file
+                with open(self.filename,'r',encoding=self.encoding) as f:
+                    self.data = pd.read_csv(f,sep=self.sep,skiprows=self.skiprows,header=None,comment=self.commentChar)
+
+                if (len(self.colNames)==0) or (len(self.colNames)!=len(self.data.columns)):
+                    self.colNames=['C{}'.format(i) for i in range(len(self.data.columns))]
+                self.data.columns = self.colNames
+                self.data.rename(columns=lambda x: x.strip(),inplace=True)
         except pd.errors.ParserError as e:
             raise WrongFormatError('CSV File {}: '.format(self.filename)+e.args[0])
 
-        if (len(self.colNames)==0) or (len(self.colNames)!=len(self.data.columns)):
+    def _readAll(self):
+        """Read all remaining CSV data in streaming mode."""
+        if self._fid is None:
+            raise RuntimeError("No open file handle")
+
+        try:
+            # Read remaining data from current position
+            self.data = pd.read_csv(self._fid, sep=self.sep, header=None, comment=self.commentChar)
+
+            if (len(self.colNames)==0) or (len(self.colNames)!=len(self.data.columns)):
+                self.colNames=['C{}'.format(i) for i in range(len(self.data.columns))]
+            self.data.columns = self.colNames
+            self.data.rename(columns=lambda x: x.strip(), inplace=True)
+        except pd.errors.ParserError as e:
+            raise WrongFormatError('CSV File {}: '.format(self.filename)+e.args[0])
+
+    def _readChunk(self, nlines=None, **kwargs):
+        """Read a chunk of CSV data (nlines rows)."""
+        if self._fid is None:
+            raise RuntimeError("No open file handle")
+
+        if nlines is None:
+            nlines = 1000  # Default chunk size
+
+        try:
+            chunk = pd.read_csv(self._fid, sep=self.sep, header=None, comment=self.commentChar, nrows=nlines)
+
+            if len(chunk) == 0:
+                return None  # End of file
+
+            if (len(self.colNames)==0) or (len(self.colNames)!=len(chunk.columns)):
+                self.colNames=['C{}'.format(i) for i in range(len(chunk.columns))]
+            chunk.columns = self.colNames
+            chunk.rename(columns=lambda x: x.strip(), inplace=True)
+
+            return chunk
+        except pd.errors.EmptyDataError:
+            # End of file reached
+            return None
+        except pd.errors.ParserError as e:
+            raise WrongFormatError('CSV File {}: '.format(self.filename)+e.args[0])
+
+
+    def read_slow_stop_at_first_empty_lines(self, skiprows=None, sep=None, numeric_only=True, colNames=None):
+        """
+        HACKY function
+        Reads a CSV file line by line, stopping at the first empty line.
+        This is a slower method but can be useful for large files or when you want to avoid loading the entire file into memory.
+        """
+        if skiprows is None:
+            skiprows = self.skipRows + self.commentLines 
+        if sep is None:
+            sep = self.sep if self.sep is not None else ','
+        if colNames is None:
+            colNames = self.colNames
+
+        def smart_split(line, sep):
+            """Splits a line using a separator, which can be a regex (e.g. '\\s+') or a normal string."""
+            if sep == r'\s+':
+                return re.split(r'\s+', line.strip())
+            else:
+                return [c.strip() for c in line.strip().split(sep)]
+        data = []
+        with open(self.filename, 'r', encoding=self.encoding) as f:
+            for i, line in enumerate(f):
+                if i in skiprows:
+                    continue
+                line = line.strip()
+                if not line:
+                    break
+                cols = smart_split(line, sep)
+                if len(colNames)>0 and len(cols) != len(self.colNames):
+                    raise Exception("Error: Wrong number of columns on line {}.".format(i))
+                data.append(cols)
+        if len(colNames)>0:
+            self.data= pd.DataFrame(data, columns=self.colNames)
+        else:
+            self.data= pd.DataFrame(data)
             self.colNames=['C{}'.format(i) for i in range(len(self.data.columns))]
         self.data.columns = self.colNames;
-        self.data.rename(columns=lambda x: x.strip(),inplace=True)
+
+        if numeric_only:
+            self.data = self.data.apply(pd.to_numeric, errors='coerce')
+        #self.data.dropna(inplace=True)
 
     def _write(self):
         # --- Safety
@@ -288,19 +416,21 @@ class CSVFile(File):
             self.data.to_csv(self.filename,sep=self.sep,index=False)
 
     def __repr__(self):
-        s = 'CSVFile: {}\n'.format(self.filename)
-        s += 'sep=`{}` commentChar=`{}`\ncolNamesLine={}'.format(self.sep,self.commentChar,self.colNamesLine)
-        s += ', encoding={}'.format(self.encoding)+'\n'
-        s += 'commentLines={}'.format(self.commentLines)+'\n'
-        s += 'colNames={}'.format(self.colNames)
-        s += '\n'
+        s = '<CSVFile: {}>\n'.format(self.filename)
+        s += '| - sep         =`{}`\n'.format(self.sep)
+        s += '| - commentChar =`{}`\n'.format(self.commentChar)
+        s += '| - colNamesLine= {}\n'.format(self.colNamesLine)
+        s += '| - encoding    = {}\n'.format(self.encoding)
+        s += '| - commentLines= {}\n'.format(self.commentLines)
+        s += '| - skipRows    = {}\n'.format(self.skipRows)
+        s += '| - colNames    = {}\n'.format(self.colNames)
         if len(self.header)>0:
-            s += 'header:\n'+ '\n'.join(self.header)+'\n'
+            s += '| - header:\n'+ '\n'.join(self.header)+'\n'
         if len(self.data)>0:
-            s += 'size: {}x{}'.format(len(self.data),len(self.data.columns))
+            s += '| - size: {}x{}'.format(len(self.data),len(self.data.columns))
         return s
 
-    def _toDataFrame(self):
+    def toDataFrame(self):
         return self.data
 
     def to2DFields(self, **kwargs):
@@ -340,6 +470,26 @@ class CSVFile(File):
         else:
             result = chardet.detect(raw)
             return result['encoding']
+
+
+def find_non_numeric_header_lines(filename):
+    """
+    Reads a file line by line and returns a list of indices for lines that are headers,
+    i.e., lines that contain anything other than numbers, commas, tabs, spaces, or scientific notation.
+    Stops at the first line that is purely numeric (with allowed delimiters).
+    """
+    header_indices = []
+    header_lines = []
+    numeric_line_pattern = re.compile(r'^[\s,]*([+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?[\s,]*)+$')
+    with open(filename, 'r', errors="surrogateescape") as f:
+        for idx, line in enumerate(f):
+            s = line.strip()
+            if not s: continue
+            if numeric_line_pattern.fullmatch(s):
+                break
+            header_lines.append(s)
+            header_indices.append(idx)
+    return header_indices, header_lines
 
 if __name__ == '__main__':
     f = CSVFile('C:/Work/Courses/440/project_solution/data/CFD_u.dat')

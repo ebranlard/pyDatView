@@ -561,7 +561,7 @@ class Table(object):
 
     def setData(self, data, dayfirst=False):
         # sanitize columns, we only accept strings
-        data.columns = data.columns.astype(str)
+        data.columns = pd.Index([str(c) for c in data.columns], dtype='object')
 
         # Adding index
         if data.columns[0].lower().find('index')>=0:
@@ -706,52 +706,52 @@ class Table(object):
         return df_new, name_new
 
 
-    def radialAvg(self, avgMethod, avgParam):
-        # TODO make this a pluggin
-        import pydatview.fast.postpro as fastlib
-        import pydatview.fast.fastfarm as fastfarm
-        df = self.data
-        base,out_ext = os.path.splitext(self.filename)
-
-        # TODO use fast_output_file  findDriverFile
-
-        # --- Detect if it's a FAST Farm file
-        sCols = ''.join(df.columns)
-        if sCols.find('WkDf')>1 or sCols.find('CtT')>0:
-            # --- FAST FARM files
-            Files=[base+ext for ext in ['.fstf','.FSTF','.Fstf','.fmas','.FMAS','.Fmas'] if os.path.exists(base+ext)]
-            if len(Files)==0:
-                fst_in=None
-                #raise Exception('Error: No .fstf file found with name: '+base+'.fstf')
-            else:
-                fst_in=Files[0]
-
-            dfRad,_,dfDiam =  fastfarm.spanwisePostProFF(fst_in,avgMethod=avgMethod,avgParam=avgParam,D=1,df=df)
-            dfs_new  = [dfRad,dfDiam]
-            names_new=[self.raw_name+'_rad',self.raw_name+'_diam']
-        else:
-            # --- FAST files
-
-            # HACK for AD file to find the right .fst file
-            iDotAD=base.lower().find('.ad')
-            if iDotAD>1:
-                base=base[:iDotAD]
-            #
-            Files=[base+ext for ext in ['.fst','.FST','.Fst','.dvr','.Dvr','.DVR'] if os.path.exists(base+ext)]
-            if len(Files)==0:
-                fst_in=None
-                #raise Exception('Error: No .fst file found with name: '+base+'.fst')
-            else:
-                fst_in=Files[0]
-
-            out= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = self.data)
-            dfRadED=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']
-
-            dfs_new  = [dfRadAD, dfRadED, dfRadBD]
-            names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
-        if all(df is None for df in dfs_new):
-            raise PyDatViewException('No OpenFAST radial data found for table: '+self.nickname)
-        return dfs_new, names_new
+#     def radialAvg(self, avgMethod, avgParam):
+#         # TODO make this a pluggin
+#         import pydatview.fast.postpro as fastlib
+#         import pydatview.fast.fastfarm as fastfarm
+#         df = self.data
+#         base,out_ext = os.path.splitext(self.filename)
+# 
+#         # TODO use fast_output_file  findDriverFile
+# 
+#         # --- Detect if it's a FAST Farm file
+#         sCols = ''.join(df.columns)
+#         if sCols.find('WkDf')>1 or sCols.find('CtT')>0:
+#             # --- FAST FARM files
+#             Files=[base+ext for ext in ['.fstf','.FSTF','.Fstf','.fmas','.FMAS','.Fmas'] if os.path.exists(base+ext)]
+#             if len(Files)==0:
+#                 fst_in=None
+#                 #raise Exception('Error: No .fstf file found with name: '+base+'.fstf')
+#             else:
+#                 fst_in=Files[0]
+# 
+#             dfRad,_,dfDiam =  fastfarm.spanwisePostProFF(fst_in,avgMethod=avgMethod,avgParam=avgParam,D=1,df=df)
+#             dfs_new  = [dfRad,dfDiam]
+#             names_new=[self.raw_name+'_rad',self.raw_name+'_diam']
+#         else:
+#             # --- FAST files
+# 
+#             # HACK for AD file to find the right .fst file
+#             iDotAD=base.lower().find('.ad')
+#             if iDotAD>1:
+#                 base=base[:iDotAD]
+#             #
+#             Files=[base+ext for ext in ['.fst','.FST','.Fst','.dvr','.Dvr','.DVR'] if os.path.exists(base+ext)]
+#             if len(Files)==0:
+#                 fst_in=None
+#                 #raise Exception('Error: No .fst file found with name: '+base+'.fst')
+#             else:
+#                 fst_in=Files[0]
+# 
+#             out= fastlib.spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = self.data)
+#             dfRadED=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']
+# 
+#             dfs_new  = [dfRadAD, dfRadED, dfRadBD]
+#             names_new=[self.raw_name+'_AD', self.raw_name+'_ED', self.raw_name+'_BD'] 
+#         if all(df is None for df in dfs_new):
+#             raise PyDatViewException('No OpenFAST radial data found for table: '+self.nickname)
+#         return dfs_new, names_new
 
     def changeUnits(self, data=None):
         """ Change units of the table """
@@ -764,20 +764,33 @@ class Table(object):
     def convertTimeColumns(self, dayfirst=False):
 
         def convertTimeColumn(c):
-            print('[INFO] Converting column {} to datetime, dayfirst: {}. May take a while...'.format(c, dayfirst))
-            try:
-                # TODO THIS CAN BE VERY SLOW...
-                self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=True).to_pydatetime()
-                print('       Done.')
-            except:
+            print('[INFO] Converting column {} to datetime, with dayfirst={}, ...'.format(c, dayfirst))
+            if pd.__version__.split('.')[0]=='2':
                 try:
-                    print('[FAIL] Attempting without infer datetime. May take a while...')
-                    self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=False).to_pydatetime()
-                    print('       Done.')
+                    self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst).to_pydatetime()
+                    print('[ OK ] Done.')
                 except:
-                    # Happens if values are e.g. "Monday, Tuesday"
-                    print('[FAIL] Inferring column as string instead')
-
+                    print('[FAIL] Conversion failed. Attempting now with dayfirst={}, ...'.format(not dayfirst))
+                    try:
+                        self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=not dayfirst).to_pydatetime()
+                        print('[ OK ] Done.')
+                    except:
+                        # Happens if values are e.g. "Monday, Tuesday"
+                        print('[FAIL] Inferring column as string instead')
+            else:
+                # LEGACY CODE - REMOVE ME LATER
+                try:
+                    # TODO THIS CAN BE VERY SLOW...
+                    self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=True).to_pydatetime()
+                    print('[ OK ] Done.')
+                except:
+                    try:
+                        print('[FAIL] Attempting without infer datetime. May take a while...')
+                        self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst, infer_datetime_format=False).to_pydatetime()
+                        print('[ OK ] Done.')
+                    except:
+                        # Happens if values are e.g. "Monday, Tuesday"
+                        print('[FAIL] Inferring column as string instead')
 
         if len(self.data)>0:
             for i,c in enumerate(self.data.columns.values):
@@ -952,7 +965,7 @@ class Table(object):
 
     @property
     def columns(self):
-        return self.data.columns.values #.astype(str)
+        return np.asarray(self.data.columns, dtype='object')
 
     @columns.setter
     def columns(self, cols):

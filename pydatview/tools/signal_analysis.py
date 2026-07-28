@@ -259,13 +259,18 @@ def applySampler(x_old, y_old, sampDict, df_old=None):
         sample_time = float(param[0])
         if sample_time <= 0:
             raise Exception('Error: sample time must be positive')
-        # --- Version dependency...
-        pdVer = [int(s) for s in pd.__version__.split('.')]
-        sSample = "{:f}s".format(sample_time)
-        if pdVer[0]<=1 or (pdVer[0]<=2 and pdVer[1]<2):
-            sSample = "{:f}S".format(sample_time)
+        # --- Old way to get sSample
+        #pdVer = [int(s) for s in pd.__version__.split('.')]
+        #sSample = "{:f}s".format(sample_time)
+        #if pdVer[0]<=1 or (pdVer[0]<=2 and pdVer[1]<2):
+        #    sSample = "{:f}S".format(sample_time)
+        #time_index = pd.to_timedelta(x_old, unit="s")
+        # --- New way to get sSample, and use ns
+        # Use Timedelta directly to avoid pandas unit-casting issues for sub-second frequencies.
+        sSample = pd.to_timedelta(sample_time, unit='s')
+        x_old_ns = np.rint(np.asarray(x_old, dtype=float) * 1e9).astype(np.int64)
+        time_index = pd.to_timedelta(x_old_ns, unit='ns')
 
-        time_index = pd.to_timedelta(x_old, unit="s")
         x_new = pd.Series(x_old, index=time_index).resample(sSample).mean().interpolate().values
 
         if df_old is not None:
@@ -426,37 +431,102 @@ def zero_crossings(y, x=None, direction=None, bouncingZero=False):
 # --------------------------------------------------------------------------------}
 # --- Correlation  
 # --------------------------------------------------------------------------------{
-def correlation(x, nMax=80, dt=1, method='numpy'):
+def autoCorrCoeff(x, nMax=None, dt=1, method='corrcoef'):
     """ 
     Compute auto correlation of a signal
+     - nMax: number of values to return
     """
-
-    def acf(x, nMax=20):
-        return np.array([1]+[np.corrcoef(x[:-i], x[i:])[0,1]  for i in range(1, nMax)])
-
-
-    nvec   = np.arange(0,nMax)
+    x    = x.copy() - np.mean(x)
+    var  = np.var(x)
+    n    = len(x)
+    if nMax is None:
+        nMax = n
+    rvec = np.arange(0,nMax)
     if method=='manual':
-        sigma2 = np.var(x)
-        R    = np.zeros(nMax)
-        R[0] =1
-        for i,nDelay in enumerate(nvec[1:]):
-            R[i+1] = np.mean(  x[0:-nDelay] * x[nDelay:]  ) / sigma2
-            #R[i+1] = np.corrcoef(x[:-nDelay], x[nDelay:])[0,1] 
+        rho    = np.zeros(nMax)
+        rho[0] =1
+        for i,nDelay in enumerate(rvec[1:]):
+            rho[i+1] = np.mean(  x[0:-nDelay] * x[nDelay:]  ) / var
 
-    elif method=='numpy':
-        R= acf(x, nMax=nMax)
+    elif method=='manual-roll':
+        rho    = np.zeros(len(rvec))
+        for i,r in enumerate(rvec):
+            shifted_x = np.roll(x, int(r)) #Shift x by tau
+            rho[i] = np.mean(x * shifted_x) / var
+
+    elif method=='corrcoef':
+        rho = np.array([1]+[np.corrcoef(x[:-i], x[i:])[0,1]  for i in range(1, nMax)])
+
+    elif method=='correlate':
+        rho = np.correlate(x, x, mode='full')[-n:] / (var * n)
+        rho = rho[:nMax]
     else:
-        raise NotImplementedError()
+        raise NotImplementedError(method)
 
-    tau = nvec*dt
-    return R, tau
+    tau = rvec*dt
+    return rho, tau
+
+def correlation(*args, **kwargs):
+    print('[WARN] welib.tools.signal_analysis.correlation will be deprecated use autoCorrCoeff')
+    return autoCorrCoeff(*args, **kwargs)
 # Auto-correlation comes in two versions: statistical and convolution. They both do the same, except for a little detail: The statistical version is normalized to be on the interval [-1,1]. Here is an example of how you do the statistical one:
 # 
 # 
 # def autocorr(x):
 #     result = numpy.correlate(x, x, mode='full')
 #     return result[result.size/2:]
+
+    
+def xCorrCoeff(x1, x2, t=None, nMax=None, method='manual'):    
+    """ 
+    Compute cross-correlation coefficient between two signals.
+    """
+    x1 = x1.copy()-np.mean(x1)
+    x2 = x2.copy()-np.mean(x2)
+    sigma1 = np.std(x1)
+    sigma2 = np.std(x2)
+    # Only if x1 and x2 have the same length for now
+    N1 = min(len(x1), len(x2))
+    if nMax is None:
+        nMax = len(x1)
+    if t is None:
+        t = np.array(range(N1))
+    if method=='subset-tauPos':
+        # Only if x1 and x2 have the same length
+        rho    = np.zeros(nMax)
+        rvec = np.arange(0,nMax)
+        for i,r in enumerate(rvec):
+            rho[i] = np.mean(  x1[:N1-r] * x2[r:]  ) / (sigma1*sigma2)
+    elif method=='manual':
+        rvec = np.array(range(-nMax+1,nMax))
+        rho   = np.zeros(len(rvec))
+        # TODO two for loops for pos and neg..
+        for i,r in enumerate(rvec):
+            if r>=0:
+                t11, x11 = t [0:N1-r], x1[0:N1-r]
+                t22, x22 = t [r:]   , x2[r:] 
+            else:
+                r=abs(r)
+                t22, x22 = t [0:N1-r], x2[0:N1-r]
+                t11, x11 = t [r:]   , x1[r:] 
+            rho[i] = np.mean(x11*x22) / (sigma1*sigma2)
+    else:
+        raise NotImplementedError(method)    
+        cross_corr = correlate(x, y, mode=mode)/ min(len(x), len(y)) / (sigma1*sigma2)
+        if mode=='same':
+            cross_corr =np.concatenate( [ cross_corr[N:], cross_corr[:N] ] )
+            cross_corr[N3:2*N3]=0
+        if mode=='full':
+            lags = np.arange(-len(x) + 1, len(x)) * dt
+        elif mode=='same':
+            lags = (np.arange(len(x)) - N) * dt
+            lags = np.concatenate( [ lags[N:], lags[:N] ] )
+        else:
+            raise NotImplementedError(mode)
+
+
+    tau = rvec * (t[1]-t[0])
+    return rho, tau
 
 
 

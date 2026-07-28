@@ -69,6 +69,9 @@ def fileFormats(userpath=None, ignoreErrors=False, verbose=False):
     from .raawmat_file            import RAAWMatFile
     from .rosco_discon_file       import ROSCODISCONFile
     from .rosco_performance_file  import ROSCOPerformanceFile
+    from .plot3d_file             import Plot3DFile
+    from .yaml_file               import YAMLFile
+    from .airfoil_file            import AirfoilShapeFile
     priorities = []
     formats = []
     def addFormat(priority, fmt):
@@ -76,6 +79,7 @@ def fileFormats(userpath=None, ignoreErrors=False, verbose=False):
         formats.append(fmt)
     addFormat(0, FileFormat(CSVFile))
     addFormat(0, FileFormat(ExcelFile))
+    addFormat(0, FileFormat(YAMLFile))
     addFormat(10, FileFormat(TecplotFile))
     addFormat(10, FileFormat(BladedFile))
     addFormat(20, FileFormat(FASTInputFile))
@@ -108,8 +112,10 @@ def fileFormats(userpath=None, ignoreErrors=False, verbose=False):
     addFormat(60, FileFormat(GNUPlotFile))
     addFormat(60, FileFormat(ParquetFile))
     addFormat(60, FileFormat(PickleFile))
+    addFormat(60, FileFormat(Plot3DFile))
     addFormat(70, FileFormat(CactusFile))
     addFormat(70, FileFormat(RAAWMatFile))
+    addFormat(70, FileFormat(AirfoilShapeFile))
 
     # --- User defined formats from user path
     UserClasses, UserPaths, UserModules, UserModuleNames, errors = userFileClasses(userpath, ignoreErrors, verbose=verbose)

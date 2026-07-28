@@ -7,6 +7,10 @@ Set of tools for statistics
 """
 import numpy as np
 import pandas as pd
+try:
+    from numpy import trapezoid
+except:
+    from numpy import trapz as trapezoid
 
 # --------------------------------------------------------------------------------}
 # --- Stats measures 
@@ -212,7 +216,7 @@ def pdf_histogram(y,nBins=50, norm=True, count=False):
         yh  = yh / (nBins*dx) 
     if norm:
         try:
-            yh=yh/np.trapezoid(yh,xh)
+            yh=yh/trapezoid(yh,xh)
         except:
             yh=yh/np.trapz(yh,xh)
     return xh,yh
@@ -268,7 +272,7 @@ def pdf_sns(y,nBins=50):
 # --------------------------------------------------------------------------------}
 # --- Binning 
 # --------------------------------------------------------------------------------{
-def bin_DF(df, xbins, colBin, stats='mean'):
+def bin_DF(df, xbins, colBin, stats=None):
     """ 
     Perform bin averaging of a dataframe
     INPUTS:
@@ -279,23 +283,38 @@ def bin_DF(df, xbins, colBin, stats='mean'):
        binned dataframe, with additional columns 'Counts' for the number 
 
     """
+    if stats is None:
+        stats=['avg']
+    if not isinstance(stats, list):
+        stats=[stats]
     if colBin not in df.columns.values:
         raise Exception('The column `{}` does not appear to be in the dataframe'.format(colBin))
     xmid      = (xbins[:-1]+xbins[1:])/2
     df['Bin'] = pd.cut(df[colBin], bins=xbins, labels=xmid ) # Adding a column that has bin attribute
-    if stats=='mean':
-        df2       = df.groupby('Bin', observed=False).mean()                     # Average by bin
-    elif stats=='std':
-        df2       = df.groupby('Bin', observed=False).std()                     # std by bin
-    # also counting
+    dfs=[]
+    df3  = df.groupby('Bin', observed=False)
+    for stat in stats:
+        if stat=='avg' or stat=='mean':
+            df2  = df3.mean()  # mean by bin
+        elif stat=='std':
+            df2  = df3.std()   # std by bin
+        elif stat=='min':
+            df2  = df3.min()   # min by bin
+        elif stat=='max':
+            df2  = df3.max()   # min by bin
+        else:
+            raise NotImplementedError(f'Stat {stat}')
+        df2  = df2.reindex(xmid) # Just in case some bins are missing (will be nan)
+        dfs.append(df2)
+    # Adding counts to first df
     df['Counts'] = 1
     dfCount=df[['Counts','Bin']].groupby('Bin', observed=False).sum()
-    df2['Counts'] = dfCount['Counts']
-    # Just in case some bins are missing (will be nan)
-    df2       = df2.reindex(xmid)
-    return df2
+    dfs[0]['Counts'] = dfCount['Counts']
+    return dfs
 
-def bin_signal(x, y, xbins=None, stats='mean', nBins=None):
+
+
+def bin_signal(x, y, xbins=None, stats=None, nBins=None):
     """ 
     Perform bin averaging of a signal
     INPUTS:
@@ -306,13 +325,20 @@ def bin_signal(x, y, xbins=None, stats='mean', nBins=None):
       - xBinned, yBinned
 
     """
+    if stats is None:
+        stats=['avg']
+    if not isinstance(stats, list):
+        stats=[stats]
     if xbins is None:
         xmin, xmax = np.min(x), np.max(x)
         dx = (xmax-xmin)/nBins
         xbins=np.arange(xmin, xmax+dx/2, dx)
     df = pd.DataFrame(data=np.column_stack((x,y)), columns=['x','y'])
-    df2 = bin_DF(df, xbins, colBin='x', stats=stats)
-    return df2['x'].values, df2['y'].values
+    dfs = bin_DF(df, xbins, colBin='x', stats=stats)
+    if len(stats)>1:
+        raise NotImplementedError('bin_signal for multiple stats')
+    else:
+        return dfs[0]['x'].values, dfs[0]['y'].values
 
 
 
@@ -375,7 +401,7 @@ def azimuthal_average_DF(df, psiBin=np.arange(0,360+1,10), colPsi='Azimuth_[deg]
             raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
         df=df[ df[colTime]>tStart].copy()
 
-    dfPsi= bin_DF(df, psiBin, colPsi, stats='mean')
+    dfPsi= bin_DF(df, psiBin, colPsi, stats=['avg'])[0]
     if np.any(dfPsi['Counts']<1):
         print('[WARN] some bins have no data! Increase the bin size.')
 
@@ -392,7 +418,7 @@ def azimuthal_std_DF(df, psiBin=np.arange(0,360+1,10), colPsi='Azimuth_[deg]', t
             raise Exception('The column `{}` does not appear to be in the dataframe'.format(colTime))
         df=df[ df[colTime]>tStart].copy()
 
-    dfPsi= bin_DF(df, psiBin, colPsi, stats='std')
+    dfPsi= bin_DF(df, psiBin, colPsi, stats=['std'])[0]
     if np.any(dfPsi['Counts']<1):
         print('[WARN] some bins have no data! Increase the bin size.')
 

@@ -12,13 +12,17 @@ __all__  = ['FASTInputDeck']
 class FASTInputDeck(dict):
     """Container for input files that make up a FAST input deck"""
 
+    @property
+    def readlist_default(self):
+        return ['Fst','ED','AD','BD','BDbld','EDtwr','EDbld','ADbld','AF','AC','OLAF','IW','HD','SrvD','SD','MD']
+
     def __init__(self, fullFstPath='', readlist=['all'], verbose=False):
         """Read FAST master file and read inputs for FAST modules
 
         INPUTS:
           - fullFstPath: 
           - readlist: list of module files to be read, or ['all'], modules are identified as follows:
-                ['Fst','ED','AD','BD','BDbld','EDtwr','EDbld','ADbld','AF','AC','IW','HD','SrvD','SD','MD']
+                ['Fst','ED','AD','BD','BDbld','EDtwr','EDbld','ADbld','AF','AC','OLAF','IW','HD','SrvD','SD','MD']
                 where: 
                  AF: airfoil polars
                  AC: airfoil coordinates (if present)
@@ -37,7 +41,7 @@ class FASTInputDeck(dict):
         if not type(self.readlist) is list:
             self.readlist=[readlist]
         if 'all' in self.readlist:
-            self.readlist = ['Fst','ED','AD','BD','BDbld','EDtwr','EDbld','ADbld','AF','AC','IW','HD','SrvD','SD','MD']
+            self.readlist = self.readlist_default
         else:
             self.readlist = ['Fst']+self.readlist
 
@@ -92,7 +96,7 @@ class FASTInputDeck(dict):
 
     def readAD(self, filename=None, readlist=None, verbose=False, key='AeroDyn15'):
         """ 
-        readlist: 'AD','AF','AC'
+        readlist: 'AD','AF','AC','OLAF'
         """
         if readlist is not None:
             readlist_bkp = self.readlist
@@ -100,7 +104,7 @@ class FASTInputDeck(dict):
             if not type(self.readlist) is list:
                 self.readlist=[readlist]
             if 'all' in self.readlist:
-                self.readlist = ['Fst','ED','AD','BD','BDbld','EDtwr','EDbld','ADbld','AF','AC','IW','HD','SrvD','SD','MD']
+                self.readlist = self.readlist_default
 
         if filename is None:
             filename = self.fst_vt['Fst']['AeroFile']
@@ -110,26 +114,40 @@ class FASTInputDeck(dict):
 
         self.verbose  = verbose
 
-        self.fst_vt[key] = self._read(filename,'AD')
+        # AD
+        AD = self._read(filename,'AD')
+        self.fst_vt[key] = AD
 
-        if self.fst_vt[key] is not None:
-            # Blades
-            bld_file = os.path.join(baseDir, self.fst_vt[key]['ADBlFile(1)'])
-            self.fst_vt['AeroDynBlade'] = self._read(bld_file,'ADbld')
-            #self.fst_vt['AeroDynBlade'] = []
-            #for i in range(3):
-            #    bld_file = os.path.join(os.path.dirname(self.fst_vt['Fst']['AeroFile']), self.fst_vt[key]['ADBlFile({})'.format(i+1)])
-            #    self.fst_vt['AeroDynBlade'].append(self._read(bld_file,'ADbld'))
+        if AD is not None:
+            # ADbld - AeroDyn Blades
+            #bld_file = os.path.join(baseDir, AD['ADBlFile(1)'])
+            #self.fst_vt['AeroDynBlade'] = self._read(bld_file,'ADbld')
+            for i in range(10):
+                try:
+                    AD['ADBlFile({})'.format(i+1)]
+                except KeyError:
+                    nBlades = i 
+                    break
+            self.fst_vt['AeroDynBlade'] = []
+            for i in range(nBlades):
+                bld_file = os.path.join(baseDir, self.fst_vt[key]['ADBlFile({})'.format(i+1)])
+                self.fst_vt['AeroDynBlade'].append(self._read(bld_file,'ADbld'))
+            # OLAF
+            #if os.path.exist(AD['OLAFInputFileName']):
+            self.fst_vt['OLAF'] = self._read(AD['OLAFInputFileName'], 'OLAF')
+
             # Polars
             self.fst_vt['af_data']=[] # TODO add to "AeroDyn"
             for afi, af_filename in enumerate(self.fst_vt['AeroDyn15']['AFNames']):
                 af_filename = os.path.join(baseDir,af_filename).replace('"','')
+                # AF - Airfoil file
                 try: 
                     polar = self._read(af_filename, 'AF')
                 except:
                     polar=None
                     print('[FAIL] reading polar {}'.format(af_filename))
                 self.fst_vt['af_data'].append(polar)
+                # AC - Airfoil coordinates
                 if polar is not None:
                     coordFile = polar['NumCoords']
                     if isinstance(coordFile,str):
@@ -141,7 +159,7 @@ class FASTInputDeck(dict):
                             self.fst_vt['ac_data'].append(coords)
 
         # --- Backward compatibility
-        self.AD  = self.fst_vt[key]
+        self.AD  = AD
         self.ADversion='AD15' if key=='AeroDyn15' else 'AD14'
 
         if readlist is not None:
@@ -302,7 +320,7 @@ class FASTInputDeck(dict):
         if not hasattr(self,'AD'):
             self.AD = None
         if self.AD is not None:
-            self.AD.Bld1 = self.fst_vt['AeroDynBlade']
+            self.AD.Bld1 = self.fst_vt['AeroDynBlade'][0]
             self.AD.AF  = self.fst_vt['af_data']
         self.IW  = self.fst_vt['InflowWind']
         self.BD  = self.fst_vt['BeamDyn']

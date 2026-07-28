@@ -7,3 +7,4 @@ matplotlib
 chardet
 scipy
 attrdict3
+pyyaml

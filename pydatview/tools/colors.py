@@ -136,7 +136,7 @@ def make_colormap(seq,values=None,name='CustomMap'):
         cdict['blue'].append((v, b1, b2))
         if hasAlpha:
             cdict['alpha'].append((v, a1, a2))
-    print(cdict)
+    #print(cdict)
     return mcolors.LinearSegmentedColormap(name, cdict)
 
 def cmap_colors(n, name='viridis'):
@@ -153,7 +153,7 @@ def cmap_colors(n, name='viridis'):
         COLRS = color_scales(n, color='blue')
     return COLRS
 
-def color_scales(n, color='blue'):
+def color_scales(n, color='blue', reverse=True):
     maps={
     'blue':mpl.cm.Blues,
     'purple':mpl.cm.Purples,
@@ -167,7 +167,8 @@ def color_scales(n, color='blue'):
     cmap = mpl.cm.ScalarMappable(norm=norm, cmap=maps[color])
     cmap.set_array([])
     colrs = [cmap.to_rgba(i) for i in np.arange(n)]
-    colrs.reverse()
+    if reverse:
+        colrs.reverse()
     return colrs
 
 

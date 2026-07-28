@@ -1,6 +1,5 @@
 [![Build status](https://github.com/ebranlard/pyDatView/workflows/Tests/badge.svg)](https://github.com/ebranlard/pyDatView/actions?query=workflow%3A%22Tests%22)
-<a href="https://www.buymeacoffee.com/hTpOQGl" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Donate just a small amount, buy me a coffee" style="height: 21px !important;width: 95px" ></a>
-
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/hTpOQGl)
 
 # pyDatView
 

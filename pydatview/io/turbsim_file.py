@@ -442,10 +442,7 @@ class TurbSimFile(File):
         """ Compute lateral cross spectral density
         If no index is provided, computed at mid box 
         """
-        try:
-            import scipy.signal as sig
-        except:
-            import pydatview.tools.spectral as sig
+        import scipy.signal as sig
         u, v, w = ts._latline(ix0=ix0, iz0=iz0, removeMean=True)
         t       = ts['t']
         dt      = t[1]-t[0]
@@ -459,10 +456,7 @@ class TurbSimFile(File):
         """ Compute vertical cross spectral density
         If no index is provided, computed at mid box 
         """
-        try:
-            import scipy.signal as sig
-        except:
-            import pydatview.tools.spectral as sig
+        import scipy.signal as sig
         t       = ts['t']
         dt      = t[1]-t[0]
         fs      = 1/dt
@@ -480,10 +474,7 @@ class TurbSimFile(File):
         """ Coherence on a longitudinal line for different delta y and delta z
         compared to a given point with index iy0,iz0
         """
-        try:
-            import scipy.signal as sig
-        except:
-            import pydatview.tools.spectral as sig
+        import scipy.signal as sig
         if iy0 is None:
             iy0,iz0 = ts.iMid
         u, v, w = ts._longiline(iy0=iy0, iz0=iz0, removeMean=True)
@@ -768,7 +759,7 @@ class TurbSimFile(File):
         """
         from xarray import IndexVariable, DataArray, Dataset
         
-        print('[TODO] pyFAST.input_output.turbsim_file.toDataset: merge with function toDataSet')
+        print('[TODO] turbsim_file.toDataset: merge with function toDataSet')
 
         y      = IndexVariable("y", self.y, attrs={"description":"lateral coordinate","units":"m"})
         zround = np.asarray([np.round(zz,6) for zz in self.z]) #the open function here returns something like *.0000000001 which is annoying
@@ -795,8 +786,8 @@ class TurbSimFile(File):
         """
         import xarray as xr
         
-        print('[TODO] pyFAST.input_output.turbsim_file.toDataSet: should be discontinued')        
-        print('[TODO] pyFAST.input_output.turbsim_file.toDataSet: merge with function toDataset')        
+        print('[TODO] turbsim_file.toDataSet: should be discontinued')        
+        print('[TODO] turbsim_file.toDataSet: merge with function toDataset')        
 
         if datetime:
             timearray = pd.to_datetime(self['t'], unit='s', origin=pd.to_datetime('2000-01-01 00:00:00'))
@@ -850,7 +841,7 @@ class TurbSimFile(File):
             height to be written to turbsim as the reference height. if none is given, it is taken as the vertical centerpoint of the slice
         """
         try:
-            from pyFAST.input_output.amrwind_file import AMRWindFile
+            from pydatview.io.amrwind_file import AMRWindFile
         except:
             try:
                 from .amrwind_file import AMRWindFile

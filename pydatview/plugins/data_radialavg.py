@@ -122,7 +122,7 @@ def radialAvg(tab, data=None):
     """ NOTE: radial average may return several dataframe"""
     from pydatview.fast.postpro import radialAvg as radialAvgPostPro
     #print('>>> RadialAvg',data)
-    dfs_new, names_new = radialAvgPostPro(filename=tab.filename, df=tab.data, avgMethod=data['avgMethod'],avgParam=data['avgParam'])
+    dfs_new, names_new = radialAvgPostPro(filename=tab.filename, df=tab.data, raw_name=tab.raw_name, avgMethod=data['avgMethod'],avgParam=data['avgParam'])
     if all(df is None for df in dfs_new):
         raise PyDatViewException('No OpenFAST radial data found for table: '+tab.nickname)
 

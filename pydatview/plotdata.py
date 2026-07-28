@@ -545,6 +545,12 @@ class PlotData():
         s='{:d}'.format(v)
         return v,s
 
+    def nNA(PD):
+        v=np.sum(np.isnan(PD.y))
+        s='{:d}'.format(v)
+        return v,s
+
+
 
     def y0Var(PD):
         if PD._y0Std[0] is not None: 

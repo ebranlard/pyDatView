@@ -186,17 +186,19 @@ def fit_polynomial_discrete(x, y, exponents):
     return y_fit,pfit,{'coeffs':coeffs_dict,'formula':formula}
 
 
-def fit_powerlaw_u_alpha(x, y, z_ref=100, p0=(10,0.1)):
+def fit_powerlaw_u_alpha(x, u, z_ref=100, p0=(10,0.1)):
     """ 
+        x is z
+        y is u
     p[0] : u_ref
     p[1] : alpha
     """
-    pfit, _ = so.curve_fit(lambda x, *p : p[0] * (x / z_ref) ** p[1], x, y, p0=p0)
-    y_fit = pfit[0] * (x / z_ref) ** pfit[1]
+    pfit, _ = so.curve_fit(lambda x, *p : p[0] * (x / z_ref) ** p[1], x, u, p0=p0)
+    u_fit = pfit[0] * (x / z_ref) ** pfit[1]
     coeffs_dict=OrderedDict([('u_ref',pfit[0]),('alpha',pfit[1])])
     formula = '{u_ref} * (z / {z_ref}) ** {alpha}'
     fitted_fun = lambda xx: pfit[0] * (xx / z_ref) ** pfit[1]
-    return y_fit, pfit, {'coeffs':coeffs_dict,'formula':formula,'fitted_function':fitted_fun}
+    return u_fit, pfit, {'coeffs':coeffs_dict,'formula':formula,'fitted_function':fitted_fun}
 
 
 def polyfit2d(x, y, z, kx=3, ky=3, order=None):
@@ -980,7 +982,7 @@ class ModelFitter(FunctionFitter):
 
         self.model['consts'], missing = set_common_keys(self.model['consts'],  fun_kwargs )
         if len(missing)>0:
-            raise Exception('Curve fitting with function `{}` requires the following arguments {}. Missing: {}'.format(func.__name__,consts.keys(),missing))
+            raise Exception('Curve fitting with function `{}` requires the following arguments {}. Missing: {}'.format(func,self.model['consts'].keys(),missing))
 
 # --------------------------------------------------------------------------------}
 # --- Wrapper for predefined fitters 
@@ -1557,6 +1559,15 @@ def pretty_num_short(x,digits=3):
 
 
 if __name__ == '__main__':
+
+
+    # --- Some usual examples
+    # ufit, pfit, fitter = model_fit('predef: powerlaw_alpha', yi, ui, p0=(1/7), u_ref=u_ref,z_ref=zref); dfit=fitter.model
+    # ufit, pfit, fitter = model_fit('predef: powerlaw_u_alpha', yi, ui, p0=(u_ref, 1/7), z_ref=zref); dfit=fitter.model
+    # ufit, pfit, dfit = fit_powerlaw_u_alpha(yi, ui, zref, p0=(u_ref, 1/7))
+
+
+
     # --- Writing example models to file for pyDatView tests
     a,b,c = 2.0, 3.0, 4.0
     u_ref,z_ref,alpha=10,12,0.12

@@ -35,6 +35,12 @@ class TestFields2D(unittest.TestCase):
         self.assertEqual(d['sy']       ,'r [-]')
         self.assertTrue(d['fieldname'].find('B1Alpha')>1)
 
+        d = f.iloc(0)
+        self.assertEqual(d['sx']       ,'psi [deg]')
+        self.assertEqual(d['sy']       ,'r [-]')
+        self.assertTrue(d['fieldname'].find('B1Alpha')>1)
+
+
 if __name__ == '__main__':
 #     TestFields2D.setUpClass()
 #     TestFields2D().test_resample()

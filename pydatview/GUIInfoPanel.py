@@ -80,8 +80,6 @@ class InfoPanel(wx.Panel):
             print('>>> Using default settings for info panel')
             from .appdata import defaultInfoPanelData
             data = defaultInfoPanelData()
-
-
         # TODO TODO Consider using an OrderedDict instead, with 'name' as key, and maybe use function instead of string
         self.ColsReg=[]
         self.ColsReg.append({'name':'Directory'    , 'al':'L' , 'm':'baseDir' ,                        's' :False})
@@ -123,6 +121,7 @@ class InfoPanel(wx.Panel):
         self.ColsReg.append({'name':'L_eq(m=9)'    , 'al':'R' , 'f':lambda x:x.leq(m=9) ,              's' :False})
         self.ColsReg.append({'name':'L_eq(m=10)'   , 'al':'R' , 'f':lambda x:x.leq(m=10),              's' :False})
         self.ColsReg.append({'name':'L_eq(m=12)'   , 'al':'R' , 'f':lambda x:x.leq(m=12),              's' :False})
+        self.ColsReg.append({'name':'nNA'          , 'al':'R' , 'm':'nNA'    ,                         's' :False})
         self.ColsReg.append({'name':'n'            , 'al':'R' , 'm':'ylen'   ,                         's' :True})
         self.ColsFFT=[]
         self.ColsFFT.append({'name':'Directory'    , 'al':'L' , 'm':'baseDir' ,                        's' :False})
@@ -155,6 +154,7 @@ class InfoPanel(wx.Panel):
         self.ColsFFT.append({'name':'Max (Meas)'    , 'al':'R' , 'm':'yMaxMeas'  ,                     's' :False})
         self.ColsFFT.append({'name':'x@Min (Meas)'  , 'al':'R' , 'm':'xAtYMinMeas'  ,                  's' :False})
         self.ColsFFT.append({'name':'x@Max (Meas)'  , 'al':'R' , 'm':'xAtYMaxMeas'  ,                  's' :False})
+        self.ColsFFT.append({'name':'nNA(FFT)'      , 'al':'R' , 'm':'nNA'    ,                        's' :False})
         self.ColsFFT.append({'name':'n'             , 'al':'R' , 'm':'n0'    ,                         's' :True})
         self.ColsMinMax=[]
         self.ColsMinMax.append({'name':'Directory'                  , 'al':'L' , 'm':'baseDir',        's' :False})
@@ -172,6 +172,7 @@ class InfoPanel(wx.Panel):
         self.ColsMinMax.append({'name':u'\u222By.x/\u222By(MinMax)' , 'al':'R' , 'm':'intyx1_scaled' , 's' :False})
         self.ColsMinMax.append({'name':u'\u222By.x^2(MinMax)'       , 'al':'R' , 'm':'intyx2' ,        's' :False})
         self.ColsMinMax.append({'name':'dx(MinMax)'                 , 'al':'R' , 'm':'dx'     ,        's' :False})
+        self.ColsMinMax.append({'name':'nNA(MinMax)'                , 'al':'R' , 'm':'nNA'    ,        's' :False})
         self.ColsMinMax.append({'name':'n'                          , 'al':'R' , 'm':'ylen'   ,        's' :True})
         self.ColsPDF=[]
         self.ColsPDF.append({'name':'Directory'     , 'al':'L' , 'm':'baseDir' ,                       's' :False})
@@ -196,6 +197,7 @@ class InfoPanel(wx.Panel):
         self.ColsPDF.append({'name':'Max (Meas)'    , 'al':'R' , 'm':'yMaxMeas'  ,                     's' :False})
         self.ColsPDF.append({'name':'x@Min (Meas)'  , 'al':'R' , 'm':'xAtYMinMeas'  ,                  's' :False})
         self.ColsPDF.append({'name':'x@Max (Meas)'  , 'al':'R' , 'm':'xAtYMaxMeas'  ,                  's' :False})
+        self.ColsPDF.append({'name':'nNA(PDF)'      , 'al':'R' , 'm':'nNA'    ,                        's' :False})
         self.ColsPDF.append({'name':'n(PDF)'        , 'al':'R' , 'm':'ylen'  ,                         's' :True})
         self.ColsCmp=[]
         self.ColsCmp.append({'name':'Directory' , 'al':'L' , 'm':'baseDir' ,                           's' :False})
@@ -206,7 +208,9 @@ class InfoPanel(wx.Panel):
         self.ColsCmp.append({'name':'Std(Cmp)'  , 'al':'R' , 'm':'yStd'   ,                            's' :True})
         self.ColsCmp.append({'name':'Min(Cmp)'  , 'al':'R' , 'm':'yMin'   ,                            's' :True})
         self.ColsCmp.append({'name':'Max(Cmp)'  , 'al':'R' , 'm':'yMax'   ,                            's' :True})
+        self.ColsCmp.append({'name':'nNA(Cmp)'  , 'al':'R' , 'm':'nNA'    ,                            's' :True})
         self.ColsCmp.append({'name':'n(Cmp)'    , 'al':'R' , 'm':'ylen'   ,                            's' :True})
+
 
         # Select columns based on data
         selectColumns(self.ColsReg   , data['ColumnsRegular'])

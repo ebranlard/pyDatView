@@ -41,7 +41,7 @@ class FormulaDialog(wx.Dialog):
             name=self.getDefaultName()
         self.formula_in=formula
 
-        colPreDef=['None','x 1000','/ 1000','deg2rad','rad2deg','rpm2radps','rpm2Hz','radps2rpm','radps2Hz','norm','squared','d/dx','diff']
+        colPreDef=['None','x 1000','/ 1000','deg2rad','rad2deg','rpm2radps','rpm2Hz','radps2rpm','radps2Hz','norm','squared','d/dx','diff','timestamp_diff','timestamp_year','timestamp_month_#','timestamp_hour', 'timestamp_seconds', 'autoCorrCoeff','crossCorrCoeff']
 
         quick_lbl = wx.StaticText(self, label="Predefined: " )
         self.cbQuick = wx.ComboBox(self, choices=colPreDef, style=wx.CB_READONLY)
@@ -114,11 +114,21 @@ class FormulaDialog(wx.Dialog):
         else:
             return ''
 
+    def getTwoColNames(self):
+        c1 = ''
+        c2 = ''
+        if len(self.columns)>0:
+            c1= self.columns[0]
+        if len(self.columns)>1:
+            c2= self.columns[1]
+        return c1, c2
+
     def get_unit(self):
         if len(self.unit)>0:
             return ' ['+self.unit+']'
         else:
             return ''
+
     def get_squared_unit(self):
         if len(self.unit)>0:
             if self.unit[0].lower()=='-':
@@ -127,6 +137,7 @@ class FormulaDialog(wx.Dialog):
                 return ' [('+self.unit+')^2]'
         else:
             return ''
+
     def get_kilo_unit(self):
         if len(self.unit)>0:
             if len(self.unit)>=1:
@@ -256,10 +267,34 @@ class FormulaDialog(wx.Dialog):
                 n1='d('+n1+')/d('+nx+')'
             self.name.SetValue(n1+self.get_deriv_unit())
         elif s=='diff':
-            self.formula.SetValue('np.concatenate( [ [np.nan], np.diff(  '+c1+' ) ] )' )
+            #self.formula.SetValue('np.concatenate( [ [np.nan], np.diff(  '+c1+' ) ] )' )
+            self.formula.SetValue(c1+'.diff()')
             self.name.SetValue(n1+'_diff'+ self.get_unit())
+        elif s=='timestamp_diff':
+            self.formula.SetValue(c1+'.diff().dt.total_seconds().ffill()')
+            self.name.SetValue(n1+'_diff')
+        elif s=='timestamp_year':
+            self.formula.SetValue(c1+'.dt.year')
+            self.name.SetValue(n1+'_Year_[-]')
+        elif s=='timestamp_hour':
+            self.formula.SetValue(c1+'.dt.hour')
+            self.name.SetValue(n1+'_Hour_[-]')
+        elif s=='timestamp_month_#':
+            self.formula.SetValue(c1+'.dt.month')
+            self.name.SetValue(n1+'_MonthID_[-]')
+        elif s=='timestamp_seconds':
+            self.formula.SetValue('({} - {}.min()).dt.total_seconds()'.format(c1, c1))
+            self.name.SetValue(n1+'_seconds_[s]')
+        elif s=='autoCorrCoeff':
+            self.formula.SetValue('sig.autoCorrCoeff({})'.format(c1))
+            self.name.SetValue(n1+'_autoCorrCoeff_[-]')
+        elif s=='crossCorrCoeff':
+            c1, c2 =self.getTwoColNames()
+            self.formula.SetValue('sig.xCorrCoeff({}, {})'.format(c1, c2))
+            self.name.SetValue(n1+'_xCorrCoeff_[-]')
+            #self.name.SetValue(n1+'_xCorrCoeff_[{}]'.format(self.get_squared_unit())) # assume same unit
         else:
-            raise Exception('Unknown quick formula {}'.s)
+            raise Exception('Unknown quick formula {}'.format(s))
 
     def onOK(self, event):
         self.EndModal(wx.ID_OK)
