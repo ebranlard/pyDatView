@@ -207,39 +207,57 @@ def getDt(x):
     return dt
 
 def getTabCommonColIndices(tabs):
-    colLists = [ [s for s in t.columns] for t in tabs]
+    colLists = [[s for s in t.columns] for t in tabs]
     return getCommonColIndices(colLists)
 
 def getCommonColIndices(colList):
-    cleanedColLists = [ [cleanCol(s) for s in columns] for columns in colList]
+    cleanedColLists = [[cleanCol(s) for s in columns] for columns in colList]
     nCols = np.array([len(cols) for cols in cleanedColLists])
-    # Common columns between all column lists
-    commonCols = cleanedColLists[0]
-    for i in np.arange(1,len(cleanedColLists)):
-        commonCols = list( set(commonCols) & set( cleanedColLists[i]))
-    # Keep original order
-    commonCols =[c for c in cleanedColLists[0] if c in commonCols] # Might have duplicates..
-    IMissPerTab=[]
-    IKeepPerTab=[]
-    IDuplPerTab=[] # Duplicates amongst the "common"
+    
+    if not cleanedColLists:
+        return [], [], [], nCols
+        
+    common_set = set(cleanedColLists[0])
+    for cols in cleanedColLists[1:]:
+        common_set.intersection_update(cols)
+        
+    commonCols = []
+    seen = set()
+    for c in cleanedColLists[0]:
+        if c in common_set and c not in seen:
+            seen.add(c)
+            commonCols.append(c)
+            
+    IMissPerTab = []
+    IKeepPerTab = []
+    IDuplPerTab = []
+    
     for cleanedCols in cleanedColLists:
-        IKeep=[]
-        IMiss=[]
-        IDupl=[]
-        # Ugly for loop here since we have to account for dupplicates
+        col_indices = {}
+        for idx, c in enumerate(cleanedCols):
+            if c not in col_indices:
+                col_indices[c] = []
+            col_indices[c].append(idx)
+            
+        IKeep = []
+        IDupl = []
+        
         for comcol in commonCols:
-            I = [i for i, c in enumerate(cleanedCols) if c == comcol]
-            if len(I)==0:
-                pass
-            else:
-                if I[0] not in IKeep:
-                    IKeep.append(I[0])
-                    if len(I)>1:
-                        IDupl=IDupl+I[1:]
-        IMiss=[i for i,_  in enumerate(cleanedCols) if (i not in IKeep) and (i not in IDupl)]
+            if comcol in col_indices:
+                indices = col_indices[comcol]
+                if indices[0] not in IKeep:
+                    IKeep.append(indices[0])
+                    if len(indices) > 1:
+                        IDupl.extend(indices[1:])
+                        
+        ikeep_set = set(IKeep)
+        idupl_set = set(IDupl)
+        IMiss = [i for i in range(len(cleanedCols)) if i not in ikeep_set and i not in idupl_set]
+        
         IMissPerTab.append(IMiss)
         IKeepPerTab.append(IKeep)
         IDuplPerTab.append(IDupl)
+        
     return IKeepPerTab, IMissPerTab, IDuplPerTab, nCols
 
 
