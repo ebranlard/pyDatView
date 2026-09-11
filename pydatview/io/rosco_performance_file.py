@@ -412,6 +412,10 @@ def write_rotor_performance(txt_filename, pitch, TSR, CP, CT, CQ, WS=None, Turbi
     file.write('\n')
     
     # Cq
+    if CQ is None:
+        print('>>> TODO CQ none')
+        TSR_Mat = np.tile(TSR.flatten(), (len(pitch),1)).T
+        CQ = CP/TSR_Mat
     file.write('\n# Torque coefficient\n\n')
     for i in range(len(TSR)):
         for j in range(len(pitch)):

@@ -82,19 +82,6 @@ class FASTInputDeck(dict):
         if len(fullFstPath)>0:
             self.read()
 
-    @property
-    def ED(self):
-        ED = self.fst_vt['ElastoDyn']
-        if ED is None:
-            if 'ED' not in self.readlist:
-                self.readlist.append('ED')
-            if self.verbose:
-                print('>>> Reading ED', self.ED_path)
-            self.fst_vt['ElastoDyn'] = self._read(self.fst_vt['Fst']['EDFile'],'ED')
-            return self.fst_vt['ElastoDyn']
-        else:
-            return ED
-
 
     def readAD(self, filename=None, readlist=None, verbose=False, key='AeroDyn15', key_short='AD'):
         """ 
@@ -261,8 +248,7 @@ class FASTInputDeck(dict):
         if self.version=='AD_driver':
             # ---- AD Driver
             # InflowWind
-            if self.fst_vt['Fst']['CompInflow']>0:
-                self.fst_vt['InflowWind'] = self._read(self.fst_vt['Fst']['InflowFile'],'IW')
+            self.readIW()
 
             self.readAD(key='AeroDyn15')
 
@@ -293,8 +279,7 @@ class FASTInputDeck(dict):
                     self.fst_vt['ElastoDynBlade'] = self._read(bld_file,'EDbld')
 
             # InflowWind
-            if self.fst_vt['Fst']['CompInflow']>0:
-                self.fst_vt['InflowWind'] = self._read(self.fst_vt['Fst']['InflowFile'],'IW')
+            self.readIW()
 
             # AeroDyn
             if self.fst_vt['Fst']['CompAero']>0:
@@ -318,23 +303,16 @@ class FASTInputDeck(dict):
                     # TODO Actually read them...
 
             # HydroDyn
-            if self.fst_vt['Fst']['CompHydro']>0:
-                self.fst_vt['HydroDyn'] = self._read(self.fst_vt['Fst']['HydroFile'],'HD')
+            self.readHD()
 
             # SeaState
-            if 'CompSeaSt' in self.fst_vt['Fst'].keys():
-                if self.fst_vt['Fst']['CompSeaSt']>0:
-                    self.fst_vt['SeaState'] = self._read(self.fst_vt['Fst']['SeaStFile'],'SS')
+            self.readSS()
 
             # SubDyn
-            if self.fst_vt['Fst']['CompSub'] == 1:
-                self.fst_vt['SubDyn'] = self._read(self.fst_vt['Fst']['SubFile'], 'SD')
+            self.readSD()
 
             # Mooring
-            if self.fst_vt['Fst']['CompMooring']==1:
-                self.fst_vt['MAP'] = self._read(self.fst_vt['Fst']['MooringFile'],'MD')
-            if self.fst_vt['Fst']['CompMooring']==2:
-                self.fst_vt['MoorDyn'] = self._read(self.fst_vt['Fst']['MooringFile'],'MD')
+            self.readMD()
 
             # BeamDyn
             if self.fst_vt['Fst']['CompElast'] == 2:
@@ -344,39 +322,92 @@ class FASTInputDeck(dict):
                     bld_file = os.path.join(os.path.dirname(self.fst_vt['Fst']['BDBldFile(1)']), self.fst_vt['BeamDyn']['BldFile'])
                     self.fst_vt['BeamDynBlade']= self._read(bld_file,'BDbld')
 
-        # --- Backward compatibility
-        self.fst = self.fst_vt['Fst']
-        self._ED  = self.fst_vt['ElastoDyn']
-        if not hasattr(self,'AD'):
-            self.AD = None
-        if self.AD is not None:
-            self.AD.Bld1 = self.fst_vt['AeroDynBlade'][0]
-            self.AD.AF  = self.fst_vt['af_data']
-        self.IW    = self.fst_vt['InflowWind']
-        self.BD    = self.fst_vt['BeamDyn']
-        self.BDbld = self.fst_vt['BeamDynBlade']
-        self.SD    = self.fst_vt['SubDyn']
-        self.SS    = self.fst_vt['SeaState']
+    def readIW(self, force=False):
+        if self.fst_vt['Fst']['CompInflow']>0 or force:
+            self.fst_vt['InflowWind'] = self._read(self.fst_vt['Fst']['InflowFile'],'IW')
+
+    def readHD(self, force=False):
+        if self.fst_vt['Fst']['CompHydro']>0 or force:
+            self.fst_vt['HydroDyn'] = self._read(self.fst_vt['Fst']['HydroFile'],'HD')
+
+    def readSD(self, force=False):
+        if self.fst_vt['Fst']['CompSub']==1 or force:
+            self.fst_vt['SubDyn'] = self._read(self.fst_vt['Fst']['SubFile'], 'SD')
+
+    def readSS(self, force=False):
+        if 'CompSeaSt' in self.fst_vt['Fst'].keys():
+            if self.fst_vt['Fst']['CompSeaSt']>0 or force:
+                self.fst_vt['SeaState'] = self._read(self.fst_vt['Fst']['SeaStFile'],'SS')
+
+
+    def readMD(self, force=False):
+        if self.fst_vt['Fst']['CompMooring']==1:
+            self.fst_vt['MAP'] = self._read(self.fst_vt['Fst']['MooringFile'],'MD')
+        if self.fst_vt['Fst']['CompMooring']==2:
+            self.fst_vt['MoorDyn'] = self._read(self.fst_vt['Fst']['MooringFile'],'MD')
+
+
+    # --- Convenient getters
+    @property
+    def fst(self): return self.fst_vt.get('Fst')
+
+    @property
+    def ED(self): 
+        # If not already read, we force read it
+        ED = self.fst_vt['ElastoDyn']
+        if ED is None:
+            if 'ED' not in self.readlist:
+                self.readlist.append('ED')
+            if self.verbose:
+                print('>>> Reading ED', self.ED_path)
+            self.fst_vt['ElastoDyn'] = self._read(self.fst_vt['Fst']['EDFile'],'ED')
+            return self.fst_vt['ElastoDyn']
+        else:
+            return ED
+    @property
+    def IW(self): return self.fst_vt.get('InflowWind')
+    @property
+    def BD(self): return self.fst_vt.get('BeamDyn')
+    @property
+    def BDbld(self): return self.fst_vt.get('BeamDynBlade')
+    @property
+    def SD(self): return self.fst_vt.get('SubDyn')
+    @property
+    def SS(self): return self.fst_vt.get('SeaState')
+    @property
+    def AD(self):
+        ad = getattr(self, '_AD', None)
+        if ad is not None:
+            ad.Bld1 = self.fst_vt['AeroDynBlade'][0]
+            ad.AF = self.fst_vt['af_data']
+        return ad
+    @AD.setter
+    def AD(self, value):
+        self._AD = value
+
+
 
     @ property
     def unusedNames(self):
         return ['unused','nan','na','none']
 
-    def _read(self, relfilepath, shortkey, multiple=False):
+    def _read(self, relfilepath, shortkey, multiple=False, force=False):
         """ read any openfast input """
         relfilepath =clean_path(relfilepath)
         basename = os.path.basename(relfilepath)
 
         # Only read what the user requested to be read
-        if shortkey not in self.readlist:
+        if (shortkey not in self.readlist) and (not force):
             if self.verbose:
                 print('>>> Skipping ',shortkey)
             return None
 
         # Skip "unused" and "NA"
         if basename.lower() in self.unusedNames:
-            if self.verbose:
+            if self.verbose or force:
                 print('>>> Unused ',shortkey)
+            if force:
+                raise Exception(f'Cannot read {shortkey}, basename is {basename}')
             return None
 
         # Attempt reading

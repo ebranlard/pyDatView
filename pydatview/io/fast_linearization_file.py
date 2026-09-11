@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import re
+import pandas as pd
 try:
     from .file import File, WrongFormatError, BrokenFormatError
 except:
@@ -8,6 +9,9 @@ except:
     class BrokenFormatError(Exception): pass
 
 class SlowReaderNeededError(Exception):
+    pass
+
+class LinHasNAError(Exception):
     pass
 
 
@@ -19,12 +23,13 @@ class FASTLinearizationFile(File):
     """ 
     Read/write an OpenFAST linearization file. The object behaves like a dictionary.
 
-    Main keys
+    Main keys:
     ---------
-    - 'x', 'xdot', 'xd', 'u', 'y', 'z', 'A', 'B', 'C', 'D'
+    - 'x', 'xdot', 'xd', 'u', 'y', 'z', 'A', 'B', 'C', 'D'  (Numpy arrays)
 
     Main methods
-    ------------
+    ------------ 
+    - 'x', 'xdot', 'xd', 'u', 'y', 'z', 'A', 'B', 'C', 'D'  (pandas dataframes)
     - read, write, toDataFrame, keys, xdescr, ydescr, udescr
 
     Examples
@@ -149,6 +154,59 @@ class FASTLinearizationFile(File):
         with open(self.filename,'w') as f:
             f.write(self.toString())
 
+
+    @property
+    def A(self):
+        return pd.DataFrame(data=self['A'], index=self._xdescr_short, columns=self._xdescr_short) if 'A' in self else None
+
+    @property
+    def B(self):
+        return pd.DataFrame(data=self['B'], index=self._xdescr_short, columns=self._udescr_short) if 'B' in self else None
+
+    @property
+    def C(self):
+        return pd.DataFrame(data=self['C'], index=self._ydescr_short, columns=self._xdescr_short) if 'C' in self else None
+
+    @property
+    def D(self):
+        return pd.DataFrame(data=self['D'], index=self._ydescr_short, columns=self._udescr_short) if 'D' in self else None
+
+    @property
+    def x(self):
+        return pd.DataFrame(data=np.asarray(self['x']).reshape((1, -1)), columns=self._xdescr_short) if 'x' in self else None
+
+    @property
+    def xd(self):
+        return pd.DataFrame(data=np.asarray(self['xd']).reshape((1, -1))) if 'xd' in self else None
+
+    @property
+    def xdot(self):
+        return pd.DataFrame(data=np.asarray(self['xdot']).reshape((1, -1)), columns=self._xdotdescr_short) if 'xdot' in self else None
+
+    @property
+    def u(self):
+        return pd.DataFrame(data=np.asarray(self['u']).reshape((1, -1)), columns=self._udescr_short) if 'u' in self else None
+
+    @property
+    def y(self):
+        return pd.DataFrame(data=np.asarray(self['y']).reshape((1, -1)), columns=self._ydescr_short) if 'y' in self else None
+
+    @property
+    def z(self):
+        return pd.DataFrame(data=np.asarray(self['z']).reshape((1, -1)), columns=self._zdescr_short) if 'z' in self else None
+
+    @property
+    def M(self):
+        return pd.DataFrame(data=self['M'], index=self['EDDOF'], columns=self['EDDOF']) if 'M' in self else None
+
+    @property
+    def dUdu(self):
+        return pd.DataFrame(data=self['dUdu'], index=udescr_short, columns=udescr_short) if 'dUdu' in self else None
+
+    @property
+    def dUdy(self):
+        return pd.DataFrame(data=self['dUdy'], index=udescr_short, columns=ydescr_short) if 'dUdy' in self else None
+
     @property
     def nx(self):
         if 'x' in self.keys():
@@ -221,6 +279,30 @@ class FASTLinearizationFile(File):
         else:
             return []
 
+    @property
+    def _xdescr_short(self):
+        return short_descr(self.x_descr)
+
+    @property
+    def _xddescr_short(self):
+        return short_descr(self.xd_descr) 
+
+    @property
+    def _xdotdescr_short(self):
+        return short_descr(self.xdot_descr)
+
+    @property
+    def _udescr_short(self):
+        return short_descr(self.u_descr)
+
+    @property
+    def _ydescr_short(self):
+        return short_descr(self.y_descr)
+
+    @property
+    def _zdescr_short(self):
+        return short_descr(self.z_descr)
+
     def __repr__(self):
         s='<{} object> with attributes:\n'.format(type(self).__name__)
         s+=' - filename: {}\n'.format(self.filename)
@@ -229,6 +311,13 @@ class FASTLinearizationFile(File):
         s+=' * nu      : {}\n'.format(self.nu)
         s+=' * ny      : {}\n'.format(self.ny)
         s+=' * nz      : {}\n'.format(self.nz)
+        props = ['A', 'B', 'C', 'D', 'x', 'xd', 'xdot', 'u', 'y', 'z', 'M', 'dUdu', 'dUdy']
+        for attr in props:
+            val = getattr(self, attr, None)
+            if val is None:
+                s += ' * {:<8}: None\n'.format(attr)
+            else:
+                s += ' * {:<8}: DataFrame {}x{}\n'.format(attr, val.shape[0], val.shape[1])
         s+='keys:\n'
         for k,v in self.items():
             if k in _lin_vec:
@@ -247,43 +336,9 @@ class FASTLinearizationFile(File):
         return s
 
     def toDataFrame(self):
-        import pandas as pd
         dfs={}
-
-        xdescr_short    = short_descr(self.x_descr)
-        xddescr_short   = short_descr(self.xd_descr)
-        xdotdescr_short = short_descr(self.xdot_descr)
-        udescr_short    = short_descr(self.u_descr)
-        ydescr_short    = short_descr(self.y_descr)
-        zdescr_short    = short_descr(self.z_descr)
-
-        if 'A' in self.keys():
-            dfs['A'] = pd.DataFrame(data = self['A'], index=xdescr_short, columns=xdescr_short)
-        if 'B' in self.keys():
-            dfs['B'] = pd.DataFrame(data = self['B'], index=xdescr_short, columns=udescr_short)
-        if 'C' in self.keys():
-            dfs['C'] = pd.DataFrame(data = self['C'], index=ydescr_short, columns=xdescr_short)
-        if 'D' in self.keys():
-            dfs['D'] = pd.DataFrame(data = self['D'], index=ydescr_short, columns=udescr_short)
-        if 'x' in self.keys():
-            dfs['x'] = pd.DataFrame(data = np.asarray(self['x']).reshape((1,-1)), columns=xdescr_short)
-        if 'xd' in self.keys():
-            dfs['xd'] = pd.DataFrame(data = np.asarray(self['xd']).reshape((1,-1)))
-        if 'xdot' in self.keys():
-            dfs['xdot'] = pd.DataFrame(data = np.asarray(self['xdot']).reshape((1,-1)), columns=xdotdescr_short)
-        if 'u' in self.keys():
-            dfs['u'] = pd.DataFrame(data = np.asarray(self['u']).reshape((1,-1)), columns=udescr_short)
-        if 'y' in self.keys():
-            dfs['y'] = pd.DataFrame(data = np.asarray(self['y']).reshape((1,-1)), columns=ydescr_short)
-        if 'z' in self.keys():
-            dfs['z'] = pd.DataFrame(data = np.asarray(self['z']).reshape((1,-1)), columns=zdescr_short)
-        if 'M' in self.keys():
-            dfs['M'] = pd.DataFrame(data = self['M'], index=self['EDDOF'], columns=self['EDDOF'])
-        if 'dUdu' in self.keys():
-            dfs['dUdu'] = pd.DataFrame(data = self['dUdu'], index=udescr_short, columns=udescr_short)
-        if 'dUdy' in self.keys():
-            dfs['dUdy'] = pd.DataFrame(data = self['dUdy'], index=udescr_short, columns=ydescr_short)
-
+        keys = ['A', 'B', 'C', 'D', 'x', 'xd', 'xdot', 'u', 'y', 'z', 'M', 'dUdu', 'dUdy']
+        dfs = {k: getattr(self, k) for k in keys if getattr(self, k) is not None}
         return dfs
 
     def to2DFields(self, nTOut=10, nYOut=3, nZOut=3, **kwargs):
@@ -597,7 +652,7 @@ def readOP(fid, n, name='', defaultDerivOrder=1, filename='', starSubFn=None, st
     if nInf>0:
         sErr = 'Some ill-formated/infinite values (e.g. `*******`) were found in the vector `{}`\n\tin linflile: {}'.format(name, filename)
         if starSub is None:
-            raise Exception(sErr)
+            raise LinHasNAError(sErr)
         else:
             print('[WARN] '+sErr)
             OP[np.isinf(OP)] = starSub

@@ -336,7 +336,7 @@ class FASTOutputFile(File):
         ds_AD2 = None
         # --- Radial coordinate
         def get_rvals(ds, rcoords):
-            n = len(ds['i/n_[-]'].values)
+            n = len(ds['i_[#]'].values)
             if rcoords is not None: # priority to user input
                 runit = 'm'
                 rvals = rcoords
@@ -351,7 +351,7 @@ class FASTOutputFile(File):
             return rvals, runit
         # --- Time wise
         if '(t,r)' in kinds:
-            ds_AD1, ds_ED, ds_BD = fastlib.spanwisePostProRows(df, driverFile, si1='t', sir='r')
+            ds_AD1, ds_ED, ds_BD, ds_Other = fastlib.spanwisePostProRows(df, driverFile, si1='t', sir='r')
             if ds_AD1 is None:
                 return None # No Hope
             rvals, runit = get_rvals(ds_AD1, rcoords)
@@ -364,12 +364,13 @@ class FASTOutputFile(File):
             ds_AD1.coords['r'] = ('r', rvals)
             ds_AD1.r.attrs['unit'] = runit
             ds_AD1.t.attrs['unit'] = 's'
+            ds_AD1 = ds_AD1[sorted(ds_AD1.data_vars)]
 
         # --- Azimuthal Radial postpro
         if '(psi,r)' in kinds:
             psi = np.arange(0, 360+DeltaAzi/10, DeltaAzi)
             dfPsi = fastlib.azimuthal_average_DF(df, psiBin=psi, periodic=True, nPeriods=nPeriods) #, tStart = time[-1]-20)
-            ds_AD2, ds_ED2, ds_BD2 = fastlib.spanwisePostProRows(dfPsi, driverFile, si1='psi', sir='r')
+            ds_AD2, ds_ED2, ds_BD2, ds_Other = fastlib.spanwisePostProRows(dfPsi, driverFile, si1='psi', sir='r')
             rvals, runit = get_rvals(ds_AD2, rcoords)
             ds_AD2.coords['psi'] = ('psi', psi) # TODO hack from bin to bin edges...
             ds_AD2.coords['r'] = ('r', rvals)
@@ -913,6 +914,10 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
     # Data sanitization
     chanNames = list(chanNames)
     channels  = np.asarray(channels)
+    #nan_col_indices = np.where(np.isnan(channels).any(axis=0))[0]
+    #if len(nan_col_indices)>0:
+    #    print('[WARN] writeBinary: The following columns have NaN: ', np.asarray(chanNames)[nan_col_indices.astype(int)])
+    #    channels[:,nan_col_indices] = 0
     if chanUnits[0][0]!='(':
         chanUnits = ['('+u+')' for u in chanUnits] # units surrounded by parenthesis to match OpenFAST convention
 
@@ -931,7 +936,7 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
     timeStart = time[0]
     timeIncr = (time[-1]-time[0])/(nT-1)
     dataWithoutTime = channels[:,1:]
-        
+
     # Compute data range, scaling and offsets to convert to int16
     #   To use the int16 range to its fullest, the max float is matched to 2^15-1 and the
     #   the min float is matched to -2^15. Thus, we have the to equations we need
@@ -1024,6 +1029,11 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
 
 def writeDataFrame(df, filename, binary=True):
     """ write a DataFrame to OpenFAST output format"""
+    # Sanity
+#     nan_cols = df.columns[df.isna().any()].tolist()
+#     if len(nan_cols)>0:
+#         print('[WARN]: The following columns have NaN ' + str(nan_cols))
+#         #df[nan_cols]=0
     channels  = df.values
     # attempt to extract units from channel names
     chanNames=[]

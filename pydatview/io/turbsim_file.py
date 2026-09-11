@@ -534,6 +534,28 @@ class TurbSimFile(File):
         if new_std is not None:
             print('New std : {:7.3f}  (target: {:7.3f}, old: {:7.3f})'.format(new_std2 , new_std , old_std))
 
+
+    def superimposeTimeSeries(self, t_in, u_in):
+        """Add an external time series to all points of the streamwise component.
+
+        The input signal ``u_in`` is interpolated on the file time vector ``self['t']``
+        and then added to ``self['u'][0, :, :, :]``.
+        """
+        t_in = np.asarray(t_in, dtype=float).ravel()
+        u_in = np.asarray(u_in, dtype=float).ravel()
+
+        if t_in.size != u_in.size:
+            raise ValueError('t_in and u_in must have the same length')
+        if t_in.size < 2:
+            raise ValueError('t_in and u_in must contain at least two points')
+
+        dt_in = np.diff(t_in)
+        if np.any(dt_in <= 0):
+            raise ValueError('t_in must be strictly increasing for interpolation')
+
+        u_interp = np.interp(self['t'], t_in, u_in)
+        self['u'][0, :, :, :] += u_interp[:, None, None]
+
     def makePeriodic(self):
         """ Make the box periodic in the streamwise direction by mirroring it - Periodic is ID=8"""
         nDim, nt0, ny, nz = self['u'].shape
@@ -1155,4 +1177,37 @@ def fit_powerlaw_u_alpha(x, y, z_ref=100, p0=(10,0.1)):
     return y_fit, pfit, {'coeffs':coeffs_dict,'formula':formula,'fitted_function':fitted_fun}
 
 if __name__=='__main__':
-    ts = TurbSimFile('../_tests/TurbSim.bts')
+    import matplotlib.pyplot as plt
+    #ts = TurbSimFile('../_tests/TurbSim.bts')
+
+    bts = TurbSimFile('C:/Users/ebranlard/Documents/Work/2024-10-OESI-Digitwin/DigiTwinMonopile/code5_wt/simulations_wt/Wind/TurbSimTS_IEA22.bts')
+    print(bts)
+    dfs= bts.toDataFrame()
+    u_m = dfs['ZMidLine']['u_[m/s]'].mean()
+
+    t_new  = bts.t
+    Tmax = t_new[-1]+bts.dt
+
+
+    #u0 = [0,4  ,14 ,12, 0  ,0]
+    #t0 = [0,150,400,550,570, Tmax]
+    u0 = np.array([0 , 0   ,  8 , 9   , 8   , 2   , 0])-1
+    t0 =          [0 , 150 , 250, 400 , 550 , 570 , Tmax]
+    u_new = np.interp(t_new, t0, u0)
+
+    bts.superimposeTimeSeries(t_new, u_new)
+    print(bts)
+
+    dfs= bts.toDataFrame()
+
+    fig, ax = plt.subplots(1, 1, sharey=False, figsize=(6.4,4.8))
+    fig.subplots_adjust(left=0.12, right=0.95, top=0.95, bottom=0.11, hspace=0.20, wspace=0.20)
+    ax.plot(dfs['ZMidLine']['t_[s]'], dfs['ZMidLine']['u_[m/s]'])
+    ax.plot(t_new, u_new , label='')
+    ax.plot(t_new, u_new+u_m , label='')
+    ax.set_xlabel('')
+    ax.set_ylabel('')
+    ax.legend()
+
+    plt.show()
+

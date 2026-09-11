@@ -33,7 +33,7 @@ def writeDataFrameAutoFormat(df, filename, fformat=None):
     ext = ext.lower()
     if ext in ['.outb']:
         fformat = 'outb'
-    elif ext in ['.parquet']:
+    elif ext in ['.parquet', '.pq']:
         fformat = 'parquet'
     elif ext in ['.csv']:
         fformat = 'csv'
