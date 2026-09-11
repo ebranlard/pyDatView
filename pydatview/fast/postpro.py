@@ -19,6 +19,7 @@ from  pydatview.io.fast_output_file import FASTOutputFile
 from  pydatview.io.fast_input_deck import FASTInputDeck
 from pydatview.fast.subdyn import SubDyn
 from pydatview.tools.stats import bin_DF
+from pydatview.tools.pandalib import remap_df
 import pydatview.fast.fastfarm as fastfarm
 
 # --------------------------------------------------------------------------------}
@@ -339,7 +340,6 @@ def _HarmonizeSpanwiseData(Name, Columns, vr, R, IR=None) :
 
     return dfRad,  nrMax, ValidRow
 
-
 def compute_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar='r/R'):
     if df is None:
         return df
@@ -347,12 +347,13 @@ def compute_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar=
         return None
     nrMax = len(df)
     ids   = np.arange(nrMax)
+    i_bar = ids/(nrMax-1)
 
     Columns={}
     if vr is None or R is None:
         # Radial position unknown
-        vr_bar = ids/(nrMax-1)
-        Columns['i/n_[-]'] = vr_bar
+        vr_bar = i_bar
+        Columns['i/n_[-]'] = i_bar
     else:
         vr_bar=vr/R
         if (nrMax)<=len(vr_bar):
@@ -360,6 +361,7 @@ def compute_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar=
         elif (nrMax)>len(vr_bar):
             raise Exception('Inconsistent length between radial stations ({:d}) and max index present in output chanels ({:d})'.format(len(vr_bar),nrMax))
         Columns[sspan_bar+'_[-]'] = vr_bar
+        Columns['i/n_[-]'] = i_bar
 
     if IR is not None:
         Columns['Node_[#]']=IR[:nrMax]
@@ -383,12 +385,13 @@ def insert_spanwise_columns(df, vr=None, R=None, IR=None, sspan='r', sspan_bar='
             df[k] = v
     return df
 
-def find_matching_columns(Cols, PatternMap):
+def find_matching_columns(Cols, PatternMap, ignore_case=False):
     ColsInfo=[]
     nrMax=0
+    processed_cols = set()
     for colpattern,colmap in PatternMap.items():
         # Extracting columns matching pattern
-        cols, sIdx = find_matching_pattern(Cols, colpattern)
+        cols, sIdx = find_matching_pattern(Cols, colpattern, ignore_case=ignore_case)
         if len(cols)>0:
             # Sorting by ID
             cols  = np.asarray(cols)
@@ -399,7 +402,11 @@ def find_matching_columns(Cols, PatternMap):
             col={'name':colmap,'Idx':Idx,'cols':cols}
             nrMax=max(nrMax,np.max(Idx))
             ColsInfo.append(col)
-    return ColsInfo,nrMax
+            # Track matched columns
+            processed_cols.update(cols)
+    # Retain original order for remaining unprocessed columns
+    Cols_new = [c for c in Cols if c not in processed_cols]
+    return ColsInfo, nrMax, Cols_new
 
 def extract_spanwise_data(ColsInfo, nrMax, df=None, ts=None):
     """ 
@@ -469,6 +476,88 @@ def extract_spanwise_data_timeSeries(ColsInfo, nrMax, df, vr=None, R=None, IR=No
     for ic, (c,v) in enumerate(spanColumns.items()):
         ds[c] = ([sir], v)
     return ds
+
+
+def spanwise_timeSeries_to_DF(ds, prefix="N", node_dim="ir", time_dim="it", ds_Other=None) :
+    """
+    Reconstructs a single DataFrame from ds_Other and a 2D spanwise Dataset ds.
+
+    Parameters
+    ----------
+    ds_Other : xarray.Dataset or pandas.DataFrame
+        Dataset or DataFrame containing non-spanwise time-series variables.
+    ds : xarray.Dataset
+        Dataset containing 2D variables along dimensions (it, ir).
+    prefix : str, default 'N'
+        Prefix used for reconstructed spanwise column names.
+    node_dim : str, default 'ir'
+        Dimension name for radial/node index in ds.
+    time_dim : str, default 'it'
+        Dimension name for time steps in ds.
+
+    Returns
+    -------
+    df_out : pandas.DataFrame
+        Combined DataFrame matching OpenFAST time-series format.
+    """
+    import xarray as xr
+    # --- Extract node index values and format node numbers (1-based, 3 digits)
+    node_indices = ds[node_dim].values
+    if "i_[#]" in ds:
+        # Use node numbers from i_[#] if present
+        node_numbers = ds["i_[#]"].values.astype(int)
+    else:
+        # Default to 1-based index
+        node_numbers = np.arange(1, len(node_indices) + 1)
+
+    node_strs = [f"{n:03d}" for n in node_numbers]
+
+    # --- Flatten radial variables into 1D time-series columns
+    span_data = {}
+    for var_name in ds.data_vars:
+        da = ds[var_name]
+        # Only process variables that depend on both time and radial dimensions
+        if set([time_dim, node_dim]).issubset(da.dims):
+            vals = da.transpose(time_dim, node_dim).values
+            
+            # Split variable name into base name and unit string (e.g., "Alpha_[deg]" -> "Alpha", "_[deg]")
+            if "_[" in var_name:
+                base_name, unit = var_name.split("_[", 1)
+                unit_str = "_[" + unit
+            else:
+                base_name = var_name
+                unit_str = ""
+
+            #Strip leading blade/node prefixes if present in variable name
+            if base_name.startswith(("B1", "B2", "B3")):
+                blade_pre = 'A' + base_name[:2] # TODO
+                base_name = base_name[2:]
+
+            for idx, n_str in enumerate(node_strs):
+                col_name = f"{blade_pre}{prefix}{n_str}{base_name}{unit_str}"
+                span_data[col_name] = vals[:, idx]
+
+    # --- Combine into final DataFrame
+    df_span = pd.DataFrame(span_data)
+
+    if ds_Other is not None:
+        if isinstance(ds_Other, xr.Dataset):
+            is_multi_index = len(ds_Other.dims) > 1
+            if is_multi_index:
+                raise Exception(f"postpro: ds_other xarray has more than one dimentions: {list(ds_Other.dims.keys())}. resulting in a MultiIndex dataframe.")
+            df_other = ds_Other.to_dataframe()
+        elif isinstance(ds_Other, pd.DataFrame):
+            df_other = ds_Other.copy()
+        else:
+            df_other = pd.DataFrame()
+        # TODO different index?
+        df_other.index = df_span.index
+        df_out = pd.concat([df_other, df_span], axis=1)
+    else:
+        df_out = df_span
+
+    return df_out
+
 
 def _BDSpanMap():
     BDSpanMap=dict()
@@ -623,26 +712,26 @@ def spanwiseColED(Cols):
     EDSpanMap=dict()
     # All Outs
     for sB in ['B1','B2','B3']:
-        EDSpanMap['^[A]*'+sB+r'N(\d*)ALx_\[m/s^2\]' ] = sB+'ALx_[m/s^2]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)ALy_\[m/s^2\]' ] = sB+'ALy_[m/s^2]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)ALz_\[m/s^2\]' ] = sB+'ALz_[m/s^2]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)TDx_\[m\]'     ] = sB+'TDx_[m]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)TDy_\[m\]'     ] = sB+'TDy_[m]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)TDz_\[m\]'     ] = sB+'TDz_[m]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)RDx_\[deg\]'   ] = sB+'RDx_[deg]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)RDy_\[deg\]'   ] = sB+'RDy_[deg]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)RDz_\[deg\]'   ] = sB+'RDz_[deg]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)MLx_\[kN-m\]'  ] = sB+'MLx_[kN-m]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)MLy_\[kN-m\]'  ] = sB+'MLy_[kN-m]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)MLz_\[kN-m\]'  ] = sB+'MLz_[kN-m]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)FLx_\[kN\]'    ] = sB+'FLx_[kN]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)FLy_\[kN\]'    ] = sB+'FLy_[kN]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)FLz_\[kN\]'    ] = sB+'FLz_[kN]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)FLxNT_\[kN\]'  ] = sB+'FLxNT_[kN]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)FLyNT_\[kN\]'  ] = sB+'FLyNT_[kN]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)FlyNT_\[kN\]'  ] = sB+'FLyNT_[kN]'   # <<< Unfortunate
-        EDSpanMap['^[A]*'+sB+r'N(\d*)MLxNT_\[kN-m\]'] = sB+'MLxNT_[kN-m]'
-        EDSpanMap['^[A]*'+sB+r'N(\d*)MLyNT_\[kN-m\]'] = sB+'MLyNT_[kN-m]'
+        EDSpanMap['^'+sB+r'N(\d*)ALx_\[m/s\^2\]' ] = sB+'ALx_[m/s^2]'
+        EDSpanMap['^'+sB+r'N(\d*)ALy_\[m/s\^2\]' ] = sB+'ALy_[m/s^2]'
+        EDSpanMap['^'+sB+r'N(\d*)ALz_\[m/s\^2\]' ] = sB+'ALz_[m/s^2]'
+        EDSpanMap['^'+sB+r'N(\d*)TDx_\[m\]'     ] = sB+'TDx_[m]'
+        EDSpanMap['^'+sB+r'N(\d*)TDy_\[m\]'     ] = sB+'TDy_[m]'
+        EDSpanMap['^'+sB+r'N(\d*)TDz_\[m\]'     ] = sB+'TDz_[m]'
+        EDSpanMap['^'+sB+r'N(\d*)RDx_\[deg\]'   ] = sB+'RDx_[deg]'
+        EDSpanMap['^'+sB+r'N(\d*)RDy_\[deg\]'   ] = sB+'RDy_[deg]'
+        EDSpanMap['^'+sB+r'N(\d*)RDz_\[deg\]'   ] = sB+'RDz_[deg]'
+        EDSpanMap['^'+sB+r'N(\d*)MLx_\[kN-m\]'  ] = sB+'MLx_[kN-m]'
+        EDSpanMap['^'+sB+r'N(\d*)MLy_\[kN-m\]'  ] = sB+'MLy_[kN-m]'
+        EDSpanMap['^'+sB+r'N(\d*)MLz_\[kN-m\]'  ] = sB+'MLz_[kN-m]'
+        EDSpanMap['^'+sB+r'N(\d*)FLx_\[kN\]'    ] = sB+'FLx_[kN]'
+        EDSpanMap['^'+sB+r'N(\d*)FLy_\[kN\]'    ] = sB+'FLy_[kN]'
+        EDSpanMap['^'+sB+r'N(\d*)FLz_\[kN\]'    ] = sB+'FLz_[kN]'
+        EDSpanMap['^'+sB+r'N(\d*)FLxNT_\[kN\]'  ] = sB+'FLxNT_[kN]'
+        EDSpanMap['^'+sB+r'N(\d*)FLyNT_\[kN\]'  ] = sB+'FLyNT_[kN]'
+        EDSpanMap['^'+sB+r'N(\d*)FlyNT_\[kN\]'  ] = sB+'FLyNT_[kN]'   # <<< Unfortunate
+        EDSpanMap['^'+sB+r'N(\d*)MLxNT_\[kN-m\]'] = sB+'MLxNT_[kN-m]'
+        EDSpanMap['^'+sB+r'N(\d*)MLyNT_\[kN-m\]'] = sB+'MLyNT_[kN-m]'
     # Old
     for sB in ['b1','b2','b3']:
         SB=sB.upper()
@@ -691,6 +780,44 @@ def spanwiseColEDTwr(Cols):
     return find_matching_columns(Cols, EDSpanMap)
 
 
+def spanwiseColAD_auto_name(Cols):
+    """
+    Return column info and max node index for AeroDyn spanwise data automatically.
+    
+    Matches column naming convention:
+    AB<BladeNum>N<NodeNum><ChannelName_[Units]>
+    e.g., AB1N001Alpha_[deg], AB2N012Fx_[N/m]
+    """
+    # Regex to capture Blade (1 digit), Node (1+ digits), and Channel/Units
+    pattern = re.compile(r"^AB(?P<blade>\d)N(?P<node>\d+)(?P<channel>.*)$")
+    # Group matching columns by base key: "B<blade><channel>"
+    # Example base key: "B1Alpha_[deg]"
+    grouped = {}
+    processed_cols=set()
+    for col in Cols:
+        match = pattern.match(col)
+        if match:
+            blade     = match.group("blade")
+            node      = int(match.group("node"))
+            channel   = match.group("channel")
+            base_name = f"B{blade}{channel}"
+            if base_name not in grouped:
+                grouped[base_name] = []
+            grouped[base_name].append((node, col))
+        processed_cols.add(col)
+    ColsInfo = []
+    nrMax = 0
+
+    # Format structured output matching find_matching_columns
+    for base_name, node_col_tuples in grouped.items():
+        node_col_tuples.sort(key=lambda x: x[0])
+        idx_array = np.array([item[0] for item in node_col_tuples], dtype=int)
+        cols_array = np.array([item[1] for item in node_col_tuples])
+        nrMax = max(nrMax, int(np.max(idx_array)))
+        ColsInfo.append( {"name": base_name, "Idx": idx_array, "cols": cols_array})
+
+    Cols_new = [col for col in Cols if col not in processed_cols]
+    return ColsInfo, nrMax, Cols_new
 
 def spanwiseColAD(Cols):
     """ Return column info, available columns and indices that contain AD spanwise data"""
@@ -769,18 +896,18 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxi_\[m/s\]']  =sB+'Vindxi_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyi_\[m/s\]']  =sB+'Vindyi_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzi_\[m/s\]']  =sB+'Vindzi_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxh_\[m/s\]']  =sB+'Vindxh_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyh_\[m/s\]']  =sB+'Vindyh_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzh_\[m/s\]']  =sB+'Vindzh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxh_\[m/s\]']  =sB+'Vindxh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyh_\[m/s\]']  =sB+'Vindyh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzh_\[m/s\]']  =sB+'Vindzh_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxp_\[m/s\]']  =sB+'Vindxp_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyp_\[m/s\]']  =sB+'Vindyp_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzp_\[m/s\]']  =sB+'Vindzp_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxa_\[m/s\]']  =sB+'Vindxa_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindya_\[m/s\]']  =sB+'Vindya_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindza_\[m/s\]']  =sB+'Vindza_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxl_\[m/s\]']  =sB+'Vindxl_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindyl_\[m/s\]']  =sB+'Vindyl_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vindzl_\[m/s\]']  =sB+'Vindzl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindxa_\[m/s\]']  =sB+'Vindxa_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindya_\[m/s\]']  =sB+'Vindya_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Vindza_\[m/s\]']  =sB+'Vindza_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fx_\[N/m\]'   ]   =sB+'Fx_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fy_\[N/m\]'   ]   =sB+'Fy_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fxi_\[N/m\]'   ]  =sB+'Fxi_[N/m]'   
@@ -801,6 +928,12 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)Mxl_\[N-m/m\]' ]  =sB+'Mxl_[N-m/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Myl_\[N-m/m\]' ]  =sB+'Myl_[N-m/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Mzl_\[N-m/m\]' ]  =sB+'Mzl_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fxa_\[N/m\]'   ]  =sB+'Fxa_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fya_\[N/m\]'   ]  =sB+'Fya_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Fza_\[N/m\]'   ]  =sB+'Fza_[N/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mxa_\[N-m/m\]' ]  =sB+'Mxa_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mya_\[N-m/m\]' ]  =sB+'Mya_[N-m/m]'   
+        ADSpanMap['^[A]*'+sB+r'N(\d*)Mza_\[N-m/m\]' ]  =sB+'Mza_[N-m/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fl_\[N/m\]'   ]   =sB+'Fl_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fd_\[N/m\]'   ]   =sB+'Fd_[N/m]'   
         ADSpanMap['^[A]*'+sB+r'N(\d*)Fn_\[N/m\]'   ]   =sB+'Fn_[N/m]'   
@@ -811,30 +944,51 @@ def spanwiseColAD(Cols):
         ADSpanMap['^[A]*'+sB+r'N(\d*)VUndxi_\[m/s\]']  =sB+'VUndxi_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VUndyi_\[m/s\]']  =sB+'VUndyi_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VUndzi_\[m/s\]']  =sB+'VUndzi_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndxp_\[m/s\]']  =sB+'VUndxp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndyp_\[m/s\]']  =sB+'VUndyp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndzp_\[m/s\]']  =sB+'VUndzp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndxl_\[m/s\]']  =sB+'VUndxl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndyl_\[m/s\]']  =sB+'VUndyl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndzl_\[m/s\]']  =sB+'VUndzl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndxa_\[m/s\]']  =sB+'VUndxa_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndya_\[m/s\]']  =sB+'VUndya_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VUndza_\[m/s\]']  =sB+'VUndza_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisx_\[m/s\]']   =sB+'VDisx_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisy_\[m/s\]']   =sB+'VDisy_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisz_\[m/s\]']   =sB+'VDisz_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxi_\[m/s\]']  =sB+'VDisxi_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisyi_\[m/s\]']  =sB+'VDisyi_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDiszi_\[m/s\]']  =sB+'VDiszi_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxh_\[m/s\]']  =sB+'VDisxh_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisyh_\[m/s\]']  =sB+'VDisyh_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)VDiszh_\[m/s\]']  =sB+'VDiszh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxh_\[m/s\]']  =sB+'VDisxh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisyh_\[m/s\]']  =sB+'VDisyh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)VDiszh_\[m/s\]']  =sB+'VDiszh_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxp_\[m/s\]']  =sB+'VDisxp_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDisyp_\[m/s\]']  =sB+'VDisyp_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)VDiszp_\[m/s\]']  =sB+'VDiszp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxl_\[m/s\]']  =sB+'VDisxl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisyl_\[m/s\]']  =sB+'VDisyl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDiszl_\[m/s\]']  =sB+'VDiszl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisxa_\[m/s\]']  =sB+'VDisxa_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisya_\[m/s\]']  =sB+'VDisya_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)VDisza_\[m/s\]']  =sB+'VDisza_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVx_\[m/s\]'  ]  =sB+'STVx_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVy_\[m/s\]'  ]  =sB+'STVy_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVz_\[m/s\]'  ]  =sB+'STVz_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVxi_\[m/s\]' ]  =sB+'STVxi_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVyi_\[m/s\]' ]  =sB+'STVyi_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVzi_\[m/s\]' ]  =sB+'STVzi_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)STVxh_\[m/s\]' ]  =sB+'STVxh_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)STVyh_\[m/s\]' ]  =sB+'STVyh_[m/s]'
-        ADSpanMap['^[A]*'+sB+r'N(\d*)STVzh_\[m/s\]' ]  =sB+'STVzh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)STVxh_\[m/s\]' ]  =sB+'STVxh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)STVyh_\[m/s\]' ]  =sB+'STVyh_[m/s]'
+#         ADSpanMap['^[A]*'+sB+r'N(\d*)STVzh_\[m/s\]' ]  =sB+'STVzh_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVxp_\[m/s\]' ]  =sB+'STVxp_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVyp_\[m/s\]' ]  =sB+'STVyp_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)STVzp_\[m/s\]' ]  =sB+'STVzp_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVxl_\[m/s\]' ]  =sB+'STVxl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVyl_\[m/s\]' ]  =sB+'STVyl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVzl_\[m/s\]' ]  =sB+'STVzl_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVxa_\[m/s\]' ]  =sB+'STVxa_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVya_\[m/s\]' ]  =sB+'STVya_[m/s]'
+        ADSpanMap['^[A]*'+sB+r'N(\d*)STVza_\[m/s\]' ]  =sB+'STVza_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vx_\[m/s\]'   ]   =sB+'Vx_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vy_\[m/s\]'   ]   =sB+'Vy_[m/s]'
         ADSpanMap['^[A]*'+sB+r'N(\d*)Vz_\[m/s\]'   ]   =sB+'Vz_[m/s]'
@@ -884,15 +1038,15 @@ def insert_extra_columns_AD(dfRad, tsAvg, vr=None, rho=None, R=None, nB=None, ch
         if vr is not None:
             chord =chord[0:len(dfRad)]
     for sB in ['B1','B2','B3']:
-        for coord in ['i','p','h']:
-            for comp in ['x','y','z']:
+        for comp in ['x','y','z']:
+            for coord in ['i','p','l','a']:
                 s=comp+coord
                 try:
                     dfRad[sB+'Vflw{}_[m/s]'.format(s)] = dfRad[sB+'VDis{}_[m/s]'.format(s)] - dfRad[sB+'STV{}_[m/s]'.format(s)]
                 except:
                     pass
-        for coord in ['i','p','h']:
-            for comp in ['x','y','z']:
+        for comp in ['x','y','z']:
+            for coord in ['i','p','l','a']:
                 s=comp+coord
                 try:
                     dfRad[sB+'Vrel{}_[m/s]'.format(s)] = dfRad[sB+'VDis{}_[m/s]'.format(s)] - dfRad[sB+'STV{}_[m/s]'.format(s)] + dfRad[sB+'Vind{}_[m/s]'.format(s)]
@@ -1000,36 +1154,39 @@ def spanwisePostPro(FST_In=None, avgMethod='constantwindow', avgParam=5, out_ext
     # --- Extract radial data and export to csv if needed
     # TODO for loop on stats here.
     # --- AD
-    ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
+    #ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
+    ColsInfoAD, nrMaxAD, Cols_new = spanwiseColAD_auto_name(Cols)
     dfRad_AD            = extract_spanwise_data(ColsInfoAD, nrMaxAD, df=None, ts=dfAvg.iloc[0])
     dfRad_AD            = insert_extra_columns_AD(dfRad_AD, dfAvg.iloc[0], vr=r_AD, rho=rho, R=R, nB=3, chord=chord)
     dfRad_AD            = insert_spanwise_columns(dfRad_AD, r_AD, R=R, IR=IR_AD)
     out['AD'] = dfRad_AD
     # --- ED Bld
-    ColsInfoED, nrMaxED = spanwiseColED(Cols)
+    ColsInfoED, nrMaxED, Cols_new = spanwiseColED(Cols)
     dfRad_ED            = extract_spanwise_data(ColsInfoED, nrMaxED, df=None, ts=dfAvg.iloc[0])
     dfRad_ED            = insert_spanwise_columns(dfRad_ED, r_ED_bld, R=R, IR=IR_ED_bld)
     out['ED_bld'] = dfRad_ED
     # --- ED Twr
-    ColsInfoED, nrMaxEDt = spanwiseColEDTwr(Cols)
+    ColsInfoED, nrMaxEDt, Cols_new = spanwiseColEDTwr(Cols)
     dfRad_EDt           = extract_spanwise_data(ColsInfoED, nrMaxEDt, df=None, ts=dfAvg.iloc[0])
-    dfRad_EDt2          = insert_spanwise_columns(dfRad_EDt, r_ED_twr, R=TwrLen, IR=IR_ED_twr, sspan='H',sspan_bar='H/L')
+    dfRad_EDt           = insert_spanwise_columns(dfRad_EDt, r_ED_twr, R=TwrLen, IR=IR_ED_twr, sspan='H',sspan_bar='H/L')
+    if dfRad_EDt is not None:
+        dfRad_EDt['z_[m]'] = dfRad_EDt['H_[m]']
     # TODO we could insert TwrBs and TwrTp quantities here...
     out['ED_twr'] = dfRad_EDt
     # --- BD
-    ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
+    ColsInfoBD, nrMaxBD, Cols_new = spanwiseColBD(Cols)
     dfRad_BD            = extract_spanwise_data(ColsInfoBD, nrMaxBD, df=None, ts=dfAvg.iloc[0])
     dfRad_BD            = insert_spanwise_columns(dfRad_BD, r_BD, R=R, IR=IR_BD)
     out['BD'] = dfRad_BD
     # --- SubDyn
-    try:
         # NOTE: fst might be None
+    if fst is not None and fst.SD is not None:
         sd = SubDyn(fst.SD)
         #MN = sd.pointsMN
         MNout, MJout = sd.memberPostPro(dfAvg)
         out['SD_MembersOut'] = MNout
         out['SD_JointsOut'] = MJout
-    except:
+    else:
         out['SD_MembersOut'] = None
         out['SD_JointsOut'] = None
 
@@ -1076,9 +1233,15 @@ def radialAvg(filename, avgMethod, avgParam, raw_name='', df=None, raiseExceptio
 
         try:
             out = spanwisePostPro(fst_in, avgMethod=avgMethod, avgParam=avgParam, out_ext=out_ext, df = df)
-            dfRadED=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']
-            dfs_new  = [dfRadAD, dfRadED, dfRadBD]
+            dfRadED_bld=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']
+            dfRadED_twr=out['ED_twr'];
+            dfRadSD_mbr=out['SD_MembersOut'];
+            dfRadSD_jnt=out['SD_JointsOut'];
+            dfs_new  = [dfRadAD, dfRadED_bld, dfRadBD, dfRadED_twr, dfRadSD_mbr, dfRadSD_jnt]
             names_new=[raw_name+'_AD', raw_name+'_ED', raw_name+'_BD'] 
+            names_new+=[raw_name+ '_ED_twr'] 
+            names_new+=[raw_name+ '_SD_mbr'] 
+            names_new+=[raw_name+ '_SD_jnt'] 
         except:
             if raiseException:
                 raise
@@ -1092,23 +1255,45 @@ def spanwisePostProRows(df, FST_In=None, si1='i1', sir='ir'):
     """ 
     Returns a 3D matrix: n x nSpan x nColumn where df is of size n x mColumn
 
-    NOTE: this is really not optimal. Spanwise columns should be extracted only once..
+    INPUTS:
+      - si1: string for first index, typically "it" for time index
+      - sir: string for radial index, typically "ir"
+
+    EXAMPLE:
+
+        alpha_ir0 = ds["B1Alpha_[deg]"].isel(ir=0)  # Angle of attack at node 1
+        alpha_mean = ds["B1Alpha_[deg]"].mean(dim="it") # Mean angle of attack as function of radius
     """
     # --- Extract radial positions of output channels
     d = FASTSpanwiseOutputs(FST_In, OutputCols=df.columns.values)
     R  = d['R'] if d['R'] is not None else 1
     # --- Getting Column info
     Cols=df.columns.values
-    ColsInfoAD, nrMaxAD = spanwiseColAD(Cols)
-    ColsInfoED, nrMaxED = spanwiseColED(Cols)
-    ColsInfoBD, nrMaxBD = spanwiseColBD(Cols)
+    ColsInfoAD, nrMaxAD, Cols_new = spanwiseColAD_auto_name(Cols)
+    ColsInfoED, nrMaxED, Cols_new = spanwiseColED(Cols)
+    ColsInfoBD, nrMaxBD, Cols_new = spanwiseColBD(Cols)
 
     # --- Extract data (nt x nSpan) for each variables
     ds_AD = extract_spanwise_data_timeSeries(ColsInfoAD, nrMaxAD, df, vr=d['r_AD']    , R=R, IR=d['IR_AD']    , si1=si1, sir=sir)
     ds_ED = extract_spanwise_data_timeSeries(ColsInfoED, nrMaxED, df, vr=d['r_ED_bld'], R=R, IR=d['IR_ED_bld'], si1=si1, sir=sir)
     ds_BD = extract_spanwise_data_timeSeries(ColsInfoBD, nrMaxBD, df, vr=d['r_BD']    , R=R, IR=d['IR_BD']    , si1=si1, sir=sir)
 
-    return ds_AD, ds_ED, ds_BD
+    # --- Columns that are in none of the radial data
+    cols_AD = [col for c in ColsInfoAD for col in c["cols"]]
+    cols_ED = [col for c in ColsInfoED for col in c["cols"]]
+    cols_BD = [col for c in ColsInfoBD for col in c["cols"]]
+    cols = cols_AD+cols_ED+cols_BD
+    diff = [col for col in df.columns if col not in set(cols)]
+    missing_cols = [c for c in diff if c.startswith(('B1', 'AB1'))]
+    if len(missing_cols)>0:
+        print('The following columns where not handled by spanwisePostPro: ')
+        print(missing_cols)
+    import xarray as xr
+    ds_Other = xr.Dataset.from_dataframe(df[diff])
+    ds_Other = ds_Other.rename_dims({"index": si1}).rename_vars({"index": si1})
+
+
+    return ds_AD, ds_ED, ds_BD, ds_Other
 
 
 def FASTSpanwiseOutputs(FST_In, OutputCols=None, verbose=False):
@@ -1295,130 +1480,7 @@ def addToOutlist(OutList, Signals):
 # --------------------------------------------------------------------------------}
 # --- Generic df 
 # --------------------------------------------------------------------------------{
-def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, verbose=False, raiseIfAbsent=False):
-    """ 
-    NOTE: see welib.tools.pandalib
-
-    Add/rename columns of a dataframe, potentially perform operations between columns
-
-    dataDict: dictionary of data to be made available as "variable" in the column mapping
-         'key' (new) : value (old)
-
-    Example:
-
-        ColumnMap={
-          'WS_[m/s]'         : '{Wind1VelX_[m/s]}'             , # create a new column from existing one
-          'RtTSR_[-]'        : '{RtTSR_[-]} * 2  +  {RtAeroCt_[-]}'    , # change value of column
-          'RotSpeed_[rad/s]' : '{RotSpeed_[rpm]} * 2*np.pi/60 ', # new column [rpm] -> [rad/s]
-          'R_[m]'            : '{ones} * 15'                  , # Create a constant columns
-          'R_[m]'            : '{ones} * R'                   , # use dataDict['R']
-          'U_[m/s]'          : 'U'                            , # use dataDict['U']
-          'q_p' :  ['Q_P_[rad]', '{PtfmSurge_[deg]}*np.pi/180']  # List of possible matches
-        }
-        # Read
-        df = weio.read('FASTOutBin.outb').toDataFrame()
-        # Change columns based on formulae, potentially adding new columns
-        df = fastlib.remap_df(df, ColumnMap, inplace=True)
-
-    """
-    # Insert dataDict into namespace, doesnt work
-    #if dataDict is not None:
-    #    for k,v in dataDict.items():
-    #        print('>>>> SETTING ', k, dataDict[k])
-    #        exec('{:s} = dataDict["{:s}"]'.format(k,k))
-
-
-    if not inPlace:
-        df=df.copy()
-    ColMapMiss=[]
-    ColNew=[]
-    RenameMap=dict()
-    # Loop for expressions
-    for k0,v in ColMap.items():
-        k=k0.strip()
-        if type(v) is not list:
-            values = [v]
-        else:
-            values = v
-        Found = False
-        ColMapMissLoc=[]
-        for v in values:
-            if v=='':
-                v=k # <<< If Value is empty, we reproduce it
-            v=v.strip()
-            if Found:
-                break # We avoid replacing twice
-            if v.find('{')>=0:
-                # --- This is an advanced substitution using formulae
-                search_results = re.finditer(r'\{.*?\}', v)
-                expr=v
-                if verbose:
-                    print('Attempt to insert column {:15s} with expr {}'.format(k,v))
-                # For more advanced operations, we use an eval
-                bFail=False
-                for item in search_results:
-                    col=item.group(0)[1:-1]
-                    if col=='ones':
-                        expr=expr.replace(item.group(0),'np.ones({:d})'.format(df.shape[0]))
-                    elif col not in df.columns:
-                        ColMapMissLoc.append(col)
-                        bFail=True
-                    else:
-                        expr=expr.replace(item.group(0),'df[\''+col+'\']')
-                #print(k, '=', expr)
-                if not bFail:
-                    df[k]=eval(expr)
-                    ColNew.append(k)
-                else:
-                    if raiseIfAbsent:
-                        raise Exception('Column not present in dataframe, cannot evaluate: ',expr)
-                    print('[WARN] Column not present in dataframe, cannot evaluate: ',expr)
-            else:
-                #print(k0,'=',v)
-                if v not in df.columns:
-                    ColMapMissLoc.append(v)
-                    if verbose:
-                        print('[WARN] Column not present in dataframe: ',v)
-                else:
-                    if k in RenameMap.keys():
-                        print('[WARN] Not renaming {} with {} as the key is already present'.format(k,v))
-                    else:
-                        RenameMap[k]=v
-                        Found=True
-        if len(values)>0:
-            if Found:
-                pass
-            else:
-                ColMapMiss+=ColMapMissLoc
-        else:
-            ColMapMiss+=ColMapMissLoc
-
-
-    # Applying renaming only now so that expressions may be applied in any order
-    for k,v in RenameMap.items():
-        if verbose:
-            print('Renaming column {:15s} > {}'.format(v,k))
-        k=k.strip()
-        iCol = list(df.columns).index(v)
-        df.columns.values[iCol]=k
-        ColNew.append(k)
-    df.columns = df.columns.values # Hack to ensure columns are updated
-
-    if len(ColMapMiss)>0:
-        print('[FAIL] The following columns were not found in the dataframe:',ColMapMiss)
-        if raiseIfAbsent:
-            raise Exception('Column not present in dataframe, cannot evaluate: ',ColMapMiss)
-        #print('Available columns are:',df.columns.values)
-
-    if bColKeepNewOnly:
-        ColNew = [c for c,_ in ColMap.items() if c in ColNew]# Making sure we respec order from user
-        ColKeepSafe = [c for c in ColNew if c in df.columns.values]
-        ColKeepMiss = [c for c in ColNew if c not in df.columns.values]
-        if len(ColKeepMiss)>0:
-            print('[WARN] Signals missing and omitted for ColKeep:\n       '+'\n       '.join(ColKeepMiss))
-        df=df[ColKeepSafe]
-    return df
-
+# remap_df is in tools.pandalib
 
 # --------------------------------------------------------------------------------}
 # --- Tools for PostProcessing one or several simulations
@@ -1471,7 +1533,7 @@ def _zero_crossings(y,x=None,direction=None):
         raise Exception('Direction should be either `up` or `down`')
     return xzc, iBef, sign
 
-def find_matching_pattern(List, pattern, sort=False, integers=True, n=1):
+def find_matching_pattern(List, pattern, sort=False, integers=True, n=1, ignore_case=False):
     r""" Return elements of a list of strings that match a pattern
         and return the n first matching group
 
@@ -1480,14 +1542,15 @@ def find_matching_pattern(List, pattern, sort=False, integers=True, n=1):
         find_matching_pattern(['Misc','TxN1_[m]', 'TxN20_[m]'], 'TxN(\d+)_\[m\]')
         returns: Matches = 1,20
     """
-    reg_pattern=re.compile(pattern)
-    MatchedElements=[]
-    Matches=[]
+    flags = re.IGNORECASE if ignore_case else 0
+    reg_pattern = re.compile(pattern, flags)
+    MatchedElements = []
+    Matches = []
     for l in List:
-        match=reg_pattern.search(l)
+        match = reg_pattern.search(l)
         if match:
             MatchedElements.append(l)
-            if len(match.groups(1))>0:
+            if len(match.groups(1)) > 0:
                 Matches.append(match.groups(1)[0])
             else:
                 Matches.append('')
@@ -1496,7 +1559,7 @@ def find_matching_pattern(List, pattern, sort=False, integers=True, n=1):
     Matches         = np.asarray(Matches)
 
     if integers:
-        Matches  = Matches.astype(int)
+        Matches = Matches.astype(int)
 
     if sort:
         # Sorting by Matched string, NOTE: assumes that MatchedStrings are int.
@@ -1758,10 +1821,12 @@ def averageDF(df, avgMethod='periods', avgParam=None, ColMap=None, ColKeep=None,
     timenoNA = time[~np.isnan(time)]
     # Column mapping
     if ColMap is not None:
-        ColMapMiss = [v for _,v in ColMap.items() if v not in df.columns.values]
-        if len(ColMapMiss)>0:
-            print('[WARN] Signals missing and omitted for ColMap:\n       '+'\n       '.join(ColMapMiss))
-        df.rename(columns=renameCol,inplace=True)
+        #ColMapMiss = [v for _,v in ColMap.items() if v not in df.columns.values]
+        #if len(ColMapMiss)>0:
+        #    print('[WARN] Signals missing and omitted for ColMap:\n       '+'\n       '.join(ColMapMiss))
+        #df.rename(columns=renameCol,inplace=True)
+        df = remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=True, dataDict=None, verbose=False, raiseIfAbsent=False)
+
     ## Defining a window for stats (start time and end time)
     if avgMethod.lower()=='constantwindow':
         tEnd = timenoNA[-1]
@@ -1934,7 +1999,9 @@ def averagePostPro(outFiles_or_DFs,avgMethod='periods',avgParam=None,
                     log.FAIL(f, 'has no columns in common with first file. Skipping.')
                     continue
                 try:
-                    result.iloc[i][columns_com] = MeanValues[columns_com].iloc[0]
+                    #result.iloc[i][columns_com] = MeanValues[columns_com].iloc[0]
+                    result.loc[i, columns_com] = MeanValues[columns_com].iloc[0]
+
                     log.WARN(f, 'has {} columns, first file has {} columns, with {} in common. Truncating.'.format(n_loc, n_loc, n_com))
                 except:
                     log.FAIL(f, 'has {} columns, first file has {} columns, with {} in common. Failed to assign common columns.'.format(n_loc, n_loc, n_com))
@@ -2014,6 +2081,25 @@ def integrateMomentTS(r, F):
 
 if __name__ == '__main__':
 
-    df = FASTOutputFile('ad_driver_yaw.6.outb').toDataFrame()
-    dfCat = spanwiseConcat(df)
-    print(dfCat)
+#     df = FASTOutputFile('ad_driver_yaw.6.outb').toDataFrame()
+#     dfCat = spanwiseConcat(df)
+#     print(dfCat)
+# 
+    from welib.weio.fast_output_file import FASTOutputFile
+    fst = 'C:/Work/2024-10-OESI-Digitwin/DigiTwinMonopile/code5_section_loads/05_RegWave/OF_F3T0_NoRNA.fst'
+    outb = 'C:/Work/2024-10-OESI-Digitwin/DigiTwinMonopile/code5_section_loads/05_RegWave/OF_F3T0_NoRNA.outb'
+    df = FASTOutputFile(outb).toDataFrame()
+
+# 
+#     dfs_new, names_new = radialAvg(filename=filename, df=df, avgMethod='constantwindow', avgParam=2)
+#     print(len(dfs_new), names_new)
+#     print(dfs_new)
+
+    out = spanwisePostPro(fst, avgMethod='constantwindow', avgParam=2, out_ext='.outb', df = df)
+    print(out.keys())
+    print(out['ED_twr'])
+    print(out['SD_MembersOut'])
+#     dfRadED=out['ED_bld']; dfRadAD = out['AD']; dfRadBD = out['BD']
+#     dfs_new  = [dfRadAD, dfRadED, dfRadBD]
+#     names_new=[raw_name+'_AD', raw_name+'_ED', raw_name+'_BD'] 
+    import pdb; pdb.set_trace()

@@ -432,11 +432,11 @@ MODELS =[
 'coeffs' :'A=1, k=1',  # Order Important
 'consts' :None,
 'bounds' :'A=(0.1,inf), k=(0,5)'},
-{'label':'Generator Torque', 'handle': gentorque, 'id':'predef: gentorque',
+{'label':'Generator Torque (manual)', 'handle': gentorque, 'id':'predef: gentorque',
 'formula': '{RtGnSp} , {RtTq}  , {Rgn2K} , {SlPc} , {SpdGenOn}',
 'coeffs' : 'RtGnSp=100 , RtTq=1000  , Rgn2K=0.01 ,SlPc=5 , SpdGenOn=0',  # Order Important
 'consts' :None,
-'bounds' :'RtGnSp=(0.1,inf) , RtTq=(1,inf), Rgn2K=(0.0,0.1) ,SlPc=(0,20) , SpdGenOn=(0,inf)'}
+'bounds' :'RtGnSp=(0.1,inf) , RtTq=(0.1,inf), Rgn2K=(0.0,inf) ,SlPc=(0,20) , SpdGenOn=(0,inf)'}
 ]
 
 # --------------------------------------------------------------------------------}
@@ -1265,8 +1265,9 @@ class SinusoidFitter(ModelFitter):
 
 
 class GeneratorTorqueFitter(ModelFitter):
-    def __init__(self,x=None, y=None, p0=None, bounds=None):
+    def __init__(self, x=None, y=None, p0=None, bounds=None, verbose=False):
         ModelFitter.__init__(self,x=None, y=None, p0=p0, bounds=bounds)
+        self.verbose=verbose
 
 #         RtGnSp, RtTq  , Rgn2K , SlPc , SpdGenOn = p
 #         {'label':'Generator Torque', 'handle': gentorque, 'id':'predef: gentorque',
@@ -1275,90 +1276,245 @@ class GeneratorTorqueFitter(ModelFitter):
 #         'consts' :None,
 #         'bounds' :'RtGnSp=(0.1,inf) , RtTq=(1,inf), Rgn2K=(0.0,0.1) ,SlPc=(0,20) , SpdGenOn=(0,inf)'}
         if x is not None and y is not None:
-            self.fit_data(x,y,p0,bounds)
+            self.fit_data(x, y, p0, bounds)
+
 
     def fit_data(self, x, y, p0=None, bounds=None):
-        #nParams=5
-        ## Bounds
-        #self.setup_bounds(bounds,nParams) # TODO
-        ## Initial conditions
-        #self.setup_guess(p0,bounds,nParams) # TODO
+        x_ori = np.asarray(x, dtype=float).copy()
+        y_ori = np.asarray(y, dtype=float).copy()
+        x, y = self.clean_data(x, y)
 
-        # Cleaning data, and store it in object
-        x,y=self.clean_data(x,y)
+        if len(x) == 0:
+            pfit = np.array([np.nan, np.nan, np.nan, np.nan, np.nan])
+            y_fit = np.zeros_like(x_ori)
+            self.store_fit_info(y_fit, pfit)
+            self.model['fitted_function'] = lambda xx: np.zeros_like(np.asarray(xx, dtype=float))
+            return
 
+        # Sort data and collapse exact duplicates
         I = np.argsort(x)
-        x=x[I]
-        y=y[I]
+        x = x[I]
+        y = y[I]
 
-        # Estimating deltas
-        xMin, xMax=np.min(x),np.max(x)
-        yMin, yMax=np.min(y),np.max(y)
-        DeltaX = (xMax-xMin)*0.02
-        DeltaY = (yMax-yMin)*0.02
+        unique_x, inverse = np.unique(x, return_inverse=True)
+        if len(unique_x) != len(x):
+            y_agg = np.zeros(len(unique_x), dtype=float)
+            for i, u in enumerate(unique_x):
+                y_agg[i] = np.mean(y[inverse == i])
+            x = unique_x
+            y = y_agg
 
-        # Binning data
-        x_bin=np.linspace(xMin,xMax,min(200,len(x)))
-        x_lin=x_bin[0:-1]+np.diff(x_bin)
-        #y_lin=np.interp(x_lin,x,y) # TODO replace by bining
-        y_lin = np.histogram(y, x_bin, weights=y)[0]/ np.histogram(y, x_bin)[0]
-        y_lin, _, _ = stats.binned_statistic(x, y, statistic='mean', bins=x_bin)
-        x_lin, _, _ = stats.binned_statistic(x, x, statistic='mean', bins=x_bin)
-        bNaN=~np.isnan(y_lin)
-        y_lin=y_lin[bNaN]
-        x_lin=x_lin[bNaN]
+        xMin, xMax = np.min(x), np.max(x)
+        yMin, yMax = np.min(y), np.max(y)
+        yMax = max(yMax, 1e-12)
 
-        # --- Find good guess of parameters based on data
-        # SpdGenOn
-        iOn = np.where(y>0)[0][0]
-        SpdGenOn_0    =  x[iOn]
-        SpdGenOn_Bnds = (max(x[iOn]-DeltaX,xMin), min(x[iOn]+DeltaX,xMax))
-        # Slpc
-        Slpc_0    = 5
-        Slpc_Bnds = (0,10)
-        # RtTq
-        RtTq_0    = yMax
-        RtTq_Bnds = (yMax-DeltaY, yMax+DeltaY)
-        # RtGnSp
-        iCloseRt = np.where(y>yMax*0.50)[0][0]
-        RtGnSp_0    = x[iCloseRt]
-        RtGnSp_Bnds = ( RtGnSp_0 -DeltaX*2, RtGnSp_0+DeltaX*2)
-        # Rgn2K
-        #print('>>>',SpdGenOn_0, RtGnSp_0)
-        bR2=np.logical_and(x>SpdGenOn_0, x<RtGnSp_0)
-        exponents=[2]
-        _, pfit, _ = fit_polynomial_discrete(x[bR2], y[bR2], exponents)
-        #print(pfit)
-        Rgn2K_0   =pfit[0]
-        Rgn2K_Bnds=(pfit[0]/2, pfit[0]*2)
-#         import matplotlib.pyplot as plt
-#         fig,ax = plt.subplots(1, 1, sharey=False, figsize=(6.4,4.8)) # (6.4,4.8)
-#         fig.subplots_adjust(left=0.12, right=0.95, top=0.95, bottom=0.11, hspace=0.20, wspace=0.20)
-#         ax.plot(x,y ,'-'   , label='')
-#         ax.plot(x[bR2],y[bR2],'ko', label='')
-#         ax.plot(x_lin,y_lin,'bd', label='')
-#         ax.set_xlabel('')
-#         ax.set_ylabel('')
-#         ax.tick_params(direction='in')
-#         plt.show()
-        def minimize_me(p):
-            RtGnSp, RtTq  , Rgn2K , SlPc , SpdGenOn = p
-            y_model=np.array([gentorque(x_lin, (RtGnSp, RtTq  , Rgn2K , SlPc , SpdGenOn))])
-            eps = np.mean((y_lin-y_model)**2)
-#             print(eps,p)
-            return  eps
-        bounds = (RtGnSp_Bnds, RtTq_Bnds, Rgn2K_Bnds, Slpc_Bnds, SpdGenOn_Bnds)
-        p0     = [RtGnSp_0, RtTq_0, Rgn2K_0, Slpc_0, SpdGenOn_0]
-        #print('Bounds',bounds)
-        #print('p0',p0)
-        res = so.minimize(minimize_me, x0=p0, bounds= bounds, method='SLSQP')
-        pfit=res.x
+        # Resample / bin for a smoother objective when the input is noisy.
+        # For sparse curves, keep the original points so the initial guesses remain
+        # anchored to the observed corner and cut-in locations.
+        n_points = len(x)
+        sparse = n_points <= 25
+        if not sparse and n_points < 100:
+            x_new = np.linspace(xMin, xMax, max(80, 20 * n_points))
+            y_new = np.interp(x_new, x, y)
+            x, y = x_new, y_new
+        elif n_points > 250:
+            x_bin = np.linspace(xMin, xMax, 160)
+            y_lin, _, _ = stats.binned_statistic(x, y, statistic='median', bins=x_bin)
+            x_lin, _, _ = stats.binned_statistic(x, x, statistic='mean', bins=x_bin)
+            bNaN = ~np.isnan(y_lin)
+            x, y = x_lin[bNaN], y_lin[bNaN]
 
-        # --- Reporting information about the fit (after the fit)
-        y_fit= gentorque(x, pfit)
+        xMin, xMax = np.min(x), np.max(x)
+        yMax = np.max(y)
+        yMax = max(yMax, 1e-12)
+
+        # --- Detect a region-3 plateau (flat tail) when it exists ---
+        tail_mask = x >= (xMax - 0.1 * max(xMax - xMin, 1.0))
+        has_region_3 = False
+        plateau_points = np.sum(y >= 0.98 * yMax)
+        if plateau_points >= 2:
+            has_region_3 = True
+        elif np.sum(tail_mask) >= 3:
+            y_tail = y[tail_mask]
+            rel_tail_spread = (np.max(y_tail) - np.min(y_tail)) / yMax
+            has_region_3 = rel_tail_spread < 0.04
+
+        sparse = n_points <= 15
+        noisy_scatter = n_points > 250
+
+        # 1. Rated torque (RtTq)
+        RtTq_0 = yMax
+        if sparse:
+            RtTq_Bnds = (max(1e-6, yMax * 0.95), yMax * 1.02)
+        elif has_region_3:
+            RtTq_Bnds = (max(1e-6, yMax * 0.9), yMax * 1.1)
+        else:
+            RtTq_Bnds = (max(1e-6, yMax * 0.95), yMax * 1.01)
+
+        # 2. Cut-in speed (SpdGenOn)
+        if y[0] > 0.02 * yMax:
+            SpdGenOn_0 = 0.0
+            SpdGenOn_Bnds = (0.0, 1e-6)
+        else:
+            bPos = np.where(y > max(yMax * 0.01, 1e-12))[0]
+            iOn = bPos[0] if len(bPos) > 0 else 0
+            SpdGenOn_0 = max(0.0, x[iOn])
+            SpdGenOn_Bnds = (0.0, max(SpdGenOn_0 * 1.05, xMax * 0.1))
+
+        # 3. Rated speed (RtGnSp) and the corner speed for Region 2.1
+        if has_region_3:
+            i_plateau = np.where(y >= 0.98 * yMax)[0]
+            RtGnSp_0 = x[i_plateau[0]] if len(i_plateau) > 0 else xMax
+        else:
+            RtGnSp_0 = xMax
+
+        if sparse and not has_region_3:
+            RtGnSp_Bnds = (max(xMin * 0.9, xMax * 0.95), xMax * 1.02)
+        elif sparse:
+            RtGnSp_Bnds = (max(xMin * 0.9, xMax * 0.9), xMax * 1.1)
+        elif has_region_3:
+            RtGnSp_Bnds = (xMin + (xMax - xMin) * 0.3, xMax * 1.15)
+        else:
+            RtGnSp_Bnds = (xMax * 0.95, xMax * 1.02)
+
+        # 4. Slip percentage estimate and an internal corner-speed parameter
+        if np.any(y >= 0.8 * yMax):
+            i_corner = int(np.where(y >= 0.8 * yMax)[0][0])
+            xR21_0 = x[i_corner]
+        else:
+            xR21_0 = xMax * 0.95
+        if np.any(np.gradient(y, x) > 0):
+            i_max_slope = int(np.argmax(np.gradient(y, x)))
+            xR21_0 = min(max(x[i_max_slope], max(SpdGenOn_0, xMin)), RtGnSp_0)
+        xR21_0 = min(max(xR21_0, max(SpdGenOn_0, xMin)), RtGnSp_0)
+        Slpc_0 = np.clip(100.0 * (1.0 - xR21_0 / RtGnSp_0) if RtGnSp_0 > 0 else 5.0, 0.5, 25.0)
+        if sparse:
+            Slpc_0 = np.clip(Slpc_0, 0.5, 15.0)
+
+        # 5. Region 2 constant (Rgn2K)
+        mask_R2 = (x > SpdGenOn_0) & (x < xR21_0)
+        if np.sum(mask_R2) > 3:
+            pfit_k = np.linalg.lstsq(x[mask_R2].reshape(-1, 1)**2, y[mask_R2], rcond=None)[0]
+            Rgn2K_0 = max(1e-12, float(pfit_k[0]))
+        else:
+            Rgn2K_0 = max(1e-12, yMax / (RtGnSp_0**2 if RtGnSp_0 > 0 else 1.0))
+        if n_points > 250:
+            Rgn2K_0 = max(1e-12, min(Rgn2K_0, yMax / (max(xMin, 1.0)**2)))
+
+        if sparse:
+            RtGnSp_Bnds = (max(xMin * 0.8, RtGnSp_0 * 0.9), max(RtGnSp_0 * 1.1, xMax * 1.02))
+            RtTq_Bnds = (max(1e-6, yMax * 0.95), yMax * 1.02)
+            Rgn2K_Bnds = (max(1e-12, Rgn2K_0 * 0.3), max(1e-6, Rgn2K_0 * 3.0))
+            xR21_Bnds = (max(SpdGenOn_0, xR21_0 * 0.85), min(RtGnSp_0 * 1.02, xR21_0 * 1.15))
+            SpdGenOn_Bnds = (0.0, max(SpdGenOn_0 * 1.2, xMax * 0.02))
+        elif noisy_scatter:
+            RtGnSp_Bnds = (xMax * 0.9, xMax * 1.05)
+            RtTq_Bnds = (max(1e-6, yMax * 0.9), yMax * 1.1)
+            Rgn2K_Bnds = (max(1e-12, Rgn2K_0 * 0.3), max(1e-6, Rgn2K_0 * 3.0))
+            xR21_Bnds = (max(SpdGenOn_0, xMin * 0.5), max(RtGnSp_Bnds[0] * 1.05, xMax * 1.05))
+            SpdGenOn_Bnds = (0.0, max(SpdGenOn_0 * 1.5, xMax * 0.05))
+        else:
+            RtGnSp_Bnds = (xMax * 0.95, xMax * 1.02)
+            RtTq_Bnds = (max(1e-6, yMax * 0.95), yMax * 1.01)
+            Rgn2K_Bnds = (max(1e-12, Rgn2K_0 * 0.3), max(1e-6, Rgn2K_0 * 3.0))
+            xR21_Bnds = (max(SpdGenOn_0, xR21_0 * 0.85), min(RtGnSp_0 * 1.02, xR21_0 * 1.15))
+            SpdGenOn_Bnds = (0.0, max(SpdGenOn_0 * 1.5, xMax * 0.05))
+
+        bounds_tuple = (
+            (RtGnSp_Bnds[0], RtGnSp_Bnds[1]),
+            (RtTq_Bnds[0], RtTq_Bnds[1]),
+            (Rgn2K_Bnds[0], Rgn2K_Bnds[1]),
+            (xR21_Bnds[0], xR21_Bnds[1]),
+            (SpdGenOn_Bnds[0], SpdGenOn_Bnds[1])
+        )
+        p0_internal = [RtGnSp_0, RtTq_0, Rgn2K_0, xR21_0, SpdGenOn_0]
+
+        def gentorque_internal(x_val, p):
+            RtGnSp, RtTq, Rgn2K, xR21, SpdGenOn = p
+            xR21 = min(max(xR21, SpdGenOn), RtGnSp)
+            GenTrq = np.zeros_like(x_val, dtype=float)
+            bR0 = x_val < SpdGenOn
+            bR2 = np.logical_and(x_val > SpdGenOn, x_val < xR21)
+            bR21 = np.logical_and(x_val >= xR21, x_val <= RtGnSp)
+            bR3 = x_val > RtGnSp
+            y1, y2 = Rgn2K * xR21**2, RtTq
+            x1, x2 = xR21, RtGnSp
+            m = (y2 - y1) / (x2 - x1) if x2 > x1 else 0.0
+            GenTrq[bR21] = m * (x_val[bR21] - x1) + y1
+            GenTrq[bR2] = Rgn2K * x_val[bR2]**2
+            GenTrq[bR3] = RtTq
+            return GenTrq
+
+        def obj(p):
+            y_model = gentorque_internal(x, p)
+            mse = np.mean((y - y_model) ** 2)
+            if noisy_scatter:
+                mse += 0.02 * np.mean(np.abs(np.gradient(y_model, x) - np.gradient(y, x)))
+            if sparse:
+                xR21 = min(max(p[3], p[4]), p[0])
+                penalty = 0.2 * ((xR21 - xR21_0) / max(xR21_0, 1.0)) ** 2
+                penalty += 0.05 * ((p[0] - RtGnSp_0) / max(RtGnSp_0, 1.0)) ** 2
+                return mse + penalty
+            return mse
+
+        def fit_wrapper(x_val, RtGnSp, RtTq, Rgn2K, xR21, SpdGenOn):
+            return gentorque_internal(x_val, (RtGnSp, RtTq, Rgn2K, xR21, SpdGenOn))
+
+        lb = [b[0] for b in bounds_tuple]
+        ub = [b[1] for b in bounds_tuple]
+
+        try:
+            res_de = so.differential_evolution(obj, bounds=bounds_tuple, x0=p0_internal, maxiter=120, popsize=10, seed=42)
+            p_de = res_de.x
+        except Exception:
+            p_de = np.array(p0_internal, dtype=float)
+
+        p_candidates = [p0_internal, p_de]
+        if not np.isfinite(obj(p_de)):
+            p_candidates = [p0_internal]
+
+        best_p = None
+        best_cost = np.inf
+        for p_init in p_candidates:
+            try:
+                if noisy_scatter:
+                    res_ls = so.least_squares(lambda p: fit_wrapper(x, *p) - y, p0=p_init, bounds=(lb, ub), loss='soft_l1', max_nfev=20000)
+                    pfit_internal = res_ls.x
+                else:
+                    res_ls = so.least_squares(lambda p: fit_wrapper(x, *p) - y, p0=p_init, bounds=(lb, ub), max_nfev=20000)
+                    pfit_internal = res_ls.x
+                cost = np.mean((y - fit_wrapper(x, *pfit_internal)) ** 2)
+                if cost < best_cost:
+                    best_cost = cost
+                    best_p = pfit_internal
+            except Exception:
+                continue
+
+        if best_p is None:
+            best_p = p_de
+
+        RtGnSp_fit, RtTq_fit, Rgn2K_fit, xR21_fit, SpdGenOn_fit = best_p
+        xR21_fit = min(max(xR21_fit, SpdGenOn_fit), RtGnSp_fit)
+        if sparse:
+            SlPc_fit = np.clip(100.0 * (1.0 - xR21_fit / RtGnSp_fit) if RtGnSp_fit > 0 else 0.0, 0.1, 25.0)
+            if not np.isfinite(SlPc_fit):
+                SlPc_fit = Slpc_0
+        else:
+            SlPc_fit = 100.0 * (1.0 - xR21_fit / RtGnSp_fit) if RtGnSp_fit > 0 else 0.0
+        pfit = np.array([RtGnSp_fit, RtTq_fit, Rgn2K_fit, SlPc_fit, SpdGenOn_fit], dtype=float)
+
+        y_fit = gentorque(x_ori, pfit)
         self.store_fit_info(y_fit, pfit)
-        # --- Return a fitted function
-        self.model['fitted_function']=lambda x: gentorque(x,pfit)
+        self.model['fitted_function'] = lambda xx: gentorque(xx, pfit)
+        self.model['coeffs'] = OrderedDict([
+            ('RtGnSp', float(pfit[0])),
+            ('RtTq', float(pfit[1])),
+            ('Rgn2K', float(pfit[2])),
+            ('SlPc', float(pfit[3])),
+            ('SpdGenOn', float(pfit[4]))
+        ])
+        self.model['coeffs_init'] = np.array([RtGnSp_0, RtTq_0, Rgn2K_0, Slpc_0, SpdGenOn_0], dtype=float)
+
 
 
 
@@ -1374,8 +1530,8 @@ FITTERS= [
 'consts':{},'formula': '{A}*exp(-{zeta}*{omega}*(x-{x0}))*sin({omega}*sqrt(1-{zeta}**2)))+{B}'},
 {'label':'2nd order step (auto)','id':'fitter: secondorder_step', 'handle': SecondOrderFitterStep  ,
 'consts':{},'formula':'{A}*(1-exp(-{zeta}*{omega}*(x-{x0}))/sqrt(1-{zeta}**2)*cos({omega}*sqrt(1-{zeta}**2)-arctan({zeta}/sqrt(1-{zeta}**2))))+{B}'},
-# {'label':'Generator Torque','id':'fitter: gentorque'  , 'handle': GeneratorTorqueFitter  ,
-# 'consts':{},'formula': ''}
+{'label':'Generator Torque (auto)','id':'fitter: gentorque'  , 'handle': GeneratorTorqueFitter  ,
+'consts':{},'formula': ''}
 ]
 
 # --------------------------------------------------------------------------------}

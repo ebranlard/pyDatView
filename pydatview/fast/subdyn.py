@@ -25,7 +25,7 @@ idGuyanDamp_66       = 2
 
 class SubDyn:
 
-    def __init__(self, sdFilename_or_data=None):
+    def __init__(self, sdFilename_or_data=None, TP=None):
         """ 
         Initialize a SubDyn object either with:
           - sdFilename: a subdyn input file name
@@ -48,11 +48,14 @@ class SubDyn:
         self._graph=None
         self._mgraph=None # Member graph
         self._FEM=None
+        self._beamFEM=None
+        self._TP = None
 
     def __repr__(self):
         s='<{} object>:\n'.format(type(self).__name__)
         s+='|properties:\n'
         s+='|- File: (input file data)\n'
+        s+='|- TP  : {} \n'.format(self._TP)
         s+='|* graph: (Nodes/Elements/Members)\n'
         s+='|* pointsMJ, pointsMN, pointsMNout\n'
         s+='|methods:\n'
@@ -65,17 +68,21 @@ class SubDyn:
     # --------------------------------------------------------------------------------}
     # --- Functions for general FEM model (jacket, flexible floaters)
     # --------------------------------------------------------------------------------{
-    def init(self, TP=(0,0,0), gravity = 9.81, verbose=False):
+    def init(self, TP=None, gravity = 9.81, verbose=False):
         """
         Initialize SubDyn FEM model 
 
-        TP: position of transition point
+        TP: position of transition point e.g. TP=(0,0,0)
         gravity: position of transition point
         """
-        import welib.FEM.fem_beam as femb
+        if TP is None:
+            if self._TP is None:
+                raise Exception('SubDyn: init: Please provide TP point')
+            else:
+                TP = self._TP
+
         import welib.FEM.fem_model as femm
         BC       = 'clamped-free' # TODO Boundary condition: free-free or clamped-free
-        element  = 'frame3d'      # Type of element used in FEM
 
         FEMMod = self.File['FEMMod']
         if FEMMod==1:
@@ -87,27 +94,43 @@ class SubDyn:
         else:
             raise NotImplementedError()
         # Get graph
-        graph = self.graph
-        #print('>>> graph\n',graph)
-        #graph.toJSON('_GRAPH.json')
-        # Convert to FEM model
-        with Timer('From graph', silent=not verbose):
-            FEM = femm.FEMModel.from_graph(self.graph, mainElementType=mainElementType, refPoint=TP, gravity=gravity)
-        #model.toJSON('_MODEL.json')
-        with Timer('Assembly', silent=not verbose):
-            FEM.assembly()
-        with Timer('Internal constraints', silent=not verbose):
-            FEM.applyInternalConstraints()
-            FEM.partition()
-        with Timer('BC', silent=not verbose):
-            FEM.applyFixedBC()
-        with Timer('EIG', silent=not verbose):
-            Q, freq = FEM.eig(normQ='byMax')
+        nModesCB = self.File['Nmodes']
+
+        with Timer(f'SubDyn: Running SubDyn FEM nModesCB={nModesCB}'):
+            graph = self.graph
+            #print('>>> graph\n',graph)
+            #graph.toJSON('_GRAPH.json')
+            # Convert to FEM model
+            with Timer('SubDyn: From graph', silent=not verbose):
+                FEM = femm.FEMModel.from_graph(self.graph, mainElementType=mainElementType, refPoint=TP, gravity=gravity)
+            #model.toJSON('_MODEL.json')
+            with Timer('SubDyn: Assembly', silent=not verbose):
+                FEM.assembly()
+            with Timer('SubDyn: Internal constraints', silent=not verbose):
+                FEM.applyInternalConstraints()
+                FEM.partition()
+            with Timer('SubDyn: BC', silent=not verbose):
+                FEM.applyFixedBC()
+            with Timer('SubDyn: EIG', silent=not verbose):
+                Q, freq = FEM.eig(normQ='byMax')
+            self._FEM = FEM # Store
+
+            # --- Craig Bampton reduction
+            self.applyCB(nModesCB=nModesCB, verbose=verbose)
+
+
+        return FEM
+
+
+    def applyCB(self, nModesCB, nModesFEMStore=30, verbose=False):
+        """ Apply CB reduction, set and store associated data"""
+        FEM = self._FEM
+
         with Timer('CB', silent=not verbose):
-            FEM.CraigBampton(nModesCB = self.File['Nmodes'])
+            FEM.CraigBampton(nModesCB = nModesCB)
 
         with Timer('Modes', silent=not verbose):
-            FEM.setModes(nModesFEM=30, nModesCB=self.File['Nmodes'])
+            FEM.setModes(nModesFEM=nModesFEMStore, nModesCB=nModesCB)
 #             FEM.nodesDisp(Q)
 
         # --- SubDyn partition/notations
@@ -147,20 +170,25 @@ class SubDyn:
 
         # --- Compute rigid body equivalent
         FEM.rigidBodyEquivalent()
-        self._FEM = FEM
 
         return FEM
 
 
-    def setTopMass(self):
+    def setTopMass(self, Mtop=0):
+        """ Mtop = 50000  # Top mass [kg] """
         # TODO
+        # TODO
+        # TODO
+        # TODO Unfinished
+        #
+        #
         # Add an optional top mass and ineria
         if TopMass:
             # NOTE: you can use welib.yams.windturbine to compute RNA mass and inertia
-            Mtop = 50000  # Top mass [kg]
             M_tip= rigidBodyMassMatrixAtP(m=Mtop, J_G=None, Ref2COG=None)
         else:
             M_tip=None
+        self.M_tip = M_tip
 
 
     def getGraph(self, nDiv=1):
@@ -200,6 +228,21 @@ class SubDyn:
         if self._graph is None:
             self._graph = self.getGraph(nDiv = self.File['NDiv'])
         return copy.deepcopy(self._graph)
+
+    @property
+    def concentrated_masses(self):
+        from welib.yams.utils import identifyRigidBodyMM
+        if self._FEM is not None:
+            return self._FEM.concentrated_masses
+        else:
+            CM = []
+            for n in self.graph.Nodes:
+                if 'addedMassMatrix' in n.data:
+                    MM = n.data['addedMassMatrix']
+                    mass, J_G, ref2COG = identifyRigidBodyMM(n.data['addedMassMatrix'])
+                    CM.append( {'nodeID':n.ID, 'mass':mass, 'J_G':J_G, 'rho_G':ref2COG, 'MM':MM} )
+            return CM
+
 
 
     @property
@@ -302,7 +345,7 @@ class SubDyn:
         Map['^'+r'M(\d*)N(\d*)MKxe_\[N\*m\]'] = 'MKxe_[Nm]'
         Map['^'+r'M(\d*)N(\d*)MKye_\[N\*m\]'] = 'MKye_[Nm]'
         Map['^'+r'M(\d*)N(\d*)MKze_\[N\*m\]'] = 'MKze_[Nm]'
-        ColsInfo, _ = postpro.find_matching_columns(dfAvg.columns, Map)
+        ColsInfo, _, _ = postpro.find_matching_columns(dfAvg.columns, Map, ignore_case=True)
         nCols = len(ColsInfo)
         if nCols>0:
             newCols=[c['name'] for c in ColsInfo ]
@@ -334,7 +377,7 @@ class SubDyn:
         Map['^'+r'M(\d*)J(\d*)MMxe_\[N\*m\]']='MMxe_[Nm]'
         Map['^'+r'M(\d*)J(\d*)MMye_\[N\*m\]']='MMye_[Nm]'
         Map['^'+r'M(\d*)J(\d*)MMze_\[N\*m\]']='MMze_[Nm]'
-        ColsInfo, _ = postpro.find_matching_columns(dfAvg.columns, Map)
+        ColsInfo, _, _ = postpro.find_matching_columns(dfAvg.columns, Map, ignore_case=True)
         nCols = len(ColsInfo)
         if nCols>0:
             newCols=[c['name'] for c in ColsInfo ]
@@ -379,7 +422,7 @@ class SubDyn:
             x = np.linspace(np.min(xOld),np.max(xOld), nSpan)
             df = pd_interp1(x, 'z', df)
 
-        x   = df['z'] # NOTE: FEM uses "x" as main axis
+        #x   = df['z'] # NOTE: FEM uses "x" as main axis
         D   = df['D'] # Diameter [m]
         t   = df['t'] # thickness [m]
         # Derive section properties for a hollow cylinder based on diameter and thickness
@@ -395,28 +438,58 @@ class SubDyn:
 
         return df
 
-    def beamFEM(self, df=None):
+    def beamFEM(self, df=None, force=False, method='cbeam', verbose=False):
         """ return FEM model for beam-like structures, like Spar/Monopile"""
         import welib.FEM.fem_beam as femb
 
-        BC       = 'clamped-free' # TODO Boundary condition: free-free or clamped-free
-        element  = 'frame3d'      # Type of element used in FEM
+        print(f'[INFO] SubDyn: beamFEM: method {method}')
+        if method =='cbeam':
+            if self._beamFEM is not None and (not force):
+                return self._beamFEM
 
-        if df is None:
-            df = self.beamDataFrame()
-        x   = df['z']              # NOTE: FEM uses "x" as main axis
-        E   = df['E']              # Young modules [N/m^2]
-        G   = df['G']              # Shear modules [N/m^2]
-        rho = df['rho']            # material density [kg/m^3]
-        Ip  = df['Ip']
-        I   = df['I']
-        A   = df['A']
-        Kt  = df['Kt']
+            BC       = 'clamped-free' # TODO Boundary condition: free-free or clamped-free
+            element  = 'frame3d'      # Type of element used in FEM
 
-        # --- Compute FEM model and mode shapes
-        with Timer('Setting up FEM model'):
-            FEM=femb.cbeam(x,m=rho*A,EIx=E*Ip,EIy=E*I,EIz=E*I,EA=E*A,A=A,E=E,G=G,Kt=Kt,
-                        element=element, BC=BC, M_tip=self.M_tip)
+            if df is None:
+                df = self.beamDataFrame()
+            x   = df['z']              # NOTE: FEM uses "x" as main axis
+            E   = df['E']              # Young modules [N/m^2]
+            G   = df['G']              # Shear modules [N/m^2]
+            rho = df['rho']            # material density [kg/m^3]
+            Ip  = df['Ip']
+            I   = df['I']
+            A   = df['A']
+            Kt  = df['Kt']
+
+            # --- Compute FEM model and mode shapes
+            with Timer('Setting up FEM model'):
+                FEM=femb.cbeam(x,m=rho*A,EIx=E*Ip,EIy=E*I,EIz=E*I,EA=E*A,A=A,E=E,G=G,Kt=Kt,
+                            element=element, BC=BC, M_tip=self.M_tip)
+            self._beamFEM = FEM
+        else:
+            # For the sake of it, we return the same kind of "dictionary" as cbeam...
+            if self._FEM is None:
+                raise Exception('Call `init()` before calling `beamFEM`')
+            FF = self._FEM
+
+            dispFEM, posFEM, INodesFEM = FF.nodesDisp(FF.Q, sortDim=2)
+            if len(np.unique(posFEM[:,0]))>1 or  len(np.unique(posFEM[:,1]))>1:
+                raise Exception('beamFEM expect a model where all nodes are along the same z-line')
+#             for iMode in range(min(dispFEM.shape[2], nModesFEM)):
+#                 self.addMode(displ=dispFEM[:,:,iMode], name='FEM{:d}'.format(iMode+1), freq=self.freq[iMode], group='FEM')
+            FEM = {}
+            FEM['xNodes']  = posFEM[:,2]
+            #, 'MM':MM, 'KK':KK, 'Tr':Tr,
+            FEM['MM_full'] = FF.MM
+            FEM['KK_full'] = FF.KK
+#                 'IFull2BC':IFull2BC, 'IBC2Full':IBC2Full,
+#                 'Elem2Nodes':Elem2Nodes, 'Nodes2DOF':Nodes2DOF, 'Elem2DOF':Elem2DOF,
+            #
+            FEM['Q']       = FF.Q
+            FEM['freq']    = FF.freq
+            #  'modeNames':modeNames}
+
+
         return FEM
 
 
@@ -449,7 +522,7 @@ class SubDyn:
         izb = np.argmin(zBeam - np.min(zBeam))
         nReact=0
         if '-reactfxss' in df and verbose:
-            print('Reaction present in output')
+            print('SubDyn: Reaction present in output')
         if '-reactfxss' in df: F_sec[0, izb, :] = df['-reactfxss']
         if '-reactfyss' in df: F_sec[1, izb, :] = df['-reactfyss']
         if '-reactfzss' in df: F_sec[2, izb, :] = df['-reactfzss']
@@ -458,7 +531,7 @@ class SubDyn:
         if '-reactmzss' in df: F_sec[5, izb, :] = df['-reactmzss']
         # --- First Member outputs
         if verbose:
-            print('Number of MNoutput points:', len(MNo))
+            print('SubDyn: Number of MNoutput points:', len(MNo))
         for iz, z in enumerate(zBeam):
             inds = MNo.index[MNo['z'] == z]
             if len(inds)==0:
@@ -480,8 +553,8 @@ class SubDyn:
         # Erase if present)
         if 'm1j1fkxe' in df:
             if verbose:
-                print('MJ output present')
-                print('Number of MJoutput points:', len(MJ))
+                print('SubDyn: MJ output present')
+                print('SubDyn: Number of MJoutput points:', len(MJ))
             for iz, z in enumerate(zBeam):
                 inds = MJ.index[MJ['z']==z]
                 if len(inds)==0:
@@ -500,21 +573,124 @@ class SubDyn:
         return zBeam, F_sec, r_sec
 
 
-    def beamModes(self, nCB=8, FEM = None):
+    def beamModes(self, nCB=None, FEM = None, method='cbeam', verbose=False):
         """ Returns mode shapes for beam-like structures, like Spar/Monopile """
         import welib.FEM.fem_beam as femb
-        element  = 'frame3d'      # Type of element used in FEM
-        if FEM is None:
-            FEM = self.beamFEM()
-        # --- Perform Craig-Bampton reduction, fixing the top node of the beam
-        with Timer('FEM eigenvalue analysis'):
-            Q_G,_Q_CB, df_G, df_CB, Modes_G, Modes_CB, CB = femb.CB_topNode(FEM, nCB=nCB, element=element, main_axis='x')
-        # df_CB.to_csv('_CB.csv',index=False)
-        # df_G.to_csv('_Guyan.csv',index=False)
-        return  Q_G,_Q_CB, df_G, df_CB, Modes_G, Modes_CB, CB 
+        if nCB is None:
+            nCB = self.File['Nmodes']
+        if method == 'cbeam':
+            element  = 'frame3d'      # Type of element used in FEM
+            if FEM is None:
+                if self._beamFEM is None:
+                    FEM = self.beamFEM()
+                else:
+                    FEM = self._beamFEM
+            # --- Perform Craig-Bampton reduction, fixing the top node of the beam
+            with Timer('FEM eigenvalue analysis'):
+                Q_G,_Q_CB, df_G, df_CB, Modes_G, Modes_CB, CB = femb.CB_topNode(FEM, nCB=nCB, element=element, main_axis='x')
 
-    def beamModesPlot(self):
+            df_G = xBeam_To_zBeam(df_G, prefix='G')
+            df_CB = xBeam_To_zBeam(df_CB, prefix='CB')
+            #print(df_G.columns)
+            #print(df_CB.columns)
+            # df_CB.to_csv('_CB.csv',index=False)
+            # df_G.to_csv('_Guyan.csv',index=False)
+            return  Q_G,_Q_CB, df_G, df_CB, Modes_G, Modes_CB, CB 
+        else:
+            if FEM is not None:
+                raise Exception('Using internal FEM, do not provide FEM with method==full')
+            if self._FEM is None:
+                raise Exception('Call `init()` before calling `beamModes`')
+            else:
+                FEM = self._FEM
+
+            nModesCB = len(FEM.f_CB)
+            if len(FEM.f_CB)<nCB:
+                print(f'[INFO] SubDyn: We have to apply CB again with nCB={nCB}')
+                self.applyCB(nModesCB=nCB, verbose=False)
+                FEM = self._FEM
+
+
+            dispGy, rotGy, posGy, INodesGy, dispCB, rotCB, posCB, INodesCB = FEM.getModes(scale=True, maxAmplitude=1, sortDim=2, outputRot=True)
+            #dispGy, posGy, INodesGy = FEM.nodesDisp(FEM.Q_G, sortDim=2)
+            #dispCB, posCB, INodesCB = self.nodesDisp(self.Q_CB, sortDim=2)
+
+            if len(np.unique(posGy[:,0]))>1 or len(np.unique(posGy[:,1]))>1:
+                raise Exception('beamFEM expect a model where all nodes are along the same z-line')
+
+            # --- Returning same datastructure as cbeam method
+            CB=dict()
+            CB['MM']     = FEM.MM_CB
+            CB['KK']     = FEM.KK_CB
+            CB['Phi_G']  = FEM.Phi_G
+            CB['Phi_CB'] = FEM.Phi_CB
+            CB['f_G']    = FEM.f_G
+            CB['f_CB']   = FEM.f_CB
+            #     # Identify modes for convenience
+            #     _, names_G= identifyAndNormalizeModes(Q_G, element=element, normalize=False)
+            #     _, names_CB= identifyAndNormalizeModes(Q_CB, element=element, normalize=False)
+
+            DN = ['ux','uy','uz','tx','ty','tz'] 
+            # --- Guyan Modes
+            M = posGy[:,2]
+            Modes_G=dict()
+            names_G = ['G{}'.format(i+1) for i in np.arange(len(FEM.f_G))]
+            for i,mn in enumerate(names_G):
+                if i==0:
+                    scale = dispGy[-1,0,i]
+                    dispGy[:,:,i] /= scale
+                    rotGy [:,:,i] /= scale
+                elif i==1:
+                    scale = dispGy[-1,1,i]
+                    dispGy[:,:,i] /= scale
+                    rotGy [:,:,i] /= scale
+                elif i==3:
+                    scale = rotGy[-1,0,i]
+                    dispGy[:,:,i] /= scale
+                    rotGy [:,:,i] /= scale
+                elif i==4:
+                    scale = rotGy[-1,1,i]
+                    dispGy[:,:,i] /= scale
+                    rotGy [:,:,i] /= scale
+#                     dispGy[:,0,i], dispGy[:,1,i], dispGy[:,2,i], rotGy[:,0,i], rotGy[:,1,i], rotGy[:,2,i]
+                    #df_G['G1_ux'].values
+                    #df_G['G1_ty'].values # TODO p/m
+                ModeComp = [dispGy[:,0,i], dispGy[:,1,i], dispGy[:,2,i], rotGy[:,0,i], rotGy[:,1,i], rotGy[:,2,i]]
+                Modes_G[mn]          = dict()
+                Modes_G[mn]['label'] = names_G[i]
+                Modes_G[mn]['comp']  = np.column_stack(ModeComp)
+                #Modes_G[mn]['raw']   = Q_G[:,i]
+                M= np.column_stack([M]+ModeComp)
+            colnames=['z']+[m+'_'+d for m in names_G for d in DN]
+            df_G=pd.DataFrame(data=M, columns=colnames)
+            # Manual normalization
+
+            # --- CB Modes
+            M = posCB[:,2]
+            Modes_CB=dict()
+            names_CB = ['CB{}'.format(i+1) for i in np.arange(len(FEM.f_CB))]
+            for i,mn in enumerate(names_CB):
+                # TODO normalization
+                ModeComp = [dispCB[:,0,i], dispCB[:,1,i], dispCB[:,2,i], rotCB[:,0,i], rotCB[:,1,i], rotCB[:,2,i]]
+                Modes_G[mn]          = dict()
+                Modes_G[mn]['label'] = names_CB[i]
+                Modes_G[mn]['comp']  = np.column_stack(ModeComp)
+                #Modes_G[mn]['raw']   = Q_G[:,i]
+                M= np.column_stack([M]+ModeComp)
+            colnames=['z']+[m+'_'+d for m in names_CB for d in DN]
+            df_CB=pd.DataFrame(data=M, columns=colnames)
+
+            # df_CB.to_csv('_CB.csv',index=False)
+            #return Q_G,_Q_CB, df_G, df_CB, Modes_G, Modes_CB, CB 
+            return None, None, df_G, df_CB, Modes_G, Modes_CB, CB
+
+    def beamModesPlot(self, FEM=None):
         """ """
+        if FEM is None:
+            if self._beamFEM is None:
+                FEM = self.beamFEM()
+            else:
+                FEM = self._beamFEM
         # TODO
         nModesPlot=8
         # --- Show frequencies to screen
@@ -523,7 +699,6 @@ class SubDyn:
             print('{:4d} {:10.3f}   {:s}'.format(i+1,FEM['freq'][i],FEM['modeNames'][i]))
 
         # --- Plot mode components for first few modes
-        print(x.shape)
         #Q=FEM['Q'] ; modeNames = FEM['modeNames']
         #Q=Q_CB ;modeNames = names_CB
         Modes=Modes_CB
@@ -554,29 +729,50 @@ class SubDyn:
     # --------------------------------------------------------------------------------{
     def toYAML(self, filename):
         if self._FEM is None:
-            raise Exception('Call `initFEM()` before calling `toYAML`')
+            raise Exception('Call `init()` before calling `toYAML`')
         subdyntoYAMLSum(self._FEM, filename, more = self.File['OutAll'])
 
 
-    def toYAMSData(self, shapes=[0,4], main_axis='z'):
+    def toYAMSData(self, shapes=[0,4], main_axis='z', method='cbeam', equispacing=True):
         """ 
         Convert to Data needed to setup a Beam Model in YAMS (see bodies.py in yams)
         """
         from welib.mesh.gradient import gradient_regular
+        from welib.yams.utils import translateRigidBodyMassMatrix        
+        print('SubDyn: toYamsDATA, method:', method)
 
-        # --- Perform Craig-Bampton reduction, fixing the top node of the beam
-        # Get beam data frame
-        df = self.beamDataFrame(equispacing=True)
-        if np.any(df['y']!=0): 
-            raise NotImplementedError('FASTBeamBody for substructure only support monopile, structure not fully vertical in file: {}'.format(self.File.filename))
-        if np.any(df['x']!=0): 
-            raise NotImplementedError('FASTBeamBody for substructure only support monopile, structure not fully vertical in file: {}'.format(self.File.filename))
+        dfOut=None
+        if method is None:
+            method ='cbeam'
 
-        FEM = self.beamFEM(df)
-        Q_G,_Q_CB, df_G, df_CB, Modes_G, Modes_CB, CB = self.beamModes(nCB=0, FEM=FEM)
+        if method.lower() == 'cbeam':
+            # --- Use Beam FEM representation
+            # Get beam data frame
+            df = self.beamDataFrame(equispacing=equispacing)
+            if np.any(df['y']!=0): 
+                raise NotImplementedError('FASTBeamBody for substructure only support monopile, structure not fully vertical in file: {}'.format(self.File.filename))
+            if np.any(df['x']!=0): 
+                raise NotImplementedError('FASTBeamBody for substructure only support monopile, structure not fully vertical in file: {}'.format(self.File.filename))
 
-        x     = df['z'].values
-        nSpan = len(x)
+            # --- Perform Craig-Bampton reduction, fixing the top node of the beam
+            FEM = self.beamFEM(df, method=method)
+            Q_G,_Q_CB, df_G, df_CB, Modes_G, Modes_CB, CB = self.beamModes(nCB=None, FEM=FEM, method=method)
+
+            x     = df['z'].values
+            nSpan = len(x)
+
+        else:
+            df = self.beamDataFrame(equispacing=False)
+
+            Q_G,_Q_CB, df_G, df_CB, Modes_G, Modes_CB, CB = self.beamModes(nCB=None, method=method)
+
+            x     = df_G['z'].values
+            nSpan = len(x)
+
+            if len(df)!=len(df_G):
+                raise Exception('Inconsistency in df shapes')
+
+        dfOut = pd.concat([df.reset_index(drop=True), df_G.reset_index(drop=True)], axis=1)
 
         # TODO TODO finda way to use these matrices instead of the ones computed with flexibility
         #print('CB MM\n',CB['MM'])
@@ -593,28 +789,63 @@ class SubDyn:
         PhiV = np.zeros((nShapes,3,nSpan)) # Shape
         PhiK = np.zeros((nShapes,3,nSpan)) # Shape
         dx=np.unique(np.around(np.diff(x),4))
-        if len(dx)>1:
-            print(x)
-            print(dx)
-            raise NotImplementedError()
+        irregular = len(dx)>1
+        if irregular:
+            raise Exception('Implement irregular gradient')
         for iShape, idShape in enumerate(shapes):
             if idShape==0:
-                # shape 0 "ux"  (uz in FEM)
-                PhiU[iShape][0,:] = df_G['G3_uz'].values
-                PhiV[iShape][0,:] =-df_G['G3_ty'].values
-                PhiK[iShape][0,:] = gradient_regular(PhiV[iShape][0,:],dx=dx[0],order=4)
+                # shape i=0, G1, ux  
+                PhiU[iShape][0,:] = df_G['G1_ux'].values
+                PhiV[iShape][0,:] = df_G['G1_ty'].values # TODO p/m
+                if irregular:
+                    pass
+                else:
+                    PhiK[iShape][0,:] = gradient_regular(PhiV[iShape][0,:],dx=dx[0],order=4)
             elif idShape==1:
-                # shape 1,  "uy"
+                # shape i=1, G2, uy
                 PhiU[iShape][1,:] = df_G['G2_uy'].values
-                PhiV[iShape][1,:] = df_G['G2_tz'].values
-                PhiK[iShape][1,:] = gradient_regular(PhiV[iShape][1,:],dx=dx[0],order=4)
+                PhiV[iShape][1,:] = df_G['G2_tx'].values # TODO p/m
+                print('TODO not sure about sign for PhiV for shape Guyan uy')
+                if irregular:
+                    pass
+                else:
+                    PhiK[iShape][1,:] = gradient_regular(PhiV[iShape][1,:],dx=dx[0],order=4)
+        
+                # shape i=2, G3, uz
+            elif idShape==3:
+                # shape i=3, G4, vx
+                PhiU[iShape][1,:] = df_G['G5_uy'].values
+                PhiV[iShape][1,:] = df_G['G5_tx'].values # TODO p/m
+                if irregular:
+                    pass
+                else:
+                    PhiK[iShape][1,:] = gradient_regular(PhiV[iShape][1,:],dx=dx[0],order=4)
             elif idShape==4:
-                # shape 4,  "vy"  (vz in FEM)
-                PhiU[iShape][0,:] = df_G['G6_uy'].values
-                PhiV[iShape][0,:] = df_G['G6_tz'].values
-                PhiK[iShape][0,:] = gradient_regular(PhiV[iShape][0,:],dx=dx[0],order=4)
+                # shape i=4, G5 vy
+                PhiU[iShape][0,:] = df_G['G5_ux'].values
+                PhiV[iShape][0,:] = df_G['G5_ty'].values
+                if irregular:
+                    pass
+                else:
+                    PhiK[iShape][0,:] = gradient_regular(PhiV[iShape][0,:],dx=dx[0],order=4)
+            elif idShape==6:
+                PhiU[iShape][0,:] = df_CB['CB1_ux'].values
+                PhiU[iShape][1,:] = df_CB['CB1_uy'].values
+                PhiV[iShape][0,:] = df_CB['CB1_ty'].values
+                PhiV[iShape][1,:] = df_CB['CB1_tx'].values
+
+            elif idShape==7:
+                PhiU[iShape][0,:] = df_CB['CB2_ux'].values
+                PhiU[iShape][1,:] = df_CB['CB2_uy'].values
+                PhiV[iShape][0,:] = df_CB['CB2_ty'].values
+                PhiV[iShape][1,:] = df_CB['CB2_tx'].values
+
             else:
-                raise NotImplementedError()
+                raise NotImplementedError(f'SubDyn: idShape {idShape}')
+            dfU = pd.DataFrame(data=PhiU[iShape].T, columns=[f'PhiU{iShape}'+s for s in ['x','y','z']])
+            dfV = pd.DataFrame(data=PhiV[iShape].T, columns=[f'PhiV{iShape}'+s for s in ['x','y','z']])
+            dfOut = pd.concat([dfOut, dfU, dfV], axis=1)
+#             import pdb; pdb.set_trace()
 
         # --- Dictionary structure for YAMS
         p=dict()
@@ -640,6 +871,42 @@ class SubDyn:
         p['PhiV']  = PhiV
         p['PhiK']  = PhiK
 
+        # --- Concentrated inertias mapped to beam nodes
+        concentrated_inertias = []
+        axis_map = {'x': 0, 'y': 1, 'z': 2}
+        i_axis = axis_map.get(main_axis, 2)
+        z0 = np.min(x)
+
+        graph_nodes = {n.ID: np.array([n.x, n.y, n.z]) for n in self.graph.Nodes}
+        for cm in self.concentrated_masses:
+            if 'MM' not in cm:
+                continue
+            node_id = cm['nodeID']
+            if node_id not in graph_nodes:
+                raise Exception('node_id not in graph for concentrated mass')
+                continue
+
+            xyz_cm = graph_nodes[node_id]
+            s_cm = xyz_cm[i_axis] - z0
+            iNode = int(np.argmin(np.abs(p['s_span'] - s_cm)))
+
+            MM_node = np.asarray(cm['MM']).copy()
+            s_node = p['s_span'][iNode]
+            ds = s_node - s_cm
+            if abs(ds) > 0:
+                r_old_to_new = np.zeros(3)
+                r_old_to_new[i_axis] = ds
+                MM_node = translateRigidBodyMassMatrix(MM_node, r_old_to_new)
+
+            concentrated_inertias.append({
+                'iNode': iNode,
+                's': s_cm,
+                'MM': MM_node,
+                'nodeID': node_id,
+            })
+
+        p['concentrated_inertias'] = concentrated_inertias
+
         # --- Damping
         damp_zeta     = None
         RayleighCoeff = None
@@ -654,7 +921,7 @@ class SubDyn:
             DampMat = self.File['GuyanDampMatrix']
             DampMat=DampMat[np.ix_(shapes,shapes)]
 
-        return p, damp_zeta, RayleighCoeff, DampMat
+        return p, damp_zeta, RayleighCoeff, DampMat, dfOut
 
 
 # --------------------------------------------------------------------------------}
@@ -872,13 +1139,13 @@ def subdyntoYAMLSum(model, filename, more=False):
     s += 'Nodes: # {} x 9\n'.format(len(model.Nodes))
     for n in model.Nodes:
         s += '  - [{:7d}.,{:15.3f},{:15.3f},{:15.3f},{:14d}.,   0.000000E+00,   0.000000E+00,   0.000000E+00,   0.000000E+00]\n'.format(nodeID(n.ID), n.x, n.y, n.z, int(n.data['Type']) )
-    s += '#    Elem_[#]    Node_1   Node_2   Prop_1   Prop_2     Type     Length_[m]      Area_[m^2]  Dens._[kg/m^3]        E_[N/m2]        G_[N/m2]       shear_[-]       Ixx_[m^4]       Iyy_[m^4]       Jzz_[m^4]          T0_[N]\n'
-    s += 'Elements: # {} x 16\n'.format(len(model.Elements))
+    s += '#    Elem_[#]    Node_1   Node_2   Prop_1   Prop_2     Type     Length_[m]      Area_[m^2]  Dens._[kg/m^3]        E_[N/m2]        G_[N/m2]       kappa_x_[-]       kappa_y_[-]       Ixx_[m^4]       Iyy_[m^4]       Jzz_[m^4]       Jt_[m^4]          T0_[N]\n'
+    s += 'Elements: # {} x 18\n'.format(len(model.Elements))
     for e in model.Elements:
         I = e.inertias
-        s0='  - [{:7d}.,{:7d}.,{:7d}.,{:7d}.,{:7d}.,{:7d}.,{:15.3f},{:15.3f},{:15.3f},{:15.6e},{:15.6e},{:15.6e},{:15.6e},{:15.6e},{:15.6e},{:15.6e}]\n'.format(
+        s0='  - [{:7d}.,{:7d}.,{:7d}.,{:7d}.,{:7d}.,{:7d}.,{:15.3f},{:15.3f},{:15.3f},{:15.6e},{:15.6e},{:15.6e},{:15.6e},{:15.6e},{:15.6e},{:15.6e},{:15.6e},{:15.6e}]\n'.format(
             elemID(e.ID), nodeID(e.nodeIDs[0]), nodeID(e.nodeIDs[1]), propID(e.propIDs[0], e.propset), propID(e.propIDs[1], e.propset), elemType(e.data['Type']), 
-            e.length, e.area, e.rho, e.E, e.G, e.kappa, I[0], I[1], I[2], e.T0)
+            e.length, e.area, e.rho, e.E, e.G, e.kappa_x, e.kappa_y, I[0], I[1], I[2], e.Jt, e.T0)
         s += s0.replace('e+','E+').replace('e-','E-')
     s += '#____________________________________________________________________________________________________\n'
     s += '#User inputs\n'
@@ -900,16 +1167,15 @@ def subdyntoYAMLSum(model, filename, more=False):
     s += '\n'.join(['#{:10d}{:10s}'.format(idof+1,'    Fixed' ) for idof in SD_Vars['IDI_F']])
     s += '\n'.join(['#{:10d}{:10s}'.format(idof+1,'    Leader') for idof in SD_Vars['IDI_B']])
     s += '\n\n'
-    CM = []
-    from welib.yams.utils import identifyRigidBodyMM
-    for n in model.Nodes:
-        if 'addedMassMatrix' in n.data:
-            mass, J_G, ref2COG = identifyRigidBodyMM(n.data['addedMassMatrix'])
-            CM.append( (n.ID, mass, J_G, ref2COG) )
+    CM = model.concentrated_masses # list of dict with keys: # {'nodeID':n.ID, 'mass':mass, 'J_G':J_G, 'rho_G':ref2COG, 'MM':MM} )
     s += '#Number of concentrated masses (NCMass):{:6d}\n'.format(len(CM))
     s += '#JointCMas           Mass            JXX            JYY            JZZ            JXY            JXZ            JYZ           MCGX           MCGY           MCGZ\n'
     for cm in CM:
-        s0 = '# {:9.0f}.{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}\n'.format( nodeID(cm[0]),  cm[1], cm[2][0,0], cm[2][1,1], cm[2][2,2], cm[2][0,1], cm[2][0,2], cm[2][1,2],cm[3][0],cm[3][1],cm[3][2] )
+        JG = cm['J_G']
+        rhoG = cm['rho_G']
+        s0 = '# {:9.0f}.{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}\n'.format(
+                nodeID(cm['nodeID']),  cm['mass'], JG[0,0], JG[1,1], JG[2,2], JG[0,1], JG[0,2], JG[1,2],rhoG[0],rhoG[1],rhoG[2]
+                )
         s += s0.replace('e+','E+').replace('e-','E-')
     s += '\n'
     #s += '#Number of members    18\n'
@@ -938,7 +1204,7 @@ def subdyntoYAMLSum(model, filename, more=False):
         A = e.area
         L = e.length
         t= rho*A*L
-        s0 = '{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}\n'.format(model.gravity,e.area, e.length, e.inertias[0], e.inertias[1], e.inertias[2], e.kappa, e.E, e.G, e.rho, t)
+        s0 = '{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}{:15.6e}\n'.format(model.gravity,e.area, e.length, e.inertias[0], e.inertias[1], e.inertias[2], e.kappa_x, e.kappa_y, e.E, e.G, e.rho, t)
         s0 = s0.replace('e+','E+').replace('e-','E-')
         s += s0
         s += yaml_array('KeLocal' +str(), model.Elements[0].Ke(local=True))
@@ -991,7 +1257,81 @@ def subdyntoYAMLSum(model, filename, more=False):
         with open(filename, 'w') as f:
             f.write(s)
 
+def xBeam_To_zBeam(df, prefix='G'):
+    # Define mapping from old component names to (new component name, sign)
+    comp_map = {
+        "ux": ("uz", 1),  # old ux becomes new uz with negative sign
+        "uy": ("uy", -1),  # old uy stays new uy with positive sign
+        "uz": ("ux", 1),  # old uz becomes new ux with positive sign
+        "tx": ("tz", 1),  # old tx becomes new tz with negative sign
+        "ty": ("ty", -1),  # old ty stays new ty with positive sign
+        "tz": ("tx", 1),  # old tz becomes new tx with positive sign
+    }
+    dof_map = { 1: 3, 2: 2, 3: 1, 4: 6, 5: 5, 6: 4}
+    guyan_mode_sign = {
+        1: 1,   # ux -> uz (+1)
+        2: -1,  # uy -> -uy (-1, flip mode to keep driving DOF at +1)
+        3: 1,   # uz -> ux (+1)
+        4: 1,   # tx -> tz (+1)
+        5: -1,  # ty -> -ty (-1, flip mode to keep driving DOF at +1)
+        6: 1,   # tz -> tx (+1)
+    }
+
+
+
+    # Identify grid prefixes (e.g., 'G1', 'G2', ...)
+    grid_prefixes = sorted( list({col.split("_")[0] for col in df.columns if col.startswith(prefix)}))
+
+    # New column ordering sequence per grid point
+    desired_comp_order = ["ux", "uy", "uz", "tx", "ty", "tz"]
+
+    df_new = pd.DataFrame(index=df.index)
+
+    # Set new spatial coordinate axis (old x becomes new z)
+
+    # Transform each grid point
+    for grid in grid_prefixes:
+        for new_comp in desired_comp_order:
+            # Find corresponding old component and sign factor
+            for old_comp, (target_comp, sign) in comp_map.items():
+                mode_scale = 1
+                if target_comp == new_comp:
+                    old_col = f"{grid}_{old_comp}"
+                    if grid.startswith('G'):
+                        old_dof = int(grid[1])
+                        new_dof = str(dof_map[old_dof])
+                        new_col = f"G{new_dof}_{new_comp}"
+                        mode_scale = guyan_mode_sign[old_dof]
+                    else:
+                        new_col = f"{grid}_{new_comp}"
+                    #print(f'>>> {old_col} {new_col} {sign}')
+                    df_new[new_col] = df[old_col] * sign * mode_scale
+                    break
+
+    desired_comp_order = ["ux", "uy", "uz", "tx", "ty", "tz"]
+    if prefix=='G':
+        g_cols = sorted(
+            [c for c in df_new.columns if c.startswith(prefix)],
+            key=lambda c: (
+                int(c.split("_")[0][1:]),
+                desired_comp_order.index(c.split("_")[1]),
+            ),
+        )
+        df_new = df_new[g_cols]
+    df_new.insert(0, 'z', df["x"].values)
+    return df_new
+
+
 
 if __name__ == '__main__':
+    from welib.weio.fast_input_file import FASTInputFile
     sdFilename = 'C:/Users/ebranlard/Documents/Work/2024-10-OESI-Digitwin/DigiTwinMonopile/simulations_wt/IEA-22-280-RWT/SD.dat'
+#     sd = FASTInputFile(sdFilename, verbose=True)
+#     dfs = sd.toDataFrame()
+#     print(dfs['Members'])
+#     print(dfs['Members']['MemberID_[-]'])
+#     print(dfs['Members']['MType_[-]'])
     sd = SubDyn(sdFilename)
+    print(sd)
+    graph = sd.getGraph(nDiv=2)
+    print(graph)

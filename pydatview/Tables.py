@@ -834,6 +834,7 @@ class Table(object):
 
     # --- Column manipulations
     def renameColumn(self,iCol,newName):
+        self.data.columns.values.flags.writeable = True
         self.data.columns.values[iCol]=newName
 
     def renameColumns(self, strReplDict=None, regReplDict=None):
@@ -916,7 +917,8 @@ class Table(object):
         isString = c.dtype == object and isinstance(c.values[0], str)
         if isString:
             x=x.astype(str)
-        isDate   = np.issubdtype(c.dtype, np.datetime64)
+        #isDate   = np.issubdtype(c.dtype, np.datetime64)
+        isDate = c.dtype.kind == 'M'
         if isDate:
             dt=getDt(x)
             if dt>1:

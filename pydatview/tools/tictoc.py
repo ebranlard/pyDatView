@@ -73,3 +73,11 @@ class Timer(object):
         else:
             s=self.ref_str()
             print(s+'Elapsed: {:6s}'.format(pretty_time(time.time() - self.tstart)))
+
+
+class TimeIt(Timer):
+    def __init__(self, *args, **kwargs):
+        Timer.__init__(self, *args, writeBefore=True, **kwargs)
+
+
+
