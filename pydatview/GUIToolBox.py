@@ -64,7 +64,10 @@ def TBAddTool(tb, label, defaultBitmap=None, callback=None, Type=None):
 
     if defaultBitmap is None:
         # Last resort, we add a button only
-        bt=wx.Button(tb,wx.ID_ANY, label)
+        if Type==2:
+            bt=wx.Button(tb,wx.ID_ANY, " "+label+" ", style=wx.BU_EXACTFIT)
+        else:
+            bt=wx.Button(tb,wx.ID_ANY, label)
         tl=tb.AddControl(bt)
         if callback is not None:
             tb.Bind(wx.EVT_BUTTON, callback, bt)

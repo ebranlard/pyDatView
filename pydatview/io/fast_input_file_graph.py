@@ -163,13 +163,17 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False, verbose=False):
     keys = hd.keys()
 
     # --- Properties
-    if 'SectionProp' in keys:
+    if 'SectionProp' or 'SectionPropCyl' in keys:
+        key = 'SectionProp' if 'SectionProp' in keys else 'SectionPropCyl'
+        # Legacy
         # NOTE: setting it as element property since two memebrs may connect on the same node with different diameters/thicknesses
         Graph.addNodePropertySet('Section')
-        for ip,P in enumerate(hd['SectionProp']):
+        for ip,P in enumerate(hd[key]):
             # PropSetID    PropD         PropThck
             prop= NodeProperty(ID=P[0], D=P[1], t=P[2])
             Graph.addNodeProperty('Section',prop)
+    else:
+        raise Exception('Neither SectionProp or sectionPropCyl found')
 
     # --- Hydro Coefs - will be stored in AxCoefs, SimpleCoefs, DepthCoefs, MemberCoefs
     if 'AxCoefs' in keys:
@@ -238,11 +242,20 @@ def hydrodynToGraph(hd, propToNodes=False, propToElem=False, verbose=False):
     PropSets=['SimpleCoefs','DepthCoefs','MemberCoefs']
     Members   = hd['Members']
     for ie,E in enumerate(Members):
-        # MemberID  MJointID1  MJointID2  MPropSetID1  MPropSetID2  MDivSize   MCoefMod  PropPot 
+        #       0           1         2           3             4           5        6               7          8
+        # OLD: MemberID  MJointID1  MJointID2  MPropSetID1  MPropSetID2  MDivSize   MCoefMod      PropPot 
+        # NEW: MemberID  MJointID1  MJointID2  MPropSetID1  MPropSetID2  MSecGeom   MSpinOrient   MDivSize   MCoefMod   MHstLMod  PropPot 
         EE   = E[:5].astype(int)
-        Type = int(E[6]) # MCoefMod
-        Pot  = E[7].lower()[0]=='t'
-        elem= Element(ID=EE[0], nodeIDs=EE[1:3], propIDs=EE[3:5], propset='Section', CoefMod=PropSets[Type-1], DivSize=float(E[5]), Pot=Pot)
+        if len(E)==8:
+            # Legacy
+            Type = int(E[6])             # MCoefMod
+            Pot  = E[7].lower()[0]=='t'  # PropPot
+            elem= Element(ID=EE[0], nodeIDs=EE[1:3], propIDs=EE[3:5], propset='Section', CoefMod=PropSets[Type-1], DivSize=float(E[5]), Pot=Pot)
+        else:
+            Type = int(E[8])             # MCoefMod
+            Pot  = E[10].lower()[0]=='t'  # PropPot
+            elem= Element(ID=EE[0], nodeIDs=EE[1:3], propIDs=EE[3:5], propset='Section', CoefMod=PropSets[Type-1], DivSize=float(E[7]), Pot=Pot)
+
         elem.data['object']='cylinder'
         elem.data['color'] = type2Color(Pot)
         Graph.addElement(elem)

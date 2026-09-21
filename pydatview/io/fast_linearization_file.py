@@ -137,7 +137,8 @@ class FASTLinearizationFile(File):
                         #StateRotation:
                     elif line.find('ED M:')>=0:
                         self['EDDOF'] = line[5:].split()
-                        self['M']     = readMat(f, 24, 24,'M', slowReader=slowReader, filename=self.filename, starSubFn=starSubFn, starSub=starSub)
+                        nED = len(self['EDDOF']) # 24 before PitchDOF, 27 after v5.0
+                        self['M']     = readMat(f, nED, nED,'M', slowReader=slowReader, filename=self.filename, starSubFn=starSubFn, starSub=starSub)
         try:
             doRead(slowReader=False)
         except SlowReaderNeededError:

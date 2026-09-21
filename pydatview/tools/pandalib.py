@@ -65,7 +65,8 @@ def remap_df(df, ColMap, bColKeepNewOnly=False, inPlace=False, dataDict=None, ve
 
     """
     # Insert dataDict into namespace, doesnt work
-    #if dataDict is not None:
+    if dataDict is not None:
+        raise Exception('DataDict was removed')
     #    for k,v in dataDict.items():
     #        print('>>>> SETTING ', k, dataDict[k])
     #        exec('{:s} = dataDict["{:s}"]'.format(k,k))

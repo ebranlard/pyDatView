@@ -138,10 +138,10 @@ class SubDyn:
         FEM.KBB = FEM.KK_CB[np.ix_(FEM.DOF_Leader_CB  , FEM.DOF_Leader_CB)]
         FEM.MBM = FEM.MM_CB[np.ix_(FEM.DOF_Leader_CB  , FEM.DOF_Follower_CB)]
         FEM.KMM = FEM.KK_CB[np.ix_(FEM.DOF_Follower_CB, FEM.DOF_Follower_CB)]
-        zeta =self.File['JDampings']/100
-        if not hasattr(zeta,'__len__'):
-            zeta = [zeta]*FEM.nModesCB
-            FEM.CMM = 2*np.array(zeta) * FEM.f_CB * 2 * np.pi
+        zeta = np.asarray(self.File['JDampings'], dtype=float) / 100
+        if zeta.ndim == 0:
+            zeta = np.full(FEM.nModesCB, zeta)
+        FEM.CMM = 2 * zeta * FEM.f_CB * 2 * np.pi
 
         # --- Matrices wrt TP point
         TI=FEM.T_refPoint
@@ -571,6 +571,31 @@ class SubDyn:
         df.columns = df_columns_bkp
 
         return zBeam, F_sec, r_sec
+
+    def beamSecOutputsInfo(self, h_in=None, lbl_in='other'):
+        """ """
+
+        MNo = self.pointsMNout # Store for efficiency
+        mnp_df        = self.beamDataFrame()
+        mnp_labels    = list(MNo.index)
+        mnp_Out_df = pd.DataFrame()
+        mnp_Out_df['#']   = [f'{i+1}' for i in range(len(mnp_labels))]
+        mnp_Out_df['iNode+1'] = [int(label.partition('N')[0][1:]) for label in mnp_labels]
+        mnp_Out_df['h']     = MNo['z'].values-mnp_df['z'][0] # [Mno.loc[label, 'z'] for label in mnp_labels]
+        mnp_Out_df['z']     = MNo['z'].values # [Mno.loc[label, 'z'] for label in mnp_labels]
+        mnp_Out_df['Lbl']   = mnp_labels
+        mnp_Out_df['i']     = [np.argmin(np.abs(mnp_df['z'] - MNo.loc[label, 'z'])) for label in mnp_labels]
+
+        if h_in is not None:
+            try:
+                np.testing.assert_allclose(mnp_df['z']-mnp_df['z'][0], h_in)
+            except:
+                raise NotImplementedError()
+                mnp_Out_I  = [np.argmin(np.abs(hSL-h_in)) for hSL in MNo['h']] 
+                mnp_Out_h  = h_in[np.asarray(mnp_Out_I)] if len(mnp_Out_I)>0 else []
+                mnp_Out_df[lbl_in+'_h'] = twr_Out_h
+                mnp_Out_df[lbl_in+'_i'] = twr_Out_I
+        return mnp_Out_df
 
 
     def beamModes(self, nCB=None, FEM = None, method='cbeam', verbose=False):

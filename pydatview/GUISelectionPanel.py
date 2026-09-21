@@ -735,7 +735,7 @@ class TablePanel(wx.Panel):
         self.tabList   = selPanel.tabList
         # GUI
         tb = wx.ToolBar(self,wx.ID_ANY,style=wx.TB_HORIZONTAL|wx.TB_TEXT|wx.TB_HORZ_LAYOUT|wx.TB_NODIVIDER)
-        self.bt=wx.Button(tb,wx.ID_ANY,CHAR['menu'], style=wx.BU_EXACTFIT)
+        self.bt=wx.Button(tb,wx.ID_ANY, label=CHAR['menu'], style=wx.BU_EXACTFIT)
         self.lb=wx.StaticText(tb, -1, ' Tables ' )
         tb.AddControl(self.bt)
         tb.AddControl(self.lb)

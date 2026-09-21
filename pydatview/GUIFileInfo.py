@@ -168,7 +168,15 @@ class FileInfoPanel(wx.Panel):
                 content+= '{}'.format(getattr(file_object, key))
             elif stype=='dict':
                 content+= f"#Value of {stype} {key}:\n"
-                content+= '{}'.format(file_object[key])
+                O = file_object[key]
+                if isinstance(O, dict):
+                    content +='{\n'
+                    for k, v in O.items():
+                        k="'"+k+"'"
+                        content+= f"  {k:20s}: {v}\n"
+                    content +='}\n'
+                else:
+                    content+= '{}'.format(file_object[key])
             content+='\n'
         self.tb.SetValue(content)
 

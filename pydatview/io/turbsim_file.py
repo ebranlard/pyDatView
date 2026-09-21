@@ -424,7 +424,7 @@ class TurbSimFile(File):
         return z, rho_uu_z, rho_vv_z, rho_ww_z
 
 
-    def csd_longi(ts, iy0=None, iz0=None):
+    def csd_longi(ts, iy0=None, iz0=None, nperseg=256):
         """ Compute cross spectral density
         If no index is provided, computed at mid box 
         """
@@ -433,12 +433,15 @@ class TurbSimFile(File):
         t       = ts['t']
         dt      = t[1]-t[0]
         fs      = 1/dt
-        fc, chi_uu = sig.csd(u, u, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
-        fc, chi_vv = sig.csd(v, v, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
-        fc, chi_ww = sig.csd(w, w, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
+        nperseg = 256
+        if len(u)<nperseg:
+            nperseg = len(u)
+        fc, chi_uu = sig.csd(u, u, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
+        fc, chi_vv = sig.csd(v, v, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
+        fc, chi_ww = sig.csd(w, w, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
         return fc, chi_uu, chi_vv, chi_ww
 
-    def csd_lat(ts, ix0=None, iz0=None):
+    def csd_lat(ts, ix0=None, iz0=None, nperseg=256):
         """ Compute lateral cross spectral density
         If no index is provided, computed at mid box 
         """
@@ -447,12 +450,14 @@ class TurbSimFile(File):
         t       = ts['t']
         dt      = t[1]-t[0]
         fs      = 1/dt
-        fc, chi_uu = sig.csd(u, u, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
-        fc, chi_vv = sig.csd(v, v, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
-        fc, chi_ww = sig.csd(w, w, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
+        if len(u)<nperseg:
+            nperseg = len(u)
+        fc, chi_uu = sig.csd(u, u, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
+        fc, chi_vv = sig.csd(v, v, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
+        fc, chi_ww = sig.csd(w, w, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
         return fc, chi_uu, chi_vv, chi_ww
 
-    def csd_vert(ts, ix0=None, iy0=None):
+    def csd_vert(ts, ix0=None, iy0=None, nperseg=256):
         """ Compute vertical cross spectral density
         If no index is provided, computed at mid box 
         """
@@ -464,9 +469,11 @@ class TurbSimFile(File):
         u= u-np.mean(u)
         v= v-np.mean(v)
         w= w-np.mean(w)
-        fc, chi_uu = sig.csd(u, u, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
-        fc, chi_vv = sig.csd(v, v, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
-        fc, chi_ww = sig.csd(w, w, fs=fs, scaling='density') #nperseg=4096, noverlap=2048, detrend='constant')
+        if len(u)<nperseg:
+            nperseg = len(u)
+        fc, chi_uu = sig.csd(u, u, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
+        fc, chi_vv = sig.csd(v, v, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
+        fc, chi_ww = sig.csd(w, w, fs=fs, scaling='density', nperseg=nperseg) #nperseg=4096, noverlap=2048, detrend='constant')
         return fc, chi_uu, chi_vv, chi_ww
 
 

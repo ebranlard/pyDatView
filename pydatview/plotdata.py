@@ -5,6 +5,7 @@ from pydatview.common import no_unit, unit, inverse_unit, splitunit, has_chinese
 from pydatview.common import isString, isDate, getDt
 from pydatview.common import unique, pretty_num, pretty_time, pretty_date
 from pydatview.tools.stats import bin_signal
+from pydatview.tools.stats import rsquare
 import matplotlib.dates as mdates
 try:
     trapz = np.trapezoid
@@ -849,6 +850,9 @@ class PlotData():
                 v = np.nan
             return v,pretty_num(v)
 
+    # --------------------------------------------------------------------------------}
+    # ---  FFT
+    # --------------------------------------------------------------------------------{
     def Info(PD,var):
         if var=='LSeg':
             return '','{:d}'.format(PD._Info.LSeg)
@@ -858,6 +862,19 @@ class PlotData():
             return '','{:d}'.format(PD._Info.LOvlp)
         elif var=='nFFT':
             return '','{:d}'.format(PD._Info.nFFT)
+
+    # --------------------------------------------------------------------------------}
+    # --- Compare
+    # --------------------------------------------------------------------------------{
+    # TODO call this "Compare_Stats" and use a dict
+    def R2(PD, var=None):
+        if hasattr(PD, '_R2'):
+            R2 = PD._R2
+            return R2, '{:.3f}'.format(R2)
+        else:
+            return np.nan, 'NA'
+
+
 
     @staticmethod
     def createDummy(n=30):
@@ -951,7 +968,9 @@ def compareMultiplePD(PD, mode, sComp):
         xRef = PD[0].x
         yRef = PD[0].y
         PD[1].syl=SS
-        y=np.interp(xRef,PD[1].x,PD[1].y)
+        y=np.interp(xRef, PD[1].x, PD[1].y)
+
+        R2, rmse = rsquare(yRef, y)
         if sComp=='Y-Y':
             PD[1].x=yRef
             PD[1].y=y
@@ -961,6 +980,7 @@ def compareMultiplePD(PD, mode, sComp):
             PD[1].y=Error
         PD[1].sx=xlabelAll
         PD[1].sy=ylabelAll
+        PD[1]._R2 = R2
         PD_comp=[PD[1]] # return
 
     elif mode=='1Tab_nCols':
@@ -971,6 +991,8 @@ def compareMultiplePD(PD, mode, sComp):
         yRef = PD[0].y
         pdRef=PD[0]
         for pd in PD[1:]:
+            R2, rmse = rsquare(yRef, pd.y)
+            pd._R2 = R2
             if sComp=='Y-Y':
                 pd.syl = no_unit(pd.sy)+' wrt. '+no_unit(pdRef.sy)
                 pd.x   = yRef
@@ -1002,6 +1024,9 @@ def compareMultiplePD(PD, mode, sComp):
                         raise Exception('X values have different length and are strings, cannot interpolate string. Use `Index` for x instead.')
                 else:
                     pd.y=np.interp(xRef,pd.x,pd.y)
+
+                R2, rmse = rsquare(yRef, pd.y)
+                pd._R2 = R2
                 if sComp=='Y-Y':
                     pd.x=yRef
                     pd.sx=PD_SameCol[0].st+', '+PD_SameCol[0].sy
@@ -1024,6 +1049,9 @@ def compareMultiplePD(PD, mode, sComp):
         # --- Compare different tables, similar columns
         print('Several Tabs, similar columns, TODO')
         PD_comp=[]
+
+    #for pd in PD_comp:
+    #    print('R2',pd._R2)
 
     return PD_comp
 

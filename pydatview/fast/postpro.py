@@ -234,7 +234,10 @@ def BD_BldStations(BD, BDBld):
         # qp_indx_offset = 0
         # BldMotionNodeLoc = BD_MESH_QP ! we want to output y%BldMotion at the blade input property stations, and this will be a short-cut       
         dr   = np.diff(rStations)/refine
-        rmid = np.concatenate( [rStations[:-1]+dr*(iref+1) for iref in np.arange(refine-1)  ])
+        if refine==1:
+            rmid = np.array(rStations[:-1]+dr)
+        else:
+            rmid = np.concatenate( [rStations[:-1]+dr*(iref+1) for iref in np.arange(refine-1)  ])
         r    = np.concatenate( (rStations, rmid))
         r    = np.unique(np.sort(r))
     else:
@@ -568,17 +571,17 @@ def _BDSpanMap():
         BDSpanMap['^'+sB+r'N(\d)TDzr_\[m\]']         = sB+'TDzr_[m]'
         # New nodal outputs
         BDSpanMap['^'+sB+r'N(\d*)_FxL_\[N\]']        = sB+'FxL_[N]'
-        BDSpanMap['^'+sB+r'N(\d*)_FxL_\[N\]']        = sB+'FxL_[N]'
-        BDSpanMap['^'+sB+r'N(\d*)_FxL_\[N\]']        = sB+'FxL_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FyL_\[N\]']        = sB+'FyL_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_FzL_\[N\]']        = sB+'FzL_[N]'
         BDSpanMap['^'+sB+r'N(\d*)_MxL_\[N-m\]']      = sB+'MxL_[N-m]'
-        BDSpanMap['^'+sB+r'N(\d*)_MxL_\[N-m\]']      = sB+'MxL_[N-m]'
-        BDSpanMap['^'+sB+r'N(\d*)_MxL_\[N-m\]']      = sB+'MxL_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MyL_\[N-m\]']      = sB+'MyL_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_MzL_\[N-m\]']      = sB+'MzL_[N-m]'
         BDSpanMap['^'+sB+r'N(\d*)_Fxr_\[N\]']        = sB+'Fxr_[N]'
-        BDSpanMap['^'+sB+r'N(\d*)_Fxr_\[N\]']        = sB+'Fxr_[N]'
-        BDSpanMap['^'+sB+r'N(\d*)_Fxr_\[N\]']        = sB+'Fxr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_Fyr_\[N\]']        = sB+'Fyr_[N]'
+        BDSpanMap['^'+sB+r'N(\d*)_Fzr_\[N\]']        = sB+'Fzr_[N]'
         BDSpanMap['^'+sB+r'N(\d*)_Mxr_\[N-m\]']      = sB+'Mxr_[N-m]'
-        BDSpanMap['^'+sB+r'N(\d*)_Mxr_\[N-m\]']      = sB+'Mxr_[N-m]'
-        BDSpanMap['^'+sB+r'N(\d*)_Mxr_\[N-m\]']      = sB+'Mxr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_Myr_\[N-m\]']      = sB+'Myr_[N-m]'
+        BDSpanMap['^'+sB+r'N(\d*)_Mzr_\[N-m\]']      = sB+'Mzr_[N-m]'
         BDSpanMap['^'+sB+r'N(\d*)_TDxr_\[m\]']       = sB+'TDxr_[m]'
         BDSpanMap['^'+sB+r'N(\d*)_TDyr_\[m\]']       = sB+'TDyr_[m]'
         BDSpanMap['^'+sB+r'N(\d*)_TDzr_\[m\]']       = sB+'TDzr_[m]'
@@ -1251,7 +1254,7 @@ def radialAvg(filename, avgMethod, avgParam, raw_name='', df=None, raiseExceptio
                 names_new=['']
     return dfs_new, names_new
 
-def spanwisePostProRows(df, FST_In=None, si1='i1', sir='ir'):
+def spanwisePostProRows(df, FST_In=None, si1='i1', sir='ir', verbose=True):
     """ 
     Returns a 3D matrix: n x nSpan x nColumn where df is of size n x mColumn
 
@@ -1285,9 +1288,10 @@ def spanwisePostProRows(df, FST_In=None, si1='i1', sir='ir'):
     cols = cols_AD+cols_ED+cols_BD
     diff = [col for col in df.columns if col not in set(cols)]
     missing_cols = [c for c in diff if c.startswith(('B1', 'AB1'))]
-    if len(missing_cols)>0:
-        print('The following columns where not handled by spanwisePostPro: ')
-        print(missing_cols)
+    if verbose:
+        if len(missing_cols)>0:
+            print('The following columns where not handled by spanwisePostProRows: ')
+            print(missing_cols)
     import xarray as xr
     ds_Other = xr.Dataset.from_dataframe(df[diff])
     ds_Other = ds_Other.rename_dims({"index": si1}).rename_vars({"index": si1})

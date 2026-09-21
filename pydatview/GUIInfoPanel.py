@@ -208,6 +208,7 @@ class InfoPanel(wx.Panel):
         self.ColsCmp.append({'name':'Std(Cmp)'  , 'al':'R' , 'm':'yStd'   ,                            's' :True})
         self.ColsCmp.append({'name':'Min(Cmp)'  , 'al':'R' , 'm':'yMin'   ,                            's' :True})
         self.ColsCmp.append({'name':'Max(Cmp)'  , 'al':'R' , 'm':'yMax'   ,                            's' :True})
+        self.ColsCmp.append({'name':'R^2    '   , 'al':'R' , 'm':'R2'     ,                            's' :True})
         self.ColsCmp.append({'name':'nNA(Cmp)'  , 'al':'R' , 'm':'nNA'    ,                            's' :True})
         self.ColsCmp.append({'name':'n(Cmp)'    , 'al':'R' , 'm':'ylen'   ,                            's' :True})
 
@@ -258,7 +259,7 @@ class InfoPanel(wx.Panel):
         plot_matrix_spacer= wx.Panel(self, size=(-1, 27))
 
         # self.bt = wx.Button(plot_matrix_spacer, -1, u'\u22EE', style=wx.BU_EXACTFIT)
-        self.bt = wx.Button(plot_matrix_spacer, -1, u'\u2630', style=wx.BU_EXACTFIT)
+        self.bt = wx.Button(plot_matrix_spacer, -1, u' \u2630 ', style=wx.BU_EXACTFIT)
         self.bt.Bind(wx.EVT_BUTTON, self.showMenu)
         sizer_plot_matrix_spacer.Add(self.bt     , 0, wx.TOP, border=0)
         plot_matrix_spacer.SetSizer(sizer_plot_matrix_spacer)

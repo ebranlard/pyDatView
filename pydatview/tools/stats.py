@@ -15,7 +15,7 @@ except:
 # --------------------------------------------------------------------------------}
 # --- Stats measures 
 # --------------------------------------------------------------------------------{
-def comparison_stats(t1, y1, t2, y2, stats='sigRatio,eps,R2', method='mean', absVal=True):
+def comparison_stats(t1, y1, t2, y2, stats='sigRatio,eps,R2', method='mean', absVal=True, latex=True):
     """
     y1: ref
     y2: other
@@ -44,32 +44,60 @@ def comparison_stats(t1, y1, t2, y2, stats='sigRatio,eps,R2', method='mean', abs
             except:
                 r_sig = np.nan
             stats = {'sigRatio':r_sig}
-            sStats+= [r'$\sigma_\mathrm{est}/\sigma_\mathrm{ref} = $'+r'{:.3f}'.format(r_sig)]
+            if latex:
+                sStats+= [r'$\sigma_\mathrm{est}/\sigma_\mathrm{ref} = $'+r'{:.3f}'.format(r_sig)]
+            else:
+                sStats+= ['std ratio (est/ref)={:.3f}'.format(r_sig)]
 
         elif s=='eps':
             # Mean relative error
             eps     = float(mean_rel_err(t1, y1, t2, y2, method=method, absVal=absVal))
             stats['eps'] = eps
-            sStats+=[r'$\epsilon=$'+r'{:.1f}%'.format(eps)]
+            if latex:
+                sStats+=[r'$\epsilon=$'+r'{:.1f}%'.format(eps)]
+            else:
+                sStats+=['eps={:.1f}%'.format(eps)]
 
         elif s=='r2':
             # Rsquare
             R2 = float(rsquare(y2, y1)[0])
             stats['R2'] = R2
-            sStats+=[r'$R^2=$'+r'{:.3f}'.format(R2)]
+            if latex:
+                sStats+=[r'$R^2=$'+r'{:.3f}'.format(R2)]
+            else:
+                sStats+=['R^2={:.3f}'.format(R2)]
 
         elif s=='epsleq':
             Leq1 = equivalent_load(t1, y1, m=5, bins=100, method='fatpack')
             Leq2 = equivalent_load(t2, y2, m=5, bins=100, method='fatpack')
             epsLeq = (Leq2-Leq1)/Leq1*100
             stats['epsLeq'] = epsLeq
-            sStats+=[r'$\epsilon L_{eq}=$'+r'{:.1f}%'.format(epsLeq)]
+            if latex:
+                sStats+=[r'$\epsilon L_{eq}=$'+r'{:.1f}%'.format(epsLeq)]
+            else:
+                sStats+=[r'eps L_{eq}={:.1f}%'.format(epsLeq)]
 
         else:
             raise NotImplementedError(s)
     sStats=' - '.join(sStats)
     return stats, sStats
 
+def allclose_errors(actual, desired):
+    actual = np.asarray(actual)
+    desired = np.asarray(desired)
+
+    # Absolute error element-wise
+    abs_err = np.abs(actual - desired)
+    max_abs_err = np.max(abs_err)
+
+    # Relative error element-wise (handling division by zero safely)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rel_err = abs_err / np.abs(desired)
+        # Filter out NaNs/Infs that occur where desired == 0
+        rel_err_clean = np.where(np.isfinite(rel_err), rel_err, 0.0)
+        max_rel_err = np.max(rel_err_clean)
+
+    return max_abs_err, max_rel_err
 
 
 def rsquare(y, f, c = True): 

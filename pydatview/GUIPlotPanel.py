@@ -1073,7 +1073,7 @@ class PlotPanel(wx.Panel):
         self.navTBBottom = MyNavigationToolbar2Wx(self.canvas, ['Subplots', 'Save'], plotPanel=self)
         TBAddCheckTool(self.navTBBottom,'', icons.chart.GetBitmap(), self.onEsthToggle)
         self.esthToggle=False
-        TBAddTool(self.navTBBottom, 'BG', callback=self.onBgMenu)
+        TBAddTool(self.navTBBottom, label= CHAR['menu']+' BG', callback=self.onBgMenu, Type=2)
 
         self.navTBBottom.Realize()
 

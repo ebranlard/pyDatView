@@ -39,11 +39,12 @@ try:
 except:
     print('CSVFile not available')
 
-
+# File Format Constants
 FileFmtID_WithTime              = 1 # File identifiers used in FAST
 FileFmtID_WithoutTime           = 2
 FileFmtID_NoCompressWithoutTime = 3
 FileFmtID_ChanLen_In            = 4 # Channel length included in file
+FileFmtID_ChanLen_NoCompress    = 5
 
 
 # --------------------------------------------------------------------------------}
@@ -80,12 +81,37 @@ class FASTOutputFile(File):
 
     # Inherit __enter__, __exit__, and _enforce_context_if_needed from parent File class
 
-    def __init__(self, filename=None, streaming=False, **kwargs):
-        """ Class constructor. If a `filename` is given, the file is read. """
+    def __init__(self, filename=None, streaming=False, verbose=False, **kwargs):
+        """
+        Load a FAST binary or ascii output file
+
+        Parameters
+        ----------
+        filename : str
+            filename
+
+        Returns
+        -------
+        data: ndarray
+            data values
+        info: dict
+            info containing:
+                - name: filename
+                - description: description of dataset
+                - attribute_names: list of attribute names
+                - attribute_units: list of attribute units
+         """
         # FASTOutputFile-specific attributes
         self.data        = None  # pandas.DataFrame
         self.description = ''    # string
         self._data_start_pos = None
+        self.verbose=verbose
+        # Dictionary keys:
+        self['attribute_names'] = []
+        self['attribute_units'] = []
+        self['binary'] = None
+        self['fileID'] = None
+        self['info_binary'] = None
 
         # Call parent __init__ - handles streaming, filename, _fid, _in_context
         File.__init__(self, filename=filename, streaming=streaming, **kwargs)
@@ -126,15 +152,17 @@ class FASTOutputFile(File):
         self['binary']=False
 
         if self.streaming:
+            if verbose:
+                print('Reading using streaming method')
             # Streaming mode: read headers only, keep file open
             try:
                 if ext=='.outb' or (ext not in ['.out','.elev','.dbg','.dbg2','.elm'] and isBinary(self.filename)):
                     # Binary file - read header only
-                    self._fid, info = load_binary_output_header(self.filename, **kwargs)
+                    self._fid, info = load_binary_output_header(self.filename, verbose=self.verbose, **kwargs)
                     self['binary']=True
                 elif ext in ['.out','.elev','.dbg','.dbg2'] or (ext not in ['.outb','.elm']):
                     # ASCII file - read header only
-                    self._fid, info = load_ascii_output_header(self.filename, **kwargs)
+                    self._fid, info = load_ascii_output_header(self.filename, verbose=self.verbose, **kwargs)
                     self['binary']=False
                 elif ext=='.elm':
                     # .elm files not supported in streaming mode yet
@@ -145,11 +173,13 @@ class FASTOutputFile(File):
                 raise WrongFormatError('FAST Out File {}: {}'.format(self.filename,e.args))
         else:
             # Normal mode: read entire file
+            if self.verbose:
+                print('Reading without streaming method')
             try:
                 if ext in ['.out','.elev','.dbg','.dbg2']:
-                    self.data, info = load_ascii_output(self.filename, **kwargs)
+                    self.data, info = load_ascii_output(self.filename, verbose=self.verbose, **kwargs)
                 elif ext=='.outb':
-                    self.data, info = load_binary_output(self.filename, **kwargs)
+                    self.data, info = load_binary_output(self.filename, verbose=self.verbose, **kwargs)
                     self['binary']=True
                 elif ext=='.elm':
                     F=CSVFile(filename=self.filename, sep=' ', commentLines=[0,2],colNamesLine=1)
@@ -159,10 +189,10 @@ class FASTOutputFile(File):
                     info['attribute_names']=self.data.columns.values
                 else:
                     if isBinary(self.filename):
-                        self.data, info = load_binary_output(self.filename, **kwargs)
+                        self.data, info = load_binary_output(self.filename, verbose=self.verbose, **kwargs)
                         self['binary']=True
                     else:
-                        self.data, info = load_ascii_output(self.filename, **kwargs)
+                        self.data, info = load_ascii_output(self.filename, verbose=self.verbose, **kwargs)
                         self['binary']=False
             except MemoryError as e:
                 raise BrokenReaderError('FAST Out File {}: Memory error encountered\n{}'.format(self.filename,e))
@@ -180,7 +210,8 @@ class FASTOutputFile(File):
         self.description = ''.join(self.description) if isinstance(self.description,list) else self.description
 
         # Store binary file metadata for streaming mode
-        if self.streaming and self['binary']:
+        if self['binary']:
+            self['fileID'] = info['fileID']
             self['info_binary'] = info
 
         # --- Convert to DataFrame (only if data was loaded)
@@ -283,15 +314,34 @@ class FASTOutputFile(File):
         """ Returns object into one DataFrame, or a dictionary of DataFrames"""
         return self.data
 
-    def writeDataFrame(self, df, filename, binary=True):
-        writeDataFrame(df, filename, binary=binary)
+    def writeDataFrame(self, df, filename, binary=True, fileID=FileFmtID_ChanLen_In):
+        writeDataFrame(df, filename, binary=binary, fileID=fileID)
 
     def __repr__(self):
         s='<{} object> with attributes:\n'.format(type(self).__name__)
         s+=' - filename:    {}\n'.format(self.filename)
-        s+=' - data ({})\n'.format(type(self.data))
-        s+=' - description: {}\n'.format(self.description)
-        s+='and keys: {}\n'.format(self.keys())
+        if self.data is not None:
+            s+=' - data: type: {}\n'.format(type(self.data))
+            s+='         shape: {} x {}\n'.format(self.data.shape[0], self.data.shape[1])
+            time = self.data['Time_[s]'].values
+            cols = list(self.data.keys())
+            if self.data.shape[1]>=2:
+                columns = self.data['Time_[s]'].values
+                dt = (time[-1]-time[0]) / (len(time)-1)
+            else:
+                dt = np.nan 
+            if len(cols)>=2:
+                cc = [cols[0], cols[1], cols[-1]]
+            else:
+                cc = [cols[0], cols[0], cols[0]]
+            s+='         columns:  [{}, {}, ...{}]\n'.format(cc[0], cc[1], cc[2])
+            s+='         Time_[s]: [{}...{}] dt {}\n'.format(time[0], time[-1], dt)
+        else:
+            s+=' - data: {}\n'.format(self.data)
+        s+=' - description: {}...\n'.format(self.description[:50])
+        s+='keys: {}\n'.format(self.keys())
+        s+='  - binary: {}\n'.format(self['binary'])
+        s+='  - fileID: {}\n'.format(self['fileID'])
         return s
 
     # --------------------------------------------------------------------------------
@@ -479,7 +529,9 @@ def isBinary(filename):
             return True
 
         
-
+# --------------------------------------------------------------------------------
+# --- Load ASCII
+# --------------------------------------------------------------------------------
 
 
 def load_ascii_output_header(filename, encoding='ascii', **kwargs):
@@ -524,7 +576,10 @@ def load_ascii_output_header(filename, encoding='ascii', **kwargs):
     return fid, info
 
 
-def load_ascii_output(filename, method='numpy', encoding='ascii', **kwargs):
+def load_ascii_output(filename, method='numpy', encoding='ascii', verbose=False, **kwargs):
+
+    if verbose:
+        print('Reading ascii output')
 
 
     if method in ['forLoop','pandas']:
@@ -662,7 +717,7 @@ def load_binary_output_header(filename, **kwargs):
     info['description'] = DescStr
     info['attribute_names'] = ChanName
     info['attribute_units'] = ChanUnit
-    info['FileID'] = FileID
+    info['fileID'] = FileID
     info['NumOutChans'] = NumOutChans
     info['NT'] = NT
     info['ColScl'] = ColScl
@@ -703,7 +758,7 @@ def load_binary_output_data(fid, info, use_buffer=False, method='mix'):
     import struct
 
     # Extract metadata
-    FileID = info['FileID']
+    FileID = info['fileID']
     NumOutChans = info['NumOutChans']
     NT = info['NT']
     ColScl = info['ColScl']
@@ -836,14 +891,17 @@ def load_binary_output_data(fid, info, use_buffer=False, method='mix'):
         # Adding time column
         data[:,0] = time
     else:
-        # NOTE: memory expensive due to time conversion, and concatenation
-        data = (data - ColOff) / ColScl
+        if FileID == FileFmtID_NoCompressWithoutTime:
+            pass
+        else:
+            # NOTE: memory expensive due to time conversion, and concatenation
+            data = (data - ColOff) / ColScl
         data = np.concatenate([time.reshape(NT, 1), data], 1)
 
     return data
 
 
-def load_binary_output(filename, use_buffer=False, method='mix', **kwargs):
+def load_binary_output(filename, use_buffer=False, method='mix', verbose=False, **kwargs):
     """
     Read OpenFAST binary output file.
 
@@ -874,8 +932,21 @@ def load_binary_output(filename, use_buffer=False, method='mix', **kwargs):
     20/11/23: Improved performances using np.fromfile, by E. Branlard, NREL
     11/08/25: Refactored to use shared header/data functions, by E. Branlard, NREL
     """
+
+    if verbose:
+        print('Reading binary output')
+
     # Read header and get file handle positioned at data start
     fid, info = load_binary_output_header(filename)
+    if verbose:
+        print('Header info:')
+        for k, v in info.items():
+            if not isinstance(v, str) and hasattr(v, '__len__') :
+                v = np.asarray(v).flatten()
+                print(f'  - {k:20s}: {v}')
+            else:
+                print(f'  - {k:20s}: {v}')
+
 
     try:
         # Read data using header metadata
@@ -885,31 +956,33 @@ def load_binary_output(filename, use_buffer=False, method='mix', **kwargs):
         fid.close()
 
     # Return in format expected by legacy callers
-    legacy_info = {
-        'name': info['name'],
-        'description': info['description'],
-        'fileID': info['FileID'],
-        'attribute_names': info['attribute_names'],
-        'attribute_units': info['attribute_units']
-    }
-    return data, legacy_info
+#     legacy_info = {
+#         'name': info['name'],
+#         'description': info['description'],
+#         'fileID': info['FileID'],
+#         'attribute_names': info['attribute_names'],
+#         'attribute_units': info['attribute_units']
+#     }
+    return data, info
 
 
 def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
     """
     Write an OpenFAST binary file.
 
-    Based on contributions from
-        Hugo Castro, David Schlipf, Hochschule Flensburg
-    
-    Input:
-     FileName      - string: contains file name to open
-     Channels      - 2-D array: dimension 1 is time, dimension 2 is channel 
-     ChanName      - cell array containing names of output channels
-     ChanUnit      - cell array containing unit names of output channels, preferably surrounded by parenthesis
-     FileID        - constant that determines if the time is stored in the
-                     output, indicating possible non-constant time step
-     DescStr       - String describing the file
+    INPUTS:
+     - fileName : str
+            Path to output binary file
+     - channels : 2D array-like
+            Array containing time as 1st column, followed by output channels
+     - chanNames : list of str
+            Channel names (including 'Time' as first element)
+     - chanUnits : list of str
+            Channel units
+     - fileID : int, optional (default=4)
+            OpenFAST binary format ID (1, 2, 3, 4, or 5)
+     - descStr : str, optional
+            Description string written to header
     """
     # Data sanitization
     chanNames = list(chanNames)
@@ -918,8 +991,8 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
     #if len(nan_col_indices)>0:
     #    print('[WARN] writeBinary: The following columns have NaN: ', np.asarray(chanNames)[nan_col_indices.astype(int)])
     #    channels[:,nan_col_indices] = 0
-    if chanUnits[0][0]!='(':
-        chanUnits = ['('+u+')' for u in chanUnits] # units surrounded by parenthesis to match OpenFAST convention
+    if chanUnits[0][0] != '(':
+        chanUnits = ['(' + u+')' for u in chanUnits] # units surrounded by parenthesis to match OpenFAST convention
 
     nT, nChannelsWithTime = np.shape(channels)
     nChannels             = nChannelsWithTime - 1
@@ -934,71 +1007,123 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
 
     time = channels[:,iTime]
     timeStart = time[0]
-    timeIncr = (time[-1]-time[0])/(nT-1)
-    dataWithoutTime = channels[:,1:]
+    timeIncr = (time[-1] - time[0]) / (nT - 1) if nT > 1 else 1.0  # Avoid division by zero
+    if timeIncr<0:
+        raise Exception('dt ends up negative, is the last time value ok?')
 
-    # Compute data range, scaling and offsets to convert to int16
-    #   To use the int16 range to its fullest, the max float is matched to 2^15-1 and the
-    #   the min float is matched to -2^15. Thus, we have the to equations we need
-    #   to solve to get scaling and offset, see line 120 of ReadFASTbinary:
-    #   Int16Max = FloatMax * Scaling + Offset 
-    #   Int16Min = FloatMin * Scaling + Offset
-    int16Max   = np.single( 32767.0)         # Largest integer represented in 2 bytes,  2**15 - 1
-    int16Min   = np.single(-32768.0)         # Smallest integer represented in 2 bytes -2**15
-    int16Rng   = np.single(int16Max - int16Min)  # Max Range of 2 byte integer
-    mins   = np.min(dataWithoutTime, axis=0)
-    ranges = np.single(np.max(dataWithoutTime, axis=0) - mins)
-    ranges[ranges==0]=1  # range set to 1 for constant channel. In OpenFAST: /sqrt(epsilon(1.0_SiKi))
-    ColScl  = np.single(int16Rng/ranges)
-    ColOff  = np.single(int16Min - np.single(mins)*ColScl)
+    dataWithoutTime = channels[:, 1:]
 
-    #Just available for fileID 
-    if fileID not in [2,4]:
-        print("current version just works with fileID = 2 or 4")
+    # Validate fileID
+    supported_ids = [
+        FileFmtID_WithTime,
+        FileFmtID_WithoutTime,
+        FileFmtID_NoCompressWithoutTime,
+        FileFmtID_ChanLen_In,
+        FileFmtID_ChanLen_NoCompress,
+    ]
+    if fileID not in supported_ids:
+        raise ValueError(f"FileID {fileID} is not supported. Must be one of {supported_ids}.")
 
+    # Compute scaling and offsets if using int16 compression (FileIDs 1, 2, 4)
+    if fileID in [FileFmtID_WithTime, FileFmtID_WithoutTime, FileFmtID_ChanLen_In]:
+        # Compute data range, scaling and offsets to convert to int16
+        #   To use the int16 range to its fullest, the max float is matched to 2^15-1 and the
+        #   the min float is matched to -2^15. Thus, we have the to equations we need
+        #   to solve to get scaling and offset, see line 120 of ReadFASTbinary:
+        #   Int16Max = FloatMax * Scaling + Offset 
+        #   Int16Min = FloatMin * Scaling + Offset
+        int16Max = np.single( 32767.0)         # Largest integer represented in 2 bytes,  2**15 - 1
+        int16Min = np.single(-32768.0)         # Smallest integer represented in 2 bytes -2**15
+        int16Rng = np.single(int16Max - int16Min)  # Max Range of 2 byte integer
+        mins   = np.min(dataWithoutTime, axis=0)
+        ranges = np.single(np.max(dataWithoutTime, axis=0) - mins)
+        ranges[ranges==0]=1  # range set to 1 for constant channel. In OpenFAST: /sqrt(epsilon(1.0_SiKi))
+        ColScl = np.single(int16Rng/ranges)
+        ColOff = np.single(int16Min - np.single(mins)*ColScl)  
+        
     else:
-        with open(fileName,'wb') as fid:
-            # Notes on struct:
-            # @ is used for packing in native byte order
-            #  B - unsigned integer 8 bits
-            #  h - integer 16 bits
-            #  i - integer 32 bits
-            #  f - float 32 bits
-            #  d - float 64 bits
+        # Dummy scale/offset values for uncompressed formats (3 and 5)
+        ColScl = np.ones(nChannels, dtype=np.float32)
+        ColOff = np.zeros(nChannels, dtype=np.float32)
+        
+    with open(fileName,'wb') as fid:
+        # Notes on struct:
+        # @ is used for packing in native byte order
+        #  B - unsigned integer 8 bits
+        #  h - integer 16 bits
+        #  i - integer 32 bits
+        #  f - float 32 bits
+        #  d - float 64 bits
 
-            # Write header informations
-            fid.write(struct.pack('@h',fileID))
-            if fileID == FileFmtID_ChanLen_In: 
-                maxChanLen = np.max([len(s) for s in chanNames])
-                maxUnitLen = np.max([len(s) for s in chanUnits])
-                nChar = max(maxChanLen, maxUnitLen)
-                fid.write(struct.pack('@h',nChar))
-            else:
-                nChar = 10
+        # Write header informations
+        fid.write(struct.pack('@h', fileID))
 
-            fid.write(struct.pack('@i',nChannels))
-            fid.write(struct.pack('@i',nT))
-            fid.write(struct.pack('@d',timeStart))
-            fid.write(struct.pack('@d',timeIncr))
-            fid.write(struct.pack('@{}f'.format(nChannels), *ColScl))
-            fid.write(struct.pack('@{}f'.format(nChannels), *ColOff))
-            descStrASCII = [ord(char) for char in descStr]
-            fid.write(struct.pack('@i',len(descStrASCII)))
-            fid.write(struct.pack('@{}B'.format(len((descStrASCII))), *descStrASCII))
+        # Determine character length for channel names and units
+        if fileID in [FileFmtID_ChanLen_In, FileFmtID_ChanLen_NoCompress]:
+            maxChanLen = max([len(s) for s in chanNames])
+            maxUnitLen = max([len(s) for s in chanUnits])
+            nChar = max(maxChanLen, maxUnitLen)
+            fid.write(struct.pack('@h', nChar))
+        else:
+            nChar = 10
 
-            # Write channel names
-            for chan in chanNames:
-                chan = chan[:nChar]
-                ordchan = [ord(char) for char in chan] + [32]*(nChar-len(chan))
-                fid.write(struct.pack('@'+str(nChar)+'B', *ordchan))
+        # Header metadata
+        fid.write(struct.pack('@i', nChannels))
+        fid.write(struct.pack('@i', nT))
 
-            # Write channel units
-            for unit in chanUnits:
-                unit = unit[:nChar]
-                ordunit = [ord(char) for char in unit] + [32]*(nChar-len(unit))
-                fid.write(struct.pack('@'+str(nChar)+'B', *ordunit))
+        if fileID == FileFmtID_WithTime:
+            # Format 1 writes Time Scaling and Offset parameters instead of Start/Incr
+            timeMin = np.min(time)
+            timeRange = np.max(time) - timeMin
+            if timeRange == 0:
+                timeRange = 1.0
+            int32Max = 2147483647.0
+            int32Min = -2147483648.0
+            int32Rng = int32Max - int32Min
+            TimeScl = int32Rng / timeRange
+            TimeOff = int32Min - timeMin * TimeScl
+            fid.write(struct.pack('@d', TimeScl))
+            fid.write(struct.pack('@d', TimeOff))
+        else:
+            fid.write(struct.pack('@d', timeStart))
+            fid.write(struct.pack('@d', timeIncr))
 
-            # --- Pack and write data
+        fid.write(struct.pack('@{}f'.format(nChannels), *ColScl))
+        fid.write(struct.pack('@{}f'.format(nChannels), *ColOff))
+
+        descStrASCII = [ord(char) for char in descStr]
+        fid.write(struct.pack('@i', len(descStrASCII)))
+        fid.write(struct.pack('@{}B'.format(len((descStrASCII))), *descStrASCII))
+
+        # Write channel names
+        for chan in chanNames:
+            chan = chan[:nChar]
+            ordchan = [ord(char) for char in chan] + [32]*(nChar-len(chan))
+            fid.write(struct.pack('@'+str(nChar)+'B', *ordchan))
+
+        # Write channel units
+        for unit in chanUnits:
+            unit = unit[:nChar]
+            ordunit = [ord(char) for char in unit] + [32]*(nChar-len(unit))
+            fid.write(struct.pack('@'+str(nChar)+'B', *ordunit))
+
+        # --- Write Time
+        if fileID == FileFmtID_WithTime:
+            packedTime = np.clip( TimeScl * time + TimeOff, -2147483648, 2147483647).astype(np.int32)
+            c_packedTime = (ctypes.c_int32 * nT)(*packedTime)
+            fid.write(c_packedTime)
+
+        # --- Write Channel Data
+        if fileID in [FileFmtID_NoCompressWithoutTime, FileFmtID_ChanLen_NoCompress]:
+            # Direct double precision (float64) dump
+
+            # --- Method 3 use packedData as slice directly
+            packedData = (ctypes.c_double * (nT*nChannels))()
+            for iChan in range(nChannels):
+                packedData[iChan::nChannels] = dataWithoutTime[:, iChan]
+            fid.write(c_packedData)
+        else:
+            # Scaled integer (int16) dump
             # Method 1
             #packedData=np.zeros((nT, nChannels), dtype=np.int16)
             #for iChan in range(nChannels):
@@ -1024,10 +1149,9 @@ def writeBinary(fileName, channels, chanNames, chanUnits, fileID=4, descStr=''):
                 packedData[iChan::nChannels] = np.clip( ColScl[iChan]*dataWithoutTime[:,iChan]+ColOff[iChan], int16Min, int16Max).astype(np.int16)
             fid.write(packedData)
 
+        fid.close()
 
-            fid.close()
-
-def writeDataFrame(df, filename, binary=True):
+def writeDataFrame(df, filename, binary=True, fileID=FileFmtID_ChanLen_In):
     """ write a DataFrame to OpenFAST output format"""
     # Sanity
 #     nan_cols = df.columns[df.isna().any()].tolist()
@@ -1061,7 +1185,7 @@ def writeDataFrame(df, filename, binary=True):
         chanUnits.append(unit)
 
     if binary:
-        writeBinary(filename, channels, chanNames, chanUnits, fileID=FileFmtID_ChanLen_In)
+        writeBinary(filename, channels, chanNames, chanUnits, fileID=fileID)
     else:
         NotImplementedError()
 
@@ -1111,13 +1235,20 @@ def findDriverFile(filename, df=None):
 
 
 if __name__ == "__main__":
+    from welib.essentials import *
     scriptDir = os.path.dirname(__file__)
-    B=FASTOutputFile(os.path.join(scriptDir, 'tests/example_files/FASTOutBin.outb'))
-    B.to2DFields()
-    df=B.toDataFrame()
-    B.writeDataFrame(df, os.path.join(scriptDir, 'tests/example_files/FASTOutBin_OUT.outb'))
-    B.toOUTB(extension='.dat.outb')
-    B.toParquet()
-    B.toCSV()
+    #B=FASTOutputFile(os.path.join(scriptDir, '5MW_Land_BD_Linear.outb'), verbose=True)
+    #B=FASTOutputFile(os.path.join(scriptDir, 'Main_MT100_JONSWAP_UserDefb.YAMS.outb'), verbose=True)
+    B=FASTOutputFile(os.path.join(scriptDir, 'OF_F3T1S1_H1A1_Hs=8.1_Tp=12.7_DigitalTwin_KF_Outputs.outb'), verbose=True)
+    print('------------------------------------------------------------')
+    print(B)
+    #print(B['fileID'])
+#     B=FASTOutputFile(os.path.join(scriptDir, 'tests/example_files/FASTOutBin.outb'))
+#     B.to2DFields()
+#     df=B.toDataFrame()
+#     B.writeDataFrame(df, os.path.join(scriptDir, 'tests/example_files/FASTOutBin_OUT.outb'))
+#     B.toOUTB(extension='.dat.outb')
+#     B.toParquet()
+#     B.toCSV()
 
 
