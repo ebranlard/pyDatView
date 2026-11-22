@@ -770,7 +770,7 @@ class Table(object):
 
         def convertTimeColumn(c):
             print('[INFO] Converting column {} to datetime, with dayfirst={}, ...'.format(c, dayfirst))
-            if pd.__version__.split('.')[0]=='2':
+            if int(pd.__version__.split('.')[0])>=2:
                 try:
                     self.data[c]=pd.to_datetime(self.data[c].values, dayfirst=dayfirst).to_pydatetime()
                     print('[ OK ] Done.')
@@ -800,7 +800,7 @@ class Table(object):
         if len(self.data)>0:
             for i,c in enumerate(self.data.columns.values):
                 y = self.data.iloc[:,i]
-                if y.dtype == object:
+                if y.dtype == object or isinstance(y.dtype, pd.StringDtype):
                     if isinstance(y.values[0], datetime.datetime):
                         isDate=True
                         convertTimeColumn(c)
@@ -914,7 +914,7 @@ class Table(object):
             c = self.data.iloc[:, i]
             x = self.data.iloc[:, i].values
 
-        isString = c.dtype == object and isinstance(c.values[0], str)
+        isString = (c.dtype == object or isinstance(c.dtype, pd.StringDtype)) and isinstance(c.values[0], str)
         if isString:
             x=x.astype(str)
         #isDate   = np.issubdtype(c.dtype, np.datetime64)
