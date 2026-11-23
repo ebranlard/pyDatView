@@ -116,6 +116,15 @@ class TestTable(unittest.TestCase):
         tab.renameColumns(strReplDict={'Aero':'Fld'})
         np.testing.assert_array_equal(tab.columns, ['Index','RtAeroCp [-]', 'B1AeroFx [N]', 'angle [rad]'])
 
+    def test_text_columns(self):
+        # Text columns: dates are converted to datetime, other text is flagged as string
+        df = pd.DataFrame(data={'Time': ['2024-01-01 00:00:00', '2024-01-01 00:10:00'], 'Status': ['ok', 'gust']})
+        tab = Table(data=df)
+        _, isString, isDate, _ = tab.getColumn(1)
+        self.assertTrue(isDate)
+        _, isString, isDate, _ = tab.getColumn(2)
+        self.assertTrue(isString)
+
 if __name__ == '__main__':
 #     TestTable.setUpClass()
 #     TestTable().test_merge()
